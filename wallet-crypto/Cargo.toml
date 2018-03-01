@@ -1,0 +1,12 @@
+[package]
+name = "wallet-crypto"
+version = "0.1.0"
+authors = ["vincent.hanquez@iohk.io"]
+license = "MIT"
+description = "A Rust implementation of cardano wallet"
+keywords = [ "Cardano", "Wallet" ]
+
+[build-dependencies]
+
+[dependencies]
+rcw = { path = "../rcw" }

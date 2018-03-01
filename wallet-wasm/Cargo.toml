@@ -1,0 +1,16 @@
+[package]
+name = "wallet-wasm"
+version = "0.1.0"
+authors = ["vincent.hanquez@iohk.io"]
+license = "MIT"
+description = "Exporting to wasm the cardano wallet"
+keywords = [ "Cardano", "Wallet", "Wasm" ]
+
+[build-dependencies]
+
+[dependencies]
+rcw = { path = "../rcw" }
+wallet-crypto = { path = "../wallet-crypto" }
+
+[lib]
+crate-type = ["cdylib"]
