@@ -1,4 +1,4 @@
 #!/bin/sh
 set +e
 cargo  +nightly build --target wasm32-unknown-unknown --release --verbose
-cp target/wasm32-unknown-unknown/release/deps/wallet-wasm.wasm ./cardano.wasm
+npm run build
