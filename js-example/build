@@ -1,0 +1,14 @@
+#! /bin/sh
+
+if [ ${#} -ge 1 ] && [ ${1} = "init" ]; then
+    bower update
+    npm install
+elif [ ${#} -ge 1 ] && [ ${1} = "build" ]; then
+    pulp build
+    pulp browserify > html/js/index.js
+else
+    echo "Invalid... \`${@}'"
+    echo "first time: \`${0} init'"
+    echo "other times: \`${0} build'"
+    exit 1
+fi

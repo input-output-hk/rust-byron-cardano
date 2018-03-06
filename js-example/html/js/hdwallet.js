@@ -1,6 +1,6 @@
 var Module = {};
 
-fetch("cardano.wasm").then(response =>
+fetch("wasm/cardano.wasm").then(response =>
     response.arrayBuffer()
 ).then(bytes =>
     WebAssembly.instantiate(bytes, { env: {} })
@@ -12,11 +12,14 @@ fetch("cardano.wasm").then(response =>
     Module.pbkdf2_sha256  = mod.exports.pbkdf2_sha256;
     Module.memory  = mod.exports.memory;
 
+    Module.blake2b_256  = mod.exports.blake2b_256;
+
     Module.wallet_from_seed = mod.exports.wallet_from_seed;
+    Module.wallet_to_public = mod.exports.wallet_to_public;
     Module.wallet_derive_private = mod.exports.wallet_derive_private;
     Module.wallet_sign = mod.exports.wallet_sign;
 
-    var Pbkdf2 = { sha256: function(password, salt, iters, output_size) {
+    Module.Pbkdf2 = { sha256: function(password, salt, iters, output_size) {
         let buf_pass = newString(Module, password);
         let buf_salt = newString(Module, salt);
         let outptr = Module.pbkdf2_sha256(buf_pass, buf_salt, iters, output_size);
@@ -26,14 +29,24 @@ fetch("cardano.wasm").then(response =>
         return result;
     }};
 
-    var PaperWallet = {
+    Module.Blake2b = { blake2b_256: function (message) {
+        let input = newArray(Module, message);
+        let output = newArray0(Module, 32);
+        Module.blake2b_256(input, message.length, output);
+        let result = copy_array(Module, output, 32);
+        Module.dealloc(input);
+        Module.dealloc(output);
+        return result
+    }};
+
+    Module.PaperWallet = {
         scramble: function(iv, password, data) {
         },
         unscramble: function(password, shielded_data) {
         },
     };
 
-    var HdWallet = {
+    Module.HdWallet = {
         from_seed: function(seed) {
             bufseed = newArray(Module, seed);
             bufxprv = newArray0(Module, 96);
@@ -86,14 +99,4 @@ fetch("cardano.wasm").then(response =>
             return result
         }
     };
-
-    var seed = new Uint8Array([0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11, 0x92, 0xe1, 0xda, 0xcd, 0x32, 0xc1, 0xed, 0x3e, 0xaa, 0x3c, 0x3b, 0x13, 0x1c, 0x88, 0xed, 0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98]);
-
-    let v = HdWallet.from_seed(seed);
-    let c = HdWallet.derive_private(v, 0x80000000);
-
-    const utf8Encoder = new TextEncoder("UTF-8");
-    let string_buffer = utf8Encoder.encode("Hello World");
-
-    let sig = HdWallet.sign(c, string_buffer);
 });
