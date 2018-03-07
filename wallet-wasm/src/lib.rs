@@ -2,8 +2,10 @@ extern crate rcw;
 extern crate wallet_crypto;
 
 use self::rcw::hmac::{Hmac};
-use self::rcw::sha2::{Sha256, Sha512};
+use self::rcw::sha2::{Sha256};
 use self::rcw::pbkdf2::{pbkdf2};
+use self::rcw::blake2b::{Blake2b};
+use self::rcw::digest::{Digest};
 
 use self::wallet_crypto::hdwallet;
 
@@ -12,8 +14,6 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_uchar, c_char, c_void};
 use std::iter::repeat;
 //use std::slice::{from_raw_parts};
-
-use hdwallet::{generate};
 
 // In order to work with the memory we expose (de)allocation methods
 #[no_mangle]
@@ -61,6 +61,11 @@ unsafe fn read_data(data_ptr: *const c_uchar, sz: usize) -> Vec<u8> {
         let mut data = Vec::with_capacity(sz);
         data.extend_from_slice(data_slice);
         data
+}
+unsafe fn write_data(data: &[u8], data_ptr: *mut c_uchar) {
+        let sz = data.len();
+        let out = std::slice::from_raw_parts_mut(data_ptr, sz);
+        out[0..sz].clone_from_slice(data)
 }
 
 unsafe fn read_xprv(xprv_ptr: *const c_uchar) -> hdwallet::XPrv {
@@ -140,4 +145,14 @@ pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar,
 #[no_mangle]
 pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_uchar, out: *mut c_uchar) {
     let xpub = unsafe { read_xprv(xpub_ptr) };
+}
+
+#[no_mangle]
+pub extern "C" fn blake2b_256(msg_ptr: *const c_uchar, msg_sz: usize, out: *mut c_uchar) {
+    let mut b2b = Blake2b::new(32);
+    let mut outv = [0;32];
+    let msg = unsafe { read_data(msg_ptr, msg_sz) };
+    b2b.input(&msg);
+    b2b.result(&mut outv);
+    unsafe { write_data(&outv, out) }
 }

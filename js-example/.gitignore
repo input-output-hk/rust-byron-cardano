@@ -1,0 +1,7 @@
+*.swp
+
+node_modules
+bower_components
+
+.psc-ide-port
+output
