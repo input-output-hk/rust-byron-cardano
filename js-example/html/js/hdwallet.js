@@ -40,9 +40,35 @@ fetch("wasm/cardano.wasm").then(response =>
     }};
 
     Module.PaperWallet = {
-        scramble: function(iv, password, data) {
+        scramble: function(iv, password, input) {
+            if (iv.length != 4) {
+                throw new Error('IV must be 4 bytes');
+            }
+            bufiv = newArray(Module, iv);
+            bufinput = newArray(Module, input);
+            bufpassword = newArray(Module, password);
+            bufoutput = newArray0(Module, input.length + 4);
+            Module.paper_scramble(bufiv, bufpassword, password.length, bufinput, input.length, bufoutput);
+            let result = copy_array(Module, bufoutput, input.length + 4);
+            Module.dealloc(bufiv);
+            Module.dealloc(bufinput);
+            Module.dealloc(bufpassword);
+            Module.dealloc(bufoutput);
+            return result;
         },
-        unscramble: function(password, shielded_data) {
+        unscramble: function(password, input) {
+            if (input.length < 4) {
+                throw new Error('input must be at least 4 bytes');
+            }
+            bufinput = newArray(Module, input);
+            bufpassword = newArray(Module, password);
+            bufoutput = newArray0(Module, input.length - 4);
+            Module.paper_unscramble(bufpassword, password.length, bufinput, input.length, bufoutput);
+            let result = copy_array(Module, bufxprv, input.length - 4);
+            Module.dealloc(bufinput);
+            Module.dealloc(bufpassword);
+            Module.dealloc(bufoutput);
+            return result;
         },
     };
 

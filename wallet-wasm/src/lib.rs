@@ -8,6 +8,7 @@ use self::rcw::blake2b::{Blake2b};
 use self::rcw::digest::{Digest};
 
 use self::wallet_crypto::hdwallet;
+use self::wallet_crypto::paperwallet;
 
 use std::mem;
 use std::ffi::{CStr, CString};
@@ -145,6 +146,23 @@ pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar,
 #[no_mangle]
 pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_uchar, out: *mut c_uchar) {
     let xpub = unsafe { read_xprv(xpub_ptr) };
+}
+
+#[no_mangle]
+pub extern "C" fn paper_scramble(iv_ptr: *const c_uchar, pass_ptr: *const c_uchar, pass_sz: usize, input_ptr: *const c_uchar, input_sz: usize, out: *mut c_uchar) {
+    let iv = unsafe { read_data(iv_ptr, 4) };
+    let pass = unsafe { read_data(pass_ptr, pass_sz) };
+    let input = unsafe { read_data(input_ptr, input_sz) };
+    let output = paperwallet::scramble(&iv[..], &pass[..], &input[..]);
+    unsafe { write_data(&output[..], out) }
+}
+
+#[no_mangle]
+pub extern "C" fn paper_unscramble(pass_ptr: *const c_uchar, pass_sz: usize, input_ptr: *const c_uchar, input_sz: usize, out: *mut c_uchar) {
+    let pass = unsafe { read_data(pass_ptr, pass_sz) };
+    let input = unsafe { read_data(input_ptr, input_sz) };
+    let output = paperwallet::unscramble(&pass[..], &input[..]);
+    unsafe { write_data(&output[..], out) }
 }
 
 #[no_mangle]

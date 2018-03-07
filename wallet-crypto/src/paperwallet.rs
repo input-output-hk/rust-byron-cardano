@@ -7,6 +7,7 @@ use self::rcw::pbkdf2::{pbkdf2};
 const ITERS : u32 = 10000;
 const CONST : &str = "IOHK";
 
+
 fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
     assert!(iv.len() == 4);
     let mut salt = [0u8;8];
@@ -16,6 +17,8 @@ fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
     pbkdf2(&mut mac, &salt[..], ITERS, buf);
 }
 
+/// Given a 4 bytes IV, and a password, scramble the input
+/// using a simple XOR, and returning the IV prepended to the shielded input
 pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
     assert!(iv.len() == 4);
     let sz = 4 + input.len();
@@ -30,6 +33,8 @@ pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Try to reverse the scramble operation, using
+/// the first 4 bytes as IV, and the rest as the shielded input.
 pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8>{
     assert!(input.len() > 4);
 
