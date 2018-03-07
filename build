@@ -1,5 +1,5 @@
 #!/bin/sh
 set +e
 cargo  +nightly build --target wasm32-unknown-unknown --release --verbose
-cp target/wasm32-unknown-unknown/release/wallet_wasm.wasm ./js-example/html/wasm/cardano.wasm
+mkdir -p js-example/html/wasm/ && cp target/wasm32-unknown-unknown/release/wallet_wasm.wasm ./js-example/html/wasm/cardano.wasm
 npm run build
