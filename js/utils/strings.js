@@ -42,3 +42,18 @@ export const getStr = (module, ptr, len) => {
   const utf8Decoder = new TextDecoder("UTF-8");
   return utf8Decoder.decode(buffer_as_u8);
 };
+
+export const newString = (module, str) => {
+  const utf8Encoder = new TextEncoder("UTF-8");
+  let string_buffer = utf8Encoder.encode(str);
+  let len = string_buffer.length;
+  let ptr = module.alloc(len+1);
+
+  let memory = new Uint8Array(module.memory.buffer);
+  for (i = 0; i < len; i++) {
+    memory[ptr+i] = string_buffer[i]
+  }
+
+  memory[ptr+len] = 0;
+  return ptr;
+};

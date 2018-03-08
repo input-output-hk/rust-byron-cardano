@@ -2,12 +2,12 @@
   "private": true,
   "scripts": {
     "clean": "rimraf output && rimraf .pulp-cache",
-    "build": "pulp build"
+    "build": "pulp build && pulp browserify > output/index.js"
   },
   "dependencies": {
+    "bip39": "^2.5",
     "react": "^15.6.1",
-    "react-dom": "^15.6.1",
-    "bip39": "^2.5"
+    "react-dom": "^15.6.1"
   },
   "devDependencies": {
     "pulp": "^11.0.0",
