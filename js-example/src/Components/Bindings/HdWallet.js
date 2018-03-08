@@ -1,5 +1,10 @@
 "use strict";
 
+var randomBytes = require('randombytes');
+
+const utf8Encoder = new TextEncoder("UTF-8");
+
+
 exports.seedToRootKeyImpl = function (seed) {
     try {
         return window.Module.HdWallet.from_seed (seed);
@@ -21,9 +26,7 @@ exports.xprvToXPubImpl = function (xprv) {
 exports.signImpl = function (xprv) {
     return function (msg) {
         try {
-            const utf8Encoder = new TextEncoder("UTF-8");
             var string_buffer = utf8Encoder.encode(msg);
-            console.log(string_buffer);
             return window.Module.HdWallet.sign (xprv, string_buffer);
             return s;
         } catch (e) {
@@ -44,11 +47,24 @@ function base16(u8) {
     return b16;
 }
 
+exports.scrambleImpl = function (entropy) {
+    return function (pass) {
+        var pass_buffer = utf8Encoder.encode(pass);
+        var iv = randomBytes(4);
+        try {
+            return window.Module.PaperWallet.scramble (iv, pass_buffer, entropy);
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    };
+};
+
 exports.showPrivKey = function (xprv) {
-    return "xprv" + base16(xprv);
+    return base16(xprv);
 };
 exports.showPubKey = function (xpub) {
-    return "xpub" + base16(xpub);
+    return base16(xpub);
 };
 exports.showSignature = function (sign) {
     return base16(sign);
