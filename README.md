@@ -39,3 +39,21 @@ within `js-example/` run `npm run build`
 
 ### Running
 open `js-example/index.html` in any browser
+
+Using the Library in your Project
+---------------------------------
+
+### Install locally:
+in the root of this repo: `npm link`
+in the root of your project: `npm link rust-cardano-crypto`
+
+### Install via NPM:
+in the root of your project: `npm install rust-cardano-crypto`
+
+### Importing the API:
+```js
+// Import like this:
+import CardanoCrypto from 'rust-cardano-crypto'
+// Or access as global in browsers:
+CardanoCrypto.PaperWallet.scramble(iv, password, input)
+```
