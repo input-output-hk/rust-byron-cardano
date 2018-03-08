@@ -9,6 +9,16 @@ export const newArray = (module, b, isZero=false) => {
   return ptr
 }
 
+export const newArray0 = (module, len) => {
+  let ptr = module.alloc(len)
+
+  let memory = new Uint8Array(module.memory.buffer)
+  for (let i = 0; i < len; i++) {
+    memory[ptr+i] = 0;
+  }
+  return ptr
+}
+
 export const copyArray = (module, ptr, sz) => {
   const collect = function* () {
     let memory = new Uint8Array(module.memory.buffer);
