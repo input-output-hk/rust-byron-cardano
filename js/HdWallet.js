@@ -1,10 +1,10 @@
-import { newArray, copyArray } from './utils/arrays';
-import { applyModule } from './utils/wasm';
-import { loadRustModule } from './RustModule';
+import RustModule from './RustModule';
+import { newArray, newArray0, copyArray } from './utils/arrays';
+import { apply } from './utils/functions';
 
 export const fromSeed = (module, seed) => {
   const bufseed = newArray(module, seed);
-  const bufxprv = newArray(module, 96, true);
+  const bufxprv = newArray0(module, 96);
   module.wallet_from_seed(bufseed, bufxprv);
   let result = copyArray(module, bufxprv, 96);
   module.dealloc(bufseed);
@@ -14,7 +14,7 @@ export const fromSeed = (module, seed) => {
 
 export const toPublic = (module, xprv) => {
   const bufxprv = newArray(module, xprv);
-  const bufxpub = newArray(module, 64, true);
+  const bufxpub = newArray0(module, 64);
   module.wallet_to_public(bufxprv, bufxpub);
   let result = copyArray(module, bufxpub, 64);
   module.dealloc(bufxprv);
@@ -24,7 +24,7 @@ export const toPublic = (module, xprv) => {
 
 export const derivePrivate = (module, xprv, index) => {
   const bufxprv = newArray(module, xprv);
-  const bufchild = newArray(module, xprv.length, true);
+  const bufchild = newArray0(module, xprv.length);
   module.wallet_derive_private(bufxprv, index, bufchild);
   let result = copyArray(module, bufchild, xprv.length);
   module.dealloc(bufxprv);
@@ -37,7 +37,7 @@ export const derivePublic = (module, xpub, index) => {
     throw new Error('cannot do public derivation with hard index');
   }
   const bufxpub = newArray(module, xpub);
-  const bufchild = newArray(module, xpub.length, true);
+  const bufchild = newArray0(module, xpub.length);
   const r = module.wallet_derive_public(bufxpub, index, bufchild);
   const result = copyArray(module, bufchild, xpub.length);
   module.dealloc(bufxpub);
@@ -47,7 +47,7 @@ export const derivePublic = (module, xpub, index) => {
 
 export const sign = (module, xprv, msg) => {
   let length = msg.length;
-  const bufsig = newArray(module, 64, true);
+  const bufsig = newArray0(module, 64);
   const bufxprv = newArray(module, xprv);
   const bufmsg = newArray(module, msg);
   module.wallet_sign(bufxprv, bufmsg, length, bufsig);
@@ -55,13 +55,13 @@ export const sign = (module, xprv, msg) => {
   module.dealloc(bufxprv);
   module.dealloc(bufmsg);
   module.dealloc(bufsig);
-  return result;
+  return result
 };
 
 export default {
-  fromSeed: applyModule(loadRustModule, fromSeed),
-  toPublic: applyModule(loadRustModule, toPublic),
-  derivePrivate: applyModule(loadRustModule, derivePrivate),
-  derivePublic: applyModule(loadRustModule, derivePublic),
-  sign: applyModule(loadRustModule, sign),
+  fromSeed: apply(fromSeed, RustModule),
+  toPublic: apply(toPublic, RustModule),
+  derivePrivate: apply(derivePrivate, RustModule),
+  derivePublic: apply(derivePublic, RustModule),
+  sign: apply(sign, RustModule),
 };

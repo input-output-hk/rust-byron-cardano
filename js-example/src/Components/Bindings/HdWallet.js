@@ -7,7 +7,7 @@ const utf8Encoder = new TextEncoder("UTF-8");
 
 exports.seedToRootKeyImpl = function (seed) {
     try {
-        return window.Module.HdWallet.from_seed (seed);
+        return window.CardanoCrypto.HdWallet.fromSeed (seed);
     } catch (e) {
         console.error("error in seedToRootKey: ", e);
         return null;
@@ -16,7 +16,7 @@ exports.seedToRootKeyImpl = function (seed) {
 
 exports.xprvToXPubImpl = function (xprv) {
     try {
-        return window.Module.HdWallet.to_public (xprv);
+        return window.CardanoCrypto.HdWallet.toPublic (xprv);
     } catch (e) {
         console.error("error in xprvToXPub: ", e);
         return null;
@@ -27,7 +27,7 @@ exports.signImpl = function (xprv) {
     return function (msg) {
         try {
             var string_buffer = utf8Encoder.encode(msg);
-            return window.Module.HdWallet.sign (xprv, string_buffer);
+            return window.CardanoCrypto.HdWallet.sign (xprv, string_buffer);
             return s;
         } catch (e) {
             console.error("error in signImpl: ", e);
@@ -52,7 +52,7 @@ exports.scrambleImpl = function (entropy) {
         var pass_buffer = utf8Encoder.encode(pass);
         var iv = randomBytes(4);
         try {
-            return window.Module.PaperWallet.scramble (iv, pass_buffer, entropy);
+            return window.CardanoCrypto.PaperWallet.scramble (iv, pass_buffer, entropy);
         } catch (e) {
             console.error(e);
             return null;
