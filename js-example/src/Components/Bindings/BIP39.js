@@ -6,7 +6,7 @@ exports.mnemonicToSeedImpl = function (m) {
     try {
         // TODO: there is a hack in that function that is not upstream
         var e = bip39.mnemonicToEntropy(m);
-        return window.CardanoCrypto.RustModule.blake2b_256(e);
+        return window.CardanoCrypto.Blake2b.blake2b_256(e);
     } catch(e) {
         console.error("BIP39 mnemonicToSeed error:", e);
         return null;

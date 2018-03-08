@@ -13,6 +13,7 @@ export const loadRustModule = () => Module ?
   }
 );
 
-export default {
-  blake2b_256: applyModule(loadRustModule, (module) => module.blake2b_256),
-};
+// Expose the WASM module as default export
+let RustModule = {};
+applyModule(loadRustModule, (module) => Object.assign(RustModule, module))();
+export default RustModule;
