@@ -4,11 +4,11 @@ var seed = new Uint8Array([0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11,
 
 const test = async () => {
   const v = await HdWallet.fromSeed(seed);
-  console.log(v)
-  
+  console.log(v);
+
   const c = await HdWallet.derivePrivate(v, 0x80000000);
-  console.log(c)
-  
+  console.log(c);
+
   const utf8Encoder = new TextEncoder("UTF-8");
   const sig = await HdWallet.sign(c, utf8Encoder.encode("Hello World"));
   console.log(sig);
