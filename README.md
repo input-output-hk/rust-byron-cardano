@@ -31,8 +31,8 @@ There is a simple example application in `js-example` that can be run to test so
 
 within `js-example/` folder
 
-2. `npm i && npm i -g bower`
-3. `bower install`
+2. `npm install`
+3. `npm run install`
 
 ### Building
 within `js-example/` run `npm run build`
