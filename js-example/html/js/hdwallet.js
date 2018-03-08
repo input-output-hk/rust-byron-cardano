@@ -18,6 +18,8 @@ fetch("wasm/cardano.wasm").then(response =>
     Module.wallet_to_public = mod.exports.wallet_to_public;
     Module.wallet_derive_private = mod.exports.wallet_derive_private;
     Module.wallet_sign = mod.exports.wallet_sign;
+    Module.paper_scramble = mod.exports.paper_scramble;
+    Module.paper_unscramble = mod.exports.paper_unscramble;
 
     Module.Pbkdf2 = { sha256: function(password, salt, iters, output_size) {
         let buf_pass = newString(Module, password);

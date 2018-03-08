@@ -2,15 +2,17 @@ module Components.Page where
 
 import Prelude
 
-import Components.Bindings.BIP39 (mnemonicToSeed, seedToBase64)
-import Components.Bindings.HdWallet (seedToRootKey, xprvToXPub, showPrivKey, sign, showSignature, showPubKey)
-import Components.Mnemonic (Mnemonic, MnemonicAction(..), initialMnemonic, mnemonicSpec)
+import Components.Bindings.BIP39 (mnemonicToSeed, seedToBase64, mnemonicToEntropy, entropyToMnemonic)
+import Components.Bindings.HdWallet (seedToRootKey, xprvToXPub, showPrivKey, sign, showSignature, showPubKey, scramble)
+import Components.Mnemonic (Mnemonic, MnemonicAction(..), initialMnemonic, mkMnemonic, mnemonicSpec)
+import Components.Passphrase (Passphrase, PassphraseAction(..), initialPassphrase, passphraseSpec)
+import Control.Monad.Eff.Exception (error)
 import Data.ArrayBuffer.Types (Uint8Array)
 import Data.Either (Either(..))
 import Data.Foldable (fold)
 import Data.Lens (Lens', Prism', over, lens, prism)
-import Data.Maybe (Maybe(..))
-import React.DOM (div, h1', input, table, tbody', td', text, th, thead', tr') as R
+import Data.Maybe (Maybe(..), fromMaybe)
+import React.DOM (div, h1', input, table, tbody', td', text, textarea, th, thead', tr') as R
 import React.DOM.Props as RP
 import Thermite as T
 import Unsafe.Coerce (unsafeCoerce)
@@ -18,6 +20,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | An action for the full task list component
 data PageAction
   = MnemonicAction MnemonicAction
+  | PassphraseAction PassphraseAction
   | UpdateMessage String
   | PAReset
 
@@ -27,11 +30,22 @@ _MnemonicAction = prism MnemonicAction \ta ->
     MnemonicAction a -> Right a
     _ -> Left ta
 
+_MnemonicAction' :: Prism' PageAction MnemonicAction
+_MnemonicAction' = prism MnemonicAction Left
+
+_PassphraseAction :: Prism' PageAction PassphraseAction
+_PassphraseAction = prism PassphraseAction \ta ->
+    case ta of
+        PassphraseAction a -> Right a
+        _ -> Left ta
+
 -- | The state for the full task list component is a list of tasks
 type PageState =
   { mnemonic :: Mnemonic
   , seed :: (Maybe Uint8Array)
   , rootKey :: (Maybe Uint8Array)
+  , passphrase :: Passphrase
+  , scramble :: Mnemonic
   , message :: String
   , signature :: (Maybe Uint8Array)
   }
@@ -45,11 +59,19 @@ updatePageState st = case mnemonicToSeed st.mnemonic.mnemonic of
 _mnemonic :: Lens' PageState Mnemonic
 _mnemonic = lens _.mnemonic (_ { mnemonic = _ })
 
+_mnemonic' :: Lens' PageState Mnemonic
+_mnemonic' = lens _.scramble (_ { scramble = _ })
+
+_passphrase :: Lens' PageState Passphrase
+_passphrase = lens _.passphrase (_ { passphrase = _ })
+
 initialPageState :: PageState
 initialPageState =
   { mnemonic: initialMnemonic
   , seed: Nothing
   , rootKey: Nothing
+  , passphrase: initialPassphrase
+  , scramble: initialMnemonic
   , message: ""
   , signature: Nothing
   }
@@ -59,8 +81,12 @@ page = container $ fold
     [ header
     , table $ fold
         [ element "Mnemonic phrase" $ T.withState \st ->
-            T.focus _mnemonic _MnemonicAction mnemonicSpec
+            T.focus _mnemonic _MnemonicAction (mnemonicSpec 12 true)
         , element "Seed" seedSpec
+        , element "Scramble Passphrase" $ T.withState \st ->
+            T.focus _passphrase _PassphraseAction passphraseSpec
+        , element "Mnemonic phrase" $ T.withState \st ->
+            T.focus _mnemonic' _MnemonicAction' (mnemonicSpec 15 false)
         , element "Root Key" rootKeySpec
         , element "Root Pub Key" rootPubKeySpec
         ]
@@ -129,16 +155,14 @@ page = container $ fold
         render dispatch _ s _ =
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
-                    [ R.input [ RP.className "form-control"
-                              , RP.disabled true
+                    [ R.textarea [RP.readOnly true
                               , RP.value $ case s.rootKey of
                                     Nothing -> ""
                                     Just rk -> case xprvToXPub rk of
                                         Nothing -> ""
                                         Just pk -> showPubKey pk
                               ]
-                        [
-                        ]
+                              []
                     ]
                 ]
             ]
@@ -151,14 +175,10 @@ page = container $ fold
         render dispatch _ s _ =
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
-                    [ R.input [ RP.className "form-control"
-                              , RP.disabled true
-                              , RP.value $ case s.rootKey of
-                                    Nothing -> ""
-                                    Just rk -> showPrivKey rk
-                              ]
-                        [
-                        ]
+                    [ R.textarea [RP.readOnly true, RP.value $ case s.rootKey of
+                                Nothing -> ""
+                                Just rk -> showPrivKey rk
+                              ] []
                     ]
                 ]
             ]
@@ -171,14 +191,10 @@ page = container $ fold
         render dispatch _ s _ =
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
-                    [ R.input [ RP.className "form-control"
-                              , RP.disabled true
-                              , RP.value $ case s.seed of
-                                    Nothing -> ""
-                                    Just seed -> seedToBase64 seed
-                              ]
-                        [
-                        ]
+                    [ R.textarea [RP.readOnly true, RP.value $ case s.seed of
+                                Nothing -> ""
+                                Just seed -> seedToBase64 seed
+                              ] []
                     ]
                 ]
             ]
@@ -191,14 +207,12 @@ page = container $ fold
         render dispatch _ s _ =
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
-                    [ R.input [ RP.className "form-control"
-                              , RP.disabled true
-                              , RP.value $ case s.signature of
+                    [ R.textarea [ RP.readOnly true
+                                 , RP.width "100%"
+                                 , RP.value $ case s.signature of
                                     Nothing -> ""
                                     Just signature -> showSignature signature
-                              ]
-                        [
-                        ]
+                                 ] []
                     ]
                 ]
             ]
@@ -221,5 +235,15 @@ page = container $ fold
       performAction :: T.PerformAction eff PageState props PageAction
       performAction (MnemonicAction (NewMnemonic m))     _ _ = void $ T.modifyState \st ->
         updatePageState $ st { mnemonic = m }
+      performAction (PassphraseAction (NewPassphrase p)) _ _ = void $ T.modifyState \st ->
+        updatePageState $ st {
+            scramble = case mnemonicToEntropy st.mnemonic.mnemonic of
+                Nothing -> initialMnemonic
+                Just e -> case scramble e p.passphrase of
+                    Nothing -> initialMnemonic
+                    Just s  -> case entropyToMnemonic s of
+                        Nothing -> initialMnemonic
+                        Just v -> mkMnemonic true v
+        }
       performAction  PAReset                         _ _ = void $ T.modifyState \st -> initialPageState
       performAction _                                _ _ = pure unit

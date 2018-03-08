@@ -1,12 +1,34 @@
 "use strict";
 
 var bip39 = require('bip39');
+var Buffer = require('safe-buffer').Buffer
+
+exports.generateMnemonicImpl = function() {
+    return bip39.generateMnemonic(128);
+};
 
 exports.mnemonicToSeedImpl = function (m) {
     try {
-        // TODO: there is a hack in that function that is not upstream
         var e = bip39.mnemonicToEntropy(m);
         return window.Module.Blake2b.blake2b_256 (e);
+    } catch(e) {
+        console.error("BIP39 mnemonicToSeed error:", e);
+        return null;
+    }
+};
+
+exports.mnemonicToEntropyImpl = function (m) {
+    try {
+        return Buffer.from(bip39.mnemonicToEntropy(m), 'hex')
+    } catch(e) {
+        console.error("BIP39 mnemonicToSeed error:", e);
+        return null;
+    }
+};
+
+exports.entropyToMnemonicImpl = function (ent) {
+    try {
+        return bip39.entropyToMnemonic(ent);
     } catch(e) {
         console.error("BIP39 mnemonicToSeed error:", e);
         return null;

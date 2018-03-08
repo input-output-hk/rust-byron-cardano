@@ -3,10 +3,13 @@ module Components.Mnemonic
     , MnemonicAction(..)
     , initialMnemonic
     , mnemonicSpec
+    , mkMnemonic
     ) where
 
 import Prelude
 
+import Components.Bindings.BIP39 (generateMnemonic)
+import Control.Monad.Eff.Class (liftEff)
 import Data.Array (elem, filter, find, uncons)
 import Data.Maybe (Maybe(..))
 import Data.Monoid (mempty)
@@ -20,24 +23,28 @@ import Unsafe.Coerce (unsafeCoerce)
 data MnemonicAction
   = UpdateMnemonic String
   | NewMnemonic Mnemonic
+  | HideMnemonic Boolean
+  | GenerateMnemonic
 
 -- | The state for the task component
 type Mnemonic =
     { mnemonic :: String
     , wordList :: Array String
+    , hidden :: Boolean
     }
 
 mnemonicPhrase :: Mnemonic -> String
 mnemonicPhrase s = s.mnemonic
 
 initialMnemonic :: Mnemonic
-initialMnemonic = mkMnemonic mempty
+initialMnemonic = mkMnemonic true mempty
 
-mkMnemonic :: String -> Mnemonic
-mkMnemonic s =
+mkMnemonic :: Boolean -> String -> Mnemonic
+mkMnemonic b s =
     { mnemonic : s
     , wordList : filter (\c -> c /= "")
                $ split (Pattern " ") s
+    , hidden: b
     }
 
 mnemonicLength :: Mnemonic -> Int
@@ -53,37 +60,58 @@ invalidMnemonicWord m = find search m.wordList
   where
   search s = not $ elem s englishWords
 
-mnemonicSpec :: forall eff props. T.Spec eff Mnemonic props MnemonicAction
-mnemonicSpec = T.simpleSpec performAction render
+mnemonicSpec :: forall eff props. Int -> Boolean -> T.Spec eff Mnemonic props MnemonicAction
+mnemonicSpec mnemonicSize canGenerate = T.simpleSpec performAction render
   where
   render :: T.Render Mnemonic props MnemonicAction
   render dispatch _ s _ =
       let handleKeyPress :: Int -> String -> T.EventHandler
-          handleKeyPress 13 text = dispatch $ NewMnemonic (mkMnemonic text)
+          handleKeyPress 13 text = dispatch $ NewMnemonic (mkMnemonic s.hidden text)
           handleKeyPress 27 _    = dispatch $ NewMnemonic initialMnemonic
           handleKeyPress _  _    = pure unit
       in
            [ R.div []
                 [ R.input [ RP.className "form-control"
+                     , RP._type $ if s.hidden then "password" else "text"
                      , RP.placeholder placeholderPhrase
                      , RP.value (mnemonicPhrase s)
                      , RP.onKeyUp \e -> handleKeyPress (unsafeCoerce e).keyCode (unsafeCoerce e).target.value
-                     , RP.onChange \e -> if (mnemonicLength $ mkMnemonic (unsafeCoerce e).target.value) > cardanoMnemonicSize
+                     , RP.onChange \e -> if (mnemonicLength $ mkMnemonic s.hidden (unsafeCoerce e).target.value) > mnemonicSize
                         then pure unit
                         else dispatch (UpdateMnemonic (unsafeCoerce e).target.value)
                      ] []
+                , R.div [ RP.className "col-xs-1" ]
+                    [ R.input [ RP._type "checkbox"
+                              , RP.className "checkbox pull-left"
+                              , RP.checked s.hidden
+                              , RP.title "Display passphrase"
+                              , RP.onChange \e -> dispatch (HideMnemonic (unsafeCoerce e).target.checked)
+                              ] []
+                     ]
                 ]
            , R.div []
-                [ R.text $ (show (mnemonicLength s) <> "/" <> (show cardanoMnemonicSize))
+                [ R.text $ (show (mnemonicLength s) <> "/" <> (show mnemonicSize))
                 , case invalidMnemonicWord s of
                     Nothing -> R.span' []
                     Just w  -> R.span  [ RP.style {color: "red"} ] [ R.i' [ R.text $ "Invalid English word: " <> show w ] ]
                 ]
+           , R.div [] $ if canGenerate
+                then [ R.button [ RP.className "btn"
+                                , RP.onClick \_ -> dispatch GenerateMnemonic
+                                ]
+                                [ R.text "generate" ]
+                     ]
+                else []
            ]
 
   performAction :: T.PerformAction eff Mnemonic props MnemonicAction
+  performAction GenerateMnemonic _ _ = do
+    text <- liftEff generateMnemonic
+    void $ T.modifyState $ \s -> mkMnemonic s.hidden text
   performAction (UpdateMnemonic text)   _ _ = void do
-    T.modifyState $ \_ -> mkMnemonic text
+    T.modifyState $ \s -> mkMnemonic s.hidden text
+  performAction (HideMnemonic b)   _ _ = void do
+    T.modifyState $ \st -> st { hidden = b }
   performAction _                     _ _ = pure unit
 
 placeholderPhrase :: String
