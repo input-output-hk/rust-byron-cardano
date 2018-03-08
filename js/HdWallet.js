@@ -1,6 +1,6 @@
+import RustModule from './RustModule';
 import { newArray, newArray0, copyArray } from './utils/arrays';
-import { applyModule } from './utils/wasm';
-import { loadRustModule } from './RustModule';
+import { apply } from './utils/functions';
 
 export const fromSeed = (module, seed) => {
   const bufseed = newArray(module, seed);
@@ -59,9 +59,9 @@ export const sign = (module, xprv, msg) => {
 };
 
 export default {
-  fromSeed: applyModule(loadRustModule, fromSeed),
-  toPublic: applyModule(loadRustModule, toPublic),
-  derivePrivate: applyModule(loadRustModule, derivePrivate),
-  derivePublic: applyModule(loadRustModule, derivePublic),
-  sign: applyModule(loadRustModule, sign),
+  fromSeed: apply(fromSeed, RustModule),
+  toPublic: apply(toPublic, RustModule),
+  derivePrivate: apply(derivePrivate, RustModule),
+  derivePublic: apply(derivePublic, RustModule),
+  sign: apply(sign, RustModule),
 };

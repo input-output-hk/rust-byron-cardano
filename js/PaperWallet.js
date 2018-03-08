@@ -1,6 +1,6 @@
+import RustModule from './RustModule';
 import { newArray, newArray0, copyArray } from './utils/arrays';
-import { applyModule } from './utils/wasm';
-import { loadRustModule } from './RustModule';
+import { apply } from './utils/functions';
 
 export const scramble = (module, iv, password, input) => {
   if (iv.length !== 4) {
@@ -35,6 +35,6 @@ export const unscramble = (module, password, input) => {
 };
 
 export default {
-  scramble: applyModule(loadRustModule, scramble),
-  unscramble: applyModule(loadRustModule, unscramble),
+  scramble: apply(scramble, RustModule),
+  unscramble: apply(unscramble, RustModule),
 }

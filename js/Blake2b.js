@@ -1,5 +1,6 @@
 import RustModule from './RustModule';
 import { copyArray, newArray, newArray0 } from './utils/arrays';
+import { apply } from './utils/functions';
 
 export const blake2b_256 = (module, message) => {
   let input = newArray(module, message);
@@ -12,5 +13,5 @@ export const blake2b_256 = (module, message) => {
 };
 
 export default {
-  blake2b_256: (message) => blake2b_256(RustModule, message)
+  blake2b_256: apply(blake2b_256, RustModule)
 }
