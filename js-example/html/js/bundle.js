@@ -39,7 +39,7 @@ function copyCStr(module, ptr) {
   return buffer_as_utf8
 }
 
-function copy_array(module, ptr, sz) {
+function copyArray(module, ptr, sz) {
     const collect = function* () {
       let memory = new Uint8Array(module.memory.buffer);
       let i = 0;

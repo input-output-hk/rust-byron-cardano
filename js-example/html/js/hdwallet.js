@@ -33,7 +33,7 @@ fetch("wasm/cardano.wasm").then(response =>
         let input = newArray(Module, message);
         let output = newArray0(Module, 32);
         Module.blake2b_256(input, message.length, output);
-        let result = copy_array(Module, output, 32);
+        let result = copyArray(Module, output, 32);
         Module.dealloc(input);
         Module.dealloc(output);
         return result
@@ -49,7 +49,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufpassword = newArray(Module, password);
             bufoutput = newArray0(Module, input.length + 4);
             Module.paper_scramble(bufiv, bufpassword, password.length, bufinput, input.length, bufoutput);
-            let result = copy_array(Module, bufoutput, input.length + 4);
+            let result = copyArray(Module, bufoutput, input.length + 4);
             Module.dealloc(bufiv);
             Module.dealloc(bufinput);
             Module.dealloc(bufpassword);
@@ -64,7 +64,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufpassword = newArray(Module, password);
             bufoutput = newArray0(Module, input.length - 4);
             Module.paper_unscramble(bufpassword, password.length, bufinput, input.length, bufoutput);
-            let result = copy_array(Module, bufxprv, input.length - 4);
+            let result = copyArray(Module, bufxprv, input.length - 4);
             Module.dealloc(bufinput);
             Module.dealloc(bufpassword);
             Module.dealloc(bufoutput);
@@ -77,7 +77,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufseed = newArray(Module, seed);
             bufxprv = newArray0(Module, 96);
             Module.wallet_from_seed(bufseed, bufxprv);
-            let result = copy_array(Module, bufxprv, 96);
+            let result = copyArray(Module, bufxprv, 96);
             Module.dealloc(bufseed);
             Module.dealloc(bufxprv);
             return result
@@ -86,7 +86,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufxprv = newArray(Module, xprv);
             bufxpub = newArray0(Module, 64);
             Module.wallet_to_public(bufxprv, bufxpub);
-            let result = copy_array(Module, bufxpub, 64);
+            let result = copyArray(Module, bufxpub, 64);
             Module.dealloc(bufxprv);
             Module.dealloc(bufxpub);
             return result
@@ -95,7 +95,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufxprv = newArray(Module, xprv);
             bufchild = newArray0(Module, xprv.length);
             Module.wallet_derive_private(bufxprv, index, bufchild);
-            let result = copy_array(Module, bufchild, xprv.length);
+            let result = copyArray(Module, bufchild, xprv.length);
             Module.dealloc(bufxprv);
             Module.dealloc(bufchild);
             return result
@@ -107,7 +107,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufxpub = newArray(Module, xpub);
             bufchild = newArray0(Module, xpub.length);
             let r = Module.wallet_derive_public(bufxpub, index, bufchild);
-            let result = copy_array(Module, bufchild, xpub.length);
+            let result = copyArray(Module, bufchild, xpub.length);
             Module.dealloc(bufxpub);
             Module.dealloc(bufchild);
             return result
@@ -118,7 +118,7 @@ fetch("wasm/cardano.wasm").then(response =>
             bufxprv = newArray(Module, xprv);
             bufmsg = newArray(Module, msg);
             Module.wallet_sign(bufxprv, bufmsg, length, bufsig);
-            let result = copy_array(Module, bufsig, 64);
+            let result = copyArray(Module, bufsig, 64);
             Module.dealloc(bufxprv);
             Module.dealloc(bufmsg);
             Module.dealloc(bufsig);
