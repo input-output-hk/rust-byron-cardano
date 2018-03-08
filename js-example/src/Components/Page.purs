@@ -30,9 +30,6 @@ _MnemonicAction = prism MnemonicAction \ta ->
     MnemonicAction a -> Right a
     _ -> Left ta
 
-_MnemonicAction' :: Prism' PageAction MnemonicAction
-_MnemonicAction' = prism MnemonicAction Left
-
 _PassphraseAction :: Prism' PageAction PassphraseAction
 _PassphraseAction = prism PassphraseAction \ta ->
     case ta of
@@ -59,9 +56,6 @@ updatePageState st = case mnemonicToSeed st.mnemonic.mnemonic of
 _mnemonic :: Lens' PageState Mnemonic
 _mnemonic = lens _.mnemonic (_ { mnemonic = _ })
 
-_mnemonic' :: Lens' PageState Mnemonic
-_mnemonic' = lens _.scramble (_ { scramble = _ })
-
 _passphrase :: Lens' PageState Passphrase
 _passphrase = lens _.passphrase (_ { passphrase = _ })
 
@@ -83,12 +77,13 @@ page = container $ fold
         [ element "Mnemonic phrase" $ T.withState \st ->
             T.focus _mnemonic _MnemonicAction (mnemonicSpec 12 true)
         , element "Seed" seedSpec
-        , element "Scramble Passphrase" $ T.withState \st ->
-            T.focus _passphrase _PassphraseAction passphraseSpec
-        , element "Mnemonic phrase" $ T.withState \st ->
-            T.focus _mnemonic' _MnemonicAction' (mnemonicSpec 15 false)
         , element "Root Key" rootKeySpec
         , element "Root Pub Key" rootPubKeySpec
+        ]
+    , table $ fold
+        [ element "Scramble Passphrase" $ T.withState \st ->
+            T.focus _passphrase _PassphraseAction passphraseSpec
+        , element "Shielded Mnemonic" scrambleSpec
         ]
     , table $ fold
         [ element "Message To Sign" inputMessageSpec
@@ -155,7 +150,8 @@ page = container $ fold
         render dispatch _ s _ =
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
-                    [ R.textarea [RP.readOnly true
+                    [ R.textarea [ RP.readOnly true
+                                 , RP.className "form-control"
                               , RP.value $ case s.rootKey of
                                     Nothing -> ""
                                     Just rk -> case xprvToXPub rk of
@@ -163,6 +159,22 @@ page = container $ fold
                                         Just pk -> showPubKey pk
                               ]
                               []
+                    ]
+                ]
+            ]
+        performAction :: T.PerformAction eff PageState props PageAction
+        performAction _ _ _ = pure unit
+    scrambleSpec :: T.Spec eff PageState props PageAction
+    scrambleSpec = T.simpleSpec performAction render
+      where
+        render :: T.Render PageState props PageAction
+        render dispatch _ s _ =
+           [ R.div [ RP.className "row" ]
+                [ R.div [ RP.className "col-xs-12"]
+                    [ R.textarea
+                        [ RP.readOnly true, RP.value s.scramble.mnemonic
+                        , RP.className "form-control"
+                        ] []
                     ]
                 ]
             ]
@@ -178,6 +190,7 @@ page = container $ fold
                     [ R.textarea [RP.readOnly true, RP.value $ case s.rootKey of
                                 Nothing -> ""
                                 Just rk -> showPrivKey rk
+                                 , RP.className "form-control"
                               ] []
                     ]
                 ]
@@ -194,6 +207,7 @@ page = container $ fold
                     [ R.textarea [RP.readOnly true, RP.value $ case s.seed of
                                 Nothing -> ""
                                 Just seed -> seedToBase64 seed
+                                 , RP.className "form-control"
                               ] []
                     ]
                 ]
@@ -208,7 +222,7 @@ page = container $ fold
            [ R.div [ RP.className "row" ]
                 [ R.div [ RP.className "col-xs-12"]
                     [ R.textarea [ RP.readOnly true
-                                 , RP.width "100%"
+                                 , RP.className "form-control"
                                  , RP.value $ case s.signature of
                                     Nothing -> ""
                                     Just signature -> showSignature signature

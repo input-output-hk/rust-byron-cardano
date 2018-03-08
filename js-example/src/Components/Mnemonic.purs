@@ -37,7 +37,7 @@ mnemonicPhrase :: Mnemonic -> String
 mnemonicPhrase s = s.mnemonic
 
 initialMnemonic :: Mnemonic
-initialMnemonic = mkMnemonic true mempty
+initialMnemonic = mkMnemonic false mempty
 
 mkMnemonic :: Boolean -> String -> Mnemonic
 mkMnemonic b s =
@@ -71,8 +71,9 @@ mnemonicSpec mnemonicSize canGenerate = T.simpleSpec performAction render
           handleKeyPress _  _    = pure unit
       in
            [ R.div []
-                [ R.input [ RP.className "form-control"
-                     , RP._type $ if s.hidden then "password" else "text"
+                [ R.div [ RP.className "col-xs-11" ]
+                  [ R.input [ RP.className "form-control"
+                     , RP._type $ if s.hidden then "text" else "password"
                      , RP.placeholder placeholderPhrase
                      , RP.value (mnemonicPhrase s)
                      , RP.onKeyUp \e -> handleKeyPress (unsafeCoerce e).keyCode (unsafeCoerce e).target.value
@@ -80,11 +81,12 @@ mnemonicSpec mnemonicSize canGenerate = T.simpleSpec performAction render
                         then pure unit
                         else dispatch (UpdateMnemonic (unsafeCoerce e).target.value)
                      ] []
+                  ]
                 , R.div [ RP.className "col-xs-1" ]
                     [ R.input [ RP._type "checkbox"
                               , RP.className "checkbox pull-left"
                               , RP.checked s.hidden
-                              , RP.title "Display passphrase"
+                              , RP.title "Display Mnemonic"
                               , RP.onChange \e -> dispatch (HideMnemonic (unsafeCoerce e).target.checked)
                               ] []
                      ]
