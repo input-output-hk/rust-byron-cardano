@@ -247,13 +247,13 @@ page = container $ fold
     listActions = T.simpleSpec performAction T.defaultRender
       where
       performAction :: T.PerformAction eff PageState props PageAction
-      performAction (MnemonicAction (NewMnemonic m))     _ _ = void $ T.modifyState \st ->
-        updatePageState $ st { mnemonic = m }
-      performAction (PassphraseAction (NewPassphrase p)) _ _ = void $ T.modifyState \st ->
+      performAction (MnemonicAction _)    _ _ = void $ T.modifyState \st ->
+        updatePageState st
+      performAction (PassphraseAction _) _ _ = void $ T.modifyState \st ->
         updatePageState $ st {
             scramble = case mnemonicToEntropy st.mnemonic.mnemonic of
                 Nothing -> initialMnemonic
-                Just e -> case scramble e p.passphrase of
+                Just e -> case scramble e st.passphrase.passphrase of
                     Nothing -> initialMnemonic
                     Just s  -> case entropyToMnemonic s of
                         Nothing -> initialMnemonic
