@@ -1,13 +1,14 @@
 import RustModule from './RustModule';
 import { newArray, newArray0, copyArray } from './utils/arrays';
 import { apply } from './utils/functions';
+import Bip39 from './Bip39';
 
 export const scramble = (module, iv, password, input) => {
   if (iv.length !== 4) {
     throw new Error('IV must be 4 bytes');
   }
   const bufiv = newArray(module, iv);
-  const bufinput = newArray(module, input);
+  const bufinput = newArray(module, Bip39.mnemonicToEntropy(input));
   const bufpassword = newArray(module, password);
   const bufoutput = newArray0(module, input.length + 4);
   module.paper_scramble(bufiv, bufpassword, password.length, bufinput, input.length, bufoutput);
