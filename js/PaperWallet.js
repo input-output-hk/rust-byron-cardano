@@ -27,7 +27,7 @@ export const unscramble = (module, password, input) => {
   const bufpassword = newArray(module, password);
   const bufoutput = newArray0(module, input.length - 4);
   module.paper_unscramble(bufpassword, password.length, bufinput, input.length, bufoutput);
-  let result = copyArray(module, bufxprv, input.length - 4);
+  let result = copyArray(module, bufoutput, input.length - 4);
   module.dealloc(bufinput);
   module.dealloc(bufpassword);
   module.dealloc(bufoutput);
