@@ -119,9 +119,6 @@ mnemonicSpec mnemonicSize canGenerate = T.simpleSpec performAction render
 placeholderPhrase :: String
 placeholderPhrase = "abandon ability able about above absent absorb abstract absurd abuse access accident"
 
-cardanoMnemonicSize :: Int
-cardanoMnemonicSize = 12
-
 englishWords :: Array String
 englishWords =
     [ "abandon"
