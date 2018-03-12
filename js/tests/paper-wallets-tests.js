@@ -1,6 +1,7 @@
 const expect = require('chai').expect;
 const CardanoCrypto = require('../../dist/index.js');
 
+// Implemented proposal: https://github.com/input-output-hk/cardano-specs/blob/master/proposals/0001-PaperWallet.md
 const TEST_VECTORS = [
   {
     iv: new Uint8Array([0x00, 0x00, 0x00, 0x00]),

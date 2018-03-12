@@ -6,7 +6,8 @@
   "scripts": {
     "build": "webpack",
     "test": "mocha js/tests",
-    "test-watch": "nodemon --watch js --exec npm run test",
+    "build-and-test": "npm run build && npm run test",
+    "test-watch": "nodemon --watch js --exec npm run build-and-test",
     "dev": "nodemon --watch js --exec npm run build",
     "prepublishOnly": "./build"
   },
