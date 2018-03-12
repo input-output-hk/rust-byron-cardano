@@ -2,4 +2,4 @@
 *
 
 # But the dist folder
-!dist/
+!dist/*
