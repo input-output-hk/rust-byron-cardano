@@ -2,7 +2,9 @@ const path = require('path');
 
 module.exports = {
   devtool: 'cheap-source-map',
-  entry: './js/index.js',
+  entry: {
+    index: './js/index.js',
+  },
   output: {
     filename: './dist/index.js',
     library: 'CardanoCrypto',
@@ -13,7 +15,12 @@ module.exports = {
     rules: [
       {
         test: /\.js$/,
-        use: 'babel-loader',
+        use: {
+          loader: 'babel-loader',
+          options: {
+            cacheDirectory: true,
+          }
+        },
       },
       {
         test: /\.wasm$/,
