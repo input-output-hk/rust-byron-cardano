@@ -23,12 +23,4 @@
   <body></body>
   <script src="../dist/index.js"></script>
   <script src="output/index.js"></script>
-  <script>
-    setTimeout(function() {
-      const iv = new Uint8Array(4);
-      window.crypto.getRandomValues(iv);
-      const result = CardanoCrypto.PaperWallet.scramble(iv, '', "legal winner thank year wave sausage worth useful legal winner thank yellow");
-      console.log(result);
-    }, 1000)
-  </script>
 </html>
