@@ -73,8 +73,7 @@ mod CBOR {
     /// does all the job: Big Endian, bit shift and convertion
     macro_rules! byte_slice {
         ($value:ident, $shift:expr) => ({
-            use std::convert::TryFrom;
-            TryFrom::try_from(($value.to_be() >> $shift) & 0xFF).unwrap()
+            ($value.to_be() >> $shift) as u8
         });
     }
 
