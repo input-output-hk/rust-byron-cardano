@@ -8,7 +8,7 @@ use hdwallet::{XPub};
 type DigestBlake2b = [u8;32];
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum AddrType {
+pub enum AddrType {
     ATPubKey,
     ATScript,
     ATRedeem
@@ -40,6 +40,7 @@ mod cbor {
     const INLINE_ENCODING : u8 = 24;
 
     impl MajorType {
+        // serialize a major type in its highest bit form
         fn to_byte(self) -> u8 {
             match self {
                 UINT  => 0b0000_0000,
@@ -191,7 +192,7 @@ pub struct Attributes {
 
 pub struct Addr(DigestBlake2b);
 impl Addr {
-    fn new(ty: AddrType, spending_data: SpendingData, attrs: Attributes) -> Addr {
+    pub fn new(ty: AddrType, spending_data: SpendingData, attrs: Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
         hs_cbor::sumtype_start(ty.to_byte(), 0, &mut buff);
