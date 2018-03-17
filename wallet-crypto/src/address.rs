@@ -15,8 +15,8 @@ enum AddrType {
 }
 // [TkListLen 1, TkInt (fromEnum t)]
 impl AddrType {
-    fn to_byte(t: &Self) -> u8 {
-        match t {
+    fn to_byte(self: Self) -> u8 {
+        match self {
             ATPubKey => 0,
             ATScript => 1,
             ATRedeem => 2
@@ -24,7 +24,7 @@ impl AddrType {
     }
 }
 
-mod CBOR {
+mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
     pub enum MajorType {
         UINT,
@@ -145,63 +145,83 @@ mod CBOR {
     }
 }
 
-mod HSCBOR {
-    use super::CBOR::{cbor_array_start, write_length_encoding, MajorType};
+mod hs_cbor {
+    use super::cbor::{cbor_array_start, write_length_encoding, MajorType};
 
-    pub fn sumtype_start(tag: u8, nb_values: usize, buf: &mut Vec<u8>) {
+    pub fn sumtype_start(tag: u8, nb_values: usize, buf: &mut Vec<u8>) -> () {
         cbor_array_start(nb_values + 1, buf);
         // tag value from 0
         write_length_encoding(MajorType::UINT, tag as usize, buf);
     }
 }
 
+mod hs_cbor_util {
+    use hdwallet::{XPub};
+    use super::cbor::{cbor_bs};
+    pub fn cbor_xpub(pubk: &XPub, buf: &mut Vec<u8>) {
+        cbor_bs(&pubk[..], buf);
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
+pub struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
 impl StakeholderId {
     /// create a Sake
     /// exactly  ^^^^ what I need どうもありがとう
     pub fn new(pubk: &XPub) -> StakeholderId {
         let mut buf = Vec::new();
 
-        // TODO
-        CBOR::cbor_bs(&pubk[..], &mut buf);
+        hs_cbor_util::cbor_xpub(&pubk, &mut buf);
         StakeholderId(hash_frontend(&buf))
     }
 }
 
-enum StakeDistribution {
+pub enum StakeDistribution {
     BootstrapEraDistr,
     SingleKeyDistr(StakeholderId),
 }
 
 struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
 
-struct Attributes {
+pub struct Attributes {
     derivation_path: Option<HDAddressPayload>,
     stake_distribution: StakeDistribution
     // attr_remains ? whatever...
 }
 
-struct Addr(DigestBlake2b);
+pub struct Addr(DigestBlake2b);
 impl Addr {
     fn new(ty: AddrType, spending_data: SpendingData, attrs: Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
+        hs_cbor::sumtype_start(ty.to_byte(), 0, &mut buff);
+        match spending_data {
+            SpendingData::PubKeyASD(xpub) => {
+                hs_cbor::sumtype_start(0, 1, &mut buff);
+                hs_cbor_util::cbor_xpub(&xpub, &mut buff);
+            }
+            SpendingData::ScriptASD(script) => {
+                panic!();
+            }
+            SpendingData::RedeemASD(redeem_key) => {
+                panic!();
+            }
+        };
+        // TODO add attributes
         Addr(hash_frontend(buff.as_slice()))
     }
 }
 
-struct ExtendedAddr {
+pub struct ExtendedAddr {
     addr: Addr,
     attributes: Attributes,
     type_: AddrType,
 }
 
-type Script = [u8;32]; // TODO
-type RedeemPublicKey = [u8;32]; //TODO
+pub type Script = [u8;32]; // TODO
+pub type RedeemPublicKey = [u8;32]; //TODO
 
-enum SpendingData {
+pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
