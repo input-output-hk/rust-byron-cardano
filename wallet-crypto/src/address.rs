@@ -15,16 +15,16 @@ pub enum AddrType {
 }
 // [TkListLen 1, TkInt (fromEnum t)]
 impl AddrType {
-    fn to_byte(self: Self) -> u8 {
+    fn to_byte(self) -> u8 {
         match self {
-            ATPubKey => 0,
-            ATScript => 1,
-            ATRedeem => 2
+            AddrType::ATPubKey => 0,
+            AddrType::ATScript => 1,
+            AddrType::ATRedeem => 2
         }
     }
 }
 
-mod cbor {
+pub mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
     pub enum MajorType {
         UINT,
@@ -42,6 +42,7 @@ mod cbor {
     impl MajorType {
         // serialize a major type in its highest bit form
         fn to_byte(self) -> u8 {
+            use self::MajorType::*;
             match self {
                 UINT  => 0b0000_0000,
                 NINT  => 0b0010_0000,
@@ -201,10 +202,10 @@ impl Addr {
                 hs_cbor::sumtype_start(0, 1, &mut buff);
                 hs_cbor_util::cbor_xpub(&xpub, &mut buff);
             }
-            SpendingData::ScriptASD(script) => {
+            SpendingData::ScriptASD(_script) => {
                 panic!();
             }
-            SpendingData::RedeemASD(redeem_key) => {
+            SpendingData::RedeemASD(_redeem_key) => {
                 panic!();
             }
         };
