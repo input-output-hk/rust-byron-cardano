@@ -5,9 +5,31 @@ use self::rcw::blake2b::Blake2b;
 
 use hdwallet::{XPub};
 
-type DigestBlake2b = [u8;32];
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub struct DigestBlake2b([u8;32]);
+impl DigestBlake2b {
+    /// this function create the blake2b 256 digest of the given input
+    /// This function is not responsible for the serialisation of the data
+    /// in CBOR.
+    ///
+    pub fn new(buf: &[u8]) -> Self
+    {
+        let mut b2b = Blake2b::new(32);
+        let mut outv = [0;32];
+        b2b.input(buf);
+        b2b.result(&mut outv);
+        DigestBlake2b::from_bytes(outv)
+    }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// create a Digest from the given 256 bits
+    pub fn from_bytes(bytes :[u8;32]) -> Self { DigestBlake2b(bytes) }
+
+    fn cbor_store(&self, buf: &mut Vec<u8>) {
+        cbor::cbor_bs(&self.0[..], buf)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
     ATPubKey,
     ATScript,
@@ -25,7 +47,7 @@ impl AddrType {
 }
 
 pub mod cbor {
-    #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
+    #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
     pub enum MajorType {
         UINT,
         NINT,
@@ -163,59 +185,100 @@ mod hs_cbor_util {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
 impl StakeholderId {
-    /// create a Sake
-    /// exactly  ^^^^ what I need どうもありがとう
     pub fn new(pubk: &XPub) -> StakeholderId {
         let mut buf = Vec::new();
 
         hs_cbor_util::cbor_xpub(&pubk, &mut buf);
-        StakeholderId(hash_frontend(&buf))
+        StakeholderId(DigestBlake2b::new(&buf))
+    }
+    fn cbor_store(&self, buf: &mut Vec<u8>) {
+        self.0.cbor_store(buf)
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum StakeDistribution {
     BootstrapEraDistr,
     SingleKeyDistr(StakeholderId),
 }
+impl StakeDistribution {
+    fn cbor_store(&self, buf: &mut Vec<u8>) {
+        match self {
+            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
+            &StakeDistribution::SingleKeyDistr(ref si) => {
+                hs_cbor::sumtype_start(1, 1, buf);
+                si.cbor_store(buf);
+            }
+        };
+    }
+}
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
+impl AsRef<[u8]> for HDAddressPayload {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
     derivation_path: Option<HDAddressPayload>,
     stake_distribution: StakeDistribution
     // attr_remains ? whatever...
 }
+impl Attributes {
+    fn cbor_store(&self, buf: &mut Vec<u8>) {
+        match &self.derivation_path {
+            &None => hs_cbor::sumtype_start(0, 0, buf),
+            &Some(ref v) => {
+                hs_cbor::sumtype_start(1, 1, buf);
+                cbor::cbor_bs(v.as_ref(),buf)
+            }
+        };
+        self.stake_distribution.cbor_store(buf)
+    }
+}
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Addr(DigestBlake2b);
 impl Addr {
-    pub fn new(ty: AddrType, spending_data: SpendingData, attrs: Attributes) -> Addr {
+    pub fn new(ty: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
         hs_cbor::sumtype_start(ty.to_byte(), 0, &mut buff);
         match spending_data {
-            SpendingData::PubKeyASD(xpub) => {
+            &SpendingData::PubKeyASD(ref xpub) => {
                 hs_cbor::sumtype_start(0, 1, &mut buff);
                 hs_cbor_util::cbor_xpub(&xpub, &mut buff);
             }
-            SpendingData::ScriptASD(_script) => {
+            &SpendingData::ScriptASD(ref _script) => {
                 panic!();
             }
-            SpendingData::RedeemASD(_redeem_key) => {
+            &SpendingData::RedeemASD(ref _redeem_key) => {
                 panic!();
             }
         };
-        // TODO add attributes
-        Addr(hash_frontend(buff.as_slice()))
+        attrs.cbor_store(&mut buff);
+        Addr(DigestBlake2b::new(buff.as_slice()))
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExtendedAddr {
     addr: Addr,
     attributes: Attributes,
     type_: AddrType,
+}
+impl ExtendedAddr {
+    pub fn new(ty: AddrType, sd: SpendingData, attrs: Attributes) -> Self {
+        ExtendedAddr {
+            addr: Addr::new(ty, &sd, &attrs),
+            attributes: attrs,
+            type_: ty
+        }
+    }
 }
 
 pub type Script = [u8;32]; // TODO
@@ -226,20 +289,4 @@ pub enum SpendingData {
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
-}
-
-
-// internal use only
-//
-// this function create the blake2b 256 digest of the given input
-// This function is not responsible for the serialisation of the data
-// in CBOR.
-//
-fn hash_frontend(buf: &[u8]) -> DigestBlake2b
-{
-    let mut b2b = Blake2b::new(32);
-    let mut outv = [0;32];
-    b2b.input(buf);
-    b2b.result(&mut outv);
-    outv
 }
