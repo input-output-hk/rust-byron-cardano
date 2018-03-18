@@ -137,9 +137,7 @@ pub mod cbor {
 
     pub fn cbor_bs(bs: &[u8], buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::BYTES, bs.len(), buf);
-        for i in 0..bs.len() {
-            buf.push(i as u8);
-        }
+        buf.extend_from_slice(bs)
     }
 
     pub fn cbor_array_start(nb_elems: usize, buf: &mut Vec<u8>) {
