@@ -203,7 +203,7 @@ impl DigestBlake2b {
         let mut sh3 = Sha3::sha3_256();
         let mut outv = [0;32];
         sh3.input(buf);
-        sh3.output(&mut outv);
+        sh3.result(&mut outv);
         b2b.input(&outv);
         b2b.result(&mut outv);
         DigestBlake2b::from_bytes(outv)
