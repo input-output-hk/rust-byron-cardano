@@ -113,6 +113,10 @@ pub mod spec {
         }
     }
 
+    pub fn cbor_tag(tag: usize, buf: &mut Vec<u8>) {
+        write_length_encoding(MajorType::TAG, tag, buf);
+    }
+
     pub fn cbor_bs(bs: &[u8], buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::BYTES, bs.len(), buf);
         buf.extend_from_slice(bs)
