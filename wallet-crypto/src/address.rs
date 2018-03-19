@@ -292,9 +292,12 @@ impl ToCBOR for StakeDistribution {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
+pub struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl HDAddressPayload {
+    pub fn new(buf: &[u8]) -> Self { HDAddressPayload(buf.iter().cloned().collect()) }
 }
 impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
@@ -315,9 +318,9 @@ impl Attributes {
             stake_distribution: StakeDistribution::BootstrapEraDistr
         }
     }
-    pub fn new_single_key(pubk: &XPub) -> Self {
+    pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>) -> Self {
         Attributes {
-            derivation_path: None,
+            derivation_path: hdap,
             stake_distribution: StakeDistribution::new_single_key(pubk)
         }
     }
@@ -406,7 +409,7 @@ impl ToCBOR for SpendingData {
 
 #[cfg(test)]
 mod tests {
-    use address::{AddrType, ExtendedAddr, SpendingData, Attributes};
+    use address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload};
     use hdwallet;
 
     const SEED : hdwallet::Seed = [0;32];
@@ -416,9 +419,10 @@ mod tests {
         let sk = hdwallet::generate(&SEED);
         let pk = hdwallet::to_public(&sk);
 
+        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
-        let attrs = Attributes::new_single_key(&pk);
+        let attrs = Attributes::new_single_key(&pk, Some(hdap));
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
