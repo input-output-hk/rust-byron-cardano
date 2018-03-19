@@ -158,6 +158,10 @@ pub mod cbor {
     pub fn cbor_array_start(nb_elems: usize, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::ARRAY, nb_elems, buf);
     }
+
+    pub trait ToCBOR {
+        fn encode(&self, &mut Vec<u8>);
+    }
 }
 
 mod hs_cbor {
@@ -192,6 +196,11 @@ impl AddrType {
             AddrType::ATScript => 1,
             AddrType::ATRedeem => 2
         }
+    }
+}
+impl cbor::ToCBOR for AddrType {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        hs_cbor::sumtype_start(self.to_byte(), 0, &mut buff);
     }
 }
 
@@ -287,7 +296,7 @@ impl Addr {
     pub fn new(ty: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
-        hs_cbor::sumtype_start(ty.to_byte(), 0, &mut buff);
+        addr_type.encode(&mut buff);
         match spending_data {
             &SpendingData::PubKeyASD(ref xpub) => {
                 hs_cbor::sumtype_start(0, 1, &mut buff);
