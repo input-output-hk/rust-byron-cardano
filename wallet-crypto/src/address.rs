@@ -259,7 +259,7 @@ impl AddrType {
 }
 impl ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
-        hs_cbor::sumtype_start(self.to_byte(), 0, buf);
+        cbor::cbor_uint_small(self.to_byte(), buf);
     }
 }
 
@@ -414,7 +414,9 @@ impl ToCBOR for SpendingData {
         match self {
             &SpendingData::PubKeyASD(ref xpub) => {
                 hs_cbor::sumtype_start(0, 1, buf);
-                hs_cbor_util::cbor_xpub(&xpub, buf);
+                let mut vec = vec![];
+                hs_cbor_util::cbor_xpub(xpub, &mut vec);
+                cbor::cbor_bs(&vec, buf);
             }
             &SpendingData::ScriptASD(ref _script) => {
                 panic!();
