@@ -173,9 +173,9 @@ impl DigestBlake2b {
 }
 impl fmt::Display for DigestBlake2b {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for &byte in self.0.iter() {
-            write!(f, "{:x}", byte);
-        };
+        self.0.iter().for_each(|byte| {
+            write!(f, "{:x}", byte).unwrap()
+        });
         Ok(())
     }
 }
