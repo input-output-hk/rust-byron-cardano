@@ -9,6 +9,7 @@ use self::rcw::digest::{Digest};
 
 use self::wallet_crypto::hdwallet;
 use self::wallet_crypto::paperwallet;
+use self::wallet_crypto::address;
 
 use std::mem;
 use std::ffi::{CStr, CString};
@@ -173,4 +174,16 @@ pub extern "C" fn blake2b_256(msg_ptr: *const c_uchar, msg_sz: usize, out: *mut 
     b2b.input(&msg);
     b2b.result(&mut outv);
     unsafe { write_data(&outv, out) }
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, out: *mut c_uchar) {
+    let xpub = unsafe { read_xpub(xpub_ptr) };
+    let addr_type = address::AddrType::ATPubKey;
+    let hdap = address::HDAddressPayload::new(&[1,2,3,4,5]); // FIXME
+    let sd = address::SpendingData::PubKeyASD(xpub.clone());
+    let attrs = address::Attributes::new_single_key(&xpub, Some(hdap));
+    let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
+
+    // FIXME return
 }
