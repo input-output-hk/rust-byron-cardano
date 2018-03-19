@@ -111,11 +111,15 @@ mod hs_cbor {
     ];
 
     pub fn crc32(input: &[u8]) -> u32 {
-        let mut v = 0 ^ 0xFFFFFFFFu32;
-        v = input.iter().fold(v, |acc, &byte| {
-            CRC_TABLE[((acc as u8) ^ byte) as usize] ^ (acc >> 8)
-        });
-        v ^ 0xFFFFFFFFu32
+        !input.iter().fold(0xFFFFFFFFu32, |acc, &byte| {
+            CRC_TABLE[((acc & 0xFF) ^ byte as u32) as usize] ^ (acc >> 8)
+        })
+    }
+
+    #[test]
+    fn crc32_test() {
+        let s = b"The quick brown fox jumps over the lazy dog";
+        assert_eq!(0x414fa339, crc32(s));
     }
 }
 
@@ -123,17 +127,19 @@ mod hs_cbor_util {
     use hdwallet::{XPub};
     use cbor::spec::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
     use super::hs_cbor::{ToCBOR, serialize, crc32};
+
     pub fn cbor_xpub(pubk: &XPub, buf: &mut Vec<u8>) {
         cbor_bs(&pubk[..], buf);
     }
 
     pub fn encode_with_crc32<T: ToCBOR>(t: &T, buf: &mut Vec<u8>) {
         let v = serialize(t);
-        let crc = crc32(&v);
+
         cbor_array_start(2, buf);
         cbor_tag(24, buf);
         cbor_bs(&v, buf);
-        write_u32(crc, buf);
+
+        write_u32(crc32(&v), buf);
     }
 }
 
@@ -178,17 +184,6 @@ impl ToCBOR for DigestBlake2b {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::spec::cbor_bs(&self.0[..], buf)
     }
-}
-
-pub fn print_to_hex(bytes: &[u8]) {
-    bytes.iter().for_each(|byte| {
-        if byte.clone() < 0x10 {
-            print!("0{:x}", byte)
-        } else {
-            print!("{:x}", byte)
-        }
-    });
-    println!("");
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
@@ -328,6 +323,9 @@ impl Addr {
         (&addr_type, spending_data, attrs).encode(&mut buff);
         Addr(DigestBlake2b::new(buff.as_slice()))
     }
+
+    /// create a Digest from the given 224 bits
+    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b::from_bytes(bytes)) }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -353,10 +351,7 @@ impl ExtendedAddr {
 }
 impl ToCBOR for ExtendedAddr {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::spec::cbor_array_start(3, buf);
-        self.addr.encode(buf);
-        self.attributes.encode(buf);
-        self.addr_type.encode(buf);
+        (&self.addr, &self.attributes, &self.addr_type).encode(buf);
     }
 }
 impl fmt::Display for ExtendedAddr {
@@ -393,13 +388,43 @@ impl ToCBOR for SpendingData {
 
 #[cfg(test)]
 mod tests {
-    use address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload};
+    use address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
     use hdwallet;
 
     const SEED : hdwallet::Seed = [0;32];
 
     #[test]
-    fn test1() {
+    fn test_make_address() {
+        let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
+                   , 0xf3, 0x5d, 0xf7, 0x34, 0x9a, 0xcf, 0xba, 0xec, 0xe2, 0x00, 0xa2, 0x4b
+                   , 0x7e, 0x26, 0x25, 0x0c];
+        let addr = Addr::from_bytes(v);
+
+        let sk = hdwallet::generate(&SEED);
+        let pk = hdwallet::to_public(&sk);
+
+        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+        let addr_type = AddrType::ATPubKey;
+        let sd = SpendingData::PubKeyASD(pk.clone());
+        let attrs = Attributes::new_single_key(&pk, Some(hdap));
+
+        let ea = ExtendedAddr::new(addr_type, sd, attrs);
+
+        assert_eq!(ea.addr, addr);
+    }
+
+    #[test]
+    fn test_encode_extended_address() {
+        let v = vec![ 0x82, 0xd8, 0x18, 0x58, 0x4c, 0x83, 0x58, 0x1c, 0x2a, 0xc3, 0xcc, 0x97
+                    , 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07, 0xf3, 0x5d, 0xf7, 0x34
+                    , 0x9a, 0xcf, 0xba, 0xec, 0xe2, 0x00, 0xa2, 0x4b, 0x7e, 0x26, 0x25, 0x0c
+                    , 0xa2, 0x00, 0x58, 0x20, 0x82, 0x00, 0x58, 0x1c, 0xa6, 0xd9, 0xae, 0xf4
+                    , 0x75, 0xf3, 0x41, 0x89, 0x67, 0xe8, 0x7f, 0x7e, 0x93, 0xf2, 0x0f, 0x99
+                    , 0xd8, 0xc7, 0xaf, 0x40, 0x6c, 0xba, 0x14, 0x6a, 0xff, 0xdb, 0x71, 0x91
+                    , 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x89, 0xa5
+                    , 0x93, 0x71
+                    ];
+
         let sk = hdwallet::generate(&SEED);
         let pk = hdwallet::to_public(&sk);
 
@@ -412,8 +437,6 @@ mod tests {
 
         let out = ea.to_bytes();
 
-        println!("{:?}", ea);
-        super::print_to_hex(&out);
-        assert!(false);
+        assert_eq!(out, v);
     }
 }
