@@ -1,3 +1,5 @@
+use std::fmt;
+
 extern crate rcw;
 
 use self::rcw::digest::Digest;
@@ -26,6 +28,14 @@ impl DigestBlake2b {
 
     fn cbor_store(&self, buf: &mut Vec<u8>) {
         cbor::cbor_bs(&self.0[..], buf)
+    }
+}
+impl fmt::Display for DigestBlake2b {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for &byte in self.0.iter() {
+            write!(f, "{:x}", byte);
+        };
+        Ok(())
     }
 }
 
@@ -198,6 +208,11 @@ impl StakeholderId {
         self.0.cbor_store(buf)
     }
 }
+impl fmt::Display for StakeholderId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum StakeDistribution {
@@ -263,6 +278,11 @@ impl Attributes {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Addr(DigestBlake2b);
+impl fmt::Display for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
 impl Addr {
     pub fn new(ty: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
@@ -334,6 +354,7 @@ mod tests {
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
         println!("{:?}", ea);
+        println!("addr: {:}", ea.addr);
         assert!(false);
     }
 }
