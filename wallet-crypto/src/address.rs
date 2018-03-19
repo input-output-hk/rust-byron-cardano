@@ -154,7 +154,7 @@ mod hs_cbor {
             match self {
                 &None => sumtype_start(0, 0, buf),
                 &Some(ref t) => {
-                    sumtype_start(1, 1, buf);
+                    // TODO ? sumtype_start(1, 1, buf);
                     t.encode(buf)
                 }
             }
@@ -303,13 +303,15 @@ impl StakeDistribution {
 }
 impl ToCBOR for StakeDistribution {
     fn encode(&self, buf: &mut Vec<u8>) {
+        let mut vec = vec![];
         match self {
-            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
+            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, &mut vec),
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                hs_cbor::sumtype_start(1, 1, buf);
-                si.encode(buf);
+                hs_cbor::sumtype_start(1, 1, &mut vec);
+                si.encode(&mut vec);
             }
         };
+        cbor::cbor_bs(&vec, buf);
     }
 }
 
