@@ -150,6 +150,8 @@ mod hs_cbor_util {
     }
 }
 
+use self::cbor::ToCBOR;
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct DigestBlake2b([u8;32]);
 impl DigestBlake2b {
@@ -201,7 +203,7 @@ impl AddrType {
 }
 impl cbor::ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
-        hs_cbor::sumtype_start(self.to_byte(), 0, &mut buff);
+        hs_cbor::sumtype_start(self.to_byte(), 0, buf);
     }
 }
 
@@ -214,8 +216,10 @@ impl StakeholderId {
         hs_cbor_util::cbor_xpub(&pubk, &mut buf);
         StakeholderId(DigestBlake2b::new(&buf))
     }
-    fn cbor_store(&self, buf: &mut Vec<u8>) {
-        self.0.cbor_store(buf)
+}
+impl cbor::ToCBOR for StakeholderId {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        self.0.encode(buf)
     }
 }
 impl fmt::Display for StakeholderId {
@@ -242,7 +246,7 @@ impl StakeDistribution {
             &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
             &StakeDistribution::SingleKeyDistr(ref si) => {
                 hs_cbor::sumtype_start(1, 1, buf);
-                si.cbor_store(buf);
+                si.encode(buf);
             }
         };
     }
@@ -294,7 +298,7 @@ impl fmt::Display for Addr {
     }
 }
 impl Addr {
-    pub fn new(ty: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
+    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
         addr_type.encode(&mut buff);
