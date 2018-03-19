@@ -39,23 +39,6 @@ impl fmt::Display for DigestBlake2b {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub enum AddrType {
-    ATPubKey,
-    ATScript,
-    ATRedeem
-}
-// [TkListLen 1, TkInt (fromEnum t)]
-impl AddrType {
-    fn to_byte(self) -> u8 {
-        match self {
-            AddrType::ATPubKey => 0,
-            AddrType::ATScript => 1,
-            AddrType::ATRedeem => 2
-        }
-    }
-}
-
 pub mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
     pub enum MajorType {
@@ -192,6 +175,23 @@ mod hs_cbor_util {
     use super::cbor::{cbor_bs};
     pub fn cbor_xpub(pubk: &XPub, buf: &mut Vec<u8>) {
         cbor_bs(&pubk[..], buf);
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub enum AddrType {
+    ATPubKey,
+    ATScript,
+    ATRedeem
+}
+// [TkListLen 1, TkInt (fromEnum t)]
+impl AddrType {
+    fn to_byte(self) -> u8 {
+        match self {
+            AddrType::ATPubKey => 0,
+            AddrType::ATScript => 1,
+            AddrType::ATRedeem => 2
+        }
     }
 }
 
