@@ -211,7 +211,11 @@ impl DigestBlake2b {
 impl fmt::Display for DigestBlake2b {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.iter().for_each(|byte| {
-            write!(f, "{:x}", byte).unwrap()
+            if byte < &0x10 {
+                write!(f, "0{:x}", byte).unwrap()
+            } else {
+                write!(f, "{:x}", byte).unwrap()
+            }
         });
         Ok(())
     }
@@ -220,6 +224,17 @@ impl ToCBOR for DigestBlake2b {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::cbor_bs(&self.0[..], buf)
     }
+}
+
+fn print_to_hex(bytes: &[u8]) {
+    bytes.iter().for_each(|byte| {
+        if byte.clone() < 0x10 {
+            print!("0{:x}", byte)
+        } else {
+            print!("{:x}", byte)
+        }
+    });
+    println!("");
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
