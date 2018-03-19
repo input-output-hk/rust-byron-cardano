@@ -4,6 +4,7 @@ extern crate rcw;
 
 use self::rcw::digest::Digest;
 use self::rcw::blake2b::Blake2b;
+use self::rcw::sha3::Sha3;
 
 use hdwallet::{XPub};
 
@@ -199,8 +200,11 @@ impl DigestBlake2b {
     pub fn new(buf: &[u8]) -> Self
     {
         let mut b2b = Blake2b::new(32);
+        let mut sh3 = Sha3::sha3_256();
         let mut outv = [0;32];
-        b2b.input(buf);
+        sh3.input(buf);
+        sh3.output(&mut outv);
+        b2b.input(&outv);
         b2b.result(&mut outv);
         DigestBlake2b::from_bytes(outv)
     }
