@@ -259,6 +259,11 @@ struct HDAddressPayload(Vec<u8>); // with the password of the user or something 
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
+impl cbor::ToCBOR for HDAddressPayload {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::cbor_bs(self.as_ref(),buf)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
@@ -285,7 +290,7 @@ impl Attributes {
             &None => hs_cbor::sumtype_start(0, 0, buf),
             &Some(ref v) => {
                 hs_cbor::sumtype_start(1, 1, buf);
-                cbor::cbor_bs(v.as_ref(),buf)
+                v.encode(buf)
             }
         };
         self.stake_distribution.encode(buf)
