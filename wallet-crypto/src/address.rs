@@ -241,7 +241,9 @@ impl StakeDistribution {
     pub fn new_single_key(pubk: &XPub) -> Self {
         StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
     }
-    fn cbor_store(&self, buf: &mut Vec<u8>) {
+}
+impl cbor::ToCBOR for StakeDistribution {
+    fn encode(&self, buf: &mut Vec<u8>) {
         match self {
             &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
             &StakeDistribution::SingleKeyDistr(ref si) => {
@@ -286,7 +288,7 @@ impl Attributes {
                 cbor::cbor_bs(v.as_ref(),buf)
             }
         };
-        self.stake_distribution.cbor_store(buf)
+        self.stake_distribution.encode(buf)
     }
 }
 
