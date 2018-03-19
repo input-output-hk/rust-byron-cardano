@@ -194,26 +194,27 @@ mod hs_cbor_util {
 use self::hs_cbor::ToCBOR;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b([u8;32]);
+pub struct DigestBlake2b([u8;28]);
 impl DigestBlake2b {
-    /// this function create the blake2b 256 digest of the given input
+    /// this function create the blake2b 224 digest of the given input
     /// This function is not responsible for the serialisation of the data
     /// in CBOR.
     ///
     pub fn new(buf: &[u8]) -> Self
     {
-        let mut b2b = Blake2b::new(32);
+        let mut b2b = Blake2b::new(28);
         let mut sh3 = Sha3::sha3_256();
-        let mut outv = [0;32];
+        let mut out1 = [0;32];
+        let mut out2 = [0;28];
         sh3.input(buf);
-        sh3.result(&mut outv);
-        b2b.input(&outv);
-        b2b.result(&mut outv);
-        DigestBlake2b::from_bytes(outv)
+        sh3.result(&mut out1);
+        b2b.input(&out1);
+        b2b.result(&mut out2);
+        DigestBlake2b::from_bytes(out2)
     }
 
-    /// create a Digest from the given 256 bits
-    pub fn from_bytes(bytes :[u8;32]) -> Self { DigestBlake2b(bytes) }
+    /// create a Digest from the given 224 bits
+    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b(bytes) }
 }
 impl fmt::Display for DigestBlake2b {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -305,9 +306,9 @@ impl ToCBOR for StakeDistribution {
     fn encode(&self, buf: &mut Vec<u8>) {
         let mut vec = vec![];
         match self {
-            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, &mut vec),
+            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(1, 0, &mut vec),
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                hs_cbor::sumtype_start(1, 1, &mut vec);
+                hs_cbor::sumtype_start(0, 1, &mut vec);
                 si.encode(&mut vec);
             }
         };
