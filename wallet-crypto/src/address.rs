@@ -284,8 +284,9 @@ impl Attributes {
             stake_distribution: StakeDistribution::new_single_key(pubk)
         }
     }
-
-    fn cbor_store(&self, buf: &mut Vec<u8>) {
+}
+impl cbor::ToCBOR for Attributes {
+    fn encode(&self, buf: &mut Vec<u8>) {
         match &self.derivation_path {
             &None => hs_cbor::sumtype_start(0, 0, buf),
             &Some(ref v) => {
@@ -314,19 +315,8 @@ impl Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
         addr_type.encode(&mut buff);
-        match spending_data {
-            &SpendingData::PubKeyASD(ref xpub) => {
-                hs_cbor::sumtype_start(0, 1, &mut buff);
-                hs_cbor_util::cbor_xpub(&xpub, &mut buff);
-            }
-            &SpendingData::ScriptASD(ref _script) => {
-                panic!();
-            }
-            &SpendingData::RedeemASD(ref _redeem_key) => {
-                panic!();
-            }
-        };
-        attrs.cbor_store(&mut buff);
+        spending_data.encode(&mut buff);
+        attrs.encode(&mut buff);
         Addr(DigestBlake2b::new(buff.as_slice()))
     }
 }
@@ -355,6 +345,22 @@ pub enum SpendingData {
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
+}
+impl cbor::ToCBOR for SpendingData {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        match self {
+            &SpendingData::PubKeyASD(ref xpub) => {
+                hs_cbor::sumtype_start(0, 1, buf);
+                hs_cbor_util::cbor_xpub(&xpub, buf);
+            }
+            &SpendingData::ScriptASD(ref _script) => {
+                panic!();
+            }
+            &SpendingData::RedeemASD(ref _redeem_key) => {
+                panic!();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
