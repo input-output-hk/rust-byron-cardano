@@ -205,6 +205,13 @@ pub enum StakeDistribution {
     SingleKeyDistr(StakeholderId),
 }
 impl StakeDistribution {
+    pub fn new_era() -> Self { StakeDistribution::BootstrapEraDistr }
+    pub fn new_single_stakeholder(si: StakeholderId) -> Self {
+        StakeDistribution::SingleKeyDistr(si)
+    }
+    pub fn new_single_key(pubk: &XPub) -> Self {
+        StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
+    }
     fn cbor_store(&self, buf: &mut Vec<u8>) {
         match self {
             &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
@@ -229,6 +236,19 @@ pub struct Attributes {
     // attr_remains ? whatever...
 }
 impl Attributes {
+    pub fn new_era() -> Self {
+        Attributes {
+            derivation_path: None,
+            stake_distribution: StakeDistribution::BootstrapEraDistr
+        }
+    }
+    pub fn new_single_key(pubk: &XPub) -> Self {
+        Attributes {
+            derivation_path: None,
+            stake_distribution: StakeDistribution::new_single_key(pubk)
+        }
+    }
+
     fn cbor_store(&self, buf: &mut Vec<u8>) {
         match &self.derivation_path {
             &None => hs_cbor::sumtype_start(0, 0, buf),
@@ -289,4 +309,31 @@ pub enum SpendingData {
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
+}
+
+#[cfg(test)]
+mod tests {
+    use address::{AddrType, ExtendedAddr, SpendingData, Attributes};
+    use hdwallet;
+
+    const SEED : hdwallet::Seed =
+        [ 0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11, 0x92, 0xe1
+        , 0xda, 0xcd, 0x32, 0xc1, 0xed, 0x3e, 0xaa, 0x3c, 0x3b, 0x13, 0x1c
+        , 0x88, 0xed, 0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98
+        ];
+
+    #[test]
+    fn test1() {
+        let sk = hdwallet::generate(&SEED);
+        let pk = hdwallet::to_public(&sk);
+
+        let addr_type = AddrType::ATPubKey;
+        let sd = SpendingData::PubKeyASD(pk.clone());
+        let attrs = Attributes::new_single_key(&pk);
+
+        let ea = ExtendedAddr::new(addr_type, sd, attrs);
+
+        println!("{:?}", ea);
+        assert!(false);
+    }
 }
