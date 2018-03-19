@@ -156,6 +156,21 @@ mod hs_cbor {
             }
         }
     }
+    impl <'a, 'b, A: ToCBOR, B: ToCBOR> ToCBOR for (&'a A, &'b B) {
+        fn encode(&self, buf: &mut Vec<u8>) {
+            write_length_encoding(MajorType::ARRAY, 2, buf);
+            self.0.encode(buf);
+            self.1.encode(buf);
+        }
+    }
+    impl <'a, 'b, 'c, A: ToCBOR, B: ToCBOR, C: ToCBOR> ToCBOR for (&'a A, &'b B, &'c C) {
+        fn encode(&self, buf: &mut Vec<u8>) {
+            write_length_encoding(MajorType::ARRAY, 3, buf);
+            self.0.encode(buf);
+            self.1.encode(buf);
+            self.2.encode(buf);
+        }
+    }
 
     pub fn serialize<T: ToCBOR>(t: &T) -> Vec<u8> {
         let mut buf = vec![];
@@ -330,9 +345,7 @@ impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
-        addr_type.encode(&mut buff);
-        spending_data.encode(&mut buff);
-        attrs.encode(&mut buff);
+        (&addr_type, spending_data, attrs).encode(&mut buff);
         Addr(DigestBlake2b::new(buff.as_slice()))
     }
 }
@@ -396,11 +409,7 @@ mod tests {
     use address::{AddrType, ExtendedAddr, SpendingData, Attributes};
     use hdwallet;
 
-    const SEED : hdwallet::Seed =
-        [ 0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11, 0x92, 0xe1
-        , 0xda, 0xcd, 0x32, 0xc1, 0xed, 0x3e, 0xaa, 0x3c, 0x3b, 0x13, 0x1c
-        , 0x88, 0xed, 0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98
-        ];
+    const SEED : hdwallet::Seed = [0;32];
 
     #[test]
     fn test1() {
