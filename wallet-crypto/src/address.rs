@@ -323,7 +323,9 @@ impl HDAddressPayload {
 }
 impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::cbor_bs(self.as_ref(),buf)
+        let mut vec = vec![];
+        cbor::cbor_bs(self.as_ref(), &mut vec);
+        cbor::cbor_bs(&vec         , buf);
     }
 }
 
@@ -352,9 +354,9 @@ impl ToCBOR for Attributes {
         cbor::cbor_map_start(2, buf);
         // TODO
         cbor::cbor_uint_small(0, buf);
-        self.derivation_path.encode(buf);
+        self.stake_distribution.encode(buf);
         cbor::cbor_uint_small(1, buf);
-        self.stake_distribution.encode(buf)
+        self.derivation_path.encode(buf);
     }
 }
 
