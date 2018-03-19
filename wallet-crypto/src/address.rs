@@ -297,6 +297,11 @@ impl fmt::Display for Addr {
         fmt::Display::fmt(&self.0, f)
     }
 }
+impl cbor::ToCBOR for Addr {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        self.0.encode(buf)
+    }
+}
 impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
         /* CBOR encode + HASH */
