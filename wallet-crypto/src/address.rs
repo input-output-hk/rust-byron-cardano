@@ -7,6 +7,9 @@ use self::rcw::blake2b::Blake2b;
 
 use hdwallet::{XPub};
 
+// internal mobule to encode the address metadata in cbor to
+// hash them.
+//
 mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
     pub enum MajorType {
@@ -127,9 +130,6 @@ mod cbor {
         write_length_encoding(MajorType::ARRAY, nb_elems, buf);
     }
 
-    pub trait ToCBOR {
-        fn encode(&self, &mut Vec<u8>);
-    }
 }
 
 mod hs_cbor {
@@ -139,6 +139,28 @@ mod hs_cbor {
         cbor_array_start(nb_values + 1, buf);
         // tag value from 0
         write_length_encoding(MajorType::UINT, tag as usize, buf);
+    }
+
+    // helper trait to write CBOR encoding
+    pub trait ToCBOR {
+        fn encode(&self, &mut Vec<u8>);
+    }
+    impl<T: ToCBOR> ToCBOR for Option<T> {
+        fn encode(&self, buf: &mut Vec<u8>) {
+            match self {
+                &None => sumtype_start(0, 0, buf),
+                &Some(ref t) => {
+                    sumtype_start(1, 1, buf);
+                    t.encode(buf)
+                }
+            }
+        }
+    }
+
+    pub fn serialize<T: ToCBOR>(t: &T) -> Vec<u8> {
+        let mut buf = vec![];
+        t.encode(&mut buf);
+        buf
     }
 }
 
@@ -150,7 +172,7 @@ mod hs_cbor_util {
     }
 }
 
-use self::cbor::ToCBOR;
+use self::hs_cbor::ToCBOR;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct DigestBlake2b([u8;32]);
@@ -179,7 +201,7 @@ impl fmt::Display for DigestBlake2b {
         Ok(())
     }
 }
-impl cbor::ToCBOR for DigestBlake2b {
+impl ToCBOR for DigestBlake2b {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::cbor_bs(&self.0[..], buf)
     }
@@ -201,7 +223,7 @@ impl AddrType {
         }
     }
 }
-impl cbor::ToCBOR for AddrType {
+impl ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
         hs_cbor::sumtype_start(self.to_byte(), 0, buf);
     }
@@ -217,7 +239,7 @@ impl StakeholderId {
         StakeholderId(DigestBlake2b::new(&buf))
     }
 }
-impl cbor::ToCBOR for StakeholderId {
+impl ToCBOR for StakeholderId {
     fn encode(&self, buf: &mut Vec<u8>) {
         self.0.encode(buf)
     }
@@ -242,7 +264,7 @@ impl StakeDistribution {
         StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
     }
 }
-impl cbor::ToCBOR for StakeDistribution {
+impl ToCBOR for StakeDistribution {
     fn encode(&self, buf: &mut Vec<u8>) {
         match self {
             &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
@@ -259,7 +281,7 @@ struct HDAddressPayload(Vec<u8>); // with the password of the user or something 
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
-impl cbor::ToCBOR for HDAddressPayload {
+impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::cbor_bs(self.as_ref(),buf)
     }
@@ -285,15 +307,9 @@ impl Attributes {
         }
     }
 }
-impl cbor::ToCBOR for Attributes {
+impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
-        match &self.derivation_path {
-            &None => hs_cbor::sumtype_start(0, 0, buf),
-            &Some(ref v) => {
-                hs_cbor::sumtype_start(1, 1, buf);
-                v.encode(buf)
-            }
-        };
+        self.derivation_path.encode(buf);
         self.stake_distribution.encode(buf)
     }
 }
@@ -305,7 +321,7 @@ impl fmt::Display for Addr {
         fmt::Display::fmt(&self.0, f)
     }
 }
-impl cbor::ToCBOR for Addr {
+impl ToCBOR for Addr {
     fn encode(&self, buf: &mut Vec<u8>) {
         self.0.encode(buf)
     }
@@ -325,15 +341,27 @@ impl Addr {
 pub struct ExtendedAddr {
     addr: Addr,
     attributes: Attributes,
-    type_: AddrType,
+    addr_type: AddrType,
 }
 impl ExtendedAddr {
     pub fn new(ty: AddrType, sd: SpendingData, attrs: Attributes) -> Self {
         ExtendedAddr {
             addr: Addr::new(ty, &sd, &attrs),
             attributes: attrs,
-            type_: ty
+            addr_type: ty
         }
+    }
+}
+impl ToCBOR for ExtendedAddr {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        self.addr.encode(buf);
+        self.attributes.encode(buf);
+        self.addr_type.encode(buf);
+    }
+}
+impl fmt::Display for ExtendedAddr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Ok(())
     }
 }
 
@@ -346,7 +374,7 @@ pub enum SpendingData {
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
 }
-impl cbor::ToCBOR for SpendingData {
+impl ToCBOR for SpendingData {
     fn encode(&self, buf: &mut Vec<u8>) {
         match self {
             &SpendingData::PubKeyASD(ref xpub) => {
