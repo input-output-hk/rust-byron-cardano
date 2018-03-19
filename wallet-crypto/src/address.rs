@@ -7,7 +7,7 @@ use self::rcw::blake2b::Blake2b;
 
 use hdwallet::{XPub};
 
-pub mod cbor {
+mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
     pub enum MajorType {
         UINT,
