@@ -12,9 +12,9 @@ use std;
 use std::{io, mem};
 use std::ptr;
 
-//use buffer::{ReadBuffer, WriteBuffer, BufferResult};
-//use buffer::BufferResult::{BufferUnderflow, BufferOverflow};
-// use symmetriccipher::{SynchronousStreamCipher, SymmetricCipherError};
+use buffer::{ReadBuffer, WriteBuffer, BufferResult};
+use buffer::BufferResult::{BufferUnderflow, BufferOverflow};
+use symmetriccipher::{SynchronousStreamCipher, SymmetricCipherError};
 
 /// Write a u64 into a vector, which must be 8 bytes long. The value is written in big-endian
 /// format.
@@ -244,7 +244,6 @@ impl <T> WriteExt for T where T: io::Write {
     }
 }
 
-/*
 /// symm_enc_or_dec() implements the necessary functionality to turn a SynchronousStreamCipher into
 /// an Encryptor or Decryptor
 pub fn symm_enc_or_dec<S: SynchronousStreamCipher, R: ReadBuffer, W: WriteBuffer>(
@@ -260,7 +259,6 @@ pub fn symm_enc_or_dec<S: SynchronousStreamCipher, R: ReadBuffer, W: WriteBuffer
         Ok(BufferOverflow)
     }
 }
-*/
 
 /// Convert the value in bytes to the number of bits, a tuple where the 1st item is the
 /// high-order value and the 2nd item is the low order value.
