@@ -130,6 +130,9 @@ mod cbor {
     pub fn cbor_array_start(nb_elems: usize, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::ARRAY, nb_elems, buf);
     }
+    pub fn cbor_map_start(nb_elems: usize, buf: &mut Vec<u8>) {
+        write_length_encoding(MajorType::MAP, nb_elems, buf);
+    }
 
 }
 
@@ -346,7 +349,11 @@ impl Attributes {
 }
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::cbor_map_start(2, buf);
+        // TODO
+        cbor::cbor_uint_small(0, buf);
         self.derivation_path.encode(buf);
+        cbor::cbor_uint_small(1, buf);
         self.stake_distribution.encode(buf)
     }
 }
