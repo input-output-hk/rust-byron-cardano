@@ -7,38 +7,6 @@ use self::rcw::blake2b::Blake2b;
 
 use hdwallet::{XPub};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b([u8;32]);
-impl DigestBlake2b {
-    /// this function create the blake2b 256 digest of the given input
-    /// This function is not responsible for the serialisation of the data
-    /// in CBOR.
-    ///
-    pub fn new(buf: &[u8]) -> Self
-    {
-        let mut b2b = Blake2b::new(32);
-        let mut outv = [0;32];
-        b2b.input(buf);
-        b2b.result(&mut outv);
-        DigestBlake2b::from_bytes(outv)
-    }
-
-    /// create a Digest from the given 256 bits
-    pub fn from_bytes(bytes :[u8;32]) -> Self { DigestBlake2b(bytes) }
-
-    fn cbor_store(&self, buf: &mut Vec<u8>) {
-        cbor::cbor_bs(&self.0[..], buf)
-    }
-}
-impl fmt::Display for DigestBlake2b {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for &byte in self.0.iter() {
-            write!(f, "{:x}", byte);
-        };
-        Ok(())
-    }
-}
-
 pub mod cbor {
     #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
     pub enum MajorType {
@@ -179,6 +147,39 @@ mod hs_cbor_util {
     use super::cbor::{cbor_bs};
     pub fn cbor_xpub(pubk: &XPub, buf: &mut Vec<u8>) {
         cbor_bs(&pubk[..], buf);
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub struct DigestBlake2b([u8;32]);
+impl DigestBlake2b {
+    /// this function create the blake2b 256 digest of the given input
+    /// This function is not responsible for the serialisation of the data
+    /// in CBOR.
+    ///
+    pub fn new(buf: &[u8]) -> Self
+    {
+        let mut b2b = Blake2b::new(32);
+        let mut outv = [0;32];
+        b2b.input(buf);
+        b2b.result(&mut outv);
+        DigestBlake2b::from_bytes(outv)
+    }
+
+    /// create a Digest from the given 256 bits
+    pub fn from_bytes(bytes :[u8;32]) -> Self { DigestBlake2b(bytes) }
+}
+impl fmt::Display for DigestBlake2b {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for &byte in self.0.iter() {
+            write!(f, "{:x}", byte);
+        };
+        Ok(())
+    }
+}
+impl cbor::ToCBOR for DigestBlake2b {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::cbor_bs(&self.0[..], buf)
     }
 }
 
