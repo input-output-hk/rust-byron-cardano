@@ -414,9 +414,7 @@ impl ToCBOR for SpendingData {
         match self {
             &SpendingData::PubKeyASD(ref xpub) => {
                 hs_cbor::sumtype_start(0, 1, buf);
-                let mut vec = vec![];
-                hs_cbor_util::cbor_xpub(xpub, &mut vec);
-                cbor::cbor_bs(&vec, buf);
+                hs_cbor_util::cbor_xpub(xpub, buf);
             }
             &SpendingData::ScriptASD(ref _script) => {
                 panic!();
