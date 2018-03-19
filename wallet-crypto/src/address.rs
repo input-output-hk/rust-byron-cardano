@@ -154,7 +154,7 @@ mod hs_cbor {
             match self {
                 &None => sumtype_start(0, 0, buf),
                 &Some(ref t) => {
-                    sumtype_start(1, 1, buf);
+                    // TODO ? sumtype_start(1, 1, buf);
                     t.encode(buf)
                 }
             }
@@ -303,13 +303,15 @@ impl StakeDistribution {
 }
 impl ToCBOR for StakeDistribution {
     fn encode(&self, buf: &mut Vec<u8>) {
+        let mut vec = vec![];
         match self {
-            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, buf),
+            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(0, 0, &mut vec),
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                hs_cbor::sumtype_start(1, 1, buf);
-                si.encode(buf);
+                hs_cbor::sumtype_start(1, 1, &mut vec);
+                si.encode(&mut vec);
             }
         };
+        cbor::cbor_bs(&vec, buf);
     }
 }
 
@@ -323,7 +325,9 @@ impl HDAddressPayload {
 }
 impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::cbor_bs(self.as_ref(),buf)
+        let mut vec = vec![];
+        cbor::cbor_bs(self.as_ref(), &mut vec);
+        cbor::cbor_bs(&vec         , buf);
     }
 }
 
@@ -352,9 +356,9 @@ impl ToCBOR for Attributes {
         cbor::cbor_map_start(2, buf);
         // TODO
         cbor::cbor_uint_small(0, buf);
-        self.derivation_path.encode(buf);
+        self.stake_distribution.encode(buf);
         cbor::cbor_uint_small(1, buf);
-        self.stake_distribution.encode(buf)
+        self.derivation_path.encode(buf);
     }
 }
 
