@@ -107,7 +107,7 @@ impl ToCBOR for DigestBlake2b {
     }
 }
 
-fn print_to_hex(bytes: &[u8]) {
+pub fn print_to_hex(bytes: &[u8]) {
     bytes.iter().for_each(|byte| {
         if byte.clone() < 0x10 {
             print!("0{:x}", byte)
@@ -271,12 +271,18 @@ impl ExtendedAddr {
             addr_type: ty
         }
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> { hs_cbor::serialize(self) }
 }
 impl ToCBOR for ExtendedAddr {
     fn encode(&self, buf: &mut Vec<u8>) {
-        self.addr.encode(buf);
-        self.attributes.encode(buf);
+        cbor::spec::cbor_map_start(3, buf);
+        cbor::spec::cbor_uint_small(0, buf);
         self.addr_type.encode(buf);
+        cbor::spec::cbor_uint_small(1, buf);
+        self.attributes.encode(buf);
+        cbor::spec::cbor_uint_small(2, buf);
+        self.addr.encode(buf);
     }
 }
 impl fmt::Display for ExtendedAddr {
@@ -330,8 +336,10 @@ mod tests {
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
+        let out = ea.to_bytes();
+
         println!("{:?}", ea);
-        println!("addr: {:}", ea.addr);
+        super::print_to_hex(&out);
         assert!(false);
     }
 }
