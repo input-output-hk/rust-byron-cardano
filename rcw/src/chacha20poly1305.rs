@@ -23,7 +23,7 @@ pub struct ChaCha20Poly1305 {
 impl ChaCha20Poly1305 {
   pub fn new(key: &[u8], nonce: &[u8], aad: &[u8]) -> ChaCha20Poly1305 {
       assert!(key.len() == 16 || key.len() == 32);
-      assert!(nonce.len() == 8);
+      assert!(nonce.len() == 8 || nonce.len() == 12);
 
       let mut cipher = ChaCha20::new(key, nonce);
       let mut mac_key = [0u8; 64];
