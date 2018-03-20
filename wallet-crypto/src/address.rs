@@ -391,8 +391,10 @@ const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::encode::cbor_map_start(2, buf);
-        cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
-        self.stake_distribution.encode(buf);
+        if self.stake_distribution != StakeDistribution::BootstrapEraDistr {
+            cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
+            self.stake_distribution.encode(buf);
+        }
         cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
         self.derivation_path.encode(buf);
     }
@@ -400,10 +402,13 @@ impl ToCBOR for Attributes {
 impl FromCBOR for Attributes {
     fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
         let _ = decoder.map_start()?;
-        let x = decoder.uint()?;
-        assert!(x == ATTRIBUTE_NAME_TAG_STAKE);
-        let sd = StakeDistribution::decode(decoder)?;
-        let y = decoder.uint()?;
+        let mut sd = StakeDistribution::BootstrapEraDistr;
+        let mut x = decoder.uint()?;
+        if x == ATTRIBUTE_NAME_TAG_STAKE {
+            sd = StakeDistribution::decode(decoder)?;
+            x = decoder.uint()?;
+        }
+        assert!(x == ATTRIBUTE_NAME_TAG_DERIVATION);
         let dp = HDAddressPayload::decode(decoder)?;
         Ok(Attributes{ derivation_path: Some(dp), stake_distribution: sd })
     }
@@ -582,6 +587,7 @@ impl FromCBOR for SpendingData {
 mod tests {
     use address::*;
     use hdwallet;
+    use base58;
 
     const SEED : hdwallet::Seed = [0;32];
 
@@ -667,5 +673,17 @@ mod tests {
         let sd_2 = StakeDistribution::new_single_key(&pk);
         assert!(hs_cbor::encode_decode(&sd_1));
         assert!(hs_cbor::encode_decode(&sd_2));
+    }
+
+    #[test]
+    fn decode_address() {
+        let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
+        let alphabet  = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
+
+        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+
+        assert_eq!(r.addr_type, AddrType::ATPubKey);
+        assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
     }
 }
