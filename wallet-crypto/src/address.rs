@@ -10,12 +10,12 @@ use cbor;
 use hdwallet::{XPub};
 
 mod hs_cbor {
-    use cbor::spec::{cbor_array_start, write_length_encoding, MajorType};
+    use cbor::spec::{cbor_array_start, cbor_uint, write_length_encoding, MajorType};
 
-    pub fn sumtype_start(tag: u8, nb_values: usize, buf: &mut Vec<u8>) -> () {
+    pub fn sumtype_start(tag: u64, nb_values: usize, buf: &mut Vec<u8>) -> () {
         cbor_array_start(nb_values + 1, buf);
         // tag value from 0
-        write_length_encoding(MajorType::UINT, tag as usize, buf);
+        cbor_uint(tag, buf);
     }
 
     // helper trait to write CBOR encoding
@@ -204,7 +204,7 @@ impl AddrType {
 }
 impl ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::spec::cbor_uint_small(self.to_byte(), buf);
+        cbor::spec::cbor_uint(self.to_byte() as u64, buf);
     }
 }
 
@@ -234,6 +234,10 @@ pub enum StakeDistribution {
     BootstrapEraDistr,
     SingleKeyDistr(StakeholderId),
 }
+
+const STAKE_DISTRIBUTION_TAG_BOOTSTRAP : u64 = 1;
+const STAKE_DISTRIBUTION_TAG_SINGLEKEY : u64 = 0;
+
 impl StakeDistribution {
     pub fn new_era() -> Self { StakeDistribution::BootstrapEraDistr }
     pub fn new_single_stakeholder(si: StakeholderId) -> Self {
@@ -247,9 +251,9 @@ impl ToCBOR for StakeDistribution {
     fn encode(&self, buf: &mut Vec<u8>) {
         let mut vec = vec![];
         match self {
-            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(1, 0, &mut vec),
+            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(STAKE_DISTRIBUTION_TAG_BOOTSTRAP, 0, &mut vec),
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                hs_cbor::sumtype_start(0, 1, &mut vec);
+                hs_cbor::sumtype_start(STAKE_DISTRIBUTION_TAG_SINGLEKEY, 1, &mut vec);
                 si.encode(&mut vec);
             }
         };
@@ -293,13 +297,18 @@ impl Attributes {
         }
     }
 }
+
+
+const ATTRIBUTE_NAME_TAG_STAKE : u64 = 0;
+const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
+
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::spec::cbor_map_start(2, buf);
         // TODO
-        cbor::spec::cbor_uint_small(0, buf);
+        cbor::spec::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
         self.stake_distribution.encode(buf);
-        cbor::spec::cbor_uint_small(1, buf);
+        cbor::spec::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
         self.derivation_path.encode(buf);
     }
 }
@@ -363,6 +372,10 @@ impl fmt::Display for ExtendedAddr {
 pub type Script = [u8;32]; // TODO
 pub type RedeemPublicKey = [u8;32]; //TODO
 
+const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
+const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
+const SPENDING_DATA_TAG_REDEEM : u64 = 2; // TODO
+
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
@@ -373,7 +386,7 @@ impl ToCBOR for SpendingData {
     fn encode(&self, buf: &mut Vec<u8>) {
         match self {
             &SpendingData::PubKeyASD(ref xpub) => {
-                hs_cbor::sumtype_start(0, 1, buf);
+                hs_cbor::sumtype_start(SPENDING_DATA_TAG_PUBKEY, 1, buf);
                 hs_cbor_util::cbor_xpub(xpub, buf);
             }
             &SpendingData::ScriptASD(ref _script) => {
