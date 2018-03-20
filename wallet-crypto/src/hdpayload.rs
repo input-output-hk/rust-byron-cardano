@@ -29,7 +29,7 @@ impl Path {
 
         let l = cbor_decoder.array_start().unwrap();
         for _ in 0..l {
-            path.push(cbor_decoder.u32().unwrap());
+            path.push(cbor_decoder.uint().unwrap() as u32);
         };
         Some(Path::new(path))
     }
@@ -115,8 +115,7 @@ mod tests {
     use hdwallet;
 
     #[test]
-    fn hdpayload() {
-        // let path = Path::new(vec![0,1,2]);
+    fn encrypt() {
         let bytes = vec![42u8; 256];
         let sk = hdwallet::generate(&[0;32]);
         let pk = hdwallet::to_public(&sk);
@@ -124,5 +123,23 @@ mod tests {
         let key = HDKey::new(&pk);
         let payload = key.encrypt(&bytes);
         assert_eq!(Some(bytes), key.decrypt(&payload))
+    }
+
+    #[test]
+    fn path_cbor_encoding() {
+        let path = Path::new(vec![0,1,2]);
+        let cbor = path.cbor();
+        assert_eq!(Some(path), Path::from_cbor(&cbor));
+    }
+
+    #[test]
+    fn hdpayload() {
+        let path = Path::new(vec![0,1,2]);
+        let sk = hdwallet::generate(&[0;32]);
+        let pk = hdwallet::to_public(&sk);
+
+        let key = HDKey::new(&pk);
+        let payload = key.encrypt_path(&path);
+        assert_eq!(Some(path), key.decrypt_path(&payload))
     }
 }
