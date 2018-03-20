@@ -169,10 +169,11 @@ pub mod decode {
         WrongMajorType(MajorType, MajorType),
         InvalidPayloadLength(u8, u8),
         InvalidLength(usize, usize),
-        InlineIntegerTooLarge
+        InlineIntegerTooLarge,
+        Custom(&'static str)
     }
 
-    type Result<T> = result::Result<T, Error>;
+    pub type Result<T> = result::Result<T, Error>;
 
     pub struct Decoder { buf: Vec<u8> }
     impl Decoder {
