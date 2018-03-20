@@ -45,7 +45,7 @@ impl MajorType {
 // internal mobule to encode the address metadata in cbor to
 // hash them.
 //
-pub mod spec {
+pub mod encode {
     use cbor::*;
 
     const MAX_INLINE_ENCODING : u8 = 23;

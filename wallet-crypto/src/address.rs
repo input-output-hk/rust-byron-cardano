@@ -11,7 +11,7 @@ use hdwallet::{XPub};
 
 mod hs_cbor {
     use cbor::{MajorType};
-    use cbor::spec::{cbor_array_start, cbor_uint, write_length_encoding};
+    use cbor::encode::{cbor_array_start, cbor_uint, write_length_encoding};
 
     pub fn sumtype_start(tag: u64, nb_values: usize, buf: &mut Vec<u8>) -> () {
         cbor_array_start(nb_values + 1, buf);
@@ -60,7 +60,7 @@ mod hs_cbor {
 
 mod hs_cbor_util {
     use hdwallet::{XPub};
-    use cbor::spec::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
+    use cbor::encode::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
     use super::hs_cbor::{ToCBOR, serialize};
     use crc32::{crc32};
 
@@ -118,7 +118,7 @@ impl fmt::Display for DigestBlake2b {
 }
 impl ToCBOR for DigestBlake2b {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::spec::cbor_bs(&self.0[..], buf)
+        cbor::encode::cbor_bs(&self.0[..], buf)
     }
 }
 
@@ -140,7 +140,7 @@ impl AddrType {
 }
 impl ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::spec::cbor_uint(self.to_byte() as u64, buf);
+        cbor::encode::cbor_uint(self.to_byte() as u64, buf);
     }
 }
 
@@ -193,7 +193,7 @@ impl ToCBOR for StakeDistribution {
                 si.encode(&mut vec);
             }
         };
-        cbor::spec::cbor_bs(&vec, buf);
+        cbor::encode::cbor_bs(&vec, buf);
     }
 }
 
@@ -208,8 +208,8 @@ impl HDAddressPayload {
 impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
         let mut vec = vec![];
-        cbor::spec::cbor_bs(self.as_ref(), &mut vec);
-        cbor::spec::cbor_bs(&vec         , buf);
+        cbor::encode::cbor_bs(self.as_ref(), &mut vec);
+        cbor::encode::cbor_bs(&vec         , buf);
     }
 }
 
@@ -240,11 +240,11 @@ const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::spec::cbor_map_start(2, buf);
+        cbor::encode::cbor_map_start(2, buf);
         // TODO
-        cbor::spec::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
+        cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
         self.stake_distribution.encode(buf);
-        cbor::spec::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
+        cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
         self.derivation_path.encode(buf);
     }
 }
