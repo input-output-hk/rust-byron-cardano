@@ -287,6 +287,27 @@ impl ExtendedAddr {
         }
     }
 
+    /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
+    ///
+    /// ```
+    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
+    /// use wallet_crypto::hdwallet;
+    ///
+    /// let sk = hdwallet::generate(&[0;32]);
+    /// let pk = hdwallet::to_public(&sk);
+    ///
+    /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+    /// let addr_type = AddrType::ATPubKey;
+    /// let sd = SpendingData::PubKeyASD(pk.clone());
+    /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
+    ///
+    /// let ea = ExtendedAddr::new(addr_type, sd, attrs);
+    ///
+    /// let out = ea.to_bytes();
+    ///
+    /// assert_eq!(out.len(), 86); // 86 is the length in this given case.
+    /// ```
+    ///
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut vec = vec![];
         hs_cbor_util::encode_with_crc32(self, &mut vec);
