@@ -69,16 +69,18 @@ impl HDKey {
     }
 
     pub fn decrypt(&self, input: &[u8]) -> Option<Vec<u8>> {
-        let len = input.len();
-        if len < TAG_LEN { return None; };
+        let len = input.len() - TAG_LEN;
+        if len <= 0 { return None; };
 
-        let dataLen = len - TAG_LEN;
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
-        let mut out: Vec<u8> = repeat(0).take(dataLen).collect();
-        if ! ctx.decrypt(&input[0..dataLen], &mut out[..], &input[dataLen..]) {
-            return None;
-        };
-        Some(out)
+
+        let mut out: Vec<u8> = repeat(0).take(len).collect();
+
+        if ctx.decrypt(&input[..len], &mut out[..], &input[len..]) {
+            Some(out)
+        } else {
+            None
+        }
     }
 
     pub fn encrypt_path(&self, derivation_path: &Path) -> HDAddressPayload {
@@ -115,7 +117,7 @@ mod tests {
     #[test]
     fn hdpayload() {
         // let path = Path::new(vec![0,1,2]);
-        let bytes = vec![0u8; 256];
+        let bytes = vec![42u8; 256];
         let sk = hdwallet::generate(&[0;32]);
         let pk = hdwallet::to_public(&sk);
 
