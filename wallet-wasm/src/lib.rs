@@ -94,9 +94,16 @@ unsafe fn write_xpub(xpub: &hdwallet::XPub, xpub_ptr: *mut c_uchar) {
         out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub);
 }
 
+unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature {
+        let signature_slice = std::slice::from_raw_parts(sig_ptr, hdwallet::SIGNATURE_SIZE);
+        let mut signature : hdwallet::XPub = [0u8;hdwallet::SIGNATURE_SIZE];
+        signature.clone_from_slice(signature_slice);
+        signature
+}
+
 unsafe fn write_signature(signature: &[u8], out_ptr: *mut c_uchar) {
-        let out = std::slice::from_raw_parts_mut(out_ptr, 64);
-        out[0..64].clone_from_slice(signature);
+        let out = std::slice::from_raw_parts_mut(out_ptr, hdwallet::SIGNATURE_SIZE);
+        out[0..hdwallet::SIGNATURE_SIZE].clone_from_slice(signature);
 }
 
 unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
@@ -145,8 +152,11 @@ pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar,
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_uchar, out: *mut c_uchar) {
-    let xpub = unsafe { read_xprv(xpub_ptr) };
+pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_uchar, msg_sz: usize, sig_ptr: *const c_uchar) -> bool {
+    let xpub = unsafe { read_xpub(xpub_ptr) };
+    let msg = unsafe { read_data(msg_ptr, msg_sz) };
+    let signature = unsafe { read_signature(sig_ptr) };
+    hdwallet::verify(&xpub, &msg, &signature)
 }
 
 #[no_mangle]
@@ -177,16 +187,20 @@ pub extern "C" fn blake2b_256(msg_ptr: *const c_uchar, msg_sz: usize, out: *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, pl_ptr: *const c_uchar, pl_sz: usize, out: *mut c_uchar) {
+pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr: *const c_uchar, payload_sz: usize, out: *mut c_uchar) -> u32 {
     let xpub = unsafe { read_xpub(xpub_ptr) };
-    let b = unsafe { read_data(pl_ptr, pl_sz) };
+    let payload = unsafe { read_data(payload_ptr, payload_sz) };
 
-    let hdap = address::HDAddressPayload::new(&b);
+    let hdap = address::HDAddressPayload::new(&payload);
 
     let addr_type = address::AddrType::ATPubKey;
     let sd = address::SpendingData::PubKeyASD(xpub.clone());
     let attrs = address::Attributes::new_single_key(&xpub, Some(hdap));
     let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
 
-    // FIXME return
+    let ea_bytes = ea.to_bytes();
+
+    unsafe { write_data(&ea_bytes, out) }
+
+    return ea_bytes.len() as u32;
 }
