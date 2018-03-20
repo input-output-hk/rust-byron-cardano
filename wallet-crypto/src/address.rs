@@ -10,7 +10,8 @@ use cbor;
 use hdwallet::{XPub};
 
 mod hs_cbor {
-    use cbor::spec::{cbor_array_start, cbor_uint, write_length_encoding, MajorType};
+    use cbor::{MajorType};
+    use cbor::spec::{cbor_array_start, cbor_uint, write_length_encoding};
 
     pub fn sumtype_start(tag: u64, nb_values: usize, buf: &mut Vec<u8>) -> () {
         cbor_array_start(nb_values + 1, buf);

@@ -1,42 +1,58 @@
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
+pub enum MajorType {
+    UINT,
+    NINT,
+    BYTES,
+    TEXT,
+    ARRAY,
+    MAP,
+    TAG,
+    T7
+}
+
+impl MajorType {
+    // serialize a major type in its highest bit form
+    fn to_byte(self) -> u8 {
+        use self::MajorType::*;
+        match self {
+            UINT  => 0b0000_0000,
+            NINT  => 0b0010_0000,
+            BYTES => 0b0100_0000,
+            TEXT  => 0b0110_0000,
+            ARRAY => 0b1000_0000,
+            MAP   => 0b1010_0000,
+            TAG   => 0b1100_0000,
+            T7    => 0b1110_0000
+        }
+    }
+
+    fn from_byte(byte: u8) -> Option<Self> {
+        use self::MajorType::*;
+        match byte {
+            0b0000_0000 => Some(UINT),
+            0b0010_0000 => Some(NINT),
+            0b0100_0000 => Some(BYTES),
+            0b0110_0000 => Some(TEXT),
+            0b1000_0000 => Some(ARRAY),
+            0b1010_0000 => Some(MAP),
+            0b1100_0000 => Some(TAG),
+            0b1110_0000 => Some(T7),
+            _           => None
+        }
+    }
+}
 
 // internal mobule to encode the address metadata in cbor to
 // hash them.
 //
 pub mod spec {
-    #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
-    pub enum MajorType {
-        UINT,
-        NINT,
-        BYTES,
-        TEXT,
-        ARRAY,
-        MAP,
-        TAG,
-        T7
-    }
+    use cbor::*;
 
     const MAX_INLINE_ENCODING : u8 = 23;
     const CBOR_PAYLOAD_LENGTH_U8 : u8 = 24;
     const CBOR_PAYLOAD_LENGTH_U16 : u8 = 25;
     const CBOR_PAYLOAD_LENGTH_U32 : u8 = 26;
     const CBOR_PAYLOAD_LENGTH_U64 : u8 = 27;
-
-    impl MajorType {
-        // serialize a major type in its highest bit form
-        fn to_byte(self) -> u8 {
-            use self::MajorType::*;
-            match self {
-                UINT  => 0b0000_0000,
-                NINT  => 0b0010_0000,
-                BYTES => 0b0100_0000,
-                TEXT  => 0b0110_0000,
-                ARRAY => 0b1000_0000,
-                MAP   => 0b1010_0000,
-                TAG   => 0b1100_0000,
-                T7    => 0b1110_0000
-            }
-        }
-    }
 
     pub fn cbor_header(ty: MajorType, r: u8) -> u8 {
         ty.to_byte() | r & 0x1f
