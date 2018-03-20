@@ -9,6 +9,7 @@ use self::rcw::pbkdf2::{pbkdf2};
 use std::iter::repeat;
 
 use hdwallet::{XPub};
+use cbor::spec::{cbor_array_start, cbor_uint};
 
 const NONCE : [u8;12] = [115,101,114,111,107,101,108,108,102,111,114,101]; // "serokellfore"
 const SALT : [u8;15] = [97,100,100,114,101,115,115,45,104,97,115,104,105,110,103]; // "address-hashing"
@@ -21,6 +22,12 @@ impl AsRef<[u32]> for Path {
 }
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
+    fn cbor(&self) -> Vec<u8> {
+        let mut buf = vec![];
+        cbor_array_start(self.as_ref().len(), &mut buf);
+        self.as_ref().iter().for_each(|b| cbor_uint((b.clone() as u64), &mut buf));
+        buf
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -39,7 +46,7 @@ impl HDKey {
 
     pub fn encrypt(&self, derivation_path: &Path) -> HDAddressPayload {
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
-        let input = []; // encrypt CBOR path
+        let input = derivation_path.cbor();
         let len = input.len();
 
         // allocate input length + TAG of 16
