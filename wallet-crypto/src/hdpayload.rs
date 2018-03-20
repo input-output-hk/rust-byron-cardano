@@ -22,6 +22,17 @@ impl AsRef<[u32]> for Path {
 }
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
+    fn from_cbor(bytes: &[u8]) -> Option<Self> {
+        let mut cbor_decoder = cbor::decode::Decoder::new();
+        let mut path = vec![];
+        cbor_decoder.extend(bytes);
+
+        let l = cbor_decoder.array_start().unwrap();
+        for _ in 0..l {
+            path.push(cbor_decoder.u32().unwrap());
+        };
+        Some(Path::new(path))
+    }
     fn cbor(&self) -> Vec<u8> {
         let mut buf = vec![];
         cbor::encode::cbor_array_start(self.as_ref().len(), &mut buf);
@@ -44,33 +55,42 @@ impl HDKey {
         HDKey(result)
     }
 
-    pub fn encrypt(&self, derivation_path: &Path) -> HDAddressPayload {
+    pub fn encrypt(&self, input: &[u8]) -> Vec<u8> {
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
-        let input = derivation_path.cbor();
+
         let len = input.len();
 
-        // allocate input length + TAG of 16
         let mut out: Vec<u8> = repeat(0).take(len + TAG_LEN).collect();
         let mut tag = [0;TAG_LEN];
 
         ctx.encrypt(&input, &mut out[0..len], &mut tag);
         out.extend_from_slice(&tag[..]);
+        out
+    }
+
+    pub fn decrypt(&self, input: &[u8]) -> Option<Vec<u8>> {
+        let len = input.len();
+        if len < TAG_LEN { return None; };
+
+        let dataLen = len - TAG_LEN;
+        let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
+        let mut out: Vec<u8> = repeat(0).take(dataLen).collect();
+        if ! ctx.decrypt(&input[0..dataLen], &mut out[..], &input[dataLen..]) {
+            return None;
+        };
+        Some(out)
+    }
+
+    pub fn encrypt_path(&self, derivation_path: &Path) -> HDAddressPayload {
+        let input = derivation_path.cbor();
+        let out = self.encrypt(&input);
+
         HDAddressPayload::from_vec(out)
     }
 
-    pub fn decrypt(&self, payload: &HDAddressPayload) -> Option<Path> {
-        let len = payload.len();
-        if len < TAG_LEN {
-            None
-        } else {
-            let dataLen = len - TAG_LEN;
-            let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
-            let mut out: Vec<u8> = repeat(0).take(dataLen).collect();
-            match ctx.decrypt(&payload.as_ref()[0..dataLen], &mut out[..], &payload.as_ref()[dataLen..]) {
-                True => None,
-                False => None
-            }
-        }
+    pub fn decrypt_path(&self, payload: &HDAddressPayload) -> Option<Path> {
+        let out = self.decrypt(payload.as_ref())?;
+        Path::from_cbor(&out)
     }
 }
 
@@ -94,12 +114,13 @@ mod tests {
 
     #[test]
     fn hdpayload() {
-        let path = Path::new(vec![0,1,2]);
+        // let path = Path::new(vec![0,1,2]);
+        let bytes = vec![0u8; 256];
         let sk = hdwallet::generate(&[0;32]);
         let pk = hdwallet::to_public(&sk);
 
         let key = HDKey::new(&pk);
-        let payload = key.encrypt(&path);
-        assert_eq!(Some(path), key.decrypt(&payload))
+        let payload = key.encrypt(&bytes);
+        assert_eq!(Some(bytes), key.decrypt(&payload))
     }
 }
