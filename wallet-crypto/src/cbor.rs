@@ -57,7 +57,7 @@ pub mod spec {
     /// does all the job: Big Endian, bit shift and convertion
     macro_rules! byte_slice {
         ($value:ident, $shift:expr) => ({
-            ($value.to_be() >> $shift) as u8
+            ($value >> $shift) as u8
         });
     }
 
