@@ -60,8 +60,11 @@ pub fn crc32(input: &[u8]) -> u32 {
     })
 }
 
-#[test]
-fn crc32_test() {
-    let s = b"The quick brown fox jumps over the lazy dog";
-    assert_eq!(0x414fa339, crc32(s));
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn crc32() {
+        let s = b"The quick brown fox jumps over the lazy dog";
+        assert_eq!(0x414fa339, super::crc32(s));
+    }
 }
