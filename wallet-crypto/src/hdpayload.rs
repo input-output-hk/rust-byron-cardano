@@ -60,7 +60,7 @@ impl HDKey {
 
         let len = input.len();
 
-        let mut out: Vec<u8> = repeat(0).take(len + TAG_LEN).collect();
+        let mut out: Vec<u8> = repeat(0).take(len).collect();
         let mut tag = [0;TAG_LEN];
 
         ctx.encrypt(&input, &mut out[0..len], &mut tag);
