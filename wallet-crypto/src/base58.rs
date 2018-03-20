@@ -65,17 +65,40 @@ pub fn base_decode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::{base_encode, base_decode};
+
+    struct TestVector {
+        msg: &'static [u8],
+        res: &'static [u8]
+    }
+
+    const TEST_VECTORS : [TestVector;2] =
+        [ TestVector {
+            msg: b"This is awesome!",
+            res: b"BRY7dK2V98Sgi7CFWiZbap"
+          }
+        , TestVector {
+            msg: b"Hello World...",
+            res: b"TcgsE5dzphUWfjcb9i5"
+          }
+        ];
+
     #[test]
-    fn base58() {
+    fn base58_encode() {
         let alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-        let expected = [1,2,3];
 
-        let hex = [0x00,0x01,0x09,0x66,0x77,0x60,0x06,0x95,0x3D,0x55,0x67,0x43,0x9E,0x5E,0x39,0xF8,0x6A,0x0D,0x27,0x3B,0xEE,0xD6,0x19,0x67,0xF6];
+        for tv in TEST_VECTORS.iter() {
+            let v = base_encode(&alphabet, tv.msg);
+            assert_eq!(tv.res, v.as_slice());
+        }
+    }
 
-        assert_eq!(base_decode(&alphabet, &base_encode(&alphabet, &expected)[..]), expected);
+    #[test]
+    fn base58_decode() {
+        let alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-        //let r = base_encode(&alphabet, &hex);
-        //assert_eq!(r, "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM".as_bytes());
-
+        for tv in TEST_VECTORS.iter() {
+            let v = base_decode(&alphabet, tv.res);
+            assert_eq!(tv.msg, v.as_slice());
+        }
     }
 }
