@@ -11,8 +11,8 @@ use std::iter::repeat;
 use hdwallet::{XPub};
 use cbor;
 
-const NONCE : [u8;12] = [115,101,114,111,107,101,108,108,102,111,114,101]; // "serokellfore"
-const SALT : [u8;15] = [97,100,100,114,101,115,115,45,104,97,115,104,105,110,103]; // "address-hashing"
+const NONCE : &'static [u8] = b"serokellfore";
+const SALT  : &'static [u8] = b"address-hashing";
 const TAG_LEN : usize = 16;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
