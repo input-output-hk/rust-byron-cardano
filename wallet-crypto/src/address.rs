@@ -676,8 +676,20 @@ mod tests {
     }
 
     #[test]
-    fn decode_address() {
+    fn decode_address_1() {
         let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
+        let alphabet  = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
+
+        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+
+        assert_eq!(r.addr_type, AddrType::ATPubKey);
+        assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+    }
+
+    #[test]
+    fn decode_address_2() {
+        let addr_str  = "DdzFFzCqrhsi8XFMabbnHecVusaebqQCkXTqDnCumx5esKB1pk1zbhX5BtdAivZbQePFVujgzNCpBVXactPSmphuHRC5Xk8qmBd49QjW";
         let alphabet  = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
         let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
 
