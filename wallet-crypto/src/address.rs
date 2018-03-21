@@ -299,7 +299,7 @@ const STAKE_DISTRIBUTION_TAG_BOOTSTRAP : u64 = 1;
 const STAKE_DISTRIBUTION_TAG_SINGLEKEY : u64 = 0;
 
 impl StakeDistribution {
-    pub fn new_era() -> Self { StakeDistribution::BootstrapEraDistr }
+    pub fn new_bootstrap_era() -> Self { StakeDistribution::BootstrapEraDistr }
     pub fn new_single_stakeholder(si: StakeholderId) -> Self {
         StakeDistribution::SingleKeyDistr(si)
     }
@@ -328,7 +328,7 @@ impl FromCBOR for StakeDistribution {
         dec.extend(&bs);
         match hs_cbor::dec_sumtype_start(&mut dec)? {
             (STAKE_DISTRIBUTION_TAG_BOOTSTRAP, 0) => {
-                Ok(StakeDistribution::new_era())
+                Ok(StakeDistribution::new_bootstrap_era())
             },
             (STAKE_DISTRIBUTION_TAG_SINGLEKEY, 1) => {
                 let si = StakeholderId::decode(&mut dec)?;
@@ -669,7 +669,7 @@ mod tests {
         use hdwallet;
         let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
         let pk = hdwallet::to_public(&sk);
-        let sd_1 = StakeDistribution::new_bootstrap_era(None);
+        let sd_1 = StakeDistribution::new_bootstrap_era();
         let sd_2 = StakeDistribution::new_single_key(&pk);
         assert!(hs_cbor::encode_decode(&sd_1));
         assert!(hs_cbor::encode_decode(&sd_2));

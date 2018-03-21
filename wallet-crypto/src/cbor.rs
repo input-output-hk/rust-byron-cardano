@@ -281,15 +281,15 @@ pub mod decode {
                 let x4 = self.drop()? as usize;
                 Ok((mt, x1 << 24 | x2 << 16 | x3 << 8 | x4))
             } else if b == CBOR_PAYLOAD_LENGTH_U64 {
-                let x1 = self.drop()? as usize;
-                let x2 = self.drop()? as usize;
-                let x3 = self.drop()? as usize;
-                let x4 = self.drop()? as usize;
-                let x5 = self.drop()? as usize;
-                let x6 = self.drop()? as usize;
-                let x7 = self.drop()? as usize;
-                let x8 = self.drop()? as usize;
-                Ok((mt, x1 << 56 | x2 << 48 | x3 << 40 | x4 << 32 | x5 << 24 | x6 << 16 | x7 << 8 | x8))
+                let x1 = self.drop()? as u64;
+                let x2 = self.drop()? as u64;
+                let x3 = self.drop()? as u64;
+                let x4 = self.drop()? as u64;
+                let x5 = self.drop()? as u64;
+                let x6 = self.drop()? as u64;
+                let x7 = self.drop()? as u64;
+                let x8 = self.drop()? as u64;
+                Ok((mt, (x1 << 56 | x2 << 48 | x3 << 40 | x4 << 32 | x5 << 24 | x6 << 16 | x7 << 8 | x8) as usize))
             } else {
                 Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U64, b))
             }
