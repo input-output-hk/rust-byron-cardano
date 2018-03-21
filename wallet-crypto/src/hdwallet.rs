@@ -16,7 +16,47 @@ pub const SIGNATURE_SIZE: usize = 64;
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
-pub type Seed = [u8; SEED_SIZE];
+/// Seed used to generate the root private key of the HDWallet.
+///
+pub struct Seed([u8; SEED_SIZE]);
+impl Seed {
+    /// create a Seed by taking ownership of the given array
+    ///
+    /// ```
+    /// use wallet_crypto::hdwallet::{Seed, SEED_SIZE};
+    ///
+    /// let bytes = [0u8;SEED_SIZE];
+    /// let seed  = Seed::from_bytes(bytes);
+    ///
+    /// assert!(seed.as_ref().len() == SEED_SIZE);
+    /// ```
+    pub fn from_bytes(buf: [u8;SEED_SIZE]) -> Self { Seed(buf) }
+
+    /// create a Seed by copying the given slice into a new array
+    ///
+    /// ```
+    /// use wallet_crypto::hdwallet::{Seed, SEED_SIZE};
+    ///
+    /// let bytes = [0u8;SEED_SIZE];
+    /// let wrong = [0u8;31];
+    ///
+    /// assert!(Seed::from_slice(&wrong[..]).is_none());
+    /// assert!(Seed::from_slice(&bytes[..]).is_some());
+    /// ```
+    pub fn from_slice(buf: &[u8]) -> Option<Self> {
+        if buf.len() == SEED_SIZE {
+            let mut v = [0u8;SEED_SIZE];
+            v[..].clone_from_slice(buf);
+            Some(Seed::from_bytes(v))
+        } else {
+            None
+        }
+    }
+}
+impl AsRef<[u8]> for Seed {
+    fn as_ref(&self) -> &[u8] { &self.0 }
+}
+
 pub type XPrv = [u8; XPRV_SIZE];
 pub type XPub = [u8; XPUB_SIZE];
 pub type Signature = [u8; SIGNATURE_SIZE];
@@ -50,7 +90,7 @@ fn mk_ed25519_extended(extended_out: &mut [u8], secret: &[u8]) {
 }
 
 pub fn generate(seed: &Seed) -> XPrv {
-    let mut mac = Hmac::new(Sha512::new(), &seed[..]);
+    let mut mac = Hmac::new(Sha512::new(), seed.as_ref());
 
     let mut iter = 1;
     let mut out = [0u8; XPRV_SIZE];
@@ -271,7 +311,7 @@ pub fn to_public(xprv: &XPrv) -> XPub {
 
 #[cfg(test)]
 mod tests {
-    use hdwallet::{XPub, XPrv, DerivationIndex, generate, derive_public, derive_private, sign};
+    use hdwallet::{Seed, XPub, XPrv, DerivationIndex, generate, derive_public, derive_private, sign};
 
     const D1: XPrv =
         [0xf8, 0xa2, 0x92, 0x31, 0xee, 0x38, 0xd6, 0xc5, 0xbf, 0x71, 0x5d, 0x5b, 0xac, 0x21, 0xc7,
@@ -309,17 +349,18 @@ mod tests {
                    "extended key");
     }
 
-    fn seed_xprv_eq(seed: [u8; 32], expected_xprv: [u8; 96]) {
+    fn seed_xprv_eq(seed: &Seed, expected_xprv: [u8; 96]) {
         let xprv = generate(&seed);
         compare_xprv(&xprv, &expected_xprv);
     }
 
     #[test]
     fn seed_cases() {
-        seed_xprv_eq([0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11, 0x92, 0xe1, 0xda,
+        let bytes =  [0xe3, 0x55, 0x24, 0xa5, 0x18, 0x03, 0x4d, 0xdc, 0x11, 0x92, 0xe1, 0xda,
                       0xcd, 0x32, 0xc1, 0xed, 0x3e, 0xaa, 0x3c, 0x3b, 0x13, 0x1c, 0x88, 0xed,
-                      0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98],
-                     D1)
+                      0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98];
+        let seed = Seed::from_bytes(bytes);
+        seed_xprv_eq(&seed, D1);
     }
 
     fn derive_xprv_eq(parent_xprv: [u8; 96], idx: DerivationIndex, expected_xprv: [u8; 96]) {

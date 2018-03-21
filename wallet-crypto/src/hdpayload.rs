@@ -132,7 +132,8 @@ mod tests {
     #[test]
     fn encrypt() {
         let bytes = vec![42u8; 256];
-        let sk = hdwallet::generate(&[0;32]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
 
         let key = HDKey::new(&pk);
@@ -150,7 +151,8 @@ mod tests {
     #[test]
     fn hdpayload() {
         let path = Path::new(vec![0,1,2]);
-        let sk = hdwallet::generate(&[0;32]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
 
         let key = HDKey::new(&pk);

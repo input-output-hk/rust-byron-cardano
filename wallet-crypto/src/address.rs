@@ -465,7 +465,8 @@ impl ExtendedAddr {
     /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
     /// use wallet_crypto::hdwallet;
     ///
-    /// let sk = hdwallet::generate(&[0;32]);
+    /// let seed = hdwallet::Seed::from_bytes([0;32]);
+    /// let sk = hdwallet::generate(&seed);
     /// let pk = hdwallet::to_public(&sk);
     ///
     /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
@@ -492,7 +493,8 @@ impl ExtendedAddr {
     /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
     /// use wallet_crypto::hdwallet;
     ///
-    /// let sk = hdwallet::generate(&[0;32]);
+    /// let seed = hdwallet::Seed::from_bytes([0;32]);
+    /// let sk = hdwallet::generate(&seed);
     /// let pk = hdwallet::to_public(&sk);
     ///
     /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
@@ -589,8 +591,6 @@ mod tests {
     use hdwallet;
     use base58;
 
-    const SEED : hdwallet::Seed = [0;32];
-
     #[test]
     fn test_make_address() {
         let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
@@ -598,7 +598,8 @@ mod tests {
                    , 0x7e, 0x26, 0x25, 0x0c];
         let addr = Addr::from_bytes(v);
 
-        let sk = hdwallet::generate(&SEED);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
 
         let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
@@ -623,7 +624,8 @@ mod tests {
                     , 0x93, 0x71
                     ];
 
-        let sk = hdwallet::generate(&SEED);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
 
         let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
@@ -659,7 +661,8 @@ mod tests {
     #[test]
     fn encode_decode_stakeholderid() {
         use hdwallet;
-        let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
         let si = StakeholderId::new(&pk);
         assert!(hs_cbor::encode_decode(&si));
@@ -667,7 +670,8 @@ mod tests {
     #[test]
     fn encode_decode_stakedistribution() {
         use hdwallet;
-        let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::generate(&seed);
         let pk = hdwallet::to_public(&sk);
         let sd_1 = StakeDistribution::new_bootstrap_era();
         let sd_2 = StakeDistribution::new_single_key(&pk);

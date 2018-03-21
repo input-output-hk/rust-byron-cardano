@@ -123,9 +123,7 @@ unsafe fn write_signature(signature: &[u8], out_ptr: *mut c_uchar) {
 
 unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
         let seed_slice = std::slice::from_raw_parts(seed_ptr, hdwallet::SEED_SIZE);
-        let mut seed : hdwallet::Seed = [0u8;hdwallet::SEED_SIZE];
-        seed.clone_from_slice(seed_slice);
-        seed
+        hdwallet::Seed::from_slice(seed_slice).unwrap()
 }
 
 #[no_mangle]
