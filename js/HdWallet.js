@@ -73,6 +73,22 @@ export const publicKeyToAddress = (module, xpub, payload) => {
   return addr;
 };
 
+export const addressGetPayload = (module, address) => {
+  const bufaddr    = newArray(module, address);
+  const bufpayload = newArray0(module, 1024);
+
+  let rs = module.wallet_address_get_payload(bufaddr, address.length, bufpayload);
+  let payload = null;
+  if (rs > 0) {
+      payload = copyArray(module, bufpayload, rs);
+  }
+
+  module.dealloc(bufpayload);
+  module.dealloc(bufaddr);
+
+  return payload;
+};
+
 
 export default {
   fromSeed: apply(fromSeed, RustModule),
@@ -81,4 +97,5 @@ export default {
   derivePublic: apply(derivePublic, RustModule),
   sign: apply(sign, RustModule),
   publicKeyToAddress: apply(publicKeyToAddress, RustModule),
+  addressGetPayload: apply(addressGetPayload, RustModule)
 };

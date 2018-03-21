@@ -18,6 +18,11 @@ let mkTest = (i) => {
             expect(CardanoCrypto.HdWallet.publicKeyToAddress(pubkey, payload))
                 .deep.equal(address);
         });
+
+        it('get_payload', function() {
+            expect(CardanoCrypto.HdWallet.addressGetPayload(address))
+                .deep.equal(payload);
+        });
     });
 }
 
