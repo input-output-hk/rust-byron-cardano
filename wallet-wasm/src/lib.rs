@@ -84,6 +84,7 @@ unsafe fn write_data_u32(data: &[u32], data_ptr: *mut c_uint) {
         let out = std::slice::from_raw_parts_mut(data_ptr, sz);
         out[0..sz].clone_from_slice(data)
 }
+
 unsafe fn read_xprv(xprv_ptr: *const c_uchar) -> hdwallet::XPrv {
         let xprv_slice = std::slice::from_raw_parts(xprv_ptr, hdwallet::XPRV_SIZE);
         let mut xprv : hdwallet::XPrv = [0u8;hdwallet::XPRV_SIZE];
@@ -217,6 +218,23 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
     unsafe { write_data(&ea_bytes, out) }
 
     return ea_bytes.len() as u32;
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_address_get_payload(addr_ptr: *const c_uchar, addr_sz: usize, out: *mut c_uchar) -> u32 {
+    let addr_bytes = unsafe { read_data(addr_ptr, addr_sz) };
+    match address::ExtendedAddr::from_bytes(&addr_bytes) {
+        Err(_) => (-1i32) as u32,
+        Ok(r)  => {
+            match r.attributes.derivation_path {
+                None        => 0,
+                Some(dpath) => {
+                    unsafe { write_data(dpath.as_ref(), out) };
+                    dpath.as_ref().len() as u32
+                }
+            }
+        }
+    }
 }
 
 #[no_mangle]

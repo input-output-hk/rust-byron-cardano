@@ -367,8 +367,8 @@ impl FromCBOR for HDAddressPayload {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
-    derivation_path: Option<HDAddressPayload>,
-    stake_distribution: StakeDistribution
+    pub derivation_path: Option<HDAddressPayload>,
+    pub stake_distribution: StakeDistribution
     // attr_remains ? whatever...
 }
 impl Attributes {
@@ -446,9 +446,9 @@ impl Addr {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExtendedAddr {
-    addr: Addr,
-    attributes: Attributes,
-    addr_type: AddrType,
+    pub addr: Addr,
+    pub attributes: Attributes,
+    pub addr_type: AddrType,
 }
 impl ExtendedAddr {
     pub fn new(ty: AddrType, sd: SpendingData, attrs: Attributes) -> Self {
