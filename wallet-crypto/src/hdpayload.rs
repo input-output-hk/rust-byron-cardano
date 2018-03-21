@@ -61,7 +61,7 @@ impl HDKey {
     pub fn from_bytes(bytes: [u8;HDKEY_SIZE]) -> Self { HDKey(bytes) }
     /// create a `HDKey` fromt the given slice
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes == HDKEY_SIZE {
+        if bytes.len() == HDKEY_SIZE {
             let mut v = [0u8;HDKEY_SIZE];
             v[0..HDKEY_SIZE].clone_from_slice(bytes);
             Some(HDKey::from_bytes(v))
@@ -117,8 +117,8 @@ impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 impl HDAddressPayload {
-    fn from_vec(v: Vec<u8>) -> Self { HDAddressPayload(v) }
-    fn from_bytes(bytes: &[u8]) -> Self {
+    pub fn from_vec(v: Vec<u8>) -> Self { HDAddressPayload(v) }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         HDAddressPayload::from_vec(bytes.iter().cloned().collect())
     }
     pub fn len(&self) -> usize { self.0.len() }
