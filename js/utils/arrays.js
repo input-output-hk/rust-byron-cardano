@@ -1,10 +1,10 @@
-export const newArray = (module, b, isZero=false) => {
+export const newArray = (module, b) => {
   const len = b.length;
   const ptr = module.alloc(len);
 
   let memory = new Uint8Array(module.memory.buffer);
   for (let i = 0; i < len; i++) {
-    memory[ptr+i] = isZero ? 0 : b[i];
+    memory[ptr+i] = b[i];
   }
   return ptr
 };
