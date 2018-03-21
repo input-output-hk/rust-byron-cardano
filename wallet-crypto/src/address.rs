@@ -372,9 +372,9 @@ pub struct Attributes {
     // attr_remains ? whatever...
 }
 impl Attributes {
-    pub fn new_era() -> Self {
+    pub fn new_bootstrap_era(hdap: Option<HDAddressPayload>) -> Self {
         Attributes {
-            derivation_path: None,
+            derivation_path: hdap,
             stake_distribution: StakeDistribution::BootstrapEraDistr
         }
     }
@@ -669,7 +669,7 @@ mod tests {
         use hdwallet;
         let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
         let pk = hdwallet::to_public(&sk);
-        let sd_1 = StakeDistribution::new_era();
+        let sd_1 = StakeDistribution::new_bootstrap_era(None);
         let sd_2 = StakeDistribution::new_single_key(&pk);
         assert!(hs_cbor::encode_decode(&sd_1));
         assert!(hs_cbor::encode_decode(&sd_2));
