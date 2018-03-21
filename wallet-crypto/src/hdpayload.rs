@@ -41,18 +41,33 @@ impl Path {
     }
 }
 
+pub const HDKEY_SIZE : usize = 32;
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct HDKey([u8;32]);
+pub struct HDKey([u8;HDKEY_SIZE]);
 impl AsRef<[u8]> for HDKey {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 impl HDKey {
     pub fn new(root_pub: &XPub) -> Self {
         let mut mac = Hmac::new(Sha512::new(), &root_pub[..]);
-        let mut result = [0;32];
+        let mut result = [0;HDKEY_SIZE];
         let iters = 500;
         pbkdf2(&mut mac, &SALT[..], iters, &mut result);
         HDKey(result)
+    }
+
+    /// create a `HDKey` by taking ownership of the given bytes
+    pub fn from_bytes(bytes: [u8;HDKEY_SIZE]) -> Self { HDKey(bytes) }
+    /// create a `HDKey` fromt the given slice
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        if bytes == HDKEY_SIZE {
+            let mut v = [0u8;HDKEY_SIZE];
+            v[0..HDKEY_SIZE].clone_from_slice(bytes);
+            Some(HDKey::from_bytes(v))
+        } else {
+            None
+        }
     }
 
     pub fn encrypt(&self, input: &[u8]) -> Vec<u8> {
