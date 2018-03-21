@@ -10,10 +10,11 @@ use self::rcw::digest::{Digest};
 use self::wallet_crypto::hdwallet;
 use self::wallet_crypto::paperwallet;
 use self::wallet_crypto::address;
+use self::wallet_crypto::hdpayload;
 
 use std::mem;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_uchar, c_char, c_void};
+use std::os::raw::{c_uint, c_uchar, c_char, c_void};
 use std::iter::repeat;
 //use std::slice::{from_raw_parts};
 
@@ -64,12 +65,25 @@ unsafe fn read_data(data_ptr: *const c_uchar, sz: usize) -> Vec<u8> {
         data.extend_from_slice(data_slice);
         data
 }
+
 unsafe fn write_data(data: &[u8], data_ptr: *mut c_uchar) {
         let sz = data.len();
         let out = std::slice::from_raw_parts_mut(data_ptr, sz);
         out[0..sz].clone_from_slice(data)
 }
 
+unsafe fn read_data_u32(data_ptr: *const c_uint, sz: usize) -> Vec<u32> {
+    let data_slice = std::slice::from_raw_parts(data_ptr, sz);
+    let mut data = Vec::with_capacity(sz);
+    data.extend_from_slice(data_slice);
+    data
+}
+
+unsafe fn write_data_u32(data: &[u32], data_ptr: *mut c_uint) {
+        let sz = data.len();
+        let out = std::slice::from_raw_parts_mut(data_ptr, sz);
+        out[0..sz].clone_from_slice(data)
+}
 unsafe fn read_xprv(xprv_ptr: *const c_uchar) -> hdwallet::XPrv {
         let xprv_slice = std::slice::from_raw_parts(xprv_ptr, hdwallet::XPRV_SIZE);
         let mut xprv : hdwallet::XPrv = [0u8;hdwallet::XPRV_SIZE];
@@ -203,4 +217,43 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
     unsafe { write_data(&ea_bytes, out) }
 
     return ea_bytes.len() as u32;
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_payload_initiate(xpub_ptr: *const c_uchar, out: *mut c_uchar) {
+    let xpub = unsafe { read_xpub(xpub_ptr) };
+    let hdkey = hdpayload::HDKey::new(&xpub);
+    unsafe { write_data(hdkey.as_ref(), out); }
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_payload_encrypt(key_ptr: *const c_uchar, path_array: *const c_uint, path_sz: usize, out: *mut c_uchar) -> u32 {
+    let key_bytes = unsafe { read_data(key_ptr, hdpayload::HDKEY_SIZE) };
+    let path_vec = unsafe { read_data_u32(path_array, path_sz) };
+    let hdkey = hdpayload::HDKey::from_slice(&key_bytes).unwrap();
+
+    let path = hdpayload::Path::new(path_vec);
+
+    let payload = hdkey.encrypt_path(&path);
+
+    unsafe { write_data(payload.as_ref(), out) };
+    payload.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_payload_decrypt(key_ptr: *const c_uchar, payload_ptr: *const c_uchar, payload_sz: usize, out: *mut c_uint) -> u32 {
+    let key_bytes = unsafe { read_data(key_ptr, hdpayload::HDKEY_SIZE) };
+    let payload_bytes = unsafe { read_data(payload_ptr, payload_sz) };
+
+    let hdkey = hdpayload::HDKey::from_slice(&key_bytes).unwrap();
+    let payload = hdpayload::HDAddressPayload::from_bytes(&payload_bytes);
+
+    match hdkey.decrypt_path(&payload) {
+        None       => 0xffffffff,
+        Some(path) => {
+            let v = path.as_ref();
+            unsafe { write_data_u32(v, out) };
+            v.len() as u32
+        }
+    }
 }
