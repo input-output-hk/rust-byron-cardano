@@ -4,12 +4,14 @@ use self::rcw::digest::Digest;
 use self::rcw::sha2::Sha512;
 use self::rcw::hmac::Hmac;
 use self::rcw::mac::Mac;
-use self::rcw::curve25519::{GeP3, ge_scalarmult_base, sc_reduce, sc_muladd, curve25519, Fe};
+use self::rcw::curve25519::{GeP3, ge_scalarmult_base};
 use self::rcw::ed25519::signature_extended;
+use self::rcw::ed25519;
 
 pub const SEED_SIZE: usize = 32;
 pub const XPRV_SIZE: usize = 96;
 pub const XPUB_SIZE: usize = 64;
+pub const SIGNATURE_SIZE: usize = 64;
 
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
@@ -17,8 +19,9 @@ pub const CHAIN_CODE_SIZE: usize = 32;
 pub type Seed = [u8; SEED_SIZE];
 pub type XPrv = [u8; XPRV_SIZE];
 pub type XPub = [u8; XPUB_SIZE];
+pub type Signature = [u8; SIGNATURE_SIZE];
 
-type ChainCode = [u8; CHAIN_CODE_SIZE];
+pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
 type DerivationIndex = u32;
 
@@ -216,7 +219,7 @@ pub fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub, ()> {
     let mut zout = [0u8; 64];
     zmac.raw_result(&mut zout);
     let zl = &zout[0..32];
-    let zr = &zout[32..64];
+    let _zr = &zout[32..64];
 
     let a = match GeP3::from_bytes_negate_vartime(pk) {
         Some(g) => g,
@@ -242,8 +245,12 @@ pub fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub, ()> {
 
 }
 
-pub fn sign(xprv: &XPrv, message: &[u8]) -> [u8; 64] {
+pub fn sign(xprv: &XPrv, message: &[u8]) -> Signature {
     signature_extended(message, &xprv[0..64])
+}
+
+pub fn verify(xpub: &XPub, message: &[u8], signature: &Signature) -> bool {
+    ed25519::verify(message, &xpub[0..32], &signature[..])
 }
 
 fn mk_public_key(extended_secret: &[u8]) -> [u8; PUBLIC_KEY_SIZE] {

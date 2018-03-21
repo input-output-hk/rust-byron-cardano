@@ -16,7 +16,7 @@ rustup target add wasm32-unknown-unknown --toolchain nightly
 Build the Library
 -----------------
 
-To transpile the rust crypto to a Web Assembly (WASM) module and build JS library run the `./build` script.
+To Compile the rust crypto to a Web Assembly (WASM) module and build JS library run the `./build` script.
 (only necessary if you want to build locally)
 
 Run the Example
@@ -63,4 +63,4 @@ Notes
 
 The rust code contains `rwc/` a fork of [rust-crypto](https://github.com/DaGenix/rust-crypto)
 without the dependencies that cannot be build easily in a wasm environment, and minus the 
-algorithms that is not useful.
+algorithms that are not useful.

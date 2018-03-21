@@ -24,7 +24,7 @@ pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(sz);
 
     out.extend_from_slice(iv);
-    for i in 4..sz {
+    for _ in 4..sz {
         out.push(0);
     }
 
@@ -44,7 +44,7 @@ pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8>{
     let out_sz = input.len() - 4;
 
     let mut out = Vec::with_capacity(out_sz);
-    for i in 0..out_sz {
+    for _ in 0..out_sz {
         out.push(0);
     }
 
