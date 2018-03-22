@@ -87,14 +87,12 @@ unsafe fn write_data_u32(data: &[u32], data_ptr: *mut c_uint) {
 
 unsafe fn read_xprv(xprv_ptr: *const c_uchar) -> hdwallet::XPrv {
         let xprv_slice = std::slice::from_raw_parts(xprv_ptr, hdwallet::XPRV_SIZE);
-        let mut xprv : hdwallet::XPrv = [0u8;hdwallet::XPRV_SIZE];
-        xprv.clone_from_slice(xprv_slice);
-        xprv
+        hdwallet::XPrv::from_slice(xprv_slice).unwrap()
 }
 
 unsafe fn write_xprv(xprv: &hdwallet::XPrv, xprv_ptr: *mut c_uchar) {
         let out = std::slice::from_raw_parts_mut(xprv_ptr, hdwallet::XPRV_SIZE);
-        out[0..hdwallet::XPRV_SIZE].clone_from_slice(xprv);
+        out[0..hdwallet::XPRV_SIZE].clone_from_slice(xprv.as_ref());
 }
 
 unsafe fn read_xpub(xpub_ptr: *const c_uchar) -> hdwallet::XPub {

@@ -7,6 +7,7 @@ use self::rcw::mac::Mac;
 use self::rcw::curve25519::{GeP3, ge_scalarmult_base};
 use self::rcw::ed25519::signature_extended;
 use self::rcw::ed25519;
+use self::rcw::util::fixed_time_eq;
 
 pub const SEED_SIZE: usize = 32;
 pub const XPRV_SIZE: usize = 96;
@@ -16,8 +17,11 @@ pub const SIGNATURE_SIZE: usize = 64;
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
+use std::fmt;
+
 /// Seed used to generate the root private key of the HDWallet.
 ///
+#[derive(Debug, PartialEq, Eq)]
 pub struct Seed([u8; SEED_SIZE]);
 impl Seed {
     /// create a Seed by taking ownership of the given array
@@ -52,12 +56,78 @@ impl Seed {
             None
         }
     }
+
+    pub fn xprv(&self) -> XPrv {
+        let mut mac = Hmac::new(Sha512::new(), self.as_ref());
+
+        let mut iter = 1;
+        let mut out = [0u8; XPRV_SIZE];
+
+        loop {
+            let s = format!("Root Seed Chain {}", iter);
+            mac.reset();
+            mac.input(s.as_bytes());
+            let mut block = [0u8; 64];
+            mac.raw_result(&mut block);
+            mk_ed25519_extended(&mut out[0..64], &block[0..32]);
+
+            if (out[31] & 0x20) == 0 {
+                out[64..96].clone_from_slice(&block[32..64]);
+                break;
+            }
+            iter = iter + 1;
+        }
+
+        XPrv::from_bytes(out)
+    }
+
 }
 impl AsRef<[u8]> for Seed {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
 
-pub type XPrv = [u8; XPRV_SIZE];
+/// HDWallet private key
+///
+pub struct XPrv([u8; XPRV_SIZE]);
+impl XPrv {
+    /// create a `XPrv` by taking ownership of the given array
+    ///
+    pub fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Self { XPrv(bytes) }
+
+    /// create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
+    /// otherwise it will return `Option::None`.
+    ///
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() == XPRV_SIZE {
+            let mut buf = [0u8;XPRV_SIZE];
+            buf[..].clone_from_slice(bytes);
+            Some(XPrv::from_bytes(buf))
+        } else {
+            None
+        }
+    }
+}
+impl PartialEq for XPrv {
+    fn eq(&self, rhs: &XPrv) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }
+}
+impl Eq for XPrv {}
+impl fmt::Debug for XPrv {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for b in self.as_ref().iter() {
+            if b < &0x10 {
+                write!(f, "0{:x}", b)?;
+            } else {
+                write!(f, "{:x}", b)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl AsRef<[u8]> for XPrv {
+    fn as_ref(&self) -> &[u8] { &self.0 }
+}
+
+
 pub type XPub = [u8; XPUB_SIZE];
 pub type Signature = [u8; SIGNATURE_SIZE];
 
@@ -89,28 +159,7 @@ fn mk_ed25519_extended(extended_out: &mut [u8], secret: &[u8]) {
     extended_out[31] |= 64;
 }
 
-pub fn generate(seed: &Seed) -> XPrv {
-    let mut mac = Hmac::new(Sha512::new(), seed.as_ref());
-
-    let mut iter = 1;
-    let mut out = [0u8; XPRV_SIZE];
-
-    loop {
-        let s = format!("Root Seed Chain {}", iter);
-        mac.reset();
-        mac.input(s.as_bytes());
-        let mut block = [0u8; 64];
-        mac.raw_result(&mut block);
-        mk_ed25519_extended(&mut out[0..64], &block[0..32]);
-
-        if (out[31] & 0x20) == 0 {
-            out[64..96].clone_from_slice(&block[32..64]);
-            break;
-        }
-        iter = iter + 1;
-    }
-    out
-}
+pub fn generate(seed: &Seed) -> XPrv { seed.xprv() }
 
 fn le32(i: u32) -> [u8; 4] {
     [i as u8, (i >> 8) as u8, (i >> 16) as u8, (i >> 24) as u8]
@@ -178,10 +227,10 @@ pub fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
      *    let I = HMAC-SHA512(Key = cpar, Data = 0x03 || serP(point(kpar)) || ser32(i)).
      **/
 
-    let ekey = &xprv[0..64];
+    let ekey = &xprv.as_ref()[0..64];
     let kl = &ekey[0..32];
     let kr = &ekey[32..64];
-    let chaincode = &xprv[64..96];
+    let chaincode = &xprv.as_ref()[64..96];
 
     let mut zmac = Hmac::new(Sha512::new(), &chaincode);
     let mut imac = Hmac::new(Sha512::new(), &chaincode);
@@ -226,7 +275,7 @@ pub fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
     imac.reset();
     zmac.reset();
 
-    out
+    XPrv::from_bytes(out)
 }
 
 fn point_of_trunc28_mul8(sk: &[u8]) -> GeP3 {
@@ -286,7 +335,7 @@ pub fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub, ()> {
 }
 
 pub fn sign(xprv: &XPrv, message: &[u8]) -> Signature {
-    signature_extended(message, &xprv[0..64])
+    signature_extended(message, &xprv.as_ref()[0..64])
 }
 
 pub fn verify(xpub: &XPub, message: &[u8], signature: &Signature) -> bool {
@@ -300,10 +349,10 @@ fn mk_public_key(extended_secret: &[u8]) -> [u8; PUBLIC_KEY_SIZE] {
 }
 
 pub fn to_public(xprv: &XPrv) -> XPub {
-    let pk = mk_public_key(&xprv[0..64]);
+    let pk = mk_public_key(&xprv.as_ref()[0..64]);
     let mut out = [0u8; XPUB_SIZE];
     out[0..32].clone_from_slice(&pk);
-    out[32..64].clone_from_slice(&xprv[64..]);
+    out[32..64].clone_from_slice(&xprv.as_ref()[64..]);
     out
 }
 
@@ -311,9 +360,9 @@ pub fn to_public(xprv: &XPrv) -> XPub {
 
 #[cfg(test)]
 mod tests {
-    use hdwallet::{Seed, XPub, XPrv, DerivationIndex, generate, derive_public, derive_private, sign};
+    use super::*;
 
-    const D1: XPrv =
+    const D1: [u8;XPRV_SIZE] =
         [0xf8, 0xa2, 0x92, 0x31, 0xee, 0x38, 0xd6, 0xc5, 0xbf, 0x71, 0x5d, 0x5b, 0xac, 0x21, 0xc7,
          0x50, 0x57, 0x7a, 0xa3, 0x79, 0x8b, 0x22, 0xd7, 0x9d, 0x65, 0xbf, 0x97, 0xd6, 0xfa, 0xde,
          0xa1, 0x5a, 0xdc, 0xd1, 0xee, 0x1a, 0xbd, 0xf7, 0x8b, 0xd4, 0xbe, 0x64, 0x73, 0x1a, 0x12,
@@ -322,7 +371,7 @@ mod tests {
          0xdd, 0xc0, 0xd0, 0x7a, 0x59, 0x72, 0x93, 0xff, 0x85, 0xe9, 0x61, 0xbf, 0x25, 0x2b, 0x33,
          0x12, 0x62, 0xed, 0xdf, 0xad, 0x0d];
 
-    const D1_H0: XPrv =
+    const D1_H0: [u8;XPRV_SIZE] =
         [0x60, 0xd3, 0x99, 0xda, 0x83, 0xef, 0x80, 0xd8, 0xd4, 0xf8, 0xd2, 0x23, 0x23, 0x9e, 0xfd,
          0xc2, 0xb8, 0xfe, 0xf3, 0x87, 0xe1, 0xb5, 0x21, 0x91, 0x37, 0xff, 0xb4, 0xe8, 0xfb, 0xde,
          0xa1, 0x5a, 0xdc, 0x93, 0x66, 0xb7, 0xd0, 0x03, 0xaf, 0x37, 0xc1, 0x13, 0x96, 0xde, 0x9a,
@@ -349,9 +398,9 @@ mod tests {
                    "extended key");
     }
 
-    fn seed_xprv_eq(seed: &Seed, expected_xprv: [u8; 96]) {
+    fn seed_xprv_eq(seed: &Seed, expected_xprv: &[u8;XPRV_SIZE]) {
         let xprv = generate(&seed);
-        compare_xprv(&xprv, &expected_xprv);
+        compare_xprv(xprv.as_ref(), expected_xprv);
     }
 
     #[test]
@@ -360,26 +409,28 @@ mod tests {
                       0xcd, 0x32, 0xc1, 0xed, 0x3e, 0xaa, 0x3c, 0x3b, 0x13, 0x1c, 0x88, 0xed,
                       0x8e, 0x7e, 0x54, 0xc4, 0x9a, 0x5d, 0x09, 0x98];
         let seed = Seed::from_bytes(bytes);
-        seed_xprv_eq(&seed, D1);
+        seed_xprv_eq(&seed, &D1);
     }
 
-    fn derive_xprv_eq(parent_xprv: [u8; 96], idx: DerivationIndex, expected_xprv: [u8; 96]) {
-        let child_xprv: [u8; 96] = derive_private(&parent_xprv, idx);
-        compare_xprv(&child_xprv, &expected_xprv);
+    fn derive_xprv_eq(parent_xprv: &XPrv, idx: DerivationIndex, expected_xprv: [u8; 96]) {
+        let child_xprv = derive_private(parent_xprv, idx);
+        compare_xprv(child_xprv.as_ref(), &expected_xprv);
     }
 
     #[test]
     fn xprv_derive() {
-        derive_xprv_eq(D1, 0x80000000, D1_H0);
+        let prv = XPrv::from_bytes(D1);
+        derive_xprv_eq(&prv, 0x80000000, D1_H0);
     }
 
-    fn do_sign(xprv: [u8; 96], expected_signature: &[u8]) {
-        let signature = sign(&xprv, MSG.as_bytes());
+    fn do_sign(xprv: &XPrv, expected_signature: &[u8]) {
+        let signature = sign(xprv, MSG.as_bytes());
         assert_eq!(&signature[..], expected_signature);
     }
 
     #[test]
     fn xprv_sign() {
-        do_sign(D1_H0, &D1_H0_SIGNATURE);
+        let prv = XPrv::from_bytes(D1_H0);
+        do_sign(&prv, &D1_H0_SIGNATURE);
     }
 }
