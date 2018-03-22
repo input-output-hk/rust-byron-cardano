@@ -1,10 +1,8 @@
 use std::fmt;
 
-extern crate rcw;
-
-use self::rcw::digest::Digest;
-use self::rcw::blake2b::Blake2b;
-use self::rcw::sha3::Sha3;
+use rcw::digest::Digest;
+use rcw::blake2b::Blake2b;
+use rcw::sha3::Sha3;
 
 use cbor;
 use cbor::hs::{ToCBOR, FromCBOR};

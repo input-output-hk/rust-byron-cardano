@@ -1,3 +1,5 @@
+extern crate rcw;
+
 mod crc32;
 mod base58;
 mod merkle;

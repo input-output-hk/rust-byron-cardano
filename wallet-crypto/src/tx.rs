@@ -1,9 +1,69 @@
+use std::marker::PhantomData;
+use std::fmt;
+
+use rcw::digest::Digest;
+use rcw::blake2b::Blake2b;
+
+use cbor;
+use cbor::hs::{ToCBOR, FromCBOR};
+
 use hdwallet::{Signature, XPub};
 use address::ExtendedAddr;
 use merkle;
 
-struct Hash;
-type TxId = Hash;
+/// Blake2b 256 bits
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub struct Hash<T> {
+    digest: [u8;32],
+    _phantom: PhantomData<T>
+}
+impl<T> Hash<T> {
+    pub fn new(buf: &[u8]) -> Self
+    {
+        let mut b2b = Blake2b::new(32);
+        let mut out = [0;32];
+        b2b.input(buf);
+        b2b.result(&mut out);
+        Self::from_bytes(out)
+    }
+
+    pub fn from_bytes(bytes :[u8;32]) -> Self { Hash { digest: bytes, _phantom: PhantomData } }
+    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 32 { return None; }
+        let mut buf = [0;32];
+
+        buf[0..32].clone_from_slice(bytes);
+        Some(Self::from_bytes(buf))
+    }
+}
+impl<T> fmt::Display for Hash<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.digest.iter().for_each(|byte| {
+            if byte < &0x10 {
+                write!(f, "0{:x}", byte).unwrap()
+            } else {
+                write!(f, "{:x}", byte).unwrap()
+            }
+        });
+        Ok(())
+    }
+}
+impl<T> ToCBOR for Hash<T> {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::encode::cbor_bs(&self.digest, buf)
+    }
+}
+impl<T> FromCBOR for Hash<T> {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        let bs = decoder.bs()?;
+        match Self::from_slice(&bs) {
+            None => Err(cbor::decode::Error::Custom("invalid length for Hash")),
+            Some(v) => Ok(v)
+        }
+    }
+}
+
+type TxId = Hash<Tx>;
 
 struct Coin(u64);
 const MAX_COIN: Coin = Coin(45000000000000000);
@@ -42,7 +102,7 @@ struct TxAux {
 struct TxProof {
     number: u32,
     root: merkle::Root<Tx>,
-    witnesses_hash: Hash,
+    witnesses_hash: Hash<Vec<TxInWitness>>,
 }
 
 #[cfg(test)]
