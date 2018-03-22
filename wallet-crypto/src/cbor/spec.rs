@@ -1,3 +1,5 @@
+//! CBor as specified by the RFC
+
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
 pub enum MajorType {
     UINT,
@@ -52,7 +54,7 @@ const CBOR_PAYLOAD_LENGTH_U64 : u8 = 27;
 // hash them.
 //
 pub mod encode {
-    use cbor::*;
+    use super::*;
 
     pub fn cbor_header(ty: MajorType, r: u8) -> u8 {
         ty.to_byte() | r & 0x1f
@@ -160,7 +162,7 @@ pub mod encode {
 // hash them.
 //
 pub mod decode {
-    use cbor::*;
+    use super::*;
     use std::result;
 
     #[derive(Debug, PartialEq, Eq)]
