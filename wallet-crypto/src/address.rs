@@ -12,8 +12,8 @@ use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b([u8;28]);
-impl DigestBlake2b {
+pub struct DigestBlake2b224([u8;28]);
+impl DigestBlake2b224 {
     /// this function create the blake2b 224 digest of the given input
     /// This function is not responsible for the serialisation of the data
     /// in CBOR.
@@ -28,20 +28,20 @@ impl DigestBlake2b {
         sh3.result(&mut out1);
         b2b.input(&out1);
         b2b.result(&mut out2);
-        DigestBlake2b::from_bytes(out2)
+        DigestBlake2b224::from_bytes(out2)
     }
 
     /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b(bytes) }
+    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b224(bytes) }
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != 28 { return None; }
         let mut buf = [0;28];
 
         buf[0..28].clone_from_slice(bytes);
-        Some(DigestBlake2b::from_bytes(buf))
+        Some(DigestBlake2b224::from_bytes(buf))
     }
 }
-impl fmt::Display for DigestBlake2b {
+impl fmt::Display for DigestBlake2b224 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.iter().for_each(|byte| {
             if byte < &0x10 {
@@ -53,16 +53,16 @@ impl fmt::Display for DigestBlake2b {
         Ok(())
     }
 }
-impl ToCBOR for DigestBlake2b {
+impl ToCBOR for DigestBlake2b224 {
     fn encode(&self, buf: &mut Vec<u8>) {
         cbor::encode::cbor_bs(&self.0[..], buf)
     }
 }
-impl FromCBOR for DigestBlake2b {
+impl FromCBOR for DigestBlake2b224 {
     fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
         let bs = decoder.bs()?;
-        match DigestBlake2b::from_slice(&bs) {
-            None => Err(cbor::decode::Error::Custom("invalid length for DigestBlake2b")),
+        match DigestBlake2b224::from_slice(&bs) {
+            None => Err(cbor::decode::Error::Custom("invalid length for DigestBlake2b224")),
             Some(v) => Ok(v)
         }
     }
@@ -102,12 +102,12 @@ impl FromCBOR for AddrType {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
+pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
         let mut buf = Vec::new();
         pubk.encode(&mut buf);
-        StakeholderId(DigestBlake2b::new(&buf))
+        StakeholderId(DigestBlake2b224::new(&buf))
     }
 }
 impl ToCBOR for StakeholderId {
@@ -117,7 +117,7 @@ impl ToCBOR for StakeholderId {
 }
 impl FromCBOR for StakeholderId {
     fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let digest = DigestBlake2b::decode(decoder)?;
+        let digest = DigestBlake2b224::decode(decoder)?;
         Ok(StakeholderId(digest))
     }
 }
@@ -229,7 +229,7 @@ impl FromCBOR for Attributes {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Addr(DigestBlake2b);
+pub struct Addr(DigestBlake2b224);
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
@@ -242,7 +242,7 @@ impl ToCBOR for Addr {
 }
 impl FromCBOR for Addr {
     fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let db2b = DigestBlake2b::decode(decoder)?;
+        let db2b = DigestBlake2b224::decode(decoder)?;
         Ok(Addr(db2b))
     }
 }
@@ -251,11 +251,11 @@ impl Addr {
         /* CBOR encode + HASH */
         let mut buff = vec![];
         (&addr_type, spending_data, attrs).encode(&mut buff);
-        Addr(DigestBlake2b::new(buff.as_slice()))
+        Addr(DigestBlake2b224::new(buff.as_slice()))
     }
 
     /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b::from_bytes(bytes)) }
+    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b224::from_bytes(bytes)) }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn encode_decode_digest_blake2b() {
         let b = b"some random bytes...";
-        let digest = DigestBlake2b::new(b"some random bytes...");
+        let digest = DigestBlake2b224::new(b"some random bytes...");
         assert!(cbor::hs::encode_decode(&digest))
     }
     #[test]
