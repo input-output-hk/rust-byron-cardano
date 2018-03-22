@@ -276,7 +276,7 @@ impl AsRef<[u8]> for XPub {
 }
 impl ToCBOR for XPub {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_bs(self.as_ref(), buf);
+        cbor::encode::bs(self.as_ref(), buf);
     }
 }
 impl FromCBOR for XPub {

@@ -36,8 +36,8 @@ impl Path {
     }
     fn cbor(&self) -> Vec<u8> {
         let mut buf = vec![];
-        cbor::encode::cbor_array_start(self.as_ref().len(), &mut buf);
-        self.as_ref().iter().for_each(|b| cbor::encode::cbor_uint((b.clone() as u64), &mut buf));
+        cbor::encode::array_start(self.as_ref().len(), &mut buf);
+        self.as_ref().iter().for_each(|b| cbor::encode::uint((b.clone() as u64), &mut buf));
         buf
     }
 }
@@ -127,8 +127,8 @@ impl HDAddressPayload {
 impl ToCBOR for HDAddressPayload {
     fn encode(&self, buf: &mut Vec<u8>) {
         let mut vec = vec![];
-        cbor::encode::cbor_bs(self.as_ref(), &mut vec);
-        cbor::encode::cbor_bs(&vec         , buf);
+        cbor::encode::bs(self.as_ref(), &mut vec);
+        cbor::encode::bs(&vec         , buf);
     }
 }
 impl FromCBOR for HDAddressPayload {

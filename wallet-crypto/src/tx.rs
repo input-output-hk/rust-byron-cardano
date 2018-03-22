@@ -50,7 +50,7 @@ impl<T> fmt::Display for Hash<T> {
 }
 impl<T> ToCBOR for Hash<T> {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_bs(&self.digest, buf)
+        cbor::encode::bs(&self.digest, buf)
     }
 }
 impl<T> FromCBOR for Hash<T> {

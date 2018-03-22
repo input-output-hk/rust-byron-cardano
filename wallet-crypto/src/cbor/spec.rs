@@ -56,17 +56,17 @@ const CBOR_PAYLOAD_LENGTH_U64 : u8 = 27;
 pub mod encode {
     use super::*;
 
-    pub fn cbor_header(ty: MajorType, r: u8) -> u8 {
+    pub fn header(ty: MajorType, r: u8) -> u8 {
         ty.to_byte() | r & 0x1f
     }
 
-    pub fn cbor_uint_small(v: u8, buf: &mut Vec<u8>) {
+    pub fn uint_small(v: u8, buf: &mut Vec<u8>) {
         assert!(v <= MAX_INLINE_ENCODING);
-        buf.push(cbor_header(MajorType::UINT, v));
+        buf.push(header(MajorType::UINT, v));
     }
 
-    pub fn cbor_u8(v: u8, buf: &mut Vec<u8>) {
-        buf.push(cbor_header(MajorType::UINT, CBOR_PAYLOAD_LENGTH_U8));
+    pub fn u8(v: u8, buf: &mut Vec<u8>) {
+        buf.push(header(MajorType::UINT, CBOR_PAYLOAD_LENGTH_U8));
         buf.push(v);
     }
 
@@ -92,23 +92,23 @@ pub mod encode {
         write_header_u64(MajorType::UINT, v, buf);
     }
     pub fn write_header_u8(ty: MajorType, v: u8, buf: &mut Vec<u8>) {
-        buf.push(cbor_header(ty, CBOR_PAYLOAD_LENGTH_U8));
+        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U8));
         buf.push(v);
     }
     pub fn write_header_u16(ty: MajorType, v: u16, buf: &mut Vec<u8>) {
-        buf.push(cbor_header(ty, CBOR_PAYLOAD_LENGTH_U16));
+        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U16));
         buf.push(byte_slice!(v, 8));
         buf.push(byte_slice!(v, 0));
     }
     pub fn write_header_u32(ty: MajorType, v: u32, buf: &mut Vec<u8>) {
-        buf.push(cbor_header(ty, CBOR_PAYLOAD_LENGTH_U32));
+        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U32));
         buf.push(byte_slice!(v, 24));
         buf.push(byte_slice!(v, 16));
         buf.push(byte_slice!(v,  8));
         buf.push(byte_slice!(v,  0));
     }
     pub fn write_header_u64(ty: MajorType, v: u64, buf: &mut Vec<u8>) {
-        buf.push(cbor_header(ty, CBOR_PAYLOAD_LENGTH_U64));
+        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U64));
         buf.push(byte_slice!(v, 56));
         buf.push(byte_slice!(v, 48));
         buf.push(byte_slice!(v, 40));
@@ -121,7 +121,7 @@ pub mod encode {
 
     pub fn write_length_encoding(ty: MajorType, nb_elems: u64, buf: &mut Vec<u8>) {
         if nb_elems <= (MAX_INLINE_ENCODING as u64) {
-            buf.push(cbor_header(ty, nb_elems as u8));
+            buf.push(header(ty, nb_elems as u8));
         } else {
             if nb_elems < 0x100 {
                 write_header_u8(ty, nb_elems as u8, buf);
@@ -135,23 +135,23 @@ pub mod encode {
         }
     }
 
-    pub fn cbor_uint(uint: u64, buf: &mut Vec<u8>) {
+    pub fn uint(uint: u64, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::UINT, uint, buf);
     }
 
-    pub fn cbor_tag(tag: u64, buf: &mut Vec<u8>) {
+    pub fn tag(tag: u64, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::TAG, tag, buf);
     }
 
-    pub fn cbor_bs(bs: &[u8], buf: &mut Vec<u8>) {
+    pub fn bs(bs: &[u8], buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::BYTES, bs.len() as u64, buf);
         buf.extend_from_slice(bs)
     }
 
-    pub fn cbor_array_start(nb_elems: usize, buf: &mut Vec<u8>) {
+    pub fn array_start(nb_elems: usize, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::ARRAY, nb_elems as u64, buf);
     }
-    pub fn cbor_map_start(nb_elems: usize, buf: &mut Vec<u8>) {
+    pub fn map_start(nb_elems: usize, buf: &mut Vec<u8>) {
         write_length_encoding(MajorType::MAP, nb_elems as u64, buf);
     }
 

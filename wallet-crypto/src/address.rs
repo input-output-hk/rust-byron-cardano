@@ -53,7 +53,7 @@ impl fmt::Display for DigestBlake2b224 {
 }
 impl ToCBOR for DigestBlake2b224 {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_bs(&self.0[..], buf)
+        cbor::encode::bs(&self.0[..], buf)
     }
 }
 impl FromCBOR for DigestBlake2b224 {
@@ -84,7 +84,7 @@ impl AddrType {
 }
 impl ToCBOR for AddrType {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_uint(self.to_byte() as u64, buf);
+        cbor::encode::uint(self.to_byte() as u64, buf);
     }
 }
 impl FromCBOR for AddrType {
@@ -153,7 +153,7 @@ impl ToCBOR for StakeDistribution {
                 si.encode(&mut vec);
             }
         };
-        cbor::encode::cbor_bs(&vec, buf);
+        cbor::encode::bs(&vec, buf);
     }
 }
 impl FromCBOR for StakeDistribution {
@@ -201,13 +201,13 @@ const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
         if self.stake_distribution != StakeDistribution::BootstrapEraDistr {
-            cbor::encode::cbor_map_start(2, buf);
-            cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
+            cbor::encode::map_start(2, buf);
+            cbor::encode::uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
             self.stake_distribution.encode(buf);
         } else {
-            cbor::encode::cbor_map_start(1, buf);
+            cbor::encode::map_start(1, buf);
         }
-        cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
+        cbor::encode::uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
         self.derivation_path.encode(buf);
     }
 }

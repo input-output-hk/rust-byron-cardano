@@ -1,13 +1,13 @@
 //! the CBOR util and compatible with the haskell usage...
 
 use cbor::spec::{MajorType};
-use cbor::spec::encode::{cbor_array_start, cbor_uint, cbor_bs, write_length_encoding};
+use cbor::spec::encode;
 use cbor::spec::decode;
 
 pub fn sumtype_start(tag: u64, nb_values: usize, buf: &mut Vec<u8>) -> () {
-    cbor_array_start(nb_values + 1, buf);
+    encode::array_start(nb_values + 1, buf);
     // tag value from 0
-    cbor_uint(tag, buf);
+    encode::uint(tag, buf);
 }
 
 pub fn dec_sumtype_start(decoder: &mut decode::Decoder) -> decode::Result<(u64, usize)> {
@@ -36,7 +36,7 @@ pub trait FromCBOR : Sized {
 }
 impl ToCBOR for Vec<u8> {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor_bs(self, buf)
+        encode::bs(self, buf)
     }
 }
 impl FromCBOR for Vec<u8> {
@@ -57,7 +57,7 @@ impl<T: ToCBOR> ToCBOR for Option<T> {
 }
 impl <'a, 'b, A: ToCBOR, B: ToCBOR> ToCBOR for (&'a A, &'b B) {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor_array_start(2, buf);
+        encode::array_start(2, buf);
         self.0.encode(buf);
         self.1.encode(buf);
     }
@@ -72,7 +72,7 @@ impl <A: FromCBOR + Sized, B: FromCBOR + Sized> FromCBOR for (A, B) {
 }
 impl <'a, 'b, 'c, A: ToCBOR, B: ToCBOR, C: ToCBOR> ToCBOR for (&'a A, &'b B, &'c C) {
     fn encode(&self, buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::ARRAY, 3, buf);
+        encode::write_length_encoding(MajorType::ARRAY, 3, buf);
         self.0.encode(buf);
         self.1.encode(buf);
         self.2.encode(buf);
@@ -102,7 +102,7 @@ pub fn deserialize<T: FromCBOR>(buf: &[u8]) -> decode::Result<T> {
 pub mod util {
     //! CBor util and other stuff
 
-    use cbor::encode::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
+    use cbor::encode;
     use cbor::decode;
     use cbor::decode::{Decoder};
     use cbor::hs::{ToCBOR, FromCBOR, serialize, deserialize};
@@ -111,11 +111,11 @@ pub mod util {
     pub fn encode_with_crc32<T: ToCBOR>(t: &T, buf: &mut Vec<u8>) {
         let v = serialize(t);
 
-        cbor_array_start(2, buf);
-        cbor_tag(24, buf);
-        cbor_bs(&v, buf);
+        encode::array_start(2, buf);
+        encode::tag(24, buf);
+        encode::bs(&v, buf);
 
-        write_u32(crc32(&v), buf);
+        encode::write_u32(crc32(&v), buf);
     }
     pub fn decode_with_crc32<T: FromCBOR>(decoder: &mut Decoder) -> decode::Result<T> {
         let len = decoder.array_start()?;
