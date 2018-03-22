@@ -139,14 +139,14 @@ pub extern "C" fn wallet_to_public(xprv_ptr: *const c_uchar, out: *mut c_uchar) 
 #[no_mangle]
 pub extern "C" fn wallet_derive_private(xprv_ptr: *const c_uchar, index: u32, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
-    let child = hdwallet::derive_private(&xprv, index);
+    let child = xprv.derive(index);
     unsafe { write_xprv(&child, out) }
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_derive_public(xpub_ptr: *const c_uchar, index: u32, out: *mut c_uchar) -> bool {
     let xpub = unsafe { read_xpub(xpub_ptr) };
-    match hdwallet::derive_public(&xpub, index) {
+    match xpub.derive(index) {
         Ok(child) => { unsafe { write_xpub(&child, out) }; true }
         Err(_)    => { false }
     }

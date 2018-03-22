@@ -174,6 +174,10 @@ impl XPrv {
         let xpub = self.public();
         xpub.verify(message, signature)
     }
+
+    pub fn derive(&self, index: DerivationIndex) -> Self {
+        derive_private(self, index)
+    }
 }
 impl PartialEq for XPrv {
     fn eq(&self, rhs: &XPrv) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }
@@ -243,6 +247,10 @@ impl XPub {
     /// ```
     pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
         ed25519::verify(message, &self.as_ref()[0..32], &signature[..])
+    }
+
+    pub fn derive(&self, index: DerivationIndex) -> Result<Self, ()> {
+        derive_public(self, index)
     }
 }
 impl PartialEq for XPub {
@@ -351,7 +359,7 @@ fn add_28_mul8(x: &[u8], y: &[u8]) -> [u8; 32] {
     out
 }
 
-pub fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
+fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
     /*
      * If so (hardened child):
      *    let Z = HMAC-SHA512(Key = cpar, Data = 0x00 || ser256(left(kpar)) || ser32(i)).
@@ -418,7 +426,7 @@ fn point_of_trunc28_mul8(sk: &[u8]) -> GeP3 {
     a
 }
 
-pub fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub, ()> {
+fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub, ()> {
     let pk = &xpub.as_ref()[0..32];
     let chaincode = &xpub.as_ref()[32..64];
 
