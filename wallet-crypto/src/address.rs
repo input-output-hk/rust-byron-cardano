@@ -9,12 +9,12 @@ use cbor::hs::{ToCBOR, FromCBOR};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
+/// Digest of the composition of `Blake2b_224 . Sha3_256`
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct DigestBlake2b224([u8;28]);
 impl DigestBlake2b224 {
-    /// this function create the blake2b 224 digest of the given input
-    /// This function is not responsible for the serialisation of the data
-    /// in CBOR.
+    /// create digest from the given inputs by computing the SHA3_256 and
+    /// then the Blake2b_224.
     ///
     pub fn new(buf: &[u8]) -> Self
     {
