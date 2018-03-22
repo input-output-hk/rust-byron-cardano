@@ -102,23 +102,11 @@ pub fn deserialize<T: FromCBOR>(buf: &[u8]) -> decode::Result<T> {
 pub mod util {
     //! CBor util and other stuff
 
-    use hdwallet::{XPub, XPUB_SIZE};
     use cbor::encode::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
     use cbor::decode;
     use cbor::decode::{Decoder};
     use cbor::hs::{ToCBOR, FromCBOR, serialize, deserialize};
     use crc32::{crc32};
-
-    pub fn xpub_to_cbor(pubk: &XPub, buf: &mut Vec<u8>) {
-        cbor_bs(pubk.as_ref(), buf);
-    }
-    pub fn xpub_from_cbor(decoder: &mut Decoder) -> decode::Result<XPub> {
-        let mut buf = [0u8;XPUB_SIZE];
-        let bs = decoder.bs()?;
-        assert!(bs.len() == XPUB_SIZE);
-        buf[0..XPUB_SIZE].clone_from_slice(&bs);
-        Ok(XPub::from_bytes(buf))
-    }
 
     pub fn encode_with_crc32<T: ToCBOR>(t: &T, buf: &mut Vec<u8>) {
         let v = serialize(t);

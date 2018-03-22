@@ -105,8 +105,7 @@ pub struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
         let mut buf = Vec::new();
-
-        cbor::hs::util::xpub_to_cbor(&pubk, &mut buf);
+        pubk.encode(&mut buf);
         StakeholderId(DigestBlake2b::new(&buf))
     }
 }
@@ -395,7 +394,7 @@ impl ToCBOR for SpendingData {
         match self {
             &SpendingData::PubKeyASD(ref xpub) => {
                 cbor::hs::sumtype_start(SPENDING_DATA_TAG_PUBKEY, 1, buf);
-                cbor::hs::util::xpub_to_cbor(xpub, buf);
+                xpub.encode(buf);
             }
             &SpendingData::ScriptASD(ref _script) => {
                 unimplemented!()
@@ -411,7 +410,7 @@ impl FromCBOR for SpendingData {
         let r = cbor::hs::dec_sumtype_start(decoder)?;
         match r {
             (SPENDING_DATA_TAG_PUBKEY, 1) => {
-                let xpub = cbor::hs::util::xpub_from_cbor(decoder)?;
+                let xpub = XPub::decode(decoder)?;
                 Ok(SpendingData::PubKeyASD(xpub))
             },
             (SPENDING_DATA_TAG_SCRIPT, _) => {

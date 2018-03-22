@@ -9,6 +9,12 @@ use self::rcw::ed25519::signature_extended;
 use self::rcw::ed25519;
 use self::rcw::util::fixed_time_eq;
 
+use std::fmt;
+use std::marker::PhantomData;
+use base58::from_hex;
+use cbor;
+use cbor::hs::{ToCBOR, FromCBOR};
+
 pub const SEED_SIZE: usize = 32;
 pub const XPRV_SIZE: usize = 96;
 pub const XPUB_SIZE: usize = 64;
@@ -16,10 +22,6 @@ pub const SIGNATURE_SIZE: usize = 64;
 
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
-
-use std::fmt;
-use std::marker::PhantomData;
-use base58::from_hex;
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
@@ -271,6 +273,21 @@ impl fmt::Debug for XPub {
 }
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
+}
+impl ToCBOR for XPub {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::encode::cbor_bs(self.as_ref(), buf);
+    }
+}
+impl FromCBOR for XPub {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        let mut buf = [0u8;XPUB_SIZE];
+        let bs = decoder.bs()?;
+        match XPub::from_slice(&bs) {
+            None => Err(cbor::decode::Error::Custom("invlalid XPub")),
+            Some(x) => Ok(x)
+        }
+    }
 }
 
 /// a signature with an associated type tag
