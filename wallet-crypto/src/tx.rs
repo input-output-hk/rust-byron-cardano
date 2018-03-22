@@ -63,10 +63,19 @@ impl<T> FromCBOR for Hash<T> {
     }
 }
 
-type TxId = Hash<Tx>;
+// TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
+// if this is confirmed, we need to make a proper type, wrapping it around
+// to hash a `Tx` by serializing it cbor first.
+pub type TxId = Hash<Tx>;
 
-struct Coin(u64);
-const MAX_COIN: Coin = Coin(45000000000000000);
+const MAX_COIN: u64 = 45000000000000000;
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct Coin(u64);
+impl Coin {
+    pub fn new(v: u64) -> Option<Self> {
+        if v <= MAX_COIN { Some(Coin(v)) } else { None }
+    }
+}
 
 type TODO = u8;
 type ValidatorScript = TODO;
