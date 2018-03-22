@@ -198,7 +198,7 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let payload = unsafe { read_data(payload_ptr, payload_sz) };
 
-    let hdap = address::HDAddressPayload::new(&payload);
+    let hdap = hdpayload::HDAddressPayload::from_vec(payload);
 
     let addr_type = address::AddrType::ATPubKey;
     let sd = address::SpendingData::PubKeyASD(xpub.clone());

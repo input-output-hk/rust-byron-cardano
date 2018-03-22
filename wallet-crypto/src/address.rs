@@ -9,6 +9,7 @@ use self::rcw::sha3::Sha3;
 use cbor;
 use cbor::hs::{ToCBOR, FromCBOR};
 use hdwallet::{XPub};
+use hdpayload::{HDAddressPayload};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct DigestBlake2b([u8;28]);
@@ -177,32 +178,6 @@ impl FromCBOR for StakeDistribution {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
-impl AsRef<[u8]> for HDAddressPayload {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-impl HDAddressPayload {
-    pub fn new(buf: &[u8]) -> Self { HDAddressPayload(buf.iter().cloned().collect()) }
-}
-impl ToCBOR for HDAddressPayload {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let mut vec = vec![];
-        cbor::encode::cbor_bs(self.as_ref(), &mut vec);
-        cbor::encode::cbor_bs(&vec         , buf);
-    }
-}
-impl FromCBOR for HDAddressPayload {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-
-        let mut dec = cbor::decode::Decoder::new();
-        dec.extend(&bs);
-        let vec = dec.bs()?;
-        Ok(HDAddressPayload::new(&vec))
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
     pub derivation_path: Option<HDAddressPayload>,
     pub stake_distribution: StakeDistribution
@@ -301,14 +276,15 @@ impl ExtendedAddr {
     /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
+    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
     /// use wallet_crypto::hdwallet;
+    /// use wallet_crypto::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
     /// let pk = sk.public();
     ///
-    /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
     /// let sd = SpendingData::PubKeyASD(pk.clone());
     /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -329,14 +305,15 @@ impl ExtendedAddr {
     /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
+    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
     /// use wallet_crypto::hdwallet;
+    /// use wallet_crypto::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
     /// let pk = sk.public();
     ///
-    /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
     /// let sd = SpendingData::PubKeyASD(pk.clone());
     /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -441,7 +418,7 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
 
-        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+        let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
         let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -467,7 +444,7 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
 
-        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+        let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
         let attrs = Attributes::new_single_key(&pk, Some(hdap));

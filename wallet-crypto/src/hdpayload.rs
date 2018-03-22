@@ -10,6 +10,7 @@ use std::iter::repeat;
 
 use hdwallet::{XPub};
 use cbor;
+use cbor::hs::{ToCBOR, FromCBOR};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -123,6 +124,24 @@ impl HDAddressPayload {
     }
     pub fn len(&self) -> usize { self.0.len() }
 }
+impl ToCBOR for HDAddressPayload {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        let mut vec = vec![];
+        cbor::encode::cbor_bs(self.as_ref(), &mut vec);
+        cbor::encode::cbor_bs(&vec         , buf);
+    }
+}
+impl FromCBOR for HDAddressPayload {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        let bs = decoder.bs()?;
+
+        let mut dec = cbor::decode::Decoder::new();
+        dec.extend(&bs);
+        let vec = dec.bs()?;
+        Ok(HDAddressPayload::from_vec(vec))
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
