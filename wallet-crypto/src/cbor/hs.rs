@@ -34,6 +34,22 @@ pub trait ToCBOR {
 pub trait FromCBOR : Sized {
     fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self>;
 }
+impl ToCBOR for u8 { fn encode(&self, buf: &mut Vec<u8>) { encode::uint(self.clone() as u64, buf) } }
+impl FromCBOR for u8 {
+    fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> { Ok(decoder.uint()? as u8) }
+}
+impl ToCBOR for u16 { fn encode(&self, buf: &mut Vec<u8>) { encode::uint(self.clone() as u64, buf) } }
+impl FromCBOR for u16 {
+    fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> { Ok(decoder.uint()? as u16) }
+}
+impl ToCBOR for u32 { fn encode(&self, buf: &mut Vec<u8>) { encode::uint(self.clone() as u64, buf) } }
+impl FromCBOR for u32 {
+    fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> { Ok(decoder.uint()? as u32) }
+}
+impl ToCBOR for u64 { fn encode(&self, buf: &mut Vec<u8>) { encode::uint(self.clone(), buf) } }
+impl FromCBOR for u64 {
+    fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> { decoder.uint() }
+}
 impl ToCBOR for Vec<u8> {
     fn encode(&self, buf: &mut Vec<u8>) {
         encode::bs(self, buf)
