@@ -125,14 +125,14 @@ unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
 #[no_mangle]
 pub extern "C" fn wallet_from_seed(seed_ptr: *const c_uchar, out: *mut c_uchar) {
     let seed = unsafe { read_seed(seed_ptr) };
-    let xprv = seed.xprv();
+    let xprv = hdwallet::XPrv::generate_from_seed(&seed);
     unsafe { write_xprv(&xprv, out) }
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_to_public(xprv_ptr: *const c_uchar, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
-    let xpub = hdwallet::to_public(&xprv);
+    let xpub = xprv.public();
     unsafe { write_xpub(&xpub, out) }
 }
 

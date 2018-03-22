@@ -57,7 +57,15 @@ impl Seed {
             None
         }
     }
+}
+impl AsRef<[u8]> for Seed {
+    fn as_ref(&self) -> &[u8] { &self.0 }
+}
 
+/// HDWallet private key
+///
+pub struct XPrv([u8; XPRV_SIZE]);
+impl XPrv {
     /// create the Root private key `XPrv` of the HDWallet associated to this `Seed`
     ///
     /// This is a deterministic construction. The `XPrv` returned will always be the
@@ -69,11 +77,11 @@ impl Seed {
     /// let seed = Seed::from_bytes([0u8; SEED_SIZE]);
     /// let expected_xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     ///
-    /// assert_eq!(expected_xprv, seed.xprv());
+    /// assert_eq!(expected_xprv, XPrv::generate_from_seed(&seed));
     /// ```
     ///
-    pub fn xprv(&self) -> XPrv {
-        let mut mac = Hmac::new(Sha512::new(), self.as_ref());
+    pub fn generate_from_seed(seed: &Seed) -> Self {
+        let mut mac = Hmac::new(Sha512::new(), seed.as_ref());
 
         let mut iter = 1;
         let mut out = [0u8; XPRV_SIZE];
@@ -93,18 +101,9 @@ impl Seed {
             iter = iter + 1;
         }
 
-        XPrv::from_bytes(out)
+        Self::from_bytes(out)
     }
 
-}
-impl AsRef<[u8]> for Seed {
-    fn as_ref(&self) -> &[u8] { &self.0 }
-}
-
-/// HDWallet private key
-///
-pub struct XPrv([u8; XPRV_SIZE]);
-impl XPrv {
     /// create a `XPrv` by taking ownership of the given array
     ///
     pub fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Self { XPrv(bytes) }
@@ -482,10 +481,6 @@ fn mk_public_key(extended_secret: &[u8]) -> [u8; PUBLIC_KEY_SIZE] {
     a.to_bytes()
 }
 
-pub fn to_public(xprv: &XPrv) -> XPub { xprv.public() }
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -527,7 +522,7 @@ mod tests {
     }
 
     fn seed_xprv_eq(seed: &Seed, expected_xprv: &[u8;XPRV_SIZE]) {
-        let xprv = seed.xprv();
+        let xprv = XPrv::generate_from_seed(&seed);
         compare_xprv(xprv.as_ref(), expected_xprv);
     }
 
