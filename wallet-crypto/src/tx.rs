@@ -91,6 +91,41 @@ impl FromCBOR for Coin {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TxOut {
+    address: ExtendedAddr,
+    value: Coin,
+}
+impl TxOut {
+    pub fn new(addr: ExtendedAddr, value: Coin) -> Self {
+        TxOut { address: addr, value: value }
+    }
+}
+impl ToCBOR for TxOut {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        // we start an array of 2 elements:
+        cbor::encode::array_start(2, buf);
+        // the extended addr is encoded in cbor with its crc32
+        cbor::hs::util::encode_with_crc32(&self.address, buf);
+        // we encode the coin
+        self.value.encode(buf);
+    }
+}
+impl FromCBOR for TxOut {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        // check we have an array of 2 elements
+        let l = decoder.array_start()?;
+        if l != 2 {
+            return Err(cbor::decode::Error::Custom("TxOut should contains 2 elements"));
+        }
+        // decode the ExtendedAddr with its crc32 (and check the crc32)
+        let addr = cbor::hs::util::decode_with_crc32(decoder)?;
+        // decode the coin
+        let value = Coin::decode(decoder)?;
+        Ok(TxOut::new(addr, value))
+    }
+}
+
 type TODO = u8;
 type ValidatorScript = TODO;
 type RedeemerScript = TODO;
@@ -104,8 +139,6 @@ enum TxInWitness {
     ScriptWitness(ValidatorScript, RedeemerScript),
     RedeemWitness(RedeemPublicKey, RedeemSignature),
 }
-
-struct TxOut(ExtendedAddr, Coin);
 
 struct TxIn(TxId, u32);
 
@@ -131,13 +164,53 @@ struct TxProof {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use address;
+    use hdpayload;
+    use hdwallet;
+    use cbor;
+
+    // CBOR encoded TxOut
+    const TX_OUT: &'static [u8] = &[0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a];
 
     const TX: &'static [u8] = &[/* TODO: insert TX here */];
     const BLOCK: &'static [u8] = &[ /* TODO: insert Block here */ ];
 
     #[test]
+    fn txout_decode() {
+        let mut decoder = cbor::decode::Decoder::new();
+        decoder.extend(TX_OUT);
+        let txout = TxOut::decode(&mut decoder).expect("to retrieve a TxOut");
+
+        let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
+        assert_eq!(Coin::new(42).unwrap(), txout.value);
+        assert_eq!(address::AddrType::ATPubKey, txout.address.addr_type);
+        assert_eq!(address::StakeDistribution::new_bootstrap_era(), txout.address.attributes.stake_distribution);
+        assert_eq!(txout.address.attributes.derivation_path, Some(hdap));
+    }
+
+    fn txout_encode_decode() {
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+        let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
+        let addr_type = address::AddrType::ATPubKey;
+        let sd = address::SpendingData::PubKeyASD(pk.clone());
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+
+        let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
+        let value = Coin::new(42).unwrap();
+
+        assert!(cbor::hs::encode_decode(&TxOut::new(ea, value)));
+    }
+
+    #[test]
     fn tx_decode() {
         // TODO test we can decode a cbor Tx
+        unimplemented!()
+    }
+
+    #[test]
+    fn block_decode() {
         unimplemented!()
     }
 }
