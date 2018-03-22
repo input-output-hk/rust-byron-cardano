@@ -76,6 +76,20 @@ impl Coin {
         if v <= MAX_COIN { Some(Coin(v)) } else { None }
     }
 }
+impl ToCBOR for Coin {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        cbor::encode::uint(self.0, buf)
+    }
+}
+impl FromCBOR for Coin {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        let value = decoder.uint()?;
+        match Self::new(value) {
+            None => Err(cbor::decode::Error::Custom("Coin out of bound")),
+            Some(v) => Ok(v)
+        }
+    }
+}
 
 type TODO = u8;
 type ValidatorScript = TODO;
