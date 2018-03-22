@@ -18,6 +18,7 @@ pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
 use std::fmt;
+use std::marker::PhantomData;
 use base58::from_hex;
 
 /// Seed used to generate the root private key of the HDWallet.
@@ -155,21 +156,21 @@ impl XPrv {
     /// sign the given message with the `XPrv`.
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv, XPub};
+    /// use wallet_crypto::hdwallet::{XPrv, XPub, Signature};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     /// let msg = b"Some message...";
     ///
-    /// let signature = xprv.sign(msg);
+    /// let signature : Signature<String> = xprv.sign(msg);
     /// assert!(xprv.verify(msg, &signature));
     /// ```
-    pub fn sign(&self, message: &[u8]) -> Signature {
-        signature_extended(message, &self.as_ref()[0..64])
+    pub fn sign<T>(&self, message: &[u8]) -> Signature<T> {
+        Signature::from_bytes(signature_extended(message, &self.as_ref()[0..64]))
     }
 
     /// verify a given signature
     ///
-    pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
+    pub fn verify<T>(&self, message: &[u8], signature: &Signature<T>) -> bool {
         let xpub = self.public();
         xpub.verify(message, signature)
     }
@@ -235,17 +236,17 @@ impl XPub {
     /// verify a signature
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv, XPub};
+    /// use wallet_crypto::hdwallet::{XPrv, XPub, Signature};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     /// let xpub = xprv.public();
     /// let msg = b"Some message...";
     ///
-    /// let signature = xprv.sign(msg);
+    /// let signature : Signature<String> = xprv.sign(msg);
     /// assert!(xpub.verify(msg, &signature));
     /// ```
-    pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
-        ed25519::verify(message, &self.as_ref()[0..32], &signature[..])
+    pub fn verify<T>(&self, message: &[u8], signature: &Signature<T>) -> bool {
+        ed25519::verify(message, &self.as_ref()[0..32], signature.as_ref())
     }
 
     pub fn derive(&self, index: DerivationIndex) -> Result<Self, ()> {
@@ -272,7 +273,54 @@ impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
 
-pub type Signature = [u8; SIGNATURE_SIZE];
+/// a signature with an associated type tag
+///
+pub struct Signature<T> {
+    bytes: [u8; SIGNATURE_SIZE],
+    _phantom: PhantomData<T>,
+}
+impl<T> Signature<T> {
+    pub fn from_bytes(bytes: [u8;SIGNATURE_SIZE]) -> Self {
+        Signature { bytes: bytes, _phantom: PhantomData }
+    }
+
+    pub fn from_slice(bytes: &[u8]) -> Option<Self>  {
+        if bytes.len() == SIGNATURE_SIZE {
+            let mut buf = [0u8;SIGNATURE_SIZE];
+            buf[..].clone_from_slice(bytes);
+            Some(Self::from_bytes(buf))
+        } else {
+            None
+        }
+    }
+
+    pub fn from_hex(hex: &str) -> Option<Self> {
+        Self::from_slice(from_hex(hex).as_ref())
+    }
+
+    pub fn coerce<R>(self) -> Signature<R> {
+        Signature::<R>::from_bytes(self.bytes)
+    }
+}
+impl<T> PartialEq for Signature<T> {
+    fn eq(&self, rhs: &Signature<T>) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }
+}
+impl<T> Eq for Signature<T> {}
+impl<T> fmt::Debug for Signature<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for b in self.as_ref().iter() {
+            if b < &0x10 {
+                write!(f, "0{:x}", b)?;
+            } else {
+                write!(f, "{:x}", b)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl<T> AsRef<[u8]> for Signature<T> {
+    fn as_ref(&self) -> &[u8] { &self.bytes }
+}
 
 pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
@@ -547,8 +595,8 @@ mod tests {
     }
 
     fn do_sign(xprv: &XPrv, expected_signature: &[u8]) {
-        let signature = xprv.sign(MSG);
-        assert_eq!(&signature[..], expected_signature);
+        let signature : Signature<Vec<u8>> = xprv.sign(MSG);
+        assert_eq!(signature.as_ref(), expected_signature);
     }
 
     #[test]

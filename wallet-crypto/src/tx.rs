@@ -17,7 +17,7 @@ type RedeemSignature = TODO;
 enum TxInWitness {
     /// signature of the `TxIn` with the associated `XPub`
     /// the `XPub` is the public key set in the AddrSpendingData
-    PkWitness(XPub, Signature),
+    PkWitness(XPub, Signature<Tx>),
     ScriptWitness(ValidatorScript, RedeemerScript),
     RedeemWitness(RedeemPublicKey, RedeemSignature),
 }
@@ -28,7 +28,7 @@ struct TxIn(TxId, u32);
 
 struct Tx {
     inputs: Vec<TxIn>,
-    outputs: Vec<TxOut>, 
+    outputs: Vec<TxOut>,
     // attributes: TxAttributes
     //
     // So far, there is no TxAttributes... the structure contains only the unparsed/unknown stuff
@@ -49,8 +49,8 @@ struct TxProof {
 mod tests {
     use super::*;
 
-    const TX: &'static [u8] = [/* TODO: insert TX here */];
-    const BLOCK: &'static [u8] = [ /* TODO: insert Block here */ ];
+    const TX: &'static [u8] = &[/* TODO: insert TX here */];
+    const BLOCK: &'static [u8] = &[ /* TODO: insert Block here */ ];
 
     #[test]
     fn tx_decode() {
