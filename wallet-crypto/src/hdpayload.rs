@@ -50,7 +50,7 @@ impl AsRef<[u8]> for HDKey {
 }
 impl HDKey {
     pub fn new(root_pub: &XPub) -> Self {
-        let mut mac = Hmac::new(Sha512::new(), &root_pub[..]);
+        let mut mac = Hmac::new(Sha512::new(), root_pub.as_ref());
         let mut result = [0;HDKEY_SIZE];
         let iters = 500;
         pbkdf2(&mut mac, &SALT[..], iters, &mut result);
@@ -133,7 +133,7 @@ mod tests {
     fn encrypt() {
         let bytes = vec![42u8; 256];
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
-        let sk = hdwallet::generate(&seed);
+        let sk = seed.xprv();
         let pk = hdwallet::to_public(&sk);
 
         let key = HDKey::new(&pk);
@@ -152,7 +152,7 @@ mod tests {
     fn hdpayload() {
         let path = Path::new(vec![0,1,2]);
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
-        let sk = hdwallet::generate(&seed);
+        let sk = seed.xprv();
         let pk = hdwallet::to_public(&sk);
 
         let key = HDKey::new(&pk);

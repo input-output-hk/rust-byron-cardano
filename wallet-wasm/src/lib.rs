@@ -97,19 +97,17 @@ unsafe fn write_xprv(xprv: &hdwallet::XPrv, xprv_ptr: *mut c_uchar) {
 
 unsafe fn read_xpub(xpub_ptr: *const c_uchar) -> hdwallet::XPub {
         let xpub_slice = std::slice::from_raw_parts(xpub_ptr, hdwallet::XPUB_SIZE);
-        let mut xpub : hdwallet::XPub = [0u8;hdwallet::XPUB_SIZE];
-        xpub.clone_from_slice(xpub_slice);
-        xpub
+        hdwallet::XPub::from_slice(xpub_slice).unwrap()
 }
 
 unsafe fn write_xpub(xpub: &hdwallet::XPub, xpub_ptr: *mut c_uchar) {
         let out = std::slice::from_raw_parts_mut(xpub_ptr, hdwallet::XPUB_SIZE);
-        out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub);
+        out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub.as_ref());
 }
 
 unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature {
         let signature_slice = std::slice::from_raw_parts(sig_ptr, hdwallet::SIGNATURE_SIZE);
-        let mut signature : hdwallet::XPub = [0u8;hdwallet::SIGNATURE_SIZE];
+        let mut signature : hdwallet::Signature = [0u8;hdwallet::SIGNATURE_SIZE];
         signature.clone_from_slice(signature_slice);
         signature
 }
@@ -127,7 +125,7 @@ unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
 #[no_mangle]
 pub extern "C" fn wallet_from_seed(seed_ptr: *const c_uchar, out: *mut c_uchar) {
     let seed = unsafe { read_seed(seed_ptr) };
-    let xprv = hdwallet::generate(&seed);
+    let xprv = seed.xprv();
     unsafe { write_xprv(&xprv, out) }
 }
 
@@ -158,7 +156,7 @@ pub extern "C" fn wallet_derive_public(xpub_ptr: *const c_uchar, index: u32, out
 pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar, msg_sz: usize, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
-    let signature = hdwallet::sign(&xprv, &msg[..]);
+    let signature = xprv.sign(&msg[..]);
     unsafe { write_signature(&signature, out) }
 }
 
@@ -167,7 +165,7 @@ pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_ucha
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
     let signature = unsafe { read_signature(sig_ptr) };
-    hdwallet::verify(&xpub, &msg, &signature)
+    xpub.verify(&msg, &signature)
 }
 
 #[no_mangle]

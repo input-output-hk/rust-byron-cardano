@@ -1,3 +1,11 @@
+const HEX_ALPHABET : &'static str = "0123456789abcdef";
+
+pub fn to_hex(input: &[u8]) -> String {
+    String::from_utf8(base_encode(HEX_ALPHABET, input)).unwrap()
+}
+pub fn from_hex(input: &str) -> Vec<u8> {
+    base_decode(HEX_ALPHABET, input.as_bytes())
+}
 
 pub fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     let alphabet = alphabet_s.as_bytes();
