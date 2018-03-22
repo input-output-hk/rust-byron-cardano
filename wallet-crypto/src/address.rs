@@ -120,14 +120,14 @@ mod hs_cbor_util {
     use crc32::{crc32};
 
     pub fn xpub_to_cbor(pubk: &XPub, buf: &mut Vec<u8>) {
-        cbor_bs(&pubk[..], buf);
+        cbor_bs(pubk.as_ref(), buf);
     }
     pub fn xpub_from_cbor(decoder: &mut Decoder) -> decode::Result<XPub> {
         let mut buf = [0u8;XPUB_SIZE];
         let bs = decoder.bs()?;
         assert!(bs.len() == XPUB_SIZE);
         buf[0..XPUB_SIZE].clone_from_slice(&bs);
-        Ok(buf)
+        Ok(XPub::from_bytes(buf))
     }
 
     pub fn encode_with_crc32<T: ToCBOR>(t: &T, buf: &mut Vec<u8>) {
@@ -465,8 +465,9 @@ impl ExtendedAddr {
     /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
     /// use wallet_crypto::hdwallet;
     ///
-    /// let sk = hdwallet::generate(&[0;32]);
-    /// let pk = hdwallet::to_public(&sk);
+    /// let seed = hdwallet::Seed::from_bytes([0;32]);
+    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
+    /// let pk = sk.public();
     ///
     /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
@@ -492,8 +493,9 @@ impl ExtendedAddr {
     /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
     /// use wallet_crypto::hdwallet;
     ///
-    /// let sk = hdwallet::generate(&[0;32]);
-    /// let pk = hdwallet::to_public(&sk);
+    /// let seed = hdwallet::Seed::from_bytes([0;32]);
+    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
+    /// let pk = sk.public();
     ///
     /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
@@ -589,8 +591,6 @@ mod tests {
     use hdwallet;
     use base58;
 
-    const SEED : hdwallet::Seed = [0;32];
-
     #[test]
     fn test_make_address() {
         let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
@@ -598,8 +598,9 @@ mod tests {
                    , 0x7e, 0x26, 0x25, 0x0c];
         let addr = Addr::from_bytes(v);
 
-        let sk = hdwallet::generate(&SEED);
-        let pk = hdwallet::to_public(&sk);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
 
         let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
@@ -623,8 +624,9 @@ mod tests {
                     , 0x93, 0x71
                     ];
 
-        let sk = hdwallet::generate(&SEED);
-        let pk = hdwallet::to_public(&sk);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
 
         let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
@@ -659,16 +661,18 @@ mod tests {
     #[test]
     fn encode_decode_stakeholderid() {
         use hdwallet;
-        let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
-        let pk = hdwallet::to_public(&sk);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
         let si = StakeholderId::new(&pk);
         assert!(hs_cbor::encode_decode(&si));
     }
     #[test]
     fn encode_decode_stakedistribution() {
         use hdwallet;
-        let sk = hdwallet::generate(&[0;hdwallet::SEED_SIZE]);
-        let pk = hdwallet::to_public(&sk);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
         let sd_1 = StakeDistribution::new_bootstrap_era();
         let sd_2 = StakeDistribution::new_single_key(&pk);
         assert!(hs_cbor::encode_decode(&sd_1));

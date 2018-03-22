@@ -87,31 +87,27 @@ unsafe fn write_data_u32(data: &[u32], data_ptr: *mut c_uint) {
 
 unsafe fn read_xprv(xprv_ptr: *const c_uchar) -> hdwallet::XPrv {
         let xprv_slice = std::slice::from_raw_parts(xprv_ptr, hdwallet::XPRV_SIZE);
-        let mut xprv : hdwallet::XPrv = [0u8;hdwallet::XPRV_SIZE];
-        xprv.clone_from_slice(xprv_slice);
-        xprv
+        hdwallet::XPrv::from_slice(xprv_slice).unwrap()
 }
 
 unsafe fn write_xprv(xprv: &hdwallet::XPrv, xprv_ptr: *mut c_uchar) {
         let out = std::slice::from_raw_parts_mut(xprv_ptr, hdwallet::XPRV_SIZE);
-        out[0..hdwallet::XPRV_SIZE].clone_from_slice(xprv);
+        out[0..hdwallet::XPRV_SIZE].clone_from_slice(xprv.as_ref());
 }
 
 unsafe fn read_xpub(xpub_ptr: *const c_uchar) -> hdwallet::XPub {
         let xpub_slice = std::slice::from_raw_parts(xpub_ptr, hdwallet::XPUB_SIZE);
-        let mut xpub : hdwallet::XPub = [0u8;hdwallet::XPUB_SIZE];
-        xpub.clone_from_slice(xpub_slice);
-        xpub
+        hdwallet::XPub::from_slice(xpub_slice).unwrap()
 }
 
 unsafe fn write_xpub(xpub: &hdwallet::XPub, xpub_ptr: *mut c_uchar) {
         let out = std::slice::from_raw_parts_mut(xpub_ptr, hdwallet::XPUB_SIZE);
-        out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub);
+        out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub.as_ref());
 }
 
 unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature {
         let signature_slice = std::slice::from_raw_parts(sig_ptr, hdwallet::SIGNATURE_SIZE);
-        let mut signature : hdwallet::XPub = [0u8;hdwallet::SIGNATURE_SIZE];
+        let mut signature : hdwallet::Signature = [0u8;hdwallet::SIGNATURE_SIZE];
         signature.clone_from_slice(signature_slice);
         signature
 }
@@ -123,36 +119,34 @@ unsafe fn write_signature(signature: &[u8], out_ptr: *mut c_uchar) {
 
 unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
         let seed_slice = std::slice::from_raw_parts(seed_ptr, hdwallet::SEED_SIZE);
-        let mut seed : hdwallet::Seed = [0u8;hdwallet::SEED_SIZE];
-        seed.clone_from_slice(seed_slice);
-        seed
+        hdwallet::Seed::from_slice(seed_slice).unwrap()
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_from_seed(seed_ptr: *const c_uchar, out: *mut c_uchar) {
     let seed = unsafe { read_seed(seed_ptr) };
-    let xprv = hdwallet::generate(&seed);
+    let xprv = hdwallet::XPrv::generate_from_seed(&seed);
     unsafe { write_xprv(&xprv, out) }
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_to_public(xprv_ptr: *const c_uchar, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
-    let xpub = hdwallet::to_public(&xprv);
+    let xpub = xprv.public();
     unsafe { write_xpub(&xpub, out) }
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_derive_private(xprv_ptr: *const c_uchar, index: u32, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
-    let child = hdwallet::derive_private(&xprv, index);
+    let child = xprv.derive(index);
     unsafe { write_xprv(&child, out) }
 }
 
 #[no_mangle]
 pub extern "C" fn wallet_derive_public(xpub_ptr: *const c_uchar, index: u32, out: *mut c_uchar) -> bool {
     let xpub = unsafe { read_xpub(xpub_ptr) };
-    match hdwallet::derive_public(&xpub, index) {
+    match xpub.derive(index) {
         Ok(child) => { unsafe { write_xpub(&child, out) }; true }
         Err(_)    => { false }
     }
@@ -162,7 +156,7 @@ pub extern "C" fn wallet_derive_public(xpub_ptr: *const c_uchar, index: u32, out
 pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar, msg_sz: usize, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
-    let signature = hdwallet::sign(&xprv, &msg[..]);
+    let signature = xprv.sign(&msg[..]);
     unsafe { write_signature(&signature, out) }
 }
 
@@ -171,7 +165,7 @@ pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_ucha
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
     let signature = unsafe { read_signature(sig_ptr) };
-    hdwallet::verify(&xpub, &msg, &signature)
+    xpub.verify(&msg, &signature)
 }
 
 #[no_mangle]
