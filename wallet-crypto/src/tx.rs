@@ -6,6 +6,7 @@ use rcw::blake2b::Blake2b;
 
 use cbor;
 use cbor::hs::{ToCBOR, FromCBOR};
+use crc32::{crc32};
 
 use hdwallet::{Signature, XPub};
 use address::ExtendedAddr;
@@ -93,8 +94,8 @@ impl FromCBOR for Coin {
 
 #[derive(Debug, PartialEq, Eq)]
 struct TxOut {
-    address: ExtendedAddr,
-    value: Coin,
+    pub address: ExtendedAddr,
+    pub value: Coin,
 }
 impl TxOut {
     pub fn new(addr: ExtendedAddr, value: Coin) -> Self {
@@ -140,8 +141,44 @@ enum TxInWitness {
     RedeemWitness(RedeemPublicKey, RedeemSignature),
 }
 
-struct TxIn(TxId, u32);
+#[derive(Debug, PartialEq, Eq)]
+pub struct TxIn {
+    pub id: TxId,
+    pub index: u32,
+}
+impl TxIn {
+    pub fn new(id: TxId, index: u32) -> Self { TxIn { id: id, index: index } }
+}
+impl ToCBOR for TxIn {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        let to_serialise = (&self.id, &self.index);
+        let v = cbor::hs::serialize(&to_serialise);
 
+        cbor::encode::array_start(2, buf);
+        cbor::encode::uint(0, buf);
+        cbor::encode::tag(24, buf);
+        cbor::encode::bs(&v, buf);
+    }
+}
+impl FromCBOR for TxIn {
+    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
+        println!("TxIn::decode 1");
+        assert!(decoder.array_start()? == 2);
+        println!("TxIn::decode 2");
+        assert!(decoder.uint()? == 0);
+        println!("TxIn::decode 3");
+        assert!(decoder.tag()? == 24);
+        println!("TxIn::decode 4");
+        let buf = decoder.bs()?;
+        println!("TxIn::decode 5");
+
+        let (id, index) = cbor::hs::deserialize(&buf)?;
+        println!("TxIn::decode 6");
+        Ok(TxIn::new(id, index))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct Tx {
     inputs: Vec<TxIn>,
     outputs: Vec<TxOut>,
@@ -171,6 +208,7 @@ mod tests {
 
     // CBOR encoded TxOut
     const TX_OUT: &'static [u8] = &[0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a];
+    const TX_IN:  &'static [u8] = &[0x82, 0x00, 0xd8, 0x18, 0x58, 0x26, 0x82, 0x58, 0x20, 0xaa, 0xd7, 0x8a, 0x13, 0xb5, 0x0a, 0x01, 0x4a, 0x24, 0x63, 0x3c, 0x7d, 0x44, 0xfd, 0x8f, 0x8d, 0x18, 0xf6, 0x7b, 0xbb, 0x3f, 0xa9, 0xcb, 0xce, 0xdf, 0x83, 0x4a, 0xc8, 0x99, 0x75, 0x9d, 0xcd, 0x19, 0x02, 0x9a];
 
     const TX: &'static [u8] = &[/* TODO: insert TX here */];
     const BLOCK: &'static [u8] = &[ /* TODO: insert Block here */ ];
@@ -201,6 +239,19 @@ mod tests {
         let value = Coin::new(42).unwrap();
 
         assert!(cbor::hs::encode_decode(&TxOut::new(ea, value)));
+    }
+
+    #[test]
+    fn txin_decode() {
+        let mut decoder = cbor::decode::Decoder::new();
+        decoder.extend(TX_IN);
+        let txin = TxIn::decode(&mut decoder).expect("to retrive a TxIn");
+    }
+
+    #[test]
+    fn txin_encode_decode() {
+        let txid = TxId::new(&[0;32]);
+        assert!(cbor::hs::encode_decode(&TxIn::new(txid, 666)));
     }
 
     #[test]
