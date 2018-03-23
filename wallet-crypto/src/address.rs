@@ -390,10 +390,12 @@ const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 
 impl ToCBOR for Attributes {
     fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_map_start(2, buf);
         if self.stake_distribution != StakeDistribution::BootstrapEraDistr {
+            cbor::encode::cbor_map_start(2, buf);
             cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
             self.stake_distribution.encode(buf);
+        } else {
+            cbor::encode::cbor_map_start(1, buf);
         }
         cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
         self.derivation_path.encode(buf);
@@ -698,6 +700,9 @@ mod tests {
         let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
 
         let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+
+        let b = r.to_bytes();
+        assert_eq!(addr_str, String::from_utf8(base58::base_encode(alphabet, &b)).unwrap());
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
