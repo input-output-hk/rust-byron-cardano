@@ -10,7 +10,7 @@ use std::iter::repeat;
 
 use hdwallet::{XPub};
 use cbor;
-use cbor::hs::{ToCBOR, FromCBOR};
+use cbor::hs::{FromCBOR};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -34,11 +34,12 @@ impl Path {
         };
         Some(Path::new(path))
     }
-    fn cbor(&self) -> Vec<u8> {
-        let mut buf = vec![];
-        cbor::encode::array_start(self.as_ref().len(), &mut buf);
-        self.as_ref().iter().for_each(|b| cbor::encode::uint((b.clone() as u64), &mut buf));
-        buf
+    fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
+}
+impl cbor::CborValue for Path {
+    fn encode(&self) -> cbor::Value { cbor::Value::Array(self.0.iter().map(cbor::CborValue::encode).collect()) }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 
@@ -124,11 +125,13 @@ impl HDAddressPayload {
     }
     pub fn len(&self) -> usize { self.0.len() }
 }
-impl ToCBOR for HDAddressPayload {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let mut vec = vec![];
-        cbor::encode::bs(self.as_ref(), &mut vec);
-        cbor::encode::bs(&vec         , buf);
+impl cbor::CborValue for HDAddressPayload {
+    fn encode(&self) -> cbor::Value {
+        let vec = cbor::encode_to_cbor(&self.0).unwrap();
+        cbor::Value::Bytes(vec)
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for HDAddressPayload {

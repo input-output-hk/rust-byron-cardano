@@ -1,5 +1,8 @@
 //! CBor as specified by the RFC
 
+use std::collections::BTreeMap;
+use std::io;
+
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
 pub enum MajorType {
     UINT,
@@ -14,9 +17,11 @@ pub enum MajorType {
 
 impl MajorType {
     // serialize a major type in its highest bit form
-    fn to_byte(self) -> u8 {
+    fn to_byte(self, r: u8) -> u8 {
         use self::MajorType::*;
-        match self {
+        assert!(r <= 0b0001_1111);
+
+        r | match self {
             UINT  => 0b0000_0000,
             NINT  => 0b0010_0000,
             BYTES => 0b0100_0000,
@@ -44,119 +49,333 @@ impl MajorType {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Value {
+    U64(u64),
+    I64(i64),
+    Bytes(Vec<u8>),
+    Array(Vec<Value>),
+    Object(BTreeMap<ObjectKey, Value>),
+    Tag(u64, Box<Value>),
+    Null,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ObjectKey {
+    Integer(u64)
+}
+
+pub trait CborValue: Sized {
+    fn encode(&self) -> Value;
+    fn decode(v: &Value) -> Option<Self>;
+}
+impl CborValue for Value {
+    fn encode(&self) -> Value { self.clone() }
+    fn decode(v: &Value) -> Option<Self> { Some(v.clone()) }
+}
+impl CborValue for u8 {
+    fn encode(&self)  -> Value { Value::U64(*self as u64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::U64(ref v) => { if *v < 0x100 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for u16 {
+    fn encode(&self)  -> Value { Value::U64(*self as u64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::U64(ref v) => { if *v < 0x10000 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for u32 {
+    fn encode(&self)  -> Value { Value::U64(*self as u64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::U64(ref v) => { if *v < 0x100000000 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for u64 {
+    fn encode(&self)  -> Value { Value::U64(*self) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::U64(ref v) => Some(*v),
+            _ => None
+        }
+    }
+}
+impl CborValue for i8 {
+    fn encode(&self)  -> Value { Value::I64(*self as i64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::I64(ref v) => { if *v < 0x100 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for i16 {
+    fn encode(&self)  -> Value { Value::I64(*self as i64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::I64(ref v) => { if *v < 0x10000 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for i32 {
+    fn encode(&self)  -> Value { Value::I64(*self as i64) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::I64(ref v) => { if *v < 0x100000000 { Some(*v as Self) } else { None } }
+            _ => None
+        }
+    }
+}
+impl CborValue for i64 {
+    fn encode(&self)  -> Value { Value::I64(*self) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::I64(ref v) => Some(*v),
+            _ => None
+        }
+    }
+}
+impl CborValue for Vec<u8> {
+    fn encode(&self)  -> Value { Value::Bytes(self.clone()) }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::Bytes(ref v) => Some(v.clone()),
+            _ => None
+        }
+    }
+}
+impl<T> CborValue for Option<T> where T: CborValue {
+    fn encode(&self)  -> Value {
+        match self {
+            &None => Value::Null,
+            &Some(ref v) => CborValue::encode(v)
+        }
+    }
+    fn decode(v: &Value) -> Option<Self> {
+        let v = CborValue::decode(v)?;
+        Some(v)
+    }
+}
+impl<A, B> CborValue for (A, B)
+    where A: CborValue
+        , B: CborValue
+{
+    fn encode(&self)  -> Value {
+        Value::Array(
+            vec![ CborValue::encode(&self.0)
+                , CborValue::encode(&self.1)
+                ]
+        )
+    }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::Array(ref v) => {
+                if (v.len() != 2) { return None; }
+                let x = CborValue::decode(&v[0])?;
+                let y = CborValue::decode(&v[1])?;
+                Some((x,y))
+            },
+            _ => None
+        }
+    }
+}
+impl<A, B, C> CborValue for (A, B, C)
+    where A: CborValue
+        , B: CborValue
+        , C: CborValue
+{
+    fn encode(&self)  -> Value {
+        Value::Array(
+            vec![ CborValue::encode(&self.0)
+                , CborValue::encode(&self.1)
+                , CborValue::encode(&self.2)
+                ]
+        )
+    }
+    fn decode(v: &Value) -> Option<Self> {
+        match v {
+            &Value::Array(ref v) => {
+                if (v.len() != 3) { return None; }
+                let x = CborValue::decode(&v[0])?;
+                let y = CborValue::decode(&v[1])?;
+                let z = CborValue::decode(&v[2])?;
+                Some((x,y,z))
+            },
+            _ => None
+        }
+    }
+}
+
 const MAX_INLINE_ENCODING : u8 = 23;
 const CBOR_PAYLOAD_LENGTH_U8 : u8 = 24;
 const CBOR_PAYLOAD_LENGTH_U16 : u8 = 25;
 const CBOR_PAYLOAD_LENGTH_U32 : u8 = 26;
 const CBOR_PAYLOAD_LENGTH_U64 : u8 = 27;
 
-// internal mobule to encode the address metadata in cbor to
-// hash them.
-//
-pub mod encode {
-    use super::*;
+/// convenient macro to get the given bytes of the given value
+///
+/// does all the job: Big Endian, bit shift and convertion
+macro_rules! byte_slice {
+    ($value:ident, $shift:expr) => ({
+        ($value >> $shift) as u8
+    });
+}
 
-    pub fn header(ty: MajorType, r: u8) -> u8 {
-        ty.to_byte() | r & 0x1f
-    }
+/// convenient function to encode a `CborValue` object to a byte array
+///
+pub fn encode_to_cbor<V>(v: &V) -> io::Result<Vec<u8>>
+    where V: CborValue
+{
+    let mut encoder = Encoder::new(vec![]);
 
-    pub fn uint_small(v: u8, buf: &mut Vec<u8>) {
-        assert!(v <= MAX_INLINE_ENCODING);
-        buf.push(header(MajorType::UINT, v));
-    }
+    encoder.write(&CborValue::encode(v))?;
 
-    pub fn u8(v: u8, buf: &mut Vec<u8>) {
-        buf.push(header(MajorType::UINT, CBOR_PAYLOAD_LENGTH_U8));
-        buf.push(v);
-    }
+    Ok(encoder.writer)
+}
 
-    /// convenient macro to get the given bytes of the given value
-    ///
-    /// does all the job: Big Endian, bit shift and convertion
-    macro_rules! byte_slice {
-        ($value:ident, $shift:expr) => ({
-            ($value >> $shift) as u8
-        });
-    }
+/// create CBOR serialiser
+pub struct Encoder<W> {
+    writer: W
+}
+impl<W> Encoder<W> where W: io::Write {
+    pub fn new(w: W) -> Self { Encoder { writer: w } }
 
-    pub fn write_u8(v: u8, buf: &mut Vec<u8>) {
-        write_header_u8(MajorType::UINT, v, buf);
-    }
-    pub fn write_u16(v: u16, buf: &mut Vec<u8>) {
-        write_header_u16(MajorType::UINT, v, buf);
-    }
-    pub fn write_u32(v: u32, buf: &mut Vec<u8>) {
-        write_header_u32(MajorType::UINT, v, buf);
-    }
-    pub fn write_u64(v: u64, buf: &mut Vec<u8>) {
-        write_header_u64(MajorType::UINT, v, buf);
-    }
-    pub fn write_header_u8(ty: MajorType, v: u8, buf: &mut Vec<u8>) {
-        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U8));
-        buf.push(v);
-    }
-    pub fn write_header_u16(ty: MajorType, v: u16, buf: &mut Vec<u8>) {
-        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U16));
-        buf.push(byte_slice!(v, 8));
-        buf.push(byte_slice!(v, 0));
-    }
-    pub fn write_header_u32(ty: MajorType, v: u32, buf: &mut Vec<u8>) {
-        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U32));
-        buf.push(byte_slice!(v, 24));
-        buf.push(byte_slice!(v, 16));
-        buf.push(byte_slice!(v,  8));
-        buf.push(byte_slice!(v,  0));
-    }
-    pub fn write_header_u64(ty: MajorType, v: u64, buf: &mut Vec<u8>) {
-        buf.push(header(ty, CBOR_PAYLOAD_LENGTH_U64));
-        buf.push(byte_slice!(v, 56));
-        buf.push(byte_slice!(v, 48));
-        buf.push(byte_slice!(v, 40));
-        buf.push(byte_slice!(v, 32));
-        buf.push(byte_slice!(v, 24));
-        buf.push(byte_slice!(v, 16));
-        buf.push(byte_slice!(v,  8));
-        buf.push(byte_slice!(v,  0));
+    fn write_bytes(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.writer.write_all(bytes)
     }
 
-    pub fn write_length_encoding(ty: MajorType, nb_elems: u64, buf: &mut Vec<u8>) {
+    fn write_header_u8(&mut self, ty: MajorType, v: u8) -> io::Result<()> {
+        self.write_bytes(&
+            [ ty.to_byte(CBOR_PAYLOAD_LENGTH_U8)
+            , v
+            ]
+        )
+    }
+
+    fn write_header_u16(&mut self, ty: MajorType, v: u16) -> io::Result<()> {
+        self.write_bytes(&
+            [ ty.to_byte(CBOR_PAYLOAD_LENGTH_U16)
+            , byte_slice!(v, 8)
+            , byte_slice!(v, 0)
+            ]
+        )
+    }
+    fn write_header_u32(&mut self, ty: MajorType, v: u32) -> io::Result<()> {
+        self.write_bytes(&
+            [ ty.to_byte(CBOR_PAYLOAD_LENGTH_U32)
+            , byte_slice!(v, 24)
+            , byte_slice!(v, 16)
+            , byte_slice!(v, 8)
+            , byte_slice!(v, 0)
+            ]
+        )
+    }
+    fn write_header_u64(&mut self, ty: MajorType, v: u64) -> io::Result<()> {
+        self.write_bytes(&
+            [ ty.to_byte(CBOR_PAYLOAD_LENGTH_U64)
+            , byte_slice!(v, 56)
+            , byte_slice!(v, 48)
+            , byte_slice!(v, 40)
+            , byte_slice!(v, 32)
+            , byte_slice!(v, 24)
+            , byte_slice!(v, 16)
+            , byte_slice!(v, 8)
+            , byte_slice!(v, 0)
+            ]
+        )
+    }
+
+    fn write_header(&mut self, ty: MajorType, nb_elems: u64) -> io::Result<()> {
         if nb_elems <= (MAX_INLINE_ENCODING as u64) {
-            buf.push(header(ty, nb_elems as u8));
+            self.write_bytes(&[ty.to_byte(nb_elems as u8)])
         } else {
             if nb_elems < 0x100 {
-                write_header_u8(ty, nb_elems as u8, buf);
+                self.write_header_u8(ty, nb_elems as u8)
             } else if nb_elems < 0x10000 {
-                write_header_u16(ty, nb_elems as u16, buf);
+                self.write_header_u16(ty, nb_elems as u16)
             } else if nb_elems < 0x100000000 {
-                write_header_u32(ty, nb_elems as u32, buf);
+                self.write_header_u32(ty, nb_elems as u32)
             } else {
-                write_header_u64(ty, nb_elems as u64, buf);
+                self.write_header_u64(ty, nb_elems as u64)
             }
         }
     }
 
-    pub fn uint(uint: u64, buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::UINT, uint, buf);
+    fn write_bs(&mut self, v: &Vec<u8>) -> io::Result<()> {
+        self.write_header(MajorType::BYTES, v.len() as u64)?;
+        self.write_bytes(v.as_ref())
     }
 
-    pub fn tag(tag: u64, buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::TAG, tag, buf);
+    fn write_array(&mut self, v: &Vec<Value>) -> io::Result<()> {
+        self.write_header(MajorType::ARRAY, v.len() as u64)?;
+        for e in v.iter() { self.write(e)?; }
+        Ok(())
     }
 
-    pub fn bs(bs: &[u8], buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::BYTES, bs.len() as u64, buf);
-        buf.extend_from_slice(bs)
+    fn write_object(&mut self, v: &BTreeMap<ObjectKey, Value>) -> io::Result<()> {
+        self.write_header(MajorType::MAP, v.len() as u64)?;
+        for e in v.iter() { self.write_key(e.0)?; self.write(e.1)?; }
+        Ok(())
     }
 
-    pub fn array_start(nb_elems: usize, buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::ARRAY, nb_elems as u64, buf);
+    pub fn write(&mut self, value: &Value) -> io::Result<()> {
+        match value {
+            &Value::U64(ref v)    => self.write_header(MajorType::UINT, *v),
+            &Value::I64(ref v)    => self.write_header(MajorType::NINT, *v as u64),
+            &Value::Bytes(ref v)  => self.write_bs(&v),
+            &Value::Array(ref v)  => self.write_array(&v),
+            &Value::Object(ref v) => self.write_object(&v),
+            &Value::Tag(ref t, ref v) => {
+                self.write_header(MajorType::TAG, *t)?;
+                self.write(v.as_ref())
+            },
+            &Value::Null         => Ok(())
+        }
     }
-    pub fn map_start(nb_elems: usize, buf: &mut Vec<u8>) {
-        write_length_encoding(MajorType::MAP, nb_elems as u64, buf);
+    pub fn write_key(&mut self, key: &ObjectKey) -> io::Result<()> {
+        match key {
+            &ObjectKey::Integer(ref v) => self.write_header(MajorType::UINT, *v)
+        }
     }
-
 }
 
+pub struct Indefinite<E>(E);
+impl<W: io::Write> Indefinite<Encoder<W>> {
+    pub fn start_array(e: Encoder<W>) -> io::Result<Self> {
+        let mut encoder = e;
+        encoder.write_bytes(&[0x9F])?;
+        Ok(Indefinite(encoder))
+    }
+
+    pub fn write(& mut self, value: &Value) -> io::Result<()> { self.0.write(value) }
+
+    pub fn stop_indefinite(self) -> io::Result<Encoder<W>> {
+        let mut encoder = self.0;
+        encoder.write_bytes(&[0xFF])?;
+        Ok(encoder)
+    }
+}
+/*
+impl<R: Read> Indefinite<Decoder<R>> {
+    // start array, return the decoder if this is not a start of a array...
+    // otherwise returns the new Indefinite<Decoder<R>>
+    pub fn start_array(e: Decoder) -> Either<Decoder<R>, Self>;
+    // try to read a value `MajorType` that has been read that is ont a none value
+    pub fn read(&mut self) -> Either<MajorType, Value>;
+    //
+    pub fn break(self) -> Either<Self, Decoder<R>>
+}
+*/
 
 // internal mobule to encode the address metadata in cbor to
 // hash them.

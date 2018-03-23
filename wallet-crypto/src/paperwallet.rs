@@ -61,7 +61,7 @@ mod tests {
     //use paperwallet::{scramble,unscramble};
     use paperwallet;
 
-/// # GoldenTests: cardano/crypto/scramble128
+/// # GOLDEN_TEST: cardano/crypto/scramble128
 ///
 ///
 ///
@@ -85,7 +85,7 @@ struct TestVector {
   shielded_input : [u8;20]
 }
 
-const GoldenTests : [TestVector;3] =
+const GOLDEN_TESTS : [TestVector;3] =
   [ TestVector
     { iv : [0x00, 0x00, 0x00, 0x00]
     , input : [0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f]
@@ -109,7 +109,7 @@ const GoldenTests : [TestVector;3] =
 
     #[test]
     fn paper_scramble() {
-        for tv in GoldenTests.iter() {
+        for tv in GOLDEN_TESTS.iter() {
             let r = paperwallet::scramble(&tv.iv[..], tv.passphrase.as_bytes(), &tv.input[..]);
             assert_eq!(&r[..], &tv.shielded_input[..]);
         }
@@ -117,7 +117,7 @@ const GoldenTests : [TestVector;3] =
 
     #[test]
     fn paper_unscramble() {
-        for tv in GoldenTests.iter() {
+        for tv in GOLDEN_TESTS.iter() {
             let r = paperwallet::unscramble(tv.passphrase.as_bytes(), &tv.shielded_input[..]);
             assert_eq!(&r[..], &tv.input[..]);
         }

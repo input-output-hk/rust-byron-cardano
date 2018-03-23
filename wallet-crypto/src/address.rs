@@ -1,11 +1,12 @@
 use std::fmt;
+use std::collections::BTreeMap;
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 use rcw::sha3::Sha3;
 
 use cbor;
-use cbor::hs::{ToCBOR, FromCBOR};
+use cbor::hs::{FromCBOR};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
@@ -51,9 +52,12 @@ impl fmt::Display for DigestBlake2b224 {
         Ok(())
     }
 }
-impl ToCBOR for DigestBlake2b224 {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::bs(&self.0[..], buf)
+impl cbor::CborValue for DigestBlake2b224 {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Bytes(self.0.iter().cloned().collect())
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for DigestBlake2b224 {
@@ -82,9 +86,12 @@ impl AddrType {
         }
     }
 }
-impl ToCBOR for AddrType {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::uint(self.to_byte() as u64, buf);
+impl cbor::CborValue for AddrType {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::U64(self.to_byte() as u64)
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for AddrType {
@@ -103,14 +110,14 @@ impl FromCBOR for AddrType {
 pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
-        let mut buf = Vec::new();
-        pubk.encode(&mut buf);
-        StakeholderId(DigestBlake2b224::new(&buf))
+        let buf = cbor::encode_to_cbor(pubk).unwrap();
+        StakeholderId(DigestBlake2b224::new(buf.as_ref()))
     }
 }
-impl ToCBOR for StakeholderId {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        self.0.encode(buf)
+impl cbor::CborValue for StakeholderId {
+    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for StakeholderId {
@@ -143,17 +150,27 @@ impl StakeDistribution {
         StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
     }
 }
-impl ToCBOR for StakeDistribution {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let mut vec = vec![];
-        match self {
-            &StakeDistribution::BootstrapEraDistr => cbor::hs::sumtype_start(STAKE_DISTRIBUTION_TAG_BOOTSTRAP, 0, &mut vec),
+impl cbor::CborValue for StakeDistribution {
+    fn encode(&self) -> cbor::Value {
+        let value = match self {
+            &StakeDistribution::BootstrapEraDistr => {
+                cbor::Value::Array(
+                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)
+                        ]
+                )
+            }
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                cbor::hs::sumtype_start(STAKE_DISTRIBUTION_TAG_SINGLEKEY, 1, &mut vec);
-                si.encode(&mut vec);
+                cbor::Value::Array(
+                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_SINGLEKEY)
+                        , cbor::CborValue::encode(si)
+                        ]
+                )
             }
         };
-        cbor::encode::bs(&vec, buf);
+        cbor::Value::Bytes(cbor::encode_to_cbor(&value).unwrap())
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for StakeDistribution {
@@ -198,17 +215,26 @@ impl Attributes {
 const ATTRIBUTE_NAME_TAG_STAKE : u64 = 0;
 const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 
-impl ToCBOR for Attributes {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        if self.stake_distribution != StakeDistribution::BootstrapEraDistr {
-            cbor::encode::map_start(2, buf);
-            cbor::encode::uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
-            self.stake_distribution.encode(buf);
-        } else {
-            cbor::encode::map_start(1, buf);
-        }
-        cbor::encode::uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
-        self.derivation_path.encode(buf);
+impl cbor::CborValue for Attributes {
+    fn encode(&self) -> cbor::Value {
+        let mut map = BTreeMap::new();
+        match &self.stake_distribution {
+            &StakeDistribution::BootstrapEraDistr => { /**/ },
+            &StakeDistribution::SingleKeyDistr(_) => {
+                map.insert(
+                    cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE),
+                    cbor::CborValue::encode(&self.stake_distribution)
+                );
+            }
+        };
+        map.insert(
+            cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION),
+            cbor::CborValue::encode(&self.derivation_path)
+        );
+        cbor::Value::Object(map)
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for Attributes {
@@ -233,9 +259,10 @@ impl fmt::Display for Addr {
         fmt::Display::fmt(&self.0, f)
     }
 }
-impl ToCBOR for Addr {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        self.0.encode(buf)
+impl cbor::CborValue for Addr {
+    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for Addr {
@@ -246,10 +273,9 @@ impl FromCBOR for Addr {
 }
 impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
-        /* CBOR encode + HASH */
-        let mut buff = vec![];
-        (&addr_type, spending_data, attrs).encode(&mut buff);
-        Addr(DigestBlake2b224::new(buff.as_slice()))
+        let d : (AddrType, SpendingData, Attributes) = (addr_type, spending_data.clone(), attrs.clone());
+        let v = cbor::encode_to_cbor(&d).unwrap();
+        Addr(DigestBlake2b224::new(v.as_slice()))
     }
 
     /// create a Digest from the given 224 bits
@@ -295,9 +321,7 @@ impl ExtendedAddr {
     /// ```
     ///
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut vec = vec![];
-        cbor::hs::util::encode_with_crc32(self, &mut vec);
-        vec
+        cbor::encode_to_cbor(self).unwrap()
     }
 
     /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
@@ -330,9 +354,12 @@ impl ExtendedAddr {
         cbor::hs::util::decode_with_crc32(&mut decoder)
     }
 }
-impl ToCBOR for ExtendedAddr {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        (&self.addr, &self.attributes, &self.addr_type).encode(buf);
+impl cbor::CborValue for ExtendedAddr {
+    fn encode(&self) -> cbor::Value {
+        cbor::hs::util::encode_with_crc32(&(self.addr.clone(), self.attributes.clone(), self.addr_type.clone()))
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for ExtendedAddr {
@@ -358,26 +385,28 @@ const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
 const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
 const SPENDING_DATA_TAG_REDEEM : u64 = 2; // TODO
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
 }
-impl ToCBOR for SpendingData {
-    fn encode(&self, buf: &mut Vec<u8>) {
+impl cbor::CborValue for SpendingData {
+    fn encode(&self) -> cbor::Value {
+        let mut v = vec![];
         match self {
-            &SpendingData::PubKeyASD(ref xpub) => {
-                cbor::hs::sumtype_start(SPENDING_DATA_TAG_PUBKEY, 1, buf);
-                xpub.encode(buf);
-            }
-            &SpendingData::ScriptASD(ref _script) => {
-                unimplemented!()
-            }
-            &SpendingData::RedeemASD(ref _redeem_key) => {
-                unimplemented!()
-            }
-        }
+            &SpendingData::PubKeyASD(ref pk) => {
+                v.push(cbor::CborValue::encode(&SPENDING_DATA_TAG_PUBKEY));
+                v.push(cbor::CborValue::encode(pk));
+            },
+            &SpendingData::ScriptASD(_)      => unimplemented!(),
+            &SpendingData::RedeemASD(_)      => unimplemented!(),
+        };
+        cbor::Value::Array(v)
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for SpendingData {
@@ -449,9 +478,18 @@ mod tests {
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
-        let out = ea.to_bytes();
+        let out = cbor::encode_to_cbor(&ea).unwrap();
 
-        assert_eq!(out, v);
+        v.iter().for_each(|b| {
+            if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
+        });
+        println!("");
+        out.iter().for_each(|b| {
+            if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
+        });
+        println!("");
+
+        assert_eq!(v, out);
 
         let r = ExtendedAddr::from_bytes(&out).unwrap();
         assert_eq!(ea, r);

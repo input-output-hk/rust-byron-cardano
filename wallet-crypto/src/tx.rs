@@ -5,7 +5,7 @@ use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use cbor;
-use cbor::hs::{ToCBOR, FromCBOR};
+use cbor::hs::{FromCBOR};
 use crc32::{crc32};
 
 use hdwallet::{Signature, XPub};
@@ -49,9 +49,10 @@ impl<T> fmt::Display for Hash<T> {
         Ok(())
     }
 }
-impl<T> ToCBOR for Hash<T> {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::bs(&self.digest, buf)
+impl<T> cbor::CborValue for Hash<T> {
+    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(self.digest.iter().cloned().collect()) }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl<T> FromCBOR for Hash<T> {
@@ -77,9 +78,10 @@ impl Coin {
         if v <= MAX_COIN { Some(Coin(v)) } else { None }
     }
 }
-impl ToCBOR for Coin {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::uint(self.0, buf)
+impl cbor::CborValue for Coin {
+    fn encode(&self) -> cbor::Value { cbor::Value::U64(self.0) }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for Coin {
@@ -92,7 +94,7 @@ impl FromCBOR for Coin {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
@@ -102,14 +104,16 @@ impl TxOut {
         TxOut { address: addr, value: value }
     }
 }
-impl ToCBOR for TxOut {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        // we start an array of 2 elements:
-        cbor::encode::array_start(2, buf);
-        // the extended addr is encoded in cbor with its crc32
-        cbor::hs::util::encode_with_crc32(&self.address, buf);
-        // we encode the coin
-        self.value.encode(buf);
+impl cbor::CborValue for TxOut {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Array(
+            vec![ cbor::CborValue::encode(&self.address)
+                , cbor::CborValue::encode(&self.value)
+                ]
+        )
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for TxOut {
@@ -141,7 +145,7 @@ enum TxInWitness {
     RedeemWitness(RedeemPublicKey, RedeemSignature),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxIn {
     pub id: TxId,
     pub index: u32,
@@ -149,15 +153,17 @@ pub struct TxIn {
 impl TxIn {
     pub fn new(id: TxId, index: u32) -> Self { TxIn { id: id, index: index } }
 }
-impl ToCBOR for TxIn {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let to_serialise = (&self.id, &self.index);
-        let v = cbor::hs::serialize(&to_serialise);
-
-        cbor::encode::array_start(2, buf);
-        cbor::encode::uint(0, buf);
-        cbor::encode::tag(24, buf);
-        cbor::encode::bs(&v, buf);
+impl cbor::CborValue for TxIn {
+    fn encode(&self) -> cbor::Value {
+        let v = cbor::encode_to_cbor(&(self.id.clone(), self.index)).unwrap();
+        cbor::Value::Array(
+            vec![ cbor::CborValue::encode(&0u64)
+                , cbor::Value::Tag(24, Box::new(cbor::Value::Bytes(v)))
+                ]
+        )
+    }
+    fn decode(value: &cbor::Value) -> Option<Self> {
+        unimplemented!()
     }
 }
 impl FromCBOR for TxIn {
@@ -178,7 +184,7 @@ impl FromCBOR for TxIn {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct Tx {
     inputs: Vec<TxIn>,
     outputs: Vec<TxOut>,
@@ -186,6 +192,30 @@ struct Tx {
     //
     // So far, there is no TxAttributes... the structure contains only the unparsed/unknown stuff
 }
+impl Tx {
+    pub fn new() -> Self { Tx::new_with(vec![], vec![]) }
+    pub fn new_with(ins: Vec<TxIn>, outs: Vec<TxOut>) -> Self {
+        Tx { inputs: ins, outputs: outs }
+    }
+}
+//impl ToCBOR for Tx {
+//    fn encode(&self, buf: &mut Vec<u8>) {
+//        cbor::encode::array_start(3, buf);
+//        { // inputs
+//            cbor::encode::array_start_indefinite(buf);
+//            self.inputs.iter().for_each(|v| v.encode(buf));
+//            cbor::encode::break_(buf);
+//        }
+//        { // outputs
+//            cbor::encode::array_start_indefinite(buf);
+//            self.outputs.iter().for_each(|v| v.encode(buf));
+//            cbor::encode::break_(buf);
+//        }
+//        { // attributes
+//            cbor::encode::map_start(0, buf);
+//        }
+//    }
+//}
 
 struct TxAux {
     tx: Tx,
