@@ -204,7 +204,7 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
 
     let addr_type = address::AddrType::ATPubKey;
     let sd = address::SpendingData::PubKeyASD(xpub.clone());
-    let attrs = address::Attributes::new_single_key(&xpub, Some(hdap));
+    let attrs = address::Attributes::new_bootstrap_era(Some(hdap));
     let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
 
     let ea_bytes = ea.to_bytes();
