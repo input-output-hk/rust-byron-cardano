@@ -10,7 +10,6 @@ use std::iter::repeat;
 
 use hdwallet::{XPub};
 use cbor;
-use cbor::hs::{FromCBOR};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -24,22 +23,21 @@ impl AsRef<[u32]> for Path {
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
     fn from_cbor(bytes: &[u8]) -> Option<Self> {
-        let mut cbor_decoder = cbor::decode::Decoder::new();
-        let mut path = vec![];
-        cbor_decoder.extend(bytes);
-
-        let l = cbor_decoder.array_start().unwrap();
-        for _ in 0..l {
-            path.push(cbor_decoder.uint().unwrap() as u32);
-        };
-        Some(Path::new(path))
+        cbor::decode_from_cbor(bytes)
     }
     fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
 }
 impl cbor::CborValue for Path {
     fn encode(&self) -> cbor::Value { cbor::Value::Array(self.0.iter().map(cbor::CborValue::encode).collect()) }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
+        match value {
+            &cbor::Value::Array(ref vec) => {
+                let mut v = vec![];
+                for el in vec.iter() { v.push(cbor::CborValue::decode(el)?); }
+                Some(Path::new(v))
+            },
+            _ => None
+        }
     }
 }
 
@@ -131,20 +129,15 @@ impl cbor::CborValue for HDAddressPayload {
         cbor::Value::Bytes(vec)
     }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
+        match value {
+            &cbor::Value::Bytes(ref buf) => {
+                let bytes = cbor::decode_from_cbor(buf.as_ref())?;
+                Some(HDAddressPayload::from_vec(bytes))
+            },
+            _ => None,
+        }
     }
 }
-impl FromCBOR for HDAddressPayload {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-
-        let mut dec = cbor::decode::Decoder::new();
-        dec.extend(&bs);
-        let vec = dec.bs()?;
-        Ok(HDAddressPayload::from_vec(vec))
-    }
-}
-
 
 #[cfg(test)]
 mod tests {

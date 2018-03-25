@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 use std::fmt;
+use std::borrow::{Borrow};
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use cbor;
-use cbor::hs::{FromCBOR};
 use crc32::{crc32};
 
 use hdwallet::{Signature, XPub};
@@ -52,15 +52,9 @@ impl<T> fmt::Display for Hash<T> {
 impl<T> cbor::CborValue for Hash<T> {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(self.digest.iter().cloned().collect()) }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
-    }
-}
-impl<T> FromCBOR for Hash<T> {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-        match Self::from_slice(&bs) {
-            None => Err(cbor::decode::Error::Custom("invalid length for Hash")),
-            Some(v) => Ok(v)
+        match value {
+            &cbor::Value::Bytes(ref vec) => Hash::from_slice(vec.as_ref()),
+            _ => None
         }
     }
 }
@@ -81,15 +75,9 @@ impl Coin {
 impl cbor::CborValue for Coin {
     fn encode(&self) -> cbor::Value { cbor::Value::U64(self.0) }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
-    }
-}
-impl FromCBOR for Coin {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let value = decoder.uint()?;
-        match Self::new(value) {
-            None => Err(cbor::decode::Error::Custom("Coin out of bound")),
-            Some(v) => Ok(v)
+        match value {
+            &cbor::Value::U64(ref v) => Coin::new(*v),
+            _ => None
         }
     }
 }
@@ -113,21 +101,14 @@ impl cbor::CborValue for TxOut {
         )
     }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
-    }
-}
-impl FromCBOR for TxOut {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        // check we have an array of 2 elements
-        let l = decoder.array_start()?;
-        if l != 2 {
-            return Err(cbor::decode::Error::Custom("TxOut should contains 2 elements"));
+        match value {
+            &cbor::Value::Array(ref array) => {
+                let addr = cbor::CborValue::decode(array.get(0)?)?;
+                let val  = cbor::CborValue::decode(array.get(1)?)?;
+                Some(TxOut::new(addr, val))
+            },
+            _ => None
         }
-        // decode the ExtendedAddr with its crc32 (and check the crc32)
-        let addr = cbor::hs::util::decode_with_crc32(decoder)?;
-        // decode the coin
-        let value = Coin::decode(decoder)?;
-        Ok(TxOut::new(addr, value))
     }
 }
 
@@ -163,24 +144,21 @@ impl cbor::CborValue for TxIn {
         )
     }
     fn decode(value: &cbor::Value) -> Option<Self> {
-        unimplemented!()
-    }
-}
-impl FromCBOR for TxIn {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        println!("TxIn::decode 1");
-        assert!(decoder.array_start()? == 2);
-        println!("TxIn::decode 2");
-        assert!(decoder.uint()? == 0);
-        println!("TxIn::decode 3");
-        assert!(decoder.tag()? == 24);
-        println!("TxIn::decode 4");
-        let buf = decoder.bs()?;
-        println!("TxIn::decode 5");
-
-        let (id, index) = cbor::hs::deserialize(&buf)?;
-        println!("TxIn::decode 6");
-        Ok(TxIn::new(id, index))
+        match value {
+            &cbor::Value::Array(ref array) => {
+                let v : u64 = cbor::CborValue::decode(array.get(0)?)?;
+                if v != 0u64 { return None; }
+                match array.get(1)? {
+                    &cbor::Value::Tag(24, ref b) => {
+                        let v : Vec<u8> = cbor::CborValue::decode(b.borrow())?;
+                        let (id, index) = cbor::decode_from_cbor(v.as_ref())?;
+                        Some(TxIn::new(id, index))
+                    },
+                    _ => None
+                }
+            },
+            _ => None
+        }
     }
 }
 
@@ -245,9 +223,7 @@ mod tests {
 
     #[test]
     fn txout_decode() {
-        let mut decoder = cbor::decode::Decoder::new();
-        decoder.extend(TX_OUT);
-        let txout = TxOut::decode(&mut decoder).expect("to retrieve a TxOut");
+        let txout : TxOut = cbor::decode_from_cbor(TX_OUT).unwrap();
 
         let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         assert_eq!(Coin::new(42).unwrap(), txout.value);
@@ -273,9 +249,7 @@ mod tests {
 
     #[test]
     fn txin_decode() {
-        let mut decoder = cbor::decode::Decoder::new();
-        decoder.extend(TX_IN);
-        let txin = TxIn::decode(&mut decoder).expect("to retrive a TxIn");
+        let txin : TxIn = cbor::decode_from_cbor(TX_IN).unwrap();
     }
 
     #[test]

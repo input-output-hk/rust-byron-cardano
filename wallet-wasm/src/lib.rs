@@ -216,8 +216,8 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
 pub extern "C" fn wallet_address_get_payload(addr_ptr: *const c_uchar, addr_sz: usize, out: *mut c_uchar) -> u32 {
     let addr_bytes = unsafe { read_data(addr_ptr, addr_sz) };
     match address::ExtendedAddr::from_bytes(&addr_bytes) {
-        Err(_) => (-1i32) as u32,
-        Ok(r)  => {
+        None => (-1i32) as u32,
+        Some(r)  => {
             match r.attributes.derivation_path {
                 None        => 0,
                 Some(dpath) => {

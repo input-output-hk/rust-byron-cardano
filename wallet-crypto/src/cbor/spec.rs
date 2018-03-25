@@ -1,6 +1,7 @@
 //! CBor as specified by the RFC
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap};
+use std::cmp::{min};
 use std::io;
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
@@ -49,14 +50,30 @@ impl MajorType {
     }
 }
 
+#[test]
+fn major_type_byte_encoding() {
+    for i in 0b0000_0000..0b0001_1111 {
+        assert!(MajorType::UINT  == MajorType::from_byte(MajorType::to_byte(MajorType::UINT,  i)));
+        assert!(MajorType::NINT  == MajorType::from_byte(MajorType::to_byte(MajorType::NINT,  i)));
+        assert!(MajorType::BYTES == MajorType::from_byte(MajorType::to_byte(MajorType::BYTES, i)));
+        assert!(MajorType::TEXT  == MajorType::from_byte(MajorType::to_byte(MajorType::TEXT,  i)));
+        assert!(MajorType::ARRAY == MajorType::from_byte(MajorType::to_byte(MajorType::ARRAY, i)));
+        assert!(MajorType::MAP   == MajorType::from_byte(MajorType::to_byte(MajorType::MAP,   i)));
+        assert!(MajorType::TAG   == MajorType::from_byte(MajorType::to_byte(MajorType::TAG,   i)));
+        assert!(MajorType::T7    == MajorType::from_byte(MajorType::to_byte(MajorType::T7,    i)));
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     U64(u64),
     I64(i64),
     Bytes(Vec<u8>),
     Array(Vec<Value>),
+    ArrayStart,
     Object(BTreeMap<ObjectKey, Value>),
     Tag(u64, Box<Value>),
+    Break,
     Null,
 }
 
@@ -243,6 +260,18 @@ pub fn encode_to_cbor<V>(v: &V) -> io::Result<Vec<u8>>
     Ok(encoder.writer)
 }
 
+/// convenient function to decode the given bytes from cbor encoding
+///
+pub fn decode_from_cbor<V>(buf: &[u8]) -> Option<V>
+    where V: CborValue
+{
+    let mut reader = vec![]; reader.extend_from_slice(buf);
+    let mut decoder = Decoder::new(reader);
+
+    let value = decoder.value()?;
+    CborValue::decode(&value)
+}
+
 /// create CBOR serialiser
 pub struct Encoder<W> {
     writer: W
@@ -328,23 +357,187 @@ impl<W> Encoder<W> where W: io::Write {
         Ok(())
     }
 
+    fn start_indefinite(&mut self, mt: MajorType) -> io::Result<()> {
+        self.write_bytes(&[mt.to_byte(0x1F)])
+    }
+
     pub fn write(&mut self, value: &Value) -> io::Result<()> {
         match value {
             &Value::U64(ref v)    => self.write_header(MajorType::UINT, *v),
             &Value::I64(ref v)    => self.write_header(MajorType::NINT, *v as u64),
             &Value::Bytes(ref v)  => self.write_bs(&v),
             &Value::Array(ref v)  => self.write_array(&v),
+            &Value::ArrayStart    => self.start_indefinite(MajorType::ARRAY),
             &Value::Object(ref v) => self.write_object(&v),
             &Value::Tag(ref t, ref v) => {
                 self.write_header(MajorType::TAG, *t)?;
                 self.write(v.as_ref())
             },
-            &Value::Null         => Ok(())
+            &Value::Break        => self.write_bytes(&[0xFF]),
+            &Value::Null         => Ok(()),
         }
     }
     pub fn write_key(&mut self, key: &ObjectKey) -> io::Result<()> {
         match key {
             &ObjectKey::Integer(ref v) => self.write_header(MajorType::UINT, *v)
+        }
+    }
+}
+
+trait Read {
+    fn next(&mut self) -> Option<u8>;
+    fn peek(&self) -> Option<u8>;
+    fn discard(&mut self);
+    fn read(&mut self, len: usize) -> Vec<u8>;
+    fn read_into(&mut self, buf: &mut [u8]) -> usize;
+}
+impl Read for Vec<u8> {
+    fn next(&mut self) -> Option<u8> {
+        if self.len() > 0 { Some(self.remove(0)) } else { None }
+    }
+    fn peek(&self) -> Option<u8> {
+        if self.len() > 0 { Some(self[0]) } else { None }
+    }
+    fn discard(&mut self) { if self.len() > 0 { self.remove(0); } }
+    fn read(&mut self, sz: usize) -> Vec<u8> {
+        let len = min(self.len(), sz);
+        if len == 0 { return vec![]; }
+
+        let mut v = vec![];
+        v.extend_from_slice(&self[..len]);
+        for _ in 0..len { self.discard(); }
+
+        v
+    }
+    fn read_into(&mut self, buf: &mut [u8]) -> usize {
+        let len = min(self.len(), buf.len());
+        if len == 0 { return 0; }
+
+        buf[..len].clone_from_slice(self.as_ref());
+        for _ in 0..len { self.discard(); }
+
+        len
+    }
+}
+
+/// create CBOR serialiser
+pub struct Decoder<R> {
+    reader: R,
+    scope:  Vec<()>
+}
+impl<R> Decoder<R> where R: Read {
+    pub fn new(reader: R) -> Self { Decoder { reader: reader, scope: vec![] } }
+
+    fn consume(&mut self) { self.reader.discard() }
+
+    pub fn peek_type(&mut self) -> Option<MajorType> {
+        self.reader.peek().map(MajorType::from_byte)
+    }
+
+    fn u8(&mut self) -> Option<u64> { self.reader.next().map(|b| { b as u64 } ) }
+    fn u16(&mut self) -> Option<u64> {
+        let b1 = self.u8()?;
+        let b2 = self.u8()?;
+        Some(b1 << 8 | b2)
+    }
+    fn u32(&mut self) -> Option<u64> {
+        let b1 = self.u8()?;
+        let b2 = self.u8()?;
+        let b3 = self.u8()?;
+        let b4 = self.u8()?;
+        Some(b1 << 24 | b2 << 16 | b3 << 8 | b4)
+    }
+    fn u64(&mut self) -> Option<u64> {
+        let b1 = self.u8()?;
+        let b2 = self.u8()?;
+        let b3 = self.u8()?;
+        let b4 = self.u8()?;
+        let b5 = self.u8()?;
+        let b6 = self.u8()?;
+        let b7 = self.u8()?;
+        let b8 = self.u8()?;
+        Some(b1 << 56 | b2 << 48 | b3 << 40 | b4 << 32 | b5 << 24 | b6 << 16 | b7 << 8 | b8)
+    }
+
+    fn get_minor(&mut self) -> Option<u8> {
+        self.reader.peek().map(|b| { b & 0b0001_1111 } )
+    }
+
+    fn get_minor_type(&mut self) -> Option<u64> {
+        let b = self.get_minor()?;
+        match b & 0b0001_1111 {
+            0x00...0x17 => { self.consume(); Some(b as u64) },
+            0x18        => { self.consume(); self.u8() },
+            0x19        => { self.consume(); self.u16() },
+            0x1a        => { self.consume(); self.u32() },
+            0x1b        => { self.consume(); self.u64() },
+            0x1c...0x1e => None,
+            0x1f        => None,
+            _           => None
+        }
+    }
+
+    fn key(&mut self) -> Option<ObjectKey> {
+        let ty = self.peek_type()?;
+        match ty {
+            MajorType::UINT => { self.get_minor_type().map(ObjectKey::Integer) },
+            _ => None,
+        }
+    }
+
+    pub fn value(&mut self) -> Option<Value> {
+        let ty = self.peek_type()?;
+        match ty {
+            MajorType::UINT  => { self.get_minor_type().map(Value::U64) },
+            MajorType::NINT  => { self.get_minor_type().map(|v| Value::I64(v as i64)) },
+            MajorType::BYTES => {
+                let len = self.get_minor_type()?;
+                let buf = self.reader.read(len as usize);
+                if len as usize != buf.len() { None } else { Some(Value::Bytes(buf) ) }
+            },
+            MajorType::TEXT  => { unimplemented!() }
+            MajorType::ARRAY => {
+                let maybe_len = self.get_minor_type();
+                match maybe_len {
+                    None      => {
+                        match self.get_minor()? {
+                            0x1F => Some(Value::ArrayStart),
+                            _    => None
+                        }
+                    },
+                    Some(len) => {
+                        let mut array = vec![];
+                        for _ in 0..len { array.push(self.value()?); }
+                        Some(Value::Array(array))
+                    }
+                }
+            },
+            MajorType::MAP => {
+                let maybe_len = self.get_minor_type();
+                match maybe_len {
+                    None      => { unimplemented!() /* test for an Indefinite array */ },
+                    Some(len) => {
+                        let mut map = BTreeMap::new();
+                        for _ in 0..len {
+                            let k = self.key()?;
+                            let v = self.value()?;
+                            map.insert(k, v);
+                        }
+                        Some(Value::Object(map))
+                    }
+                }
+            },
+            MajorType::TAG => {
+                let tag = self.get_minor_type()?;
+                let obj = self.value()?;
+                Some(Value::Tag(tag, Box::new(obj)))
+            },
+            MajorType::T7 => {
+                match self.get_minor_type() {
+                    Some(0x1F) => Some(Value::Break),
+                    _          => Some(Value::Null),
+                }
+            }
         }
     }
 }
@@ -376,179 +569,3 @@ impl<R: Read> Indefinite<Decoder<R>> {
     pub fn break(self) -> Either<Self, Decoder<R>>
 }
 */
-
-// internal mobule to encode the address metadata in cbor to
-// hash them.
-//
-pub mod decode {
-    use super::*;
-    use std::result;
-
-    #[derive(Debug, PartialEq, Eq)]
-    pub enum Error {
-        NotEnough,
-        WrongMajorType(MajorType, MajorType),
-        InvalidPayloadLength(u8, u8),
-        InvalidLength(usize, usize),
-        InlineIntegerTooLarge,
-        Custom(&'static str)
-    }
-
-    pub type Result<T> = result::Result<T, Error>;
-
-    pub struct Decoder { buf: Vec<u8> }
-    impl Decoder {
-        pub fn new() -> Self { Decoder { buf: vec![] } }
-
-        pub fn extend(&mut self, more: &[u8]) {
-            self.buf.extend_from_slice(more)
-        }
-
-        fn drop(&mut self) -> Result<u8> {
-            if self.buf.len() > 0 {
-                Ok(self.buf.remove(0))
-            } else {
-                Err(Error::NotEnough)
-            }
-        }
-
-        fn get_header(&mut self) -> Result<(MajorType, u8)> {
-            let mt = MajorType::from_byte(self.buf[0]);
-            let b = self.drop()?;
-            Ok((mt, b & 0b001_1111))
-        }
-        fn header(&mut self, mt: MajorType) -> Result<u8> {
-            let (found_mt, b) = self.get_header()?;
-            if found_mt == mt {
-                Ok(b)
-            } else {
-                Err(Error::WrongMajorType(found_mt, mt))
-            }
-        }
-
-        pub fn uint_small(&mut self) -> Result<u8> {
-            let b = self.header(MajorType::UINT)?;
-            if b <= MAX_INLINE_ENCODING {
-                self.drop();
-                Ok(b)
-            } else {
-                Err(Error::InlineIntegerTooLarge)
-            }
-        }
-
-        pub fn u8(&mut self) -> Result<u8> {
-            let b = self.header(MajorType::UINT)?;
-            if b == CBOR_PAYLOAD_LENGTH_U8 {
-                self.drop()
-            } else {
-                Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U8, b))
-            }
-        }
-        pub fn u16(&mut self) -> Result<u16> {
-            let b = self.header(MajorType::UINT)?;
-            if b == CBOR_PAYLOAD_LENGTH_U16 {
-                let h = self.drop()? as u16;
-                let l = self.drop()? as u16;
-                Ok(h << 8 | l)
-            } else {
-                Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U16, b))
-            }
-        }
-        pub fn u32(&mut self) -> Result<u32> {
-            let b = self.header(MajorType::UINT)?;
-            if b == CBOR_PAYLOAD_LENGTH_U32 {
-                let x1 = self.drop()? as u32;
-                let x2 = self.drop()? as u32;
-                let x3 = self.drop()? as u32;
-                let x4 = self.drop()? as u32;
-                Ok(x1 << 24 | x2 << 16 | x3 << 8 | x4)
-            } else {
-                Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U32, b))
-            }
-        }
-        pub fn u64(&mut self) -> Result<u64> {
-            let b = self.header(MajorType::UINT)?;
-            if b == CBOR_PAYLOAD_LENGTH_U64 {
-                let x1 = self.drop()? as u64;
-                let x2 = self.drop()? as u64;
-                let x3 = self.drop()? as u64;
-                let x4 = self.drop()? as u64;
-                let x5 = self.drop()? as u64;
-                let x6 = self.drop()? as u64;
-                let x7 = self.drop()? as u64;
-                let x8 = self.drop()? as u64;
-                Ok(x1 << 56 | x2 << 48 | x3 << 40 | x4 << 32 | x5 << 24 | x6 << 16 | x7 << 8 | x8)
-            } else {
-                Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U64, b))
-            }
-        }
-
-        pub fn length_header(&mut self) -> Result<(MajorType, usize)> {
-            let (mt, x) = self.get_header()?;
-            let b = x as u8;
-            if x <= MAX_INLINE_ENCODING {
-                Ok((mt, b as usize))
-            } else if b == CBOR_PAYLOAD_LENGTH_U8 {
-                let x1 = self.drop()? as usize;
-                Ok((mt, x1))
-            } else if b == CBOR_PAYLOAD_LENGTH_U16 {
-                let x1 = self.drop()? as usize;
-                let x2 = self.drop()? as usize;
-                Ok((mt, x1 << 8 | x2))
-            } else if b == CBOR_PAYLOAD_LENGTH_U32 {
-                let x1 = self.drop()? as usize;
-                let x2 = self.drop()? as usize;
-                let x3 = self.drop()? as usize;
-                let x4 = self.drop()? as usize;
-                Ok((mt, x1 << 24 | x2 << 16 | x3 << 8 | x4))
-            } else if b == CBOR_PAYLOAD_LENGTH_U64 {
-                let x1 = self.drop()? as u64;
-                let x2 = self.drop()? as u64;
-                let x3 = self.drop()? as u64;
-                let x4 = self.drop()? as u64;
-                let x5 = self.drop()? as u64;
-                let x6 = self.drop()? as u64;
-                let x7 = self.drop()? as u64;
-                let x8 = self.drop()? as u64;
-                Ok((mt, (x1 << 56 | x2 << 48 | x3 << 40 | x4 << 32 | x5 << 24 | x6 << 16 | x7 << 8 | x8) as usize))
-            } else {
-                Err(Error::InvalidPayloadLength(CBOR_PAYLOAD_LENGTH_U64, b))
-            }
-        }
-
-        fn length_header_type(&mut self, expected_mt: MajorType) -> Result<usize> {
-            let (mt, l) = self.length_header()?;
-            if mt == expected_mt {
-                Ok(l)
-            } else {
-                Err(Error::WrongMajorType(expected_mt, mt))
-            }
-        }
-
-        pub fn uint(&mut self) -> Result<u64> {
-            let l = self.length_header_type(MajorType::UINT)?;
-            Ok(l as u64)
-        }
-
-        pub fn tag(&mut self) -> Result<u64> {
-            let l = self.length_header_type(MajorType::TAG)?;
-            Ok(l as u64)
-        }
-
-        pub fn bs(&mut self) -> Result<Vec<u8>> {
-            let l = self.length_header_type(MajorType::BYTES)?;
-            let rem = self.buf.split_off(l);
-            let r = self.buf.iter().cloned().collect();
-            self.buf = rem;
-            Ok(r)
-        }
-
-        pub fn array_start(&mut self) -> Result<usize> {
-            self.length_header_type(MajorType::ARRAY)
-        }
-        pub fn map_start(&mut self) -> Result<usize> {
-            self.length_header_type(MajorType::MAP)
-        }
-    }
-
-}
