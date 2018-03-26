@@ -4,8 +4,6 @@ script:
   - cargo build --verbose --all
   - cargo test --verbose --all
 matrix:
-#  allow_failures:
-#    - rust: nightly
   include:
     - rust: stable
     - rust: beta
