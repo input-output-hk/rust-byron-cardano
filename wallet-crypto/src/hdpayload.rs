@@ -10,6 +10,7 @@ use std::iter::repeat;
 
 use hdwallet::{XPub};
 use cbor;
+use cbor::{ExtendedResult};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -22,22 +23,19 @@ impl AsRef<[u32]> for Path {
 }
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
-    fn from_cbor(bytes: &[u8]) -> Option<Self> {
+    fn from_cbor(bytes: &[u8]) -> cbor::Result<Self> {
         cbor::decode_from_cbor(bytes)
     }
     fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
 }
 impl cbor::CborValue for Path {
     fn encode(&self) -> cbor::Value { cbor::Value::Array(self.0.iter().map(cbor::CborValue::encode).collect()) }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Array(ref vec) => {
-                let mut v = vec![];
-                for el in vec.iter() { v.push(cbor::CborValue::decode(el)?); }
-                Some(Path::new(v))
-            },
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|vec| {
+            let mut v = vec![];
+            for el in vec.iter() { v.push(cbor::CborValue::decode(el.clone())?); }
+            Ok(Path::new(v))
+        }).embed("while decoding Path")
     }
 }
 
@@ -107,7 +105,7 @@ impl HDKey {
 
     pub fn decrypt_path(&self, payload: &HDAddressPayload) -> Option<Path> {
         let out = self.decrypt(payload.as_ref())?;
-        Path::from_cbor(&out)
+        Path::from_cbor(&out).ok()
     }
 }
 
@@ -125,17 +123,15 @@ impl HDAddressPayload {
 }
 impl cbor::CborValue for HDAddressPayload {
     fn encode(&self) -> cbor::Value {
-        let vec = cbor::encode_to_cbor(&self.0).unwrap();
-        cbor::Value::Bytes(vec)
+        let vec = cbor::encode_to_cbor(&cbor::Bytes::new(self.0.clone())).unwrap();
+        cbor::Value::Bytes(cbor::Bytes::new(vec))
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Bytes(ref buf) => {
-                let bytes = cbor::decode_from_cbor(buf.as_ref())?;
-                Some(HDAddressPayload::from_vec(bytes))
-            },
-            _ => None,
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            let b : cbor::Bytes = cbor::decode_from_cbor(bytes.as_ref()).embed("while decoding the serialised cbor")?;
+            Ok(b.to_vec())
+        }).map(HDAddressPayload::from_vec)
+        .embed("while decoding HDAddressPayload")
     }
 }
 
@@ -160,7 +156,7 @@ mod tests {
     fn path_cbor_encoding() {
         let path = Path::new(vec![0,1,2]);
         let cbor = path.cbor();
-        assert_eq!(Some(path), Path::from_cbor(&cbor));
+        assert_eq!(Ok(path), Path::from_cbor(cbor.as_ref()));
     }
 
     #[test]

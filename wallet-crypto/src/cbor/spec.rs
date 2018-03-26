@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap};
 use std::cmp::{min};
-use std::io;
+use std::{io, result, fmt};
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
 pub enum MajorType {
@@ -64,17 +64,176 @@ fn major_type_byte_encoding() {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
+pub enum Error {
+    ExpectedU8,
+    ExpectedU16,
+    ExpectedU32,
+    ExpectedU64,
+    ExpectedI8,
+    ExpectedI16,
+    ExpectedI32,
+    ExpectedI64,
+    ExpectedBytes,
+    ExpectedText,
+    ExpectedArray,
+    ExpectedObject,
+    ExpectedTag,
+    ExpectedT7,
+    ArrayUndefinedIndex(usize),
+    ObjectUndefinedElement(ObjectKey),
+    InvalidSize(usize),
+    NotOneOf(&'static [Value]),
+    InvalidSumtype(u64),
+    InvalidTag(u64),
+    InvalidValue(Box<Value>),
+    UnparsedValues,
+    Between(u64, u64),
+    CannotParse,
+
+    EmbedWith(&'static str, Box<Error>)
+}
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        match self {
+            &Error::ExpectedU8 => write!(f, "Expected U8"),
+            &Error::ExpectedU16 => write!(f, "Expected U16"),
+            &Error::ExpectedU32 => write!(f, "Expected U32"),
+            &Error::ExpectedU64 => write!(f, "Expected U64"),
+            &Error::ExpectedI8 => write!(f, "Expected I8"),
+            &Error::ExpectedI16 => write!(f, "Expected I16"),
+            &Error::ExpectedI32 => write!(f, "Expected I32"),
+            &Error::ExpectedI64 => write!(f, "Expected I64"),
+            &Error::ExpectedBytes => write!(f, "Expected Bytes"),
+            &Error::ExpectedText => write!(f, "Expected UTF8 String"),
+            &Error::ExpectedArray => write!(f, "Expected Array"),
+            &Error::ExpectedObject => write!(f, "Expected Object"),
+            &Error::ExpectedTag => write!(f, "Expected Tag"),
+            &Error::ExpectedT7 => write!(f, "Expected T7"),
+            &Error::ArrayUndefinedIndex(index) => write!(f, "Index {:?} undefined", index),
+            &Error::ObjectUndefinedElement(ref ok) => write!(f, "Key {:?} undefined", ok),
+            &Error::InvalidSize(size) => write!(f, "invalid size, expected {:?}", size),
+            &Error::NotOneOf(val) => write!(f, "Expected one of: {:?}", val),
+            &Error::InvalidSumtype(index) => write!(f, "expected sumtype's index {:?}", index),
+            &Error::InvalidTag(tag) => write!(f, "expected tag id {:?}", tag),
+            &Error::InvalidValue(ref val) => write!(f, "expected value {:?}", val),
+            &Error::UnparsedValues => write!(f, "unparsed values"),
+            &Error::Between(min, max) => write!(f, "expected between [{:?}..{:?}]", min, max),
+            &Error::CannotParse => write!(f, "cannot parse... generic error"),
+            &Error::EmbedWith(ref msg, ref embedded) => {
+                write!(f, "{}\n", msg)?;
+                write!(f, "  {:?}", *embedded)
+            }
+        }
+    }
+}
+
+pub type Result<V> = result::Result<V, (Value, Error)>;
+pub trait ExtendedResult {
+    fn embed(self, &'static str) -> Self;
+    fn u64(v: u64, err: Error) -> Self;
+    fn i64(v: i64, err: Error) -> Self;
+    fn bytes(v: Bytes, err: Error) -> Self;
+    fn array(v: Vec<Value>, err: Error) -> Self;
+    fn object(v: BTreeMap<ObjectKey, Value>, err: Error) -> Self;
+    fn tag(tag: u64, v: Box<Value>, err:Error) -> Self;
+}
+impl<V> ExtendedResult for Result<V> {
+    fn embed(self, msg: &'static str) -> Self {
+        self.or_else(|(v, err)| {
+            Err((v, Error::EmbedWith(msg, Box::new(err))))
+        })
+    }
+    fn u64(v: u64, err: Error) -> Self { Err((Value::U64(v), err)) }
+    fn i64(v: i64, err: Error) -> Self { Err((Value::I64(v), err)) }
+    fn bytes(v: Bytes, err: Error) -> Self { Err((Value::Bytes(v), err)) }
+    fn array(v: Vec<Value>, err: Error) -> Self { Err((Value::Array(v), err)) }
+    fn object(v: BTreeMap<ObjectKey, Value>, err: Error) -> Self { Err((Value::Object(v), err)) }
+    fn tag(tag: u64, v: Box<Value>, err:Error) -> Self {
+        Err((Value::Tag(tag, v), err))
+    }
+}
+pub fn array_decode_elem<T>(mut array: Vec<Value>, index: usize) -> Result<(Vec<Value>, T)>
+    where T: CborValue
+{
+    match array.get(index).map(|v| v.clone()) {
+        Some(value) => {
+            array.remove(index);
+            CborValue::decode(value)
+                .map(|t| (array, t) )
+                .embed("while decoding array's element")
+        },
+        None => { Result::array(array, Error::ArrayUndefinedIndex(index)) }
+    }
+}
+pub fn object_decode_elem<T>(mut object: BTreeMap<ObjectKey, Value>, index: ObjectKey) -> Result<(BTreeMap<ObjectKey, Value>, T)>
+    where T: CborValue
+{
+    match object.remove(&index) {
+        Some(value) => {
+            CborValue::decode(value)
+                .embed("while decoding object's element")
+                .and_then(|t| {Ok((object, t))})
+        },
+        None => { Result::object(object, Error::ObjectUndefinedElement(index)) }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     U64(u64),
     I64(i64),
-    Bytes(Vec<u8>),
+    Bytes(Bytes),
     Array(Vec<Value>),
     ArrayStart,
     Object(BTreeMap<ObjectKey, Value>),
     Tag(u64, Box<Value>),
     Break,
     Null,
+}
+impl Value {
+    pub fn u64(self) -> Result<u64> {
+        match self {
+            Value::U64(v) => Ok(v),
+            v             => Err((v, Error::ExpectedU64))
+        }
+    }
+    pub fn i64(self) -> Result<i64> {
+        match self {
+            Value::I64(v) => Ok(v),
+            v              => Err((v, Error::ExpectedI64))
+        }
+    }
+    pub fn bytes(self) -> Result<Bytes> {
+        match self {
+            Value::Bytes(v) => Ok(v),
+            v               => Err((v, Error::ExpectedBytes))
+        }
+    }
+    pub fn array(self) -> Result<Vec<Value>> {
+        match self {
+            Value::Array(v) => Ok(v),
+            v               => Err((v, Error::ExpectedArray))
+        }
+    }
+    pub fn object(self) -> Result<BTreeMap<ObjectKey, Value>> {
+        match self {
+            Value::Object(v) => Ok(v),
+            v                => Err((v, Error::ExpectedObject))
+        }
+    }
+    pub fn tag(self) -> Result<(u64, Box<Value>)> {
+        match self {
+            Value::Tag(t, v) => Ok((t, v)),
+            v                => Err((v, Error::ExpectedTag))
+        }
+    }
+
+    pub fn decode<T>(self) -> Result<T>
+        where T: CborValue
+    {
+        CborValue::decode(self)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -84,91 +243,73 @@ pub enum ObjectKey {
 
 pub trait CborValue: Sized {
     fn encode(&self) -> Value;
-    fn decode(v: &Value) -> Option<Self>;
+    fn decode(v: Value) -> Result<Self>;
 }
 impl CborValue for Value {
     fn encode(&self) -> Value { self.clone() }
-    fn decode(v: &Value) -> Option<Self> { Some(v.clone()) }
+    fn decode(v: Value) -> Result<Self> { Ok(v) }
 }
 impl CborValue for u8 {
     fn encode(&self)  -> Value { Value::U64(*self as u64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::U64(ref v) => { if *v < 0x100 { Some(*v as Self) } else { None } }
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.u64().and_then(|v| {
+            if v < 0x100 { Ok(v as Self) } else { Result::u64(v, Error::ExpectedU8) }
+        }).embed("while decoding `u8'")
     }
 }
 impl CborValue for u16 {
     fn encode(&self)  -> Value { Value::U64(*self as u64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::U64(ref v) => { if *v < 0x10000 { Some(*v as Self) } else { None } }
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.u64().and_then(|v| {
+            if v < 0x10000 { Ok(v as Self) } else { Result::u64(v, Error::ExpectedU16) }
+        }).embed("while decoding `u16'")
     }
 }
 impl CborValue for u32 {
     fn encode(&self)  -> Value { Value::U64(*self as u64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::U64(ref v) => { if *v < 0x100000000 { Some(*v as Self) } else { None } }
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.u64().and_then(|v| {
+            if v < 0x100000000 { Ok(v as Self) } else { Result::u64(v, Error::ExpectedU32) }
+        }).embed("while decoding `u32'")
     }
 }
 impl CborValue for u64 {
     fn encode(&self)  -> Value { Value::U64(*self) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::U64(ref v) => Some(*v),
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.u64().embed("while decoding `u64'")
     }
 }
-impl CborValue for i8 {
-    fn encode(&self)  -> Value { Value::I64(*self as i64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::I64(ref v) => { if *v < 0x100 { Some(*v as Self) } else { None } }
-            _ => None
-        }
-    }
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct Bytes(Vec<u8>);
+impl AsRef<[u8]> for Bytes { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
+impl Bytes {
+    pub fn new(bytes: Vec<u8>) -> Self { Bytes(bytes) }
+    pub fn from_slice(bytes: &[u8]) -> Self { Bytes::new(bytes.iter().cloned().collect()) }
+    pub fn len(&self) -> usize { self.0.len() }
+    pub fn to_vec(self) -> Vec<u8> { self.0 }
 }
-impl CborValue for i16 {
-    fn encode(&self)  -> Value { Value::I64(*self as i64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::I64(ref v) => { if *v < 0x10000 { Some(*v as Self) } else { None } }
-            _ => None
-        }
-    }
-}
-impl CborValue for i32 {
-    fn encode(&self)  -> Value { Value::I64(*self as i64) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::I64(ref v) => { if *v < 0x100000000 { Some(*v as Self) } else { None } }
-            _ => None
-        }
-    }
-}
-impl CborValue for i64 {
-    fn encode(&self)  -> Value { Value::I64(*self) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::I64(ref v) => Some(*v),
-            _ => None
-        }
-    }
-}
-impl CborValue for Vec<u8> {
+impl CborValue for Bytes {
     fn encode(&self)  -> Value { Value::Bytes(self.clone()) }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::Bytes(ref v) => Some(v.clone()),
-            _ => None
+    fn decode(v: Value) -> Result<Self> { v.bytes() }
+}
+impl<T> CborValue for Vec<T> where T: CborValue {
+    fn encode(&self) -> Value {
+        let mut vec = vec![];
+        for i in self.iter() {
+            let v = CborValue::encode(i);
+            vec.push(v);
         }
+        Value::Array(vec)
+    }
+    fn decode(value: Value) -> Result<Self> {
+        value.array().and_then(|array| {
+            let mut vec = vec![];
+            for i in array.iter() {
+                let v = CborValue::decode(i.clone())?;
+                vec.push(v);
+            }
+            Ok(vec)
+        })
     }
 }
 impl<T> CborValue for Option<T> where T: CborValue {
@@ -178,9 +319,8 @@ impl<T> CborValue for Option<T> where T: CborValue {
             &Some(ref v) => CborValue::encode(v)
         }
     }
-    fn decode(v: &Value) -> Option<Self> {
-        let v = CborValue::decode(v)?;
-        Some(v)
+    fn decode(value: Value) -> Result<Self> {
+        CborValue::decode(value).map(|v| {Some(v)}).or(Ok(None))
     }
 }
 impl<A, B> CborValue for (A, B)
@@ -194,16 +334,16 @@ impl<A, B> CborValue for (A, B)
                 ]
         )
     }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::Array(ref v) => {
-                if (v.len() != 2) { return None; }
-                let x = CborValue::decode(&v[0])?;
-                let y = CborValue::decode(&v[1])?;
-                Some((x,y))
-            },
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.array().and_then(|tuple| {
+            let (tuple, x) = array_decode_elem(tuple, 0).embed("while decoding first's element of the tuple")?;
+            let (tuple, y) = array_decode_elem(tuple, 0).embed("while decoding second's element of the tuple")?;
+            if tuple.len() != 0 {
+                Result::array(tuple, Error::UnparsedValues)
+            } else {
+                Ok((x,y))
+            }
+        })
     }
 }
 impl<A, B, C> CborValue for (A, B, C)
@@ -219,17 +359,17 @@ impl<A, B, C> CborValue for (A, B, C)
                 ]
         )
     }
-    fn decode(v: &Value) -> Option<Self> {
-        match v {
-            &Value::Array(ref v) => {
-                if (v.len() != 3) { return None; }
-                let x = CborValue::decode(&v[0])?;
-                let y = CborValue::decode(&v[1])?;
-                let z = CborValue::decode(&v[2])?;
-                Some((x,y,z))
-            },
-            _ => None
-        }
+    fn decode(v: Value) -> Result<Self> {
+        v.array().and_then(|tuple| {
+            let (tuple, x) = array_decode_elem(tuple, 0).embed("while decoding first's element of the tuple")?;
+            let (tuple, y) = array_decode_elem(tuple, 0).embed("while decoding second's element of the tuple")?;
+            let (tuple, z) = array_decode_elem(tuple, 0).embed("while decoding third's element of the tuple")?;
+            if tuple.len() != 0 {
+                Result::array(tuple, Error::UnparsedValues)
+            } else {
+                Ok((x,y,z))
+            }
+        })
     }
 }
 
@@ -262,14 +402,19 @@ pub fn encode_to_cbor<V>(v: &V) -> io::Result<Vec<u8>>
 
 /// convenient function to decode the given bytes from cbor encoding
 ///
-pub fn decode_from_cbor<V>(buf: &[u8]) -> Option<V>
+pub fn decode_from_cbor<V>(buf: &[u8]) -> Result<V>
     where V: CborValue
 {
     let mut reader = vec![]; reader.extend_from_slice(buf);
     let mut decoder = Decoder::new(reader);
 
-    let value = decoder.value()?;
-    CborValue::decode(&value)
+    match decoder.value() {
+        None => Err((Value::Null, Error::CannotParse)),
+        Some(value) => {
+            println!("\nDecoded CborValue: {:?}", value);
+            CborValue::decode(value)
+        }
+    }
 }
 
 /// create CBOR serialiser
@@ -340,7 +485,7 @@ impl<W> Encoder<W> where W: io::Write {
         }
     }
 
-    fn write_bs(&mut self, v: &Vec<u8>) -> io::Result<()> {
+    fn write_bs(&mut self, v: &Bytes) -> io::Result<()> {
         self.write_header(MajorType::BYTES, v.len() as u64)?;
         self.write_bytes(v.as_ref())
     }
@@ -365,7 +510,7 @@ impl<W> Encoder<W> where W: io::Write {
         match value {
             &Value::U64(ref v)    => self.write_header(MajorType::UINT, *v),
             &Value::I64(ref v)    => self.write_header(MajorType::NINT, *v as u64),
-            &Value::Bytes(ref v)  => self.write_bs(&v),
+            &Value::Bytes(ref v)  => self.write_bs(v),
             &Value::Array(ref v)  => self.write_array(&v),
             &Value::ArrayStart    => self.start_indefinite(MajorType::ARRAY),
             &Value::Object(ref v) => self.write_object(&v),
@@ -384,7 +529,7 @@ impl<W> Encoder<W> where W: io::Write {
     }
 }
 
-trait Read {
+pub trait Read {
     fn next(&mut self) -> Option<u8>;
     fn peek(&self) -> Option<u8>;
     fn discard(&mut self);
@@ -493,16 +638,26 @@ impl<R> Decoder<R> where R: Read {
             MajorType::BYTES => {
                 let len = self.get_minor_type()?;
                 let buf = self.reader.read(len as usize);
-                if len as usize != buf.len() { None } else { Some(Value::Bytes(buf) ) }
+                if len as usize != buf.len() { None } else { Some(Value::Bytes(Bytes::new(buf)) ) }
             },
             MajorType::TEXT  => { unimplemented!() }
             MajorType::ARRAY => {
                 let maybe_len = self.get_minor_type();
                 match maybe_len {
                     None      => {
-                        match self.get_minor()? {
-                            0x1F => Some(Value::ArrayStart),
-                            _    => None
+                        if self.get_minor()? == 0x1F {
+                            // this is an Indefinite array
+                            let mut array = vec![];
+                            // consume the minor type
+                            self.consume();
+                            loop {
+                                let val = self.value()?;
+                                if val == Value::Break { break; }
+                                array.push(val);
+                            }
+                            Some(Value::Array(array))
+                        } else {
+                            None
                         }
                     },
                     Some(len) => {
@@ -533,15 +688,17 @@ impl<R> Decoder<R> where R: Read {
                 Some(Value::Tag(tag, Box::new(obj)))
             },
             MajorType::T7 => {
-                match self.get_minor_type() {
-                    Some(0x1F) => Some(Value::Break),
-                    _          => Some(Value::Null),
+                let v = self.get_minor();
+                match v {
+                    Some(0x1f) => { self.consume(); Some(Value::Break) },
+                    _          => { self.consume(); Some(Value::Null) },
                 }
             }
         }
     }
 }
 
+/*
 pub struct Indefinite<E>(E);
 impl<W: io::Write> Indefinite<Encoder<W>> {
     pub fn start_array(e: Encoder<W>) -> io::Result<Self> {
@@ -558,7 +715,7 @@ impl<W: io::Write> Indefinite<Encoder<W>> {
         Ok(encoder)
     }
 }
-/*
+
 impl<R: Read> Indefinite<Decoder<R>> {
     // start array, return the decoder if this is not a start of a array...
     // otherwise returns the new Indefinite<Decoder<R>>

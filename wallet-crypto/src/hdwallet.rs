@@ -13,6 +13,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use base58::from_hex;
 use cbor;
+use cbor::{ExtendedResult};
 
 pub const SEED_SIZE: usize = 32;
 pub const XPRV_SIZE: usize = 96;
@@ -275,13 +276,15 @@ impl AsRef<[u8]> for XPub {
 }
 impl cbor::CborValue for XPub {
     fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(self.as_ref().iter().cloned().collect())
+        cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref()))
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Bytes(ref v) => XPub::from_slice(v.as_ref()),
-            _                          => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            match XPub::from_slice(bytes.as_ref()) {
+                Some(pk) => Ok(pk),
+                None     => cbor::Result::bytes(bytes, cbor::Error::InvalidSize(XPUB_SIZE))
+            }
+        }).embed("while decoding `XPub`")
     }
 }
 

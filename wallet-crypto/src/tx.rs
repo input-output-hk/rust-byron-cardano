@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 use std::fmt;
-use std::borrow::{Borrow};
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use cbor;
-use crc32::{crc32};
+use cbor::{ExtendedResult};
 
 use hdwallet::{Signature, XPub};
 use address::ExtendedAddr;
@@ -17,6 +16,9 @@ use merkle;
 pub struct Hash<T> {
     digest: [u8;32],
     _phantom: PhantomData<T>
+}
+impl<T> AsRef<[u8]> for Hash<T> {
+    fn as_ref(&self) -> &[u8] { self.digest.as_ref() }
 }
 impl<T> Hash<T> {
     pub fn new(buf: &[u8]) -> Self
@@ -50,12 +52,16 @@ impl<T> fmt::Display for Hash<T> {
     }
 }
 impl<T> cbor::CborValue for Hash<T> {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(self.digest.iter().cloned().collect()) }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Bytes(ref vec) => Hash::from_slice(vec.as_ref()),
-            _ => None
-        }
+    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            match Hash::from_slice(bytes.as_ref()) {
+                Some(digest) => Ok(digest),
+                None         => {
+                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(32))
+                }
+            }
+        }).embed("while decoding Hash")
     }
 }
 
@@ -74,11 +80,13 @@ impl Coin {
 }
 impl cbor::CborValue for Coin {
     fn encode(&self) -> cbor::Value { cbor::Value::U64(self.0) }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::U64(ref v) => Coin::new(*v),
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.u64().and_then(|v| {
+            match Coin::new(v) {
+                Some(coin) => Ok(coin),
+                None       => cbor::Result::u64(v, cbor::Error::Between(0, MAX_COIN))
+            }
+        })
     }
 }
 
@@ -100,15 +108,16 @@ impl cbor::CborValue for TxOut {
                 ]
         )
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Array(ref array) => {
-                let addr = cbor::CborValue::decode(array.get(0)?)?;
-                let val  = cbor::CborValue::decode(array.get(1)?)?;
-                Some(TxOut::new(addr, val))
-            },
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, addr) = cbor::array_decode_elem(array, 0)?;
+            let (array, val)  = cbor::array_decode_elem(array, 0)?;
+            if !array.is_empty() {
+                cbor::Result::array(array, cbor::Error::UnparsedValues)
+            } else {
+                Ok(TxOut::new(addr, val))
+            }
+        })
     }
 }
 
@@ -139,26 +148,24 @@ impl cbor::CborValue for TxIn {
         let v = cbor::encode_to_cbor(&(self.id.clone(), self.index)).unwrap();
         cbor::Value::Array(
             vec![ cbor::CborValue::encode(&0u64)
-                , cbor::Value::Tag(24, Box::new(cbor::Value::Bytes(v)))
+                , cbor::Value::Tag(24, Box::new(cbor::Value::Bytes(cbor::Bytes::new(v))))
                 ]
         )
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Array(ref array) => {
-                let v : u64 = cbor::CborValue::decode(array.get(0)?)?;
-                if v != 0u64 { return None; }
-                match array.get(1)? {
-                    &cbor::Value::Tag(24, ref b) => {
-                        let v : Vec<u8> = cbor::CborValue::decode(b.borrow())?;
-                        let (id, index) = cbor::decode_from_cbor(v.as_ref())?;
-                        Some(TxIn::new(id, index))
-                    },
-                    _ => None
-                }
-            },
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|sum_type| {
+            let (sum_type, v) = cbor::array_decode_elem(sum_type, 0).embed("sum_type id")?;
+            if v != 0u64 { return cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(v)); }
+            let (sum_type, tag) : (Vec<cbor::Value>, cbor::Value) = cbor::array_decode_elem(sum_type, 0).embed("sum_type's value")?;
+            if sum_type.len() > 2 { return cbor::Result::array(sum_type, cbor::Error::UnparsedValues); }
+            tag.tag().and_then(|(t, v)| {
+                if t != 24 { return cbor::Result::tag(t, v, cbor::Error::InvalidTag(t)); }
+                (*v).bytes()
+            }).and_then(|bytes| {
+                let (id, index) = cbor::decode_from_cbor(bytes.as_ref())?;
+                Ok(TxIn::new(id, index))
+            }).embed("while decoding `TxIn's inner sumtype`")
+        }).embed("while decoding TxIn")
     }
 }
 
@@ -175,6 +182,19 @@ impl Tx {
     pub fn new_with(ins: Vec<TxIn>, outs: Vec<TxOut>) -> Self {
         Tx { inputs: ins, outputs: outs }
     }
+}
+impl cbor::CborValue for Tx {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!()
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.decode().and_then(|(input_values, output_values, _attributes) : (cbor::Value, cbor::Value, cbor::Value)| {
+            let inputs  = input_values.decode().embed("while decoding Tx's TxIn")?;
+            let outputs = output_values.decode().embed("while decoding Tx's TxOut")?;
+            Ok(Tx::new_with(inputs, outputs))
+        }).embed("while decoding Tx")
+    }
+
 }
 //impl ToCBOR for Tx {
 //    fn encode(&self, buf: &mut Vec<u8>) {
@@ -218,7 +238,7 @@ mod tests {
     const TX_OUT: &'static [u8] = &[0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a];
     const TX_IN:  &'static [u8] = &[0x82, 0x00, 0xd8, 0x18, 0x58, 0x26, 0x82, 0x58, 0x20, 0xaa, 0xd7, 0x8a, 0x13, 0xb5, 0x0a, 0x01, 0x4a, 0x24, 0x63, 0x3c, 0x7d, 0x44, 0xfd, 0x8f, 0x8d, 0x18, 0xf6, 0x7b, 0xbb, 0x3f, 0xa9, 0xcb, 0xce, 0xdf, 0x83, 0x4a, 0xc8, 0x99, 0x75, 0x9d, 0xcd, 0x19, 0x02, 0x9a];
 
-    const TX: &'static [u8] = &[/* TODO: insert TX here */];
+    const TX: &'static [u8] = &[0x83, 0x9f, 0x82, 0x00, 0xd8, 0x18, 0x58, 0x26, 0x82, 0x58, 0x20, 0xaa, 0xd7, 0x8a, 0x13, 0xb5, 0x0a, 0x01, 0x4a, 0x24, 0x63, 0x3c, 0x7d, 0x44, 0xfd, 0x8f, 0x8d, 0x18, 0xf6, 0x7b, 0xbb, 0x3f, 0xa9, 0xcb, 0xce, 0xdf, 0x83, 0x4a, 0xc8, 0x99, 0x75, 0x9d, 0xcd, 0x19, 0x02, 0x9a, 0xff, 0x9f, 0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a, 0xff, 0xa0];
     const BLOCK: &'static [u8] = &[ /* TODO: insert Block here */ ];
 
     #[test]
@@ -250,6 +270,8 @@ mod tests {
     #[test]
     fn txin_decode() {
         let txin : TxIn = cbor::decode_from_cbor(TX_IN).unwrap();
+
+        assert!(txin.index == 666);
     }
 
     #[test]
@@ -260,8 +282,15 @@ mod tests {
 
     #[test]
     fn tx_decode() {
-        // TODO test we can decode a cbor Tx
-        unimplemented!()
+        let txin : TxIn = cbor::decode_from_cbor(TX_IN).unwrap();
+        let txout : TxOut = cbor::decode_from_cbor(TX_OUT).unwrap();
+        let tx : Tx = cbor::decode_from_cbor(TX)
+                        .expect("Expecting to decode a `Tx`");
+
+        assert!(tx.inputs.len() == 1);
+        assert_eq!(txin, tx.inputs[0]);
+        assert!(tx.outputs.len() == 1);
+        assert_eq!(txout, tx.outputs[0]);
     }
 
     #[test]

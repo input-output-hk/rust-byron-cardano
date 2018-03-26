@@ -6,6 +6,7 @@ use rcw::blake2b::Blake2b;
 use rcw::sha3::Sha3;
 
 use cbor;
+use cbor::{ExtendedResult};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
@@ -53,13 +54,17 @@ impl fmt::Display for DigestBlake2b224 {
 }
 impl cbor::CborValue for DigestBlake2b224 {
     fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(self.0.iter().cloned().collect())
+        cbor::Value::Bytes(cbor::Bytes::from_slice(self.0.as_ref()))
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Bytes(ref v) => DigestBlake2b224::from_slice(v.as_ref()),
-            _                          => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            match DigestBlake2b224::from_slice(bytes.as_ref()) {
+                Some(digest) => Ok(digest),
+                None         => {
+                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(28))
+                }
+            }
+        }).embed("while decoding DigestBlake2b224")
     }
 }
 
@@ -91,11 +96,13 @@ impl cbor::CborValue for AddrType {
     fn encode(&self) -> cbor::Value {
         cbor::Value::U64(self.to_byte() as u64)
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::U64(ref v) => AddrType::from_u64(*v),
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.u64().and_then(|v| {
+            match AddrType::from_u64(v) {
+                Some(addr_type) => Ok(addr_type),
+                None            => cbor::Result::u64(v, cbor::Error::NotOneOf(&[cbor::Value::U64(0), cbor::Value::U64(1), cbor::Value::U64(2)]))
+            }
+        }).embed("while decoding AddrType")
     }
 }
 
@@ -109,9 +116,9 @@ impl StakeholderId {
 }
 impl cbor::CborValue for StakeholderId {
     fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        let digest = cbor::CborValue::decode(value)?;
-        Some(StakeholderId(digest))
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        cbor::CborValue::decode(value).map(|digest| { StakeholderId(digest) })
+            .embed("while decoding StakeholderId")
     }
 }
 impl fmt::Display for StakeholderId {
@@ -155,26 +162,30 @@ impl cbor::CborValue for StakeDistribution {
                 )
             }
         };
-        cbor::Value::Bytes(cbor::encode_to_cbor(&value).unwrap())
+        let bytes = cbor::encode_to_cbor(&value).unwrap();
+        cbor::Value::Bytes(cbor::Bytes::new(bytes))
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        let vec : Vec<u8> = cbor::CborValue::decode(value)?;
-        let v = cbor::decode_from_cbor::<cbor::Value>(vec.as_ref())?;
-
-        match v {
-            cbor::Value::Array(array) => {
-                let n : u64 = cbor::CborValue::decode(array.get(0)?)?;
-                if n == STAKE_DISTRIBUTION_TAG_BOOTSTRAP {
-                    Some(StakeDistribution::new_bootstrap_era())
-                } else if n == STAKE_DISTRIBUTION_TAG_SINGLEKEY {
-                    let k = cbor::CborValue::decode(array.get(1)?)?;
-                    Some(StakeDistribution::new_single_stakeholder(k))
-                } else {
-                    None
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        let bytes = value.bytes()
+            .embed("while decoding `StakeDistribution''s first level of indirection")?;
+        let value = cbor::decode_from_cbor::<cbor::Value>(bytes.as_ref())
+            .embed("while decoding `StakeDistribution`'s from cbor bytes")?;
+        value.array().and_then(|sum_type| {
+            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
+                .embed("while decoding `StakeDistribution`'s sumtype indice")?;
+            if n == STAKE_DISTRIBUTION_TAG_BOOTSTRAP {
+                Ok(StakeDistribution::new_bootstrap_era())
+            } else if n == STAKE_DISTRIBUTION_TAG_SINGLEKEY {
+                let (sum_type, k) = cbor::array_decode_elem(sum_type, 0)
+                    .embed("while decoding single key stake distribution")?;
+                if sum_type.len() != 0 {
+                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
                 }
+                Ok(StakeDistribution::new_single_stakeholder(k))
+            } else {
+                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
             }
-            _ => None
-        }
+        }).embed("while decoding `StakeDistribution`")
     }
 }
 
@@ -219,21 +230,17 @@ impl cbor::CborValue for Attributes {
         );
         cbor::Value::Object(map)
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Object(ref map) => {
-                let value_stake_distr = map.get(&cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE));
-                let value_derivation  = map.get(&cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION))?;
-                let derivation_path = cbor::CborValue::decode(&value_derivation);
-                let stake_distribution = match value_stake_distr {
-                    None => StakeDistribution::new_bootstrap_era(),
-                    Some(v) => cbor::CborValue::decode(&v)?,
-                };
-
-                Some(Attributes { derivation_path: derivation_path, stake_distribution: stake_distribution })
-            },
-            _ => None
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.object().and_then(|object| {
+            let (object, stake_distribution) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE))
+                .or_else(|(val, _)| val.object().map(|obj| (obj, StakeDistribution::BootstrapEraDistr)))?;
+            let (object, derivation_path) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION))
+                .embed("expected the derivation_path")?;
+            if object.len() != 0 {
+                return cbor::Result::object(object, cbor::Error::UnparsedValues);
+            }
+            Ok(Attributes { derivation_path: derivation_path, stake_distribution: stake_distribution })
+        }).embed("while decoding `Attributes`")
     }
 }
 
@@ -246,9 +253,9 @@ impl fmt::Display for Addr {
 }
 impl cbor::CborValue for Addr {
     fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        let digest = cbor::CborValue::decode(value)?;
-        Some(Addr(digest))
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        cbor::CborValue::decode(value).map(|digest| { Addr(digest) })
+            .embed("while decoding Addr")
     }
 }
 impl Addr {
@@ -328,7 +335,7 @@ impl ExtendedAddr {
     /// assert_eq!(ea, r);
     /// ```
     ///
-    pub fn from_bytes(buf: &[u8]) -> Option<Self> {
+    pub fn from_bytes(buf: &[u8]) -> cbor::Result<Self> {
         cbor::decode_from_cbor(buf)
     }
 }
@@ -336,9 +343,10 @@ impl cbor::CborValue for ExtendedAddr {
     fn encode(&self) -> cbor::Value {
         cbor::hs::util::encode_with_crc32(&(self.addr.clone(), self.attributes.clone(), self.addr_type.clone()))
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        let (addr, attr, ty) = cbor::hs::util::decode_with_crc32(value)?;
-        Some(ExtendedAddr{addr:addr, attributes: attr, addr_type: ty})
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        let (addr, attr, ty) = cbor::hs::util::decode_with_crc32(value)
+            .embed("while decoding `ExtendedAddr`")?;
+        Ok(ExtendedAddr{addr:addr, attributes: attr, addr_type: ty})
     }
 }
 impl fmt::Display for ExtendedAddr {
@@ -374,26 +382,21 @@ impl cbor::CborValue for SpendingData {
         };
         cbor::Value::Array(v)
     }
-    fn decode(value: &cbor::Value) -> Option<Self> {
-        match value {
-            &cbor::Value::Array(ref array) => {
-                let k : u64 = cbor::CborValue::decode(array.get(0)?)?;
-                match k {
-                    SPENDING_DATA_TAG_PUBKEY => {
-                        let pk = cbor::CborValue::decode(array.get(1)?)?;
-                        Some(SpendingData::PubKeyASD(pk))
-                    },
-                    SPENDING_DATA_TAG_SCRIPT => {
-                        unimplemented!()
-                    },
-                    SPENDING_DATA_TAG_REDEEM => {
-                        unimplemented!()
-                    },
-                    _ => None
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|sum_type| {
+            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
+                .embed("while retrieving the ID of the sum type")?;
+            if n == SPENDING_DATA_TAG_PUBKEY {
+                let (sum_type, pk) = cbor::array_decode_elem(sum_type, 0)
+                    .embed("while decoding the public key")?;
+                if sum_type.len() != 0 {
+                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
                 }
-            },
-            _ => None,
-        }
+                Ok(SpendingData::PubKeyASD(pk))
+            } else {
+                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
+            }
+        }).embed("while decoding `SpendingData`")
     }
 }
 
