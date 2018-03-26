@@ -4,15 +4,18 @@ rust:
   - stable
   - beta
   - nightly
-#matrix:
-#  allow_failures:
-#    - rust: nightly
-before_install:
-  - nvm install 8.2.1
-before_script:
-  - npm install
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
-  - ./build
-  - npm run test
+matrix:
+#  allow_failures:
+#    - rust: nightly
+  include:
+    - rust: nightly
+      before_script:
+        - rustup target add wasm32-unknown-unknown --toolchain nightly
+        - nvm install 8.2.1
+        - npm install
+        - ./build
+      script:
+        - npm run test
