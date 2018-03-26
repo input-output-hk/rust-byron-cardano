@@ -252,6 +252,7 @@ mod tests {
         assert_eq!(txout.address.attributes.derivation_path, Some(hdap));
     }
 
+    #[test]
     fn txout_encode_decode() {
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
