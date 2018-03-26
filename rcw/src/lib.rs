@@ -7,6 +7,10 @@
 pub mod blake2b;
 pub mod blake2s;
 pub mod buffer;
+pub mod aead;
+mod symmetriccipher;
+pub mod chacha20;
+pub mod chacha20poly1305;
 mod cryptoutil;
 pub mod curve25519;
 pub mod digest;
@@ -17,6 +21,7 @@ pub mod mac;
 pub mod pbkdf2;
 pub mod poly1305;
 pub mod sha2;
+pub mod sha3;
 mod simd;
 mod step_by;
 pub mod util;
