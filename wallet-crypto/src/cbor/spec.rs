@@ -538,7 +538,7 @@ impl<W> Encoder<W> where W: io::Write {
     fn write_iarray(&mut self, v: &LinkedList<Value>) -> io::Result<()> {
         self.start_indefinite(MajorType::ARRAY)?;
         for e in v.iter() { self.write(e)?; }
-        Ok(())
+        self.write_bytes(&[0xFF]) // add the break
     }
 
     pub fn write(&mut self, value: &Value) -> io::Result<()> {

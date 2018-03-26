@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::fmt;
-use std::collections::{LinkedList};
+use std::collections::{LinkedList, BTreeMap};
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
@@ -183,10 +183,24 @@ impl Tx {
     pub fn new_with(ins: LinkedList<TxIn>, outs: LinkedList<TxOut>) -> Self {
         Tx { inputs: ins, outputs: outs }
     }
+    pub fn add_input(&mut self, i: TxIn) {
+        self.inputs.push_back(i)
+    }
+    pub fn add_output(&mut self, o: TxOut) {
+        self.outputs.push_back(o)
+    }
 }
 impl cbor::CborValue for Tx {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        let inputs  = cbor::CborValue::encode(&self.inputs);
+        let outputs = cbor::CborValue::encode(&self.outputs);
+        let attr    = cbor::Value::Object(BTreeMap::new());
+        cbor::Value::Array(
+            vec![ inputs
+                , outputs
+                , attr
+                ]
+        )
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.decode().and_then(|(input_values, output_values, _attributes) : (cbor::Value, cbor::Value, cbor::Value)| {
@@ -197,24 +211,6 @@ impl cbor::CborValue for Tx {
     }
 
 }
-//impl ToCBOR for Tx {
-//    fn encode(&self, buf: &mut Vec<u8>) {
-//        cbor::encode::array_start(3, buf);
-//        { // inputs
-//            cbor::encode::array_start_indefinite(buf);
-//            self.inputs.iter().for_each(|v| v.encode(buf));
-//            cbor::encode::break_(buf);
-//        }
-//        { // outputs
-//            cbor::encode::array_start_indefinite(buf);
-//            self.outputs.iter().for_each(|v| v.encode(buf));
-//            cbor::encode::break_(buf);
-//        }
-//        { // attributes
-//            cbor::encode::map_start(0, buf);
-//        }
-//    }
-//}
 
 pub struct TxAux {
     tx: Tx,
@@ -293,6 +289,29 @@ mod tests {
         assert_eq!(Some(txin), tx.inputs.pop_front());
         assert!(tx.outputs.len() == 1);
         assert_eq!(Some(txout), tx.outputs.pop_front());
+    }
+
+    #[test]
+    fn tx_encode_decode() {
+        let txid = TxId::new(&[0;32]);
+        let txin = TxIn::new(txid, 666);
+
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+        let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
+        let addr_type = address::AddrType::ATPubKey;
+        let sd = address::SpendingData::PubKeyASD(pk.clone());
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
+        let value = Coin::new(42).unwrap();
+        let txout = TxOut::new(ea, value);
+
+        let mut tx = Tx::new();
+        tx.add_input(txin);
+        tx.add_output(txout);
+
+        assert!(cbor::hs::encode_decode(&tx));
     }
 
     #[test]
