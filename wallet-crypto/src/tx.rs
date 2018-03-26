@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::fmt;
+use std::collections::{LinkedList};
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
@@ -91,7 +92,7 @@ impl cbor::CborValue for Coin {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct TxOut {
+pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
 }
@@ -170,16 +171,16 @@ impl cbor::CborValue for TxIn {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct Tx {
-    inputs: Vec<TxIn>,
-    outputs: Vec<TxOut>,
+pub struct Tx {
+    inputs: LinkedList<TxIn>,
+    outputs: LinkedList<TxOut>,
     // attributes: TxAttributes
     //
     // So far, there is no TxAttributes... the structure contains only the unparsed/unknown stuff
 }
 impl Tx {
-    pub fn new() -> Self { Tx::new_with(vec![], vec![]) }
-    pub fn new_with(ins: Vec<TxIn>, outs: Vec<TxOut>) -> Self {
+    pub fn new() -> Self { Tx::new_with(LinkedList::new(), LinkedList::new()) }
+    pub fn new_with(ins: LinkedList<TxIn>, outs: LinkedList<TxOut>) -> Self {
         Tx { inputs: ins, outputs: outs }
     }
 }
@@ -215,12 +216,12 @@ impl cbor::CborValue for Tx {
 //    }
 //}
 
-struct TxAux {
+pub struct TxAux {
     tx: Tx,
     witnesses: Vec<TxInWitness>,
 }
 
-struct TxProof {
+pub struct TxProof {
     number: u32,
     root: merkle::Root<Tx>,
     witnesses_hash: Hash<Vec<TxInWitness>>,
@@ -285,13 +286,13 @@ mod tests {
     fn tx_decode() {
         let txin : TxIn = cbor::decode_from_cbor(TX_IN).unwrap();
         let txout : TxOut = cbor::decode_from_cbor(TX_OUT).unwrap();
-        let tx : Tx = cbor::decode_from_cbor(TX)
-                        .expect("Expecting to decode a `Tx`");
+        let mut tx : Tx = cbor::decode_from_cbor(TX)
+            .expect("Expecting to decode a `Tx`");
 
         assert!(tx.inputs.len() == 1);
-        assert_eq!(txin, tx.inputs[0]);
+        assert_eq!(Some(txin), tx.inputs.pop_front());
         assert!(tx.outputs.len() == 1);
-        assert_eq!(txout, tx.outputs[0]);
+        assert_eq!(Some(txout), tx.outputs.pop_front());
     }
 
     #[test]

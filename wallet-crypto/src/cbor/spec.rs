@@ -1,6 +1,6 @@
 //! CBor as specified by the RFC
 
-use std::collections::{BTreeMap};
+use std::collections::{BTreeMap, LinkedList};
 use std::cmp::{min};
 use std::{io, result, fmt};
 
@@ -135,6 +135,7 @@ pub trait ExtendedResult {
     fn i64(v: i64, err: Error) -> Self;
     fn bytes(v: Bytes, err: Error) -> Self;
     fn array(v: Vec<Value>, err: Error) -> Self;
+    fn iarray(v: LinkedList<Value>, err: Error) -> Self;
     fn object(v: BTreeMap<ObjectKey, Value>, err: Error) -> Self;
     fn tag(tag: u64, v: Box<Value>, err:Error) -> Self;
 }
@@ -148,6 +149,7 @@ impl<V> ExtendedResult for Result<V> {
     fn i64(v: i64, err: Error) -> Self { Err((Value::I64(v), err)) }
     fn bytes(v: Bytes, err: Error) -> Self { Err((Value::Bytes(v), err)) }
     fn array(v: Vec<Value>, err: Error) -> Self { Err((Value::Array(v), err)) }
+    fn iarray(v: LinkedList<Value>, err: Error) -> Self { Err((Value::IArray(v), err)) }
     fn object(v: BTreeMap<ObjectKey, Value>, err: Error) -> Self { Err((Value::Object(v), err)) }
     fn tag(tag: u64, v: Box<Value>, err:Error) -> Self {
         Err((Value::Tag(tag, v), err))
@@ -186,6 +188,7 @@ pub enum Value {
     Bytes(Bytes),
     Array(Vec<Value>),
     ArrayStart,
+    IArray(LinkedList<Value>),
     Object(BTreeMap<ObjectKey, Value>),
     Tag(u64, Box<Value>),
     Break,
@@ -214,6 +217,12 @@ impl Value {
         match self {
             Value::Array(v) => Ok(v),
             v               => Err((v, Error::ExpectedArray))
+        }
+    }
+    pub fn iarray(self) -> Result<LinkedList<Value>> {
+        match self {
+            Value::IArray(v) => Ok(v),
+            v                => Err((v, Error::ExpectedArray))
         }
     }
     pub fn object(self) -> Result<BTreeMap<ObjectKey, Value>> {
@@ -309,6 +318,26 @@ impl<T> CborValue for Vec<T> where T: CborValue {
                 vec.push(v);
             }
             Ok(vec)
+        })
+    }
+}
+impl<T> CborValue for LinkedList<T> where T: CborValue {
+    fn encode(&self) -> Value {
+        let mut l = LinkedList::new();
+        for i in self.iter() {
+            let v = CborValue::encode(i);
+            l.push_back(v);
+        }
+        Value::IArray(l)
+    }
+    fn decode(value: Value) -> Result<Self> {
+        value.iarray().and_then(|list| {
+            let mut r = LinkedList::new();
+            for i in list.iter() {
+                let v = CborValue::decode(i.clone())?;
+                r.push_back(v);
+            }
+            Ok(r)
         })
     }
 }
@@ -506,12 +535,19 @@ impl<W> Encoder<W> where W: io::Write {
         self.write_bytes(&[mt.to_byte(0x1F)])
     }
 
+    fn write_iarray(&mut self, v: &LinkedList<Value>) -> io::Result<()> {
+        self.start_indefinite(MajorType::ARRAY)?;
+        for e in v.iter() { self.write(e)?; }
+        Ok(())
+    }
+
     pub fn write(&mut self, value: &Value) -> io::Result<()> {
         match value {
             &Value::U64(ref v)    => self.write_header(MajorType::UINT, *v),
             &Value::I64(ref v)    => self.write_header(MajorType::NINT, *v as u64),
             &Value::Bytes(ref v)  => self.write_bs(v),
             &Value::Array(ref v)  => self.write_array(&v),
+            &Value::IArray(ref v) => self.write_iarray(&v),
             &Value::ArrayStart    => self.start_indefinite(MajorType::ARRAY),
             &Value::Object(ref v) => self.write_object(&v),
             &Value::Tag(ref t, ref v) => {
@@ -567,11 +603,10 @@ impl Read for Vec<u8> {
 
 /// create CBOR serialiser
 pub struct Decoder<R> {
-    reader: R,
-    scope:  Vec<()>
+    reader: R
 }
 impl<R> Decoder<R> where R: Read {
-    pub fn new(reader: R) -> Self { Decoder { reader: reader, scope: vec![] } }
+    pub fn new(reader: R) -> Self { Decoder { reader: reader } }
 
     fn consume(&mut self) { self.reader.discard() }
 
@@ -647,15 +682,15 @@ impl<R> Decoder<R> where R: Read {
                     None      => {
                         if self.get_minor()? == 0x1F {
                             // this is an Indefinite array
-                            let mut array = vec![];
+                            let mut array = LinkedList::new();
                             // consume the minor type
                             self.consume();
                             loop {
                                 let val = self.value()?;
                                 if val == Value::Break { break; }
-                                array.push(val);
+                                array.push_back(val);
                             }
-                            Some(Value::Array(array))
+                            Some(Value::IArray(array))
                         } else {
                             None
                         }
