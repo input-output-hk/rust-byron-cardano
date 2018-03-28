@@ -440,7 +440,6 @@ pub fn decode_from_cbor<V>(buf: &[u8]) -> Result<V>
     match decoder.value() {
         None => Err((Value::Null, Error::CannotParse)),
         Some(value) => {
-            println!("\nDecoded CborValue: {:?}", value);
             CborValue::decode(value)
         }
     }
