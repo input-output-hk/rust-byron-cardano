@@ -313,9 +313,4 @@ mod tests {
 
         assert!(cbor::hs::encode_decode(&tx));
     }
-
-    #[test]
-    fn block_decode() {
-        unimplemented!()
-    }
 }
