@@ -8,6 +8,8 @@ matrix:
     - rust: stable
     - rust: beta
     - rust: nightly
+    - rust: nightly
+      env: NODE_JS_GLUE
       before_script:
         - rustup target add wasm32-unknown-unknown --toolchain nightly
         - nvm install 8.2.1
