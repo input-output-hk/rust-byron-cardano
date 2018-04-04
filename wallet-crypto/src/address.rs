@@ -1,183 +1,21 @@
 use std::fmt;
+use std::collections::BTreeMap;
 
-extern crate rcw;
+use rcw::digest::Digest;
+use rcw::blake2b::Blake2b;
+use rcw::sha3::Sha3;
 
-use self::rcw::digest::Digest;
-use self::rcw::blake2b::Blake2b;
-use self::rcw::sha3::Sha3;
 use cbor;
-
+use cbor::{ExtendedResult};
 use hdwallet::{XPub};
+use hdpayload::{HDAddressPayload};
 
-mod hs_cbor {
-    use cbor::{MajorType};
-    use cbor::encode::{cbor_array_start, cbor_uint, cbor_bs, write_length_encoding};
-    use cbor::decode;
-
-    pub fn sumtype_start(tag: u64, nb_values: usize, buf: &mut Vec<u8>) -> () {
-        cbor_array_start(nb_values + 1, buf);
-        // tag value from 0
-        cbor_uint(tag, buf);
-    }
-
-    pub fn dec_sumtype_start(decoder: &mut decode::Decoder) -> decode::Result<(u64, usize)> {
-        let l = decoder.array_start()?;
-        let t = decoder.uint()?;
-        Ok((t, l - 1))
-    }
-
-    #[cfg(test)]
-    pub fn encode_decode<T: ToCBOR+FromCBOR+Eq>(t: &T) -> bool {
-        let mut buf = vec![];
-        t.encode(&mut buf);
-
-        let mut dec = decode::Decoder::new();
-        dec.extend(&buf);
-        let v = T::decode(&mut dec).unwrap();
-        t == &v
-    }
-
-    // helper trait to write CBOR encoding
-    pub trait ToCBOR {
-        fn encode(&self, &mut Vec<u8>);
-    }
-    pub trait FromCBOR : Sized {
-        fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self>;
-    }
-    impl ToCBOR for Vec<u8> {
-        fn encode(&self, buf: &mut Vec<u8>) {
-            cbor_bs(self, buf)
-        }
-    }
-    impl FromCBOR for Vec<u8> {
-        fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> {
-            decoder.bs()
-        }
-    }
-    impl<T: ToCBOR> ToCBOR for Option<T> {
-        fn encode(&self, buf: &mut Vec<u8>) {
-            match self {
-                &None => sumtype_start(0, 0, buf),
-                &Some(ref t) => {
-                    // TODO ? sumtype_start(1, 1, buf);
-                    t.encode(buf)
-                }
-            }
-        }
-    }
-    impl <'a, 'b, A: ToCBOR, B: ToCBOR> ToCBOR for (&'a A, &'b B) {
-        fn encode(&self, buf: &mut Vec<u8>) {
-            cbor_array_start(2, buf);
-            self.0.encode(buf);
-            self.1.encode(buf);
-        }
-    }
-    impl <A: FromCBOR + Sized, B: FromCBOR + Sized> FromCBOR for (A, B) {
-        fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> {
-            let l = decoder.array_start()?;
-            let x = A::decode(decoder)?;
-            let y = B::decode(decoder)?;
-            Ok((x,y))
-        }
-    }
-    impl <'a, 'b, 'c, A: ToCBOR, B: ToCBOR, C: ToCBOR> ToCBOR for (&'a A, &'b B, &'c C) {
-        fn encode(&self, buf: &mut Vec<u8>) {
-            write_length_encoding(MajorType::ARRAY, 3, buf);
-            self.0.encode(buf);
-            self.1.encode(buf);
-            self.2.encode(buf);
-        }
-    }
-    impl <A: FromCBOR + Sized, B: FromCBOR + Sized, C: FromCBOR + Sized> FromCBOR for (A, B, C) {
-        fn decode(decoder: &mut decode::Decoder) -> decode::Result<Self> {
-            let l = decoder.array_start()?;
-            let x = A::decode(decoder)?;
-            let y = B::decode(decoder)?;
-            let z = C::decode(decoder)?;
-            Ok((x,y,z))
-        }
-    }
-
-    pub fn serialize<T: ToCBOR>(t: &T) -> Vec<u8> {
-        let mut buf = vec![];
-        t.encode(&mut buf);
-        buf
-    }
-    pub fn deserialize<T: FromCBOR>(buf: &[u8]) -> decode::Result<T> {
-        let mut dec = decode::Decoder::new();
-        dec.extend(buf);
-        T::decode(&mut dec)
-    }
-
-}
-
-mod hs_cbor_util {
-    use hdwallet::{XPub, XPUB_SIZE};
-    use cbor::encode::{cbor_bs, cbor_array_start, cbor_tag, write_u32};
-    use cbor::decode;
-    use cbor::decode::{Decoder};
-    use super::hs_cbor::{ToCBOR, FromCBOR, serialize, deserialize};
-    use crc32::{crc32};
-
-    pub fn xpub_to_cbor(pubk: &XPub, buf: &mut Vec<u8>) {
-        cbor_bs(pubk.as_ref(), buf);
-    }
-    pub fn xpub_from_cbor(decoder: &mut Decoder) -> decode::Result<XPub> {
-        let mut buf = [0u8;XPUB_SIZE];
-        let bs = decoder.bs()?;
-        assert!(bs.len() == XPUB_SIZE);
-        buf[0..XPUB_SIZE].clone_from_slice(&bs);
-        Ok(XPub::from_bytes(buf))
-    }
-
-    pub fn encode_with_crc32<T: ToCBOR>(t: &T, buf: &mut Vec<u8>) {
-        let v = serialize(t);
-
-        cbor_array_start(2, buf);
-        cbor_tag(24, buf);
-        cbor_bs(&v, buf);
-
-        write_u32(crc32(&v), buf);
-    }
-    pub fn decode_with_crc32<T: FromCBOR>(decoder: &mut Decoder) -> decode::Result<T> {
-        let len = decoder.array_start()?;
-        assert!(len == 2);
-        let tag = decoder.tag()?;
-        assert!(tag == 24);
-        let buf = decoder.bs()?;
-        let crc = decoder.u32()?;
-
-        assert!(crc == crc32(&buf));
-
-        deserialize(&buf)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use cbor::decode::{Decoder};
-
-        #[test]
-        fn crc32() {
-            let bytes : Vec<u8> = b"some random string".iter().cloned().collect();
-            let mut dest = vec![];
-            encode_with_crc32::<Vec<u8>>(&bytes, &mut dest);
-            let mut decoder = Decoder::new();
-            decoder.extend(&dest);
-            let r : Vec<u8> = decode_with_crc32::<Vec<u8>>(&mut decoder).unwrap();
-            assert_eq!(bytes, r);
-        }
-    }
-}
-
-use self::hs_cbor::{ToCBOR, FromCBOR};
-
+/// Digest of the composition of `Blake2b_224 . Sha3_256`
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b([u8;28]);
-impl DigestBlake2b {
-    /// this function create the blake2b 224 digest of the given input
-    /// This function is not responsible for the serialisation of the data
-    /// in CBOR.
+pub struct DigestBlake2b224([u8;28]);
+impl DigestBlake2b224 {
+    /// create digest from the given inputs by computing the SHA3_256 and
+    /// then the Blake2b_224.
     ///
     pub fn new(buf: &[u8]) -> Self
     {
@@ -189,20 +27,20 @@ impl DigestBlake2b {
         sh3.result(&mut out1);
         b2b.input(&out1);
         b2b.result(&mut out2);
-        DigestBlake2b::from_bytes(out2)
+        DigestBlake2b224::from_bytes(out2)
     }
 
     /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b(bytes) }
+    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b224(bytes) }
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != 28 { return None; }
         let mut buf = [0;28];
 
         buf[0..28].clone_from_slice(bytes);
-        Some(DigestBlake2b::from_bytes(buf))
+        Some(DigestBlake2b224::from_bytes(buf))
     }
 }
-impl fmt::Display for DigestBlake2b {
+impl fmt::Display for DigestBlake2b224 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.iter().for_each(|byte| {
             if byte < &0x10 {
@@ -214,18 +52,19 @@ impl fmt::Display for DigestBlake2b {
         Ok(())
     }
 }
-impl ToCBOR for DigestBlake2b {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_bs(&self.0[..], buf)
+impl cbor::CborValue for DigestBlake2b224 {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Bytes(cbor::Bytes::from_slice(self.0.as_ref()))
     }
-}
-impl FromCBOR for DigestBlake2b {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-        match DigestBlake2b::from_slice(&bs) {
-            None => Err(cbor::decode::Error::Custom("invalid length for DigestBlake2b")),
-            Some(v) => Ok(v)
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            match DigestBlake2b224::from_slice(bytes.as_ref()) {
+                Some(digest) => Ok(digest),
+                None         => {
+                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(28))
+                }
+            }
+        }).embed("while decoding DigestBlake2b224")
     }
 }
 
@@ -237,6 +76,14 @@ pub enum AddrType {
 }
 // [TkListLen 1, TkInt (fromEnum t)]
 impl AddrType {
+    fn from_u64(v: u64) -> Option<Self> {
+        match v {
+            0 => Some(AddrType::ATPubKey),
+            1 => Some(AddrType::ATScript),
+            2 => Some(AddrType::ATRedeem),
+            _ => None,
+        }
+    }
     fn to_byte(self) -> u8 {
         match self {
             AddrType::ATPubKey => 0,
@@ -245,42 +92,33 @@ impl AddrType {
         }
     }
 }
-impl ToCBOR for AddrType {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        cbor::encode::cbor_uint(self.to_byte() as u64, buf);
+impl cbor::CborValue for AddrType {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::U64(self.to_byte() as u64)
     }
-}
-impl FromCBOR for AddrType {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let b = decoder.uint()?;
-        match b {
-            0 => Ok(AddrType::ATPubKey),
-            1 => Ok(AddrType::ATScript),
-            2 => Ok(AddrType::ATRedeem),
-            _ => Err(cbor::decode::Error::Custom("Unknown AddrType..."))
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.u64().and_then(|v| {
+            match AddrType::from_u64(v) {
+                Some(addr_type) => Ok(addr_type),
+                None            => cbor::Result::u64(v, cbor::Error::NotOneOf(&[cbor::Value::U64(0), cbor::Value::U64(1), cbor::Value::U64(2)]))
+            }
+        }).embed("while decoding AddrType")
     }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct StakeholderId(DigestBlake2b); // of publickey (block2b 256)
+pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
-        let mut buf = Vec::new();
-
-        hs_cbor_util::xpub_to_cbor(&pubk, &mut buf);
-        StakeholderId(DigestBlake2b::new(&buf))
+        let buf = cbor::encode_to_cbor(pubk).unwrap();
+        StakeholderId(DigestBlake2b224::new(buf.as_ref()))
     }
 }
-impl ToCBOR for StakeholderId {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        self.0.encode(buf)
-    }
-}
-impl FromCBOR for StakeholderId {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let digest = DigestBlake2b::decode(decoder)?;
-        Ok(StakeholderId(digest))
+impl cbor::CborValue for StakeholderId {
+    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        cbor::CborValue::decode(value).map(|digest| { StakeholderId(digest) })
+            .embed("while decoding StakeholderId")
     }
 }
 impl fmt::Display for StakeholderId {
@@ -307,61 +145,47 @@ impl StakeDistribution {
         StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
     }
 }
-impl ToCBOR for StakeDistribution {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let mut vec = vec![];
-        match self {
-            &StakeDistribution::BootstrapEraDistr => hs_cbor::sumtype_start(STAKE_DISTRIBUTION_TAG_BOOTSTRAP, 0, &mut vec),
+impl cbor::CborValue for StakeDistribution {
+    fn encode(&self) -> cbor::Value {
+        let value = match self {
+            &StakeDistribution::BootstrapEraDistr => {
+                cbor::Value::Array(
+                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)
+                        ]
+                )
+            }
             &StakeDistribution::SingleKeyDistr(ref si) => {
-                hs_cbor::sumtype_start(STAKE_DISTRIBUTION_TAG_SINGLEKEY, 1, &mut vec);
-                si.encode(&mut vec);
+                cbor::Value::Array(
+                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_SINGLEKEY)
+                        , cbor::CborValue::encode(si)
+                        ]
+                )
             }
         };
-        cbor::encode::cbor_bs(&vec, buf);
+        let bytes = cbor::encode_to_cbor(&value).unwrap();
+        cbor::Value::Bytes(cbor::Bytes::new(bytes))
     }
-}
-impl FromCBOR for StakeDistribution {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-
-        let mut dec = cbor::decode::Decoder::new();
-        dec.extend(&bs);
-        match hs_cbor::dec_sumtype_start(&mut dec)? {
-            (STAKE_DISTRIBUTION_TAG_BOOTSTRAP, 0) => {
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        let bytes = value.bytes()
+            .embed("while decoding `StakeDistribution''s first level of indirection")?;
+        let value = cbor::decode_from_cbor::<cbor::Value>(bytes.as_ref())
+            .embed("while decoding `StakeDistribution`'s from cbor bytes")?;
+        value.array().and_then(|sum_type| {
+            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
+                .embed("while decoding `StakeDistribution`'s sumtype indice")?;
+            if n == STAKE_DISTRIBUTION_TAG_BOOTSTRAP {
                 Ok(StakeDistribution::new_bootstrap_era())
-            },
-            (STAKE_DISTRIBUTION_TAG_SINGLEKEY, 1) => {
-                let si = StakeholderId::decode(&mut dec)?;
-                Ok(StakeDistribution::new_single_stakeholder(si))
-            },
-            _ => Err(cbor::decode::Error::Custom("Invalid stake StakeDistribution"))
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct HDAddressPayload(Vec<u8>); // with the password of the user or something ?
-impl AsRef<[u8]> for HDAddressPayload {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-impl HDAddressPayload {
-    pub fn new(buf: &[u8]) -> Self { HDAddressPayload(buf.iter().cloned().collect()) }
-}
-impl ToCBOR for HDAddressPayload {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        let mut vec = vec![];
-        cbor::encode::cbor_bs(self.as_ref(), &mut vec);
-        cbor::encode::cbor_bs(&vec         , buf);
-    }
-}
-impl FromCBOR for HDAddressPayload {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let bs = decoder.bs()?;
-
-        let mut dec = cbor::decode::Decoder::new();
-        dec.extend(&bs);
-        let vec = dec.bs()?;
-        Ok(HDAddressPayload::new(&vec))
+            } else if n == STAKE_DISTRIBUTION_TAG_SINGLEKEY {
+                let (sum_type, k) = cbor::array_decode_elem(sum_type, 0)
+                    .embed("while decoding single key stake distribution")?;
+                if sum_type.len() != 0 {
+                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
+                }
+                Ok(StakeDistribution::new_single_stakeholder(k))
+            } else {
+                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
+            }
+        }).embed("while decoding `StakeDistribution`")
     }
 }
 
@@ -388,62 +212,61 @@ impl Attributes {
 const ATTRIBUTE_NAME_TAG_STAKE : u64 = 0;
 const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 
-impl ToCBOR for Attributes {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        if self.stake_distribution != StakeDistribution::BootstrapEraDistr {
-            cbor::encode::cbor_map_start(2, buf);
-            cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_STAKE, buf);
-            self.stake_distribution.encode(buf);
-        } else {
-            cbor::encode::cbor_map_start(1, buf);
-        }
-        cbor::encode::cbor_uint(ATTRIBUTE_NAME_TAG_DERIVATION, buf);
-        self.derivation_path.encode(buf);
+impl cbor::CborValue for Attributes {
+    fn encode(&self) -> cbor::Value {
+        let mut map = BTreeMap::new();
+        match &self.stake_distribution {
+            &StakeDistribution::BootstrapEraDistr => { /**/ },
+            &StakeDistribution::SingleKeyDistr(_) => {
+                map.insert(
+                    cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE),
+                    cbor::CborValue::encode(&self.stake_distribution)
+                );
+            }
+        };
+        map.insert(
+            cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION),
+            cbor::CborValue::encode(&self.derivation_path)
+        );
+        cbor::Value::Object(map)
     }
-}
-impl FromCBOR for Attributes {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let _ = decoder.map_start()?;
-        let mut sd = StakeDistribution::BootstrapEraDistr;
-        let mut x = decoder.uint()?;
-        if x == ATTRIBUTE_NAME_TAG_STAKE {
-            sd = StakeDistribution::decode(decoder)?;
-            x = decoder.uint()?;
-        }
-        assert!(x == ATTRIBUTE_NAME_TAG_DERIVATION);
-        let dp = HDAddressPayload::decode(decoder)?;
-        Ok(Attributes{ derivation_path: Some(dp), stake_distribution: sd })
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.object().and_then(|object| {
+            let (object, stake_distribution) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE))
+                .or_else(|(val, _)| val.object().map(|obj| (obj, StakeDistribution::BootstrapEraDistr)))?;
+            let (object, derivation_path) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION))
+                .embed("expected the derivation_path")?;
+            if object.len() != 0 {
+                return cbor::Result::object(object, cbor::Error::UnparsedValues);
+            }
+            Ok(Attributes { derivation_path: derivation_path, stake_distribution: stake_distribution })
+        }).embed("while decoding `Attributes`")
     }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Addr(DigestBlake2b);
+pub struct Addr(DigestBlake2b224);
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
-impl ToCBOR for Addr {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        self.0.encode(buf)
-    }
-}
-impl FromCBOR for Addr {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let db2b = DigestBlake2b::decode(decoder)?;
-        Ok(Addr(db2b))
+impl cbor::CborValue for Addr {
+    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        cbor::CborValue::decode(value).map(|digest| { Addr(digest) })
+            .embed("while decoding Addr")
     }
 }
 impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
-        /* CBOR encode + HASH */
-        let mut buff = vec![];
-        (&addr_type, spending_data, attrs).encode(&mut buff);
-        Addr(DigestBlake2b::new(buff.as_slice()))
+        let d : (AddrType, SpendingData, Attributes) = (addr_type, spending_data.clone(), attrs.clone());
+        let v = cbor::encode_to_cbor(&d).unwrap();
+        Addr(DigestBlake2b224::new(v.as_slice()))
     }
 
     /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b::from_bytes(bytes)) }
+    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b224::from_bytes(bytes)) }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -464,14 +287,15 @@ impl ExtendedAddr {
     /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
+    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
     /// use wallet_crypto::hdwallet;
+    /// use wallet_crypto::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
     /// let pk = sk.public();
     ///
-    /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
     /// let sd = SpendingData::PubKeyASD(pk.clone());
     /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -484,22 +308,21 @@ impl ExtendedAddr {
     /// ```
     ///
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut vec = vec![];
-        hs_cbor_util::encode_with_crc32(self, &mut vec);
-        vec
+        cbor::encode_to_cbor(self).unwrap()
     }
 
     /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, HDAddressPayload, Addr};
+    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
     /// use wallet_crypto::hdwallet;
+    /// use wallet_crypto::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
     /// let pk = sk.public();
     ///
-    /// let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
     /// let addr_type = AddrType::ATPubKey;
     /// let sd = SpendingData::PubKeyASD(pk.clone());
     /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -512,25 +335,18 @@ impl ExtendedAddr {
     /// assert_eq!(ea, r);
     /// ```
     ///
-    pub fn from_bytes(buf: &[u8]) -> cbor::decode::Result<Self> {
-        let mut decoder = cbor::decode::Decoder::new();
-        decoder.extend(buf);
-        hs_cbor_util::decode_with_crc32(&mut decoder)
+    pub fn from_bytes(buf: &[u8]) -> cbor::Result<Self> {
+        cbor::decode_from_cbor(buf)
     }
 }
-impl ToCBOR for ExtendedAddr {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        (&self.addr, &self.attributes, &self.addr_type).encode(buf);
+impl cbor::CborValue for ExtendedAddr {
+    fn encode(&self) -> cbor::Value {
+        cbor::hs::util::encode_with_crc32(&(self.addr.clone(), self.attributes.clone(), self.addr_type.clone()))
     }
-}
-impl FromCBOR for ExtendedAddr {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let (a,b,c) = FromCBOR::decode(decoder)?;
-        Ok(ExtendedAddr {
-            addr: a,
-            attributes: b,
-            addr_type: c
-        })
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        let (addr, attr, ty) = cbor::hs::util::decode_with_crc32(value)
+            .embed("while decoding `ExtendedAddr`")?;
+        Ok(ExtendedAddr{addr:addr, attributes: attr, addr_type: ty})
     }
 }
 impl fmt::Display for ExtendedAddr {
@@ -546,44 +362,41 @@ const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
 const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
 const SPENDING_DATA_TAG_REDEEM : u64 = 2; // TODO
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
     RedeemASD (RedeemPublicKey)
     // UnknownASD... whatever...
 }
-impl ToCBOR for SpendingData {
-    fn encode(&self, buf: &mut Vec<u8>) {
+impl cbor::CborValue for SpendingData {
+    fn encode(&self) -> cbor::Value {
+        let mut v = vec![];
         match self {
-            &SpendingData::PubKeyASD(ref xpub) => {
-                hs_cbor::sumtype_start(SPENDING_DATA_TAG_PUBKEY, 1, buf);
-                hs_cbor_util::xpub_to_cbor(xpub, buf);
-            }
-            &SpendingData::ScriptASD(ref _script) => {
-                unimplemented!()
-            }
-            &SpendingData::RedeemASD(ref _redeem_key) => {
-                unimplemented!()
-            }
-        }
+            &SpendingData::PubKeyASD(ref pk) => {
+                v.push(cbor::CborValue::encode(&SPENDING_DATA_TAG_PUBKEY));
+                v.push(cbor::CborValue::encode(pk));
+            },
+            &SpendingData::ScriptASD(_)      => unimplemented!(),
+            &SpendingData::RedeemASD(_)      => unimplemented!(),
+        };
+        cbor::Value::Array(v)
     }
-}
-impl FromCBOR for SpendingData {
-    fn decode(decoder: &mut cbor::decode::Decoder) -> cbor::decode::Result<Self> {
-        let r = hs_cbor::dec_sumtype_start(decoder)?;
-        match r {
-            (SPENDING_DATA_TAG_PUBKEY, 1) => {
-                let xpub = hs_cbor_util::xpub_from_cbor(decoder)?;
-                Ok(SpendingData::PubKeyASD(xpub))
-            },
-            (SPENDING_DATA_TAG_SCRIPT, _) => {
-                unimplemented!()
-            },
-            (SPENDING_DATA_TAG_REDEEM, _) => {
-                unimplemented!()
-            },
-            _ => Err(cbor::decode::Error::Custom("invalid SpendingData..."))
-        }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|sum_type| {
+            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
+                .embed("while retrieving the ID of the sum type")?;
+            if n == SPENDING_DATA_TAG_PUBKEY {
+                let (sum_type, pk) = cbor::array_decode_elem(sum_type, 0)
+                    .embed("while decoding the public key")?;
+                if sum_type.len() != 0 {
+                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
+                }
+                Ok(SpendingData::PubKeyASD(pk))
+            } else {
+                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
+            }
+        }).embed("while decoding `SpendingData`")
     }
 }
 
@@ -604,7 +417,7 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
 
-        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+        let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
         let attrs = Attributes::new_single_key(&pk, Some(hdap));
@@ -630,16 +443,25 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
 
-        let hdap = HDAddressPayload::new(&[1,2,3,4,5]);
+        let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
         let attrs = Attributes::new_single_key(&pk, Some(hdap));
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
-        let out = ea.to_bytes();
+        let out = cbor::encode_to_cbor(&ea).unwrap();
 
-        assert_eq!(out, v);
+        v.iter().for_each(|b| {
+            if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
+        });
+        println!("");
+        out.iter().for_each(|b| {
+            if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
+        });
+        println!("");
+
+        assert_eq!(v, out);
 
         let r = ExtendedAddr::from_bytes(&out).unwrap();
         assert_eq!(ea, r);
@@ -648,17 +470,17 @@ mod tests {
     #[test]
     fn encode_decode_digest_blake2b() {
         let b = b"some random bytes...";
-        let digest = DigestBlake2b::new(b"some random bytes...");
-        assert!(hs_cbor::encode_decode(&digest))
+        let digest = DigestBlake2b224::new(b"some random bytes...");
+        assert!(cbor::hs::encode_decode(&digest))
     }
     #[test]
     fn encode_decode_addr_type() {
         let addr_type_1 = AddrType::ATPubKey;
         let addr_type_2 = AddrType::ATScript;
         let addr_type_3 = AddrType::ATRedeem;
-        assert!(hs_cbor::encode_decode(&addr_type_1));
-        assert!(hs_cbor::encode_decode(&addr_type_2));
-        assert!(hs_cbor::encode_decode(&addr_type_3));
+        assert!(cbor::hs::encode_decode(&addr_type_1));
+        assert!(cbor::hs::encode_decode(&addr_type_2));
+        assert!(cbor::hs::encode_decode(&addr_type_3));
     }
     #[test]
     fn encode_decode_stakeholderid() {
@@ -667,7 +489,7 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
         let si = StakeholderId::new(&pk);
-        assert!(hs_cbor::encode_decode(&si));
+        assert!(cbor::hs::encode_decode(&si));
     }
     #[test]
     fn encode_decode_stakedistribution() {
@@ -677,8 +499,8 @@ mod tests {
         let pk = sk.public();
         let sd_1 = StakeDistribution::new_bootstrap_era();
         let sd_2 = StakeDistribution::new_single_key(&pk);
-        assert!(hs_cbor::encode_decode(&sd_1));
-        assert!(hs_cbor::encode_decode(&sd_2));
+        assert!(cbor::hs::encode_decode(&sd_1));
+        assert!(cbor::hs::encode_decode(&sd_2));
     }
 
     #[test]

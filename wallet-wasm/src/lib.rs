@@ -105,16 +105,14 @@ unsafe fn write_xpub(xpub: &hdwallet::XPub, xpub_ptr: *mut c_uchar) {
         out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub.as_ref());
 }
 
-unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature {
+unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature<Vec<u8>> {
         let signature_slice = std::slice::from_raw_parts(sig_ptr, hdwallet::SIGNATURE_SIZE);
-        let mut signature : hdwallet::Signature = [0u8;hdwallet::SIGNATURE_SIZE];
-        signature.clone_from_slice(signature_slice);
-        signature
+        hdwallet::Signature::from_slice(signature_slice).unwrap()
 }
 
-unsafe fn write_signature(signature: &[u8], out_ptr: *mut c_uchar) {
+unsafe fn write_signature<T>(signature: &hdwallet::Signature<T>, out_ptr: *mut c_uchar) {
         let out = std::slice::from_raw_parts_mut(out_ptr, hdwallet::SIGNATURE_SIZE);
-        out[0..hdwallet::SIGNATURE_SIZE].clone_from_slice(signature);
+        out[0..hdwallet::SIGNATURE_SIZE].clone_from_slice(signature.as_ref());
 }
 
 unsafe fn read_seed(seed_ptr: *const c_uchar) -> hdwallet::Seed {
@@ -156,7 +154,7 @@ pub extern "C" fn wallet_derive_public(xpub_ptr: *const c_uchar, index: u32, out
 pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar, msg_sz: usize, out: *mut c_uchar) {
     let xprv = unsafe { read_xprv(xprv_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
-    let signature = xprv.sign(&msg[..]);
+    let signature : hdwallet::Signature<Vec<u8>> = xprv.sign(&msg[..]);
     unsafe { write_signature(&signature, out) }
 }
 
@@ -200,7 +198,7 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let payload = unsafe { read_data(payload_ptr, payload_sz) };
 
-    let hdap = address::HDAddressPayload::new(&payload);
+    let hdap = hdpayload::HDAddressPayload::from_vec(payload);
 
     let addr_type = address::AddrType::ATPubKey;
     let sd = address::SpendingData::PubKeyASD(xpub.clone());
@@ -217,9 +215,9 @@ pub extern "C" fn wallet_public_to_address(xpub_ptr: *const c_uchar, payload_ptr
 #[no_mangle]
 pub extern "C" fn wallet_address_get_payload(addr_ptr: *const c_uchar, addr_sz: usize, out: *mut c_uchar) -> u32 {
     let addr_bytes = unsafe { read_data(addr_ptr, addr_sz) };
-    match address::ExtendedAddr::from_bytes(&addr_bytes) {
-        Err(_) => (-1i32) as u32,
-        Ok(r)  => {
+    match address::ExtendedAddr::from_bytes(&addr_bytes).ok() {
+        None => (-1i32) as u32,
+        Some(r)  => {
             match r.attributes.derivation_path {
                 None        => 0,
                 Some(dpath) => {
