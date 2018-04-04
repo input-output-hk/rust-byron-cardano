@@ -1,12 +1,19 @@
 language: rust
 cache: cargo
-rust:
-  - stable
-  - beta
-  - nightly
-#matrix:
-#  allow_failures:
-#    - rust: nightly
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+matrix:
+  include:
+    - rust: stable
+    - rust: beta
+    - rust: nightly
+    - rust: nightly
+      env: NODE_JS_GLUE
+      before_script:
+        - rustup target add wasm32-unknown-unknown --toolchain nightly
+        - nvm install 8.2.1
+        - npm install
+        - ./build
+      script:
+        - npm run test
