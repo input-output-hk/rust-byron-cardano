@@ -32,5 +32,9 @@
   "dependencies": {
     "iconv-lite": "0.4.19",
     "safe-buffer": "5.1.1"
+  },
+  "devEngines": {
+    "node": "8.x",
+    "npm": "5.x"
   }
 }
