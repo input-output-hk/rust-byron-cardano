@@ -19,17 +19,6 @@ const TEST_VECTORS = [
   }
 ];
 
-let base16 = (u8) => {
-  let b16 = "";
-  function pad2(str) {
-    return (str.length < 2) ? "0"+str : str;
-  }
-  for(let x = 0; x < u8.length; x++) {
-    b16 += pad2(u8[x].toString(16));
-  }
-  return b16;
-};
-
 let mkTest = (i) => {
     const { txid, index, txin, address, amount, txout, tx } = TEST_VECTORS[i];
 
