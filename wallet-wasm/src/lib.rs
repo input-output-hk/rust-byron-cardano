@@ -11,6 +11,9 @@ use self::wallet_crypto::hdwallet;
 use self::wallet_crypto::paperwallet;
 use self::wallet_crypto::address;
 use self::wallet_crypto::hdpayload;
+use self::wallet_crypto::tx;
+
+use self::wallet_crypto::cbor::{encode_to_cbor, decode_from_cbor};
 
 use std::mem;
 use std::ffi::{CStr, CString};
@@ -266,4 +269,69 @@ pub extern "C" fn wallet_payload_decrypt(key_ptr: *const c_uchar, payload_ptr: *
             v.len() as u32
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_txin_create(txid_ptr: *const c_uchar, index: u32, out: *mut c_uchar) -> u32 {
+    let txid_bytes = unsafe { read_data(txid_ptr, tx::HASH_SIZE) };
+
+    let txid = tx::TxId::from_slice(&txid_bytes).unwrap();
+
+    let txin = tx::TxIn::new(txid, index);
+    let out_buf = encode_to_cbor(&txin).unwrap();
+
+    unsafe { write_data(&out_buf, out) }
+    out_buf.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_txout_create(ea_ptr: *const c_uchar, ea_sz: usize, amount: u32, out: *mut c_uchar) -> u32 {
+    let ea_bytes = unsafe { read_data(ea_ptr, ea_sz) };
+
+    let ea = address::ExtendedAddr::from_bytes(&ea_bytes).unwrap();
+    let coin = tx::Coin::new(amount as u64).unwrap();
+
+    let txout = tx::TxOut::new(ea, coin);
+    let out_buf = encode_to_cbor(&txout).unwrap();
+
+    unsafe { write_data(&out_buf, out) }
+    out_buf.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_tx_new(out: *mut c_uchar) -> u32 {
+    let tx = tx::Tx::new();
+    let out_buf = encode_to_cbor(&tx).unwrap();
+    unsafe { write_data(&out_buf, out) }
+    out_buf.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_tx_add_txin(tx_ptr: *const c_uchar, tx_sz: usize, txin_ptr: *const c_uchar, txin_sz: usize, out: *mut c_uchar) -> u32 {
+    let tx_bytes = unsafe { read_data(tx_ptr, tx_sz) };
+    let txin_bytes = unsafe { read_data(txin_ptr, txin_sz) };
+
+    let mut tx : tx::Tx = decode_from_cbor(&tx_bytes).unwrap();
+    let txin = decode_from_cbor(&txin_bytes).unwrap();
+
+    tx.add_input(txin);
+
+    let out_buf = encode_to_cbor(&tx).unwrap();
+    unsafe { write_data(&out_buf, out) }
+    out_buf.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_tx_add_txout(tx_ptr: *const c_uchar, tx_sz: usize, txout_ptr: *const c_uchar, txout_sz: usize, out: *mut c_uchar) -> u32 {
+    let tx_bytes = unsafe { read_data(tx_ptr, tx_sz) };
+    let txout_bytes = unsafe { read_data(txout_ptr, txout_sz) };
+
+    let mut tx : tx::Tx = decode_from_cbor(&tx_bytes).unwrap();
+    let txout = decode_from_cbor(&txout_bytes).unwrap();
+
+    tx.add_output(txout);
+
+    let out_buf = encode_to_cbor(&tx).unwrap();
+    unsafe { write_data(&out_buf, out) }
+    out_buf.len() as u32
 }
