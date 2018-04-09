@@ -12,10 +12,12 @@ use hdwallet::{Signature, XPub};
 use address::ExtendedAddr;
 use merkle;
 
+pub const HASH_SIZE : usize = 32;
+
 /// Blake2b 256 bits
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Hash<T> {
-    digest: [u8;32],
+    digest: [u8;HASH_SIZE],
     _phantom: PhantomData<T>
 }
 impl<T> AsRef<[u8]> for Hash<T> {
@@ -24,19 +26,19 @@ impl<T> AsRef<[u8]> for Hash<T> {
 impl<T> Hash<T> {
     pub fn new(buf: &[u8]) -> Self
     {
-        let mut b2b = Blake2b::new(32);
-        let mut out = [0;32];
+        let mut b2b = Blake2b::new(HASH_SIZE);
+        let mut out = [0;HASH_SIZE];
         b2b.input(buf);
         b2b.result(&mut out);
         Self::from_bytes(out)
     }
 
-    pub fn from_bytes(bytes :[u8;32]) -> Self { Hash { digest: bytes, _phantom: PhantomData } }
+    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Hash { digest: bytes, _phantom: PhantomData } }
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != 32 { return None; }
-        let mut buf = [0;32];
+        if bytes.len() != HASH_SIZE { return None; }
+        let mut buf = [0;HASH_SIZE];
 
-        buf[0..32].clone_from_slice(bytes);
+        buf[0..HASH_SIZE].clone_from_slice(bytes);
         Some(Self::from_bytes(buf))
     }
 }

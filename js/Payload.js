@@ -1,4 +1,3 @@
-import iconv from 'iconv-lite';
 import RustModule from './RustModule';
 import { newArray, newArray0, copyArray, newArrayU32, newArrayU32_0, copyArrayU32 } from './utils/arrays';
 import { apply } from './utils/functions';
