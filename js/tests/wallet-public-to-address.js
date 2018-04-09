@@ -11,7 +11,7 @@ const TEST_VECTORS = [
 ];
 
 let mkTest = (i) => {
-    const { pubkey, payload, address } = TEST_VECTORS[0];
+    const { pubkey, payload, address } = TEST_VECTORS[i];
 
     describe('Test ' + i, function() {
         it('create an address', function() {

@@ -12,7 +12,7 @@ const TEST_VECTORS = [
 ];
 
 let mkTest = (i) => {
-    const { pubkey, key, derivation_path, payload } = TEST_VECTORS[0];
+    const { pubkey, key, derivation_path, payload } = TEST_VECTORS[i];
 
     describe('Test ' + i, function() {
         it('initialise a payload key', function() {
