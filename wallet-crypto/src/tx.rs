@@ -9,7 +9,7 @@ use cbor;
 use cbor::{ExtendedResult};
 
 use hdwallet::{Signature, XPub, XPrv};
-use address::ExtendedAddr;
+use address::{ExtendedAddr, SpendingData};
 use merkle;
 
 pub const HASH_SIZE : usize = 32;
@@ -132,13 +132,14 @@ type RedeemSignature = TODO;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TxInWitness {
-    /// signature of the `TxIn` with the associated `XPub`
+    /// signature of the `Tx` with the associated `XPub`
     /// the `XPub` is the public key set in the AddrSpendingData
     PkWitness(XPub, Signature<Tx>),
     ScriptWitness(ValidatorScript, RedeemerScript),
     RedeemWitness(RedeemPublicKey, RedeemSignature),
 }
 impl TxInWitness {
+    /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
     pub fn new(key: &XPrv, tx: &Tx) -> Self {
         let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
 
@@ -147,6 +148,45 @@ impl TxInWitness {
                           ];
         vec.extend_from_slice(&txid);
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
+    }
+
+    /// verify a given extended address is associated to the witness.
+    ///
+    pub fn verify_address(&self, address: &ExtendedAddr) -> bool {
+        match self {
+            &TxInWitness::PkWitness(ref pk, _) => {
+                let sd = SpendingData::PubKeyASD(pk.clone());
+                let ea = ExtendedAddr::new(address.addr_type, sd, address.attributes.clone());
+
+                &ea == address
+            },
+            &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(_, _) => { unimplemented!() },
+        }
+    }
+
+    /// verify the signature against the given transation `Tx`
+    ///
+    pub fn verify_tx(&self, tx: &Tx) -> bool {
+        match self {
+            &TxInWitness::PkWitness(ref pk, ref sig) => {
+                let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
+
+                let mut vec = vec![ 0x01 // this is the tag for TxSignature
+                                  , 0x1a, 0x2d, 0x96, 0x4a, 0x09 // this is the magic (serialised in cbor...)
+                                  ];
+                vec.extend_from_slice(&txid);
+
+                pk.verify(&vec, sig)
+            },
+            &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(_, _) => { unimplemented!() },
+        }
+    }
+
+    /// verify the address's public key and the transaction signature
+    pub fn verify(&self, address: &ExtendedAddr, tx: &Tx) -> bool {
+        self.verify_address(address) && self.verify_tx(tx)
     }
 }
 impl cbor::CborValue for TxInWitness {
@@ -400,5 +440,41 @@ mod tests {
         let txinwitness = TxInWitness::new(&sk, &tx);
 
         assert!(cbor::hs::encode_decode(&txinwitness));
+    }
+
+    #[test]
+    fn txinwitness_sign_verify() {
+        // create wallet's keys
+        let seed = hdwallet::Seed::from_bytes(SEED);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        // create an Address
+        let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
+        let addr_type = address::AddrType::ATPubKey;
+        let sd = address::SpendingData::PubKeyASD(pk.clone());
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
+
+        // create a transaction
+        let txid = TxId::new(&[0;32]);
+        let txin = TxIn::new(txid, 666);
+        let value = Coin::new(42).unwrap();
+        let txout = TxOut::new(ea.clone(), value);
+        let mut tx = Tx::new();
+        tx.add_input(txin);
+        tx.add_output(txout);
+
+        // here we pretend that `ea` is the address we find from the found we want
+        // to take. In the testing case, it is not important that it is also the
+        // txout of this given transation
+
+        // create a TxInWitness (i.e. sign the given transaction)
+        let txinwitness = TxInWitness::new(&sk, &tx);
+
+        // check the address is the correct one
+        assert!(txinwitness.verify_address(&ea));
+        assert!(txinwitness.verify_tx(&tx));
+        assert!(txinwitness.verify(&ea, &tx));
     }
 }
