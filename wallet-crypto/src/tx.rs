@@ -291,7 +291,7 @@ mod tests {
 
     const SEED: [u8;hdwallet::SEED_SIZE] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
-    const DERIVATION_PATH: &'static [u8] = &[1,2,3,4,5];
+    const HDPAYLOAD: &'static [u8] = &[1,2,3,4,5];
 
     // CBOR encoded TxOut
     const TX_OUT: &'static [u8] = &[0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a];
@@ -307,7 +307,7 @@ mod tests {
     fn txout_decode() {
         let txout : TxOut = cbor::decode_from_cbor(TX_OUT).unwrap();
 
-        let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
+        let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         assert_eq!(Coin::new(42).unwrap(), txout.value);
         assert_eq!(address::AddrType::ATPubKey, txout.address.addr_type);
         assert_eq!(address::StakeDistribution::new_bootstrap_era(), txout.address.attributes.stake_distribution);
@@ -316,10 +316,10 @@ mod tests {
 
     #[test]
     fn txout_encode_decode() {
-        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
-        let hdap = hdpayload::HDAddressPayload::from_vec(vec![1,2,3,4,5]);
+        let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
         let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
@@ -364,7 +364,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
-        let hdap = hdpayload::HDAddressPayload::from_bytes(DERIVATION_PATH);
+        let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
         let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
