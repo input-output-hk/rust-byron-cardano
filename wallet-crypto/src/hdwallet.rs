@@ -336,6 +336,19 @@ impl<T> fmt::Debug for Signature<T> {
 impl<T> AsRef<[u8]> for Signature<T> {
     fn as_ref(&self) -> &[u8] { &self.bytes }
 }
+impl<T> cbor::CborValue for Signature<T> {
+    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.bytes().and_then(|bytes| {
+            match Signature::from_slice(bytes.as_ref()) {
+                Some(digest) => Ok(digest),
+                None         => {
+                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(SIGNATURE_SIZE))
+                }
+            }
+        }).embed("while decoding Signature<T>")
+    }
+}
 
 pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
