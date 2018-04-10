@@ -212,7 +212,7 @@ impl cbor::CborValue for TxIn {
             let (sum_type, v) = cbor::array_decode_elem(sum_type, 0).embed("sum_type id")?;
             if v != 0u64 { return cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(v)); }
             let (sum_type, tag) : (Vec<cbor::Value>, cbor::Value) = cbor::array_decode_elem(sum_type, 0).embed("sum_type's value")?;
-            if sum_type.len() > 2 { return cbor::Result::array(sum_type, cbor::Error::UnparsedValues); }
+            if !sum_type.is_empty() { return cbor::Result::array(sum_type, cbor::Error::UnparsedValues); }
             tag.tag().and_then(|(t, v)| {
                 if t != 24 { return cbor::Result::tag(t, v, cbor::Error::InvalidTag(t)); }
                 (*v).bytes()
