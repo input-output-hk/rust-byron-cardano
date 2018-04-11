@@ -139,8 +139,8 @@ export const sign = (module, tx, xprv) => {
  *
  * @param module  - the WASM module that is used for crypto operations
  * @param tx      - the transaction to add the given TxOut
- * @param address - the extended address we are verifying
  * @param xpub    - the extended private key to sign the transaction with
+ * @param signature - the signature to verify
  * @returns {*}   - true or false
  */
 export const verify = (module, tx, xpub, signature) => {
