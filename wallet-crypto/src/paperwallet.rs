@@ -4,14 +4,14 @@ use self::rcw::hmac::Hmac;
 use self::rcw::pbkdf2::{pbkdf2};
 
 const ITERS : u32 = 10000;
-const CONST : &str = "IOHK";
+const CONST : &'static [u8] = b"IOHK";
 
 
 fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
     assert!(iv.len() == 4);
     let mut salt = [0u8;8];
     salt[0..4].clone_from_slice(iv);
-    salt[4..8].clone_from_slice(CONST.as_bytes());
+    salt[4..8].clone_from_slice(CONST);
     let mut mac = Hmac::new(Sha512::new(), password);
     pbkdf2(&mut mac, &salt[..], ITERS, buf);
 }
