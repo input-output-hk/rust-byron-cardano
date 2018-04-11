@@ -110,10 +110,59 @@ export const addOutput = (module, tx, txout) => {
         return out;
 };
 
+
+/**
+ * Sign the given tx, this function returns the signature, not the TxInWitness
+ *
+ * @param module - the WASM module that is used for crypto operations
+ * @param tx     - the transaction to add the given TxOut
+ * @param xprv   - the extended private key to sign the transaction with
+ * @returns {*} - the signature
+ */
+export const sign = (module, tx, xprv) => {
+        const buftx = newArray(module, tx);
+        const bufxprv = newArray(module, xprv);
+        const bufsig = newArray0(module, 64);
+
+        module.wallet_tx_sign(bufxprv, buftx, tx.length, bufsig);
+        let result = copyArray(module, bufsig, 64);
+
+        module.dealloc(bufsig);
+        module.dealloc(bufxprv);
+        module.dealloc(buftx);
+
+        return result
+};
+
+/**
+ * Verify the given signature of a tx
+ *
+ * @param module  - the WASM module that is used for crypto operations
+ * @param tx      - the transaction to add the given TxOut
+ * @param address - the extended address we are verifying
+ * @param xpub    - the extended private key to sign the transaction with
+ * @returns {*}   - true or false
+ */
+export const verify = (module, tx, xpub, signature) => {
+        const buftx = newArray(module, tx);
+        const bufxpub = newArray(module, xpub);
+        const bufsig  = newArray(module, signature);
+
+        let result = module.wallet_tx_verify(bufxpub, buftx, tx.length, bufsig);
+
+        module.dealloc(bufsig);
+        module.dealloc(bufxpub);
+        module.dealloc(buftx);
+
+        return result === 0
+};
+
 export default {
   newTxOut: apply(newTxOut, RustModule),
   newTxIn:  apply(newTxIn, RustModule),
   create: apply(create, RustModule),
   addInput: apply(addInput, RustModule),
-  addOutput: apply(addOutput, RustModule)
+  addOutput: apply(addOutput, RustModule),
+  sign: apply(sign, RustModule),
+  verify: apply(verify, RustModule),
 };
