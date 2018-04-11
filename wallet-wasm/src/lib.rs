@@ -108,7 +108,7 @@ unsafe fn write_xpub(xpub: &hdwallet::XPub, xpub_ptr: *mut c_uchar) {
         out[0..hdwallet::XPUB_SIZE].clone_from_slice(xpub.as_ref());
 }
 
-unsafe fn read_signature(sig_ptr: *const c_uchar) -> hdwallet::Signature<Vec<u8>> {
+unsafe fn read_signature<T>(sig_ptr: *const c_uchar) -> hdwallet::Signature<T> {
         let signature_slice = std::slice::from_raw_parts(sig_ptr, hdwallet::SIGNATURE_SIZE);
         hdwallet::Signature::from_slice(signature_slice).unwrap()
 }
@@ -165,7 +165,7 @@ pub extern "C" fn wallet_sign(xprv_ptr: *const c_uchar, msg_ptr: *const c_uchar,
 pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_uchar, msg_sz: usize, sig_ptr: *const c_uchar) -> bool {
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let msg = unsafe { read_data(msg_ptr, msg_sz) };
-    let signature = unsafe { read_signature(sig_ptr) };
+    let signature = unsafe { read_signature::<Vec<u8>>(sig_ptr) };
     xpub.verify(&msg, &signature)
 }
 
@@ -334,4 +334,33 @@ pub extern "C" fn wallet_tx_add_txout(tx_ptr: *const c_uchar, tx_sz: usize, txou
     let out_buf = encode_to_cbor(&tx).unwrap();
     unsafe { write_data(&out_buf, out) }
     out_buf.len() as u32
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_tx_sign(xprv_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, out: *mut c_uchar) {
+    let xprv = unsafe { read_xprv(xprv_ptr) };
+    let tx_bytes = unsafe { read_data(tx_ptr, tx_sz) };
+
+    let tx = decode_from_cbor(&tx_bytes).unwrap();
+
+    let txinwitness = tx::TxInWitness::new(&xprv, &tx);
+
+    let signature = match txinwitness {
+        tx::TxInWitness::PkWitness(_, sig) => sig,
+        _ => unimplemented!() // this should never happen as we are signing for the tx anyway
+    };
+    unsafe { write_signature(&signature, out) }
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_tx_verify(xpub_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, sig_ptr: *const c_uchar) -> i32 {
+    let xpub = unsafe { read_xpub(xpub_ptr) };
+    let signature = unsafe { read_signature(sig_ptr) };
+
+    let tx_bytes = unsafe { read_data(tx_ptr, tx_sz) };
+    let tx = decode_from_cbor(&tx_bytes).unwrap();
+
+    let txinwitness = tx::TxInWitness::PkWitness(xpub, signature);
+
+    if txinwitness.verify_tx(&tx) { 0 } else { -1 }
 }
