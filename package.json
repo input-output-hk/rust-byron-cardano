@@ -1,6 +1,6 @@
 {
   "name": "rust-cardano-crypto",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cardano crypto implemented in Rust and transpiled to WebAssembly",
   "main": "./dist/index.js",
   "scripts": {
@@ -32,5 +32,9 @@
   "dependencies": {
     "iconv-lite": "0.4.19",
     "safe-buffer": "5.1.1"
+  },
+  "devEngines": {
+    "node": "8.x",
+    "npm": "5.x"
   }
 }
