@@ -1,3 +1,4 @@
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -368,6 +369,89 @@ pub extern "C" fn wallet_tx_verify(xpub_ptr: *const c_uchar, tx_ptr: *const c_uc
     if txinwitness.verify_tx(&tx) { 0 } else { -1 }
 }
 
+mod jrpc {
+    use serde::{Serialize};
+    use serde_json;
+    use std::os::raw::{c_uchar};
+
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+    struct Error {
+        failed: bool,
+        loc: String,
+        msg: String
+    }
+    impl Error {
+        fn new(loc: String, msg: String) -> Self { Error { failed: true, loc: loc, msg: msg } }
+    }
+
+    pub fn fail(output_ptr: *mut c_uchar, file: &str, line: u32, msg: String) -> i32 {
+        let error = Error::new(format!("{} {}", file, line), msg);
+
+        let output = serde_json::to_string(&error).unwrap();
+        let output_bytes = output.into_bytes();
+
+        unsafe { super::write_data(&output_bytes, output_ptr) };
+        output_bytes.len() as i32
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+    struct Success<T> {
+        failed: bool,
+        result: T
+    }
+    impl<T: Serialize> Success<T> {
+        fn new(result: T) -> Self { Success { failed: false, result: result } }
+    }
+
+    pub fn ok<T>(output_ptr: *mut c_uchar, result: T) -> i32
+        where T: Serialize
+    {
+        let succ = Success::new(result);
+
+        let output = serde_json::to_string(&succ).unwrap();
+        let output_bytes = output.into_bytes();
+
+        unsafe { super::write_data(&output_bytes, output_ptr) };
+        output_bytes.len() as i32
+    }
+}
+
+/// Entry point of jrpc error reporting
+macro_rules! jrpc_fail {
+    ($output_ptr:ident) => (
+        jrpc_fail!($output_ptr, "unknown error")
+    );
+    ($output_ptr:ident, ) => (
+        jrpc_fail!($output_ptr)
+    );
+    ($output_ptr:ident, $msg:expr) => ({
+        jrpc::fail($output_ptr, file!(), line!(), $msg)
+    });
+    ($output_ptr:ident, $msg:expr, ) => ({
+        jrpc_fail!($output_ptr, $msg)
+    });
+    ($output_ptr:ident, $fmt:expr, $($arg:tt)+) => ({
+        jrpc::fail($output_ptr, file!(), line!(), format!($fmt, $($arg)*))
+    });
+}
+
+macro_rules! jrpc_ok {
+    ($output_ptr:ident, $result:expr) => ({
+        jrpc::ok($output_ptr, $result)
+    });
+    ($output_ptr:ident, $result:expr,) => ({
+        jrpc_ok!($output_ptr, $result)
+    });
+}
+
+macro_rules! jrpc_try {
+    ($output_ptr:ident, $expr:expr) => (match $expr {
+        Ok(val) => val,
+        Err(err) => { return jrpc_fail!($output_ptr, "{:?}", err); }
+    });
+    ($output_ptr:ident, $expr:expr,) => (jrpc_try!($output_ptr, $expr));
+}
+
 /// this is the type of resolved TxIn.
 ///
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
@@ -378,22 +462,9 @@ struct Utxo {
 
 #[no_mangle]
 pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize, amount :u32, output_ptr: *mut c_uchar) -> i32 {
-    let input_bytes = unsafe { read_data(input_ptr, input_sz) };
-    let input = String::from_utf8(input_bytes).unwrap();
-    let utxos : Vec<Utxo> = match serde_json::from_str(input.as_ref()) {
-        Err(err) => {
-            let output = format!("{}", err);
-            let output_bytes = output.into_bytes();
+    let input_bytes : Vec<u8> = unsafe { read_data(input_ptr, input_sz) };
+    let input : String    = jrpc_try!(output_ptr, String::from_utf8(input_bytes));
+    let utxos : Vec<Utxo> = jrpc_try!(output_ptr, serde_json::from_str(input.as_str()));
 
-            unsafe { write_data(&output_bytes, output_ptr) };
-            return output_bytes.len() as i32;
-        },
-        Ok(vec) => vec
-    };
-
-    let output = serde_json::to_string(&utxos).unwrap();
-    let output_bytes = output.into_bytes();
-
-    unsafe { write_data(&output_bytes, output_ptr) };
-    output_bytes.len() as i32
+    jrpc_ok!(output_ptr, utxos)
 }
