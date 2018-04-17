@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
 use std::fmt;
 use std::collections::{LinkedList, BTreeMap};
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
+use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
 
@@ -12,18 +12,17 @@ use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
 use merkle;
 
+use serde;
+
 pub const HASH_SIZE : usize = 32;
 
 /// Blake2b 256 bits
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Hash<T> {
-    digest: [u8;HASH_SIZE],
-    _phantom: PhantomData<T>
+pub struct Hash([u8;HASH_SIZE]);
+impl AsRef<[u8]> for Hash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
-impl<T> AsRef<[u8]> for Hash<T> {
-    fn as_ref(&self) -> &[u8] { self.digest.as_ref() }
-}
-impl<T> Hash<T> {
+impl Hash {
     pub fn new(buf: &[u8]) -> Self
     {
         let mut b2b = Blake2b::new(HASH_SIZE);
@@ -33,7 +32,7 @@ impl<T> Hash<T> {
         Self::from_bytes(out)
     }
 
-    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Hash { digest: bytes, _phantom: PhantomData } }
+    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Hash(bytes) }
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != HASH_SIZE { return None; }
         let mut buf = [0;HASH_SIZE];
@@ -42,9 +41,9 @@ impl<T> Hash<T> {
         Some(Self::from_bytes(buf))
     }
 }
-impl<T> fmt::Display for Hash<T> {
+impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.digest.iter().for_each(|byte| {
+        self.0.iter().for_each(|byte| {
             if byte < &0x10 {
                 write!(f, "0{:x}", byte).unwrap()
             } else {
@@ -54,7 +53,7 @@ impl<T> fmt::Display for Hash<T> {
         Ok(())
     }
 }
-impl<T> cbor::CborValue for Hash<T> {
+impl cbor::CborValue for Hash {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.bytes().and_then(|bytes| {
@@ -67,14 +66,71 @@ impl<T> cbor::CborValue for Hash<T> {
         }).embed("while decoding Hash")
     }
 }
+impl serde::Serialize for Hash
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&hex::encode(self.as_ref()))
+        } else {
+            serializer.serialize_bytes(&self.as_ref())
+        }
+    }
+}
+struct HashVisitor();
+impl HashVisitor { fn new() -> Self { HashVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for HashVisitor {
+    type Value = Hash;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting a Blake2b_256 hash (`Hash`)")
+    }
+
+    fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        let bytes = hex::decode(v);
+
+        match Hash::from_slice(&bytes) {
+            None => Err(E::invalid_length(bytes.len(), &"32 bytes")),
+            Some(r) => Ok(r)
+        }
+    }
+
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match Hash::from_slice(v) {
+            None => Err(E::invalid_length(v.len(), &"32 bytes")),
+            Some(r) => Ok(r)
+        }
+    }
+}
+impl<'de> serde::Deserialize<'de> for Hash
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(HashVisitor::new())
+        } else {
+            deserializer.deserialize_bytes(HashVisitor::new())
+        }
+    }
+}
 
 // TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
 // if this is confirmed, we need to make a proper type, wrapping it around
 // to hash a `Tx` by serializing it cbor first.
-pub type TxId = Hash<Tx>;
+pub type TxId = Hash;
 
 const MAX_COIN: u64 = 45000000000000000;
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+
+// TODO: add custom implementation of `serde::de::Deserialize` so we can check the
+// upper bound of the `Coin`.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Coin(u64);
 impl Coin {
     pub fn new(v: u64) -> Option<Self> {
@@ -93,7 +149,7 @@ impl cbor::CborValue for Coin {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
@@ -130,7 +186,7 @@ type RedeemerScript = TODO;
 type RedeemPublicKey = TODO;
 type RedeemSignature = TODO;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     /// signature of the `Tx` with the associated `XPub`
     /// the `XPub` is the public key set in the AddrSpendingData
@@ -230,7 +286,7 @@ impl cbor::CborValue for TxInWitness {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxIn {
     pub id: TxId,
     pub index: u32,
@@ -264,7 +320,7 @@ impl cbor::CborValue for TxIn {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tx {
     inputs: LinkedList<TxIn>,
     outputs: LinkedList<TxOut>,
@@ -310,6 +366,7 @@ impl cbor::CborValue for Tx {
 
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     tx: Tx,
     witnesses: Vec<TxInWitness>,
@@ -318,7 +375,7 @@ pub struct TxAux {
 pub struct TxProof {
     number: u32,
     root: merkle::Root<Tx>,
-    witnesses_hash: Hash<Vec<TxInWitness>>,
+    witnesses_hash: Hash,
 }
 
 #[cfg(test)]

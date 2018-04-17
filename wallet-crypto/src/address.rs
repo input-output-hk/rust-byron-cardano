@@ -1,17 +1,19 @@
 use std::fmt;
 use std::collections::BTreeMap;
+use serde;
 
 use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 use rcw::sha3::Sha3;
 
+use util::base58;
 use cbor;
 use cbor::{ExtendedResult};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
 /// Digest of the composition of `Blake2b_224 . Sha3_256`
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct DigestBlake2b224([u8;28]);
 impl DigestBlake2b224 {
     /// create digest from the given inputs by computing the SHA3_256 and
@@ -68,7 +70,7 @@ impl cbor::CborValue for DigestBlake2b224 {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
     ATPubKey,
     ATScript,
@@ -106,7 +108,7 @@ impl cbor::CborValue for AddrType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
@@ -127,7 +129,7 @@ impl fmt::Display for StakeholderId {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum StakeDistribution {
     BootstrapEraDistr,
     SingleKeyDistr(StakeholderId),
@@ -189,7 +191,7 @@ impl cbor::CborValue for StakeDistribution {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
     pub derivation_path: Option<HDAddressPayload>,
     pub stake_distribution: StakeDistribution
@@ -244,7 +246,7 @@ impl cbor::CborValue for Attributes {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Addr(DigestBlake2b224);
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -354,6 +356,61 @@ impl fmt::Display for ExtendedAddr {
         Ok(())
     }
 }
+impl serde::Serialize for ExtendedAddr
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        let vec = cbor::encode_to_cbor(self).unwrap();
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&base58::encode(&vec))
+        } else {
+            serializer.serialize_bytes(&vec)
+        }
+    }
+}
+struct XAddrVisitor();
+impl XAddrVisitor { fn new() -> Self { XAddrVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
+    type Value = ExtendedAddr;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting an Extended Address (`ExtendedAddr`)")
+    }
+
+    fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        let bytes = base58::decode(v);
+
+        match cbor::decode_from_cbor(&bytes) {
+            Err((val, err)) => { Err(E::custom(format!("{:?}\n{:?}", err, val))) },
+            Ok(v) => Ok(v)
+        }
+    }
+
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match cbor::decode_from_cbor(v) {
+            Err((val, err)) => { Err(E::custom(format!("{:?}\n{:?}", err, val))) },
+            Ok(v) => Ok(v)
+        }
+    }
+}
+impl<'de> serde::Deserialize<'de> for ExtendedAddr
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(XAddrVisitor::new())
+        } else {
+            deserializer.deserialize_bytes(XAddrVisitor::new())
+        }
+    }
+}
 
 pub type Script = [u8;32]; // TODO
 pub type RedeemPublicKey = [u8;32]; //TODO
@@ -362,7 +419,7 @@ const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
 const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
 const SPENDING_DATA_TAG_REDEEM : u64 = 2; // TODO
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
@@ -404,7 +461,7 @@ impl cbor::CborValue for SpendingData {
 mod tests {
     use address::*;
     use hdwallet;
-    use base58;
+    use util::base58;
 
     #[test]
     fn test_make_address() {
@@ -506,8 +563,7 @@ mod tests {
     #[test]
     fn decode_address_1() {
         let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
-        let alphabet  = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-        let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
+        let bytes     = base58::decode(addr_str);
 
         let r = ExtendedAddr::from_bytes(&bytes).unwrap();
 
@@ -518,13 +574,12 @@ mod tests {
     #[test]
     fn decode_address_2() {
         let addr_str  = "DdzFFzCqrhsi8XFMabbnHecVusaebqQCkXTqDnCumx5esKB1pk1zbhX5BtdAivZbQePFVujgzNCpBVXactPSmphuHRC5Xk8qmBd49QjW";
-        let alphabet  = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-        let bytes     = base58::base_decode(alphabet, addr_str.as_bytes());
+        let bytes     = base58::decode(addr_str);
 
         let r = ExtendedAddr::from_bytes(&bytes).unwrap();
 
         let b = r.to_bytes();
-        assert_eq!(addr_str, String::from_utf8(base58::base_encode(alphabet, &b)).unwrap());
+        assert_eq!(addr_str, base58::encode(&b));
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate rcw;
 extern crate wallet_crypto;
 
@@ -363,4 +366,34 @@ pub extern "C" fn wallet_tx_verify(xpub_ptr: *const c_uchar, tx_ptr: *const c_uc
     let txinwitness = tx::TxInWitness::PkWitness(xpub, signature);
 
     if txinwitness.verify_tx(&tx) { 0 } else { -1 }
+}
+
+/// this is the type of resolved TxIn.
+///
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+struct Utxo {
+    txin:  tx::TxIn,
+    value: tx::TxOut
+}
+
+#[no_mangle]
+pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize, amount :u32, output_ptr: *mut c_uchar) -> i32 {
+    let input_bytes = unsafe { read_data(input_ptr, input_sz) };
+    let input = String::from_utf8(input_bytes).unwrap();
+    let utxos : Vec<Utxo> = match serde_json::from_str(input.as_ref()) {
+        Err(err) => {
+            let output = format!("{}", err);
+            let output_bytes = output.into_bytes();
+
+            unsafe { write_data(&output_bytes, output_ptr) };
+            return output_bytes.len() as i32;
+        },
+        Ok(vec) => vec
+    };
+
+    let output = serde_json::to_string(&utxos).unwrap();
+    let output_bytes = output.into_bytes();
+
+    unsafe { write_data(&output_bytes, output_ptr) };
+    output_bytes.len() as i32
 }

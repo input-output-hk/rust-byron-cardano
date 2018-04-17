@@ -1,7 +1,11 @@
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+
 extern crate rcw;
 
 mod crc32;
-mod base58;
+mod util;
 mod merkle;
 pub mod hdwallet;
 pub mod paperwallet;
