@@ -171,7 +171,7 @@ pub extern "C" fn wallet_verify(xpub_ptr: *const c_uchar, msg_ptr: *const c_ucha
 
 #[no_mangle]
 pub extern "C" fn paper_scramble(iv_ptr: *const c_uchar, pass_ptr: *const c_uchar, pass_sz: usize, input_ptr: *const c_uchar, input_sz: usize, out: *mut c_uchar) {
-    let iv = unsafe { read_data(iv_ptr, 4) };
+    let iv = unsafe { read_data(iv_ptr, paperwallet::IV_SIZE) };
     let pass = unsafe { read_data(pass_ptr, pass_sz) };
     let input = unsafe { read_data(input_ptr, input_sz) };
     let output = paperwallet::scramble(&iv[..], &pass[..], &input[..]);

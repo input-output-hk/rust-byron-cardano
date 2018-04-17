@@ -4,7 +4,7 @@ use self::rcw::hmac::Hmac;
 use self::rcw::pbkdf2::{pbkdf2};
 
 const ITERS : u32 = 10000;
-const IV_SIZE: usize = 8;
+pub const IV_SIZE: usize = 8;
 const SALT_SIZE: usize = IV_SIZE;
 
 
