@@ -4,16 +4,14 @@ use self::rcw::hmac::Hmac;
 use self::rcw::pbkdf2::{pbkdf2};
 
 const ITERS : u32 = 10000;
-const IV_SIZE: usize = 4;
-const SALT_SIZE: usize = 8;
-const CONST : &'static [u8] = b"IOHK";
+const IV_SIZE: usize = 8;
+const SALT_SIZE: usize = IV_SIZE;
 
 
 fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
     assert!(iv.len() == IV_SIZE);
     let mut salt = [0u8;SALT_SIZE];
     salt[0..IV_SIZE].clone_from_slice(iv);
-    salt[IV_SIZE..SALT_SIZE].clone_from_slice(CONST);
     let mut mac = Hmac::new(Sha512::new(), password);
     pbkdf2(&mut mac, &salt[..], ITERS, buf);
 }
@@ -32,7 +30,7 @@ pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
 
     gen(iv, password, &mut out[IV_SIZE..sz]);
 
-    for i in 4..sz {
+    for i in IV_SIZE..sz {
         out[i] = out[i] ^ input[i-IV_SIZE];
     }
     out
@@ -81,30 +79,30 @@ mod tests {
 /// shielded_input (&'static str) = "UTF8 BIP39 passphrase (english)"
 /// ```
 struct TestVector {
-  iv : [u8;4],
+  iv : [u8;8],
   input : [u8;16],
   passphrase : &'static str,
-  shielded_input : [u8;20]
+  shielded_input : [u8;24]
 }
 
 const GOLDEN_TESTS : [TestVector;3] =
   [ TestVector
-    { iv : [0x00, 0x00, 0x00, 0x00]
+    { iv : [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
     , input : [0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f]
     , passphrase : ""
-    , shielded_input : [0x00, 0x00, 0x00, 0x00, 0x7d, 0xa9, 0x48, 0x4e, 0xbd, 0xbd, 0xf5, 0x78, 0x38, 0xe2, 0x34, 0x9c, 0x58, 0xdd, 0x2f, 0xa4]
+    , shielded_input : [0, 0, 0, 0, 0, 0, 0, 0, 250, 194, 41, 40, 102, 196, 34, 60, 90, 125, 175, 186, 222, 152, 14, 9]
     }
   , TestVector
-    { iv : [0x00, 0x01, 0x02, 0x03]
+    { iv : [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
     , input : [0x5a, 0x94, 0x0d, 0x50, 0xab, 0x0d, 0x4e, 0x2e, 0xbf, 0x3b, 0x2c, 0x6e, 0xb3, 0x99, 0xe8, 0x27]
     , passphrase : "Cardano Ada"
-    , shielded_input : [0x00, 0x01, 0x02, 0x03, 0x3c, 0x73, 0x43, 0x17, 0xb8, 0xf9, 0x7b, 0xcf, 0x1f, 0x42, 0xb9, 0x39, 0xf2, 0x82, 0x3c, 0x52]
+    , shielded_input : [0, 1, 2, 3, 4, 5, 6, 7, 193, 34, 111, 15, 127, 245, 15, 164, 3, 24, 171, 35, 99, 32, 181, 158]
     }
   , TestVector
-    { iv : [0x2a, 0x2a, 0x2a, 0x2a]
+    { iv : [0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a]
     , input : [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
     , passphrase : "This is a very long passphrase. This is a very long passphrase. This is a very long passphrase. This is a very long passphrase."
-    , shielded_input : [0x2a, 0x2a, 0x2a, 0x2a, 0xa5, 0x97, 0xfe, 0xb5, 0x08, 0xa5, 0x34, 0x06, 0xa3, 0x48, 0xfa, 0xdd, 0x75, 0xc8, 0xa7, 0x02]
+    , shielded_input : [42, 42, 42, 42, 42, 42, 42, 42, 199, 113, 24, 116, 236, 196, 179, 147, 0, 136, 72, 43, 59, 108, 139, 133]
     }
   ];
 
