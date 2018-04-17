@@ -4,14 +4,16 @@ use self::rcw::hmac::Hmac;
 use self::rcw::pbkdf2::{pbkdf2};
 
 const ITERS : u32 = 10000;
+const IV_SIZE: usize = 4;
+const SALT_SIZE: usize = 8;
 const CONST : &'static [u8] = b"IOHK";
 
 
 fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
-    assert!(iv.len() == 4);
-    let mut salt = [0u8;8];
-    salt[0..4].clone_from_slice(iv);
-    salt[4..8].clone_from_slice(CONST);
+    assert!(iv.len() == IV_SIZE);
+    let mut salt = [0u8;SALT_SIZE];
+    salt[0..IV_SIZE].clone_from_slice(iv);
+    salt[IV_SIZE..SALT_SIZE].clone_from_slice(CONST);
     let mut mac = Hmac::new(Sha512::new(), password);
     pbkdf2(&mut mac, &salt[..], ITERS, buf);
 }
@@ -19,38 +21,38 @@ fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
 /// Given a 4 bytes IV, and a password, scramble the input
 /// using a simple XOR, and returning the IV prepended to the shielded input
 pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
-    assert!(iv.len() == 4);
-    let sz = 4 + input.len();
+    assert!(iv.len() == IV_SIZE);
+    let sz = IV_SIZE + input.len();
     let mut out = Vec::with_capacity(sz);
 
     out.extend_from_slice(iv);
-    for _ in 4..sz {
+    for _ in IV_SIZE..sz {
         out.push(0);
     }
 
-    gen(iv, password, &mut out[4..sz]);
+    gen(iv, password, &mut out[IV_SIZE..sz]);
 
     for i in 4..sz {
-        out[i] = out[i] ^ input[i-4];
+        out[i] = out[i] ^ input[i-IV_SIZE];
     }
     out
 }
 
 /// Try to reverse the scramble operation, using
-/// the first 4 bytes as IV, and the rest as the shielded input.
+/// the first `IV_SIZE` bytes as IV, and the rest as the shielded input.
 pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8>{
-    assert!(input.len() > 4);
+    assert!(input.len() > IV_SIZE);
 
-    let out_sz = input.len() - 4;
+    let out_sz = input.len() - IV_SIZE;
 
     let mut out = Vec::with_capacity(out_sz);
     for _ in 0..out_sz {
         out.push(0);
     }
 
-    gen(&input[0..4], password, &mut out[0..out_sz]);
+    gen(&input[0..IV_SIZE], password, &mut out[0..out_sz]);
     for i in 0..out_sz {
-        out[i] = out[i] ^ input[4+i];
+        out[i] = out[i] ^ input[IV_SIZE+i];
     }
     out
 }
