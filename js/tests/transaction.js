@@ -25,6 +25,7 @@ const TEST_VECTORS = [
 
 let mkTest = (i) => {
     const { txid, index, txin, address, amount, txout, tx, xprv, xpub, signature} = TEST_VECTORS[i];
+    const cfg = CardanoCrypto.Config.defaultConfig();
 
     describe('Test ' + i, function() {
         it('create a TxIn', function() {
@@ -45,11 +46,11 @@ let mkTest = (i) => {
         });
 
         it('sign a Tx', function() {
-            expect(CardanoCrypto.Tx.sign(tx, xprv))
+            expect(CardanoCrypto.Tx.sign(cfg, tx, xprv))
                 .deep.equal(signature);
         });
         it('verify a TX signature', function() {
-            expect(CardanoCrypto.Tx.verify(tx, xpub, signature))
+            expect(CardanoCrypto.Tx.verify(cfg, tx, xpub, signature))
                 .equal(true);
         });
     });

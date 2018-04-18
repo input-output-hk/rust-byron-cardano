@@ -7,6 +7,7 @@ use rcw::blake2b::Blake2b;
 use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
+use config::{Config};
 
 use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
@@ -196,12 +197,11 @@ pub enum TxInWitness {
 }
 impl TxInWitness {
     /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
-    pub fn new(key: &XPrv, tx: &Tx) -> Self {
+    pub fn new(cfg: &Config, key: &XPrv, tx: &Tx) -> Self {
         let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
 
-        let mut vec = vec![ 0x01 // this is the tag for TxSignature
-                          , 0x1a, 0x2d, 0x96, 0x4a, 0x09 // this is the magic (serialised in cbor...)
-                          ];
+        let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
+        vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
         vec.extend_from_slice(&txid);
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
     }
@@ -223,14 +223,13 @@ impl TxInWitness {
 
     /// verify the signature against the given transation `Tx`
     ///
-    pub fn verify_tx(&self, tx: &Tx) -> bool {
+    pub fn verify_tx(&self, cfg: &Config, tx: &Tx) -> bool {
         match self {
             &TxInWitness::PkWitness(ref pk, ref sig) => {
                 let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
 
-                let mut vec = vec![ 0x01 // this is the tag for TxSignature
-                                  , 0x1a, 0x2d, 0x96, 0x4a, 0x09 // this is the magic (serialised in cbor...)
-                                  ];
+                let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
+                vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
                 vec.extend_from_slice(&txid);
 
                 pk.verify(&vec, sig)
@@ -241,8 +240,8 @@ impl TxInWitness {
     }
 
     /// verify the address's public key and the transaction signature
-    pub fn verify(&self, address: &ExtendedAddr, tx: &Tx) -> bool {
-        self.verify_address(address) && self.verify_tx(tx)
+    pub fn verify(&self, cfg: &Config, address: &ExtendedAddr, tx: &Tx) -> bool {
+        self.verify_address(address) && self.verify_tx(&cfg, tx)
     }
 }
 impl cbor::CborValue for TxInWitness {
@@ -385,6 +384,7 @@ mod tests {
     use hdpayload;
     use hdwallet;
     use cbor;
+    use config::{Config};
 
     const SEED: [u8;hdwallet::SEED_SIZE] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
@@ -478,29 +478,32 @@ mod tests {
 
     #[test]
     fn txinwitness_decode() {
+        let cfg = Config::default();
         let txinwitness : TxInWitness = cbor::decode_from_cbor(TX_IN_WITNESS).expect("to decode a `TxInWitness`");
         let tx : Tx = cbor::decode_from_cbor(TX).expect("to decode a `Tx`");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        assert!(txinwitness == TxInWitness::new(&sk, &tx));
+        assert!(txinwitness == TxInWitness::new(&cfg, &sk, &tx));
     }
 
     #[test]
     fn txinwitness_encode_decode() {
+        let cfg = Config::default();
         let tx : Tx = cbor::decode_from_cbor(TX).expect("to decode a `Tx`");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        let txinwitness = TxInWitness::new(&sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
 
         assert!(cbor::hs::encode_decode(&txinwitness));
     }
 
     #[test]
     fn txinwitness_sign_verify() {
+        let cfg = Config::default();
         // create wallet's keys
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -527,11 +530,11 @@ mod tests {
         // txout of this given transation
 
         // create a TxInWitness (i.e. sign the given transaction)
-        let txinwitness = TxInWitness::new(&sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));
-        assert!(txinwitness.verify_tx(&tx));
-        assert!(txinwitness.verify(&ea, &tx));
+        assert!(txinwitness.verify_tx(&cfg, &tx));
+        assert!(txinwitness.verify(&cfg, &ea, &tx));
     }
 }
