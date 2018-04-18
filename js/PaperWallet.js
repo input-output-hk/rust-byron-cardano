@@ -5,15 +5,15 @@ import { apply } from './utils/functions';
 import Bip39 from './Bip39';
 
 export const scramble = (module, iv, password, input) => {
-  if (iv.length !== 4) {
-    throw new Error('IV must be 4 bytes');
+  if (iv.length !== 8) {
+    throw new Error('IV must be 8 bytes');
   }
   const bufiv = newArray(module, iv);
   const bufinput = newArray(module, input);
   const bufpassword = newArray(module, password);
-  const bufoutput = newArray0(module, input.length + 4);
+  const bufoutput = newArray0(module, input.length + 8);
   module.paper_scramble(bufiv, bufpassword, password.length, bufinput, input.length, bufoutput);
-  let result = copyArray(module, bufoutput, input.length + 4);
+  let result = copyArray(module, bufoutput, input.length + 8);
   module.dealloc(bufiv);
   module.dealloc(bufinput);
   module.dealloc(bufpassword);
@@ -36,14 +36,14 @@ export const scrambleStrings = (module, iv, password, mnenomics) => (
 );
 
 export const unscramble = (module, password, input) => {
-  if (input.length < 4) {
-    throw new Error('input must be at least 4 bytes');
+  if (input.length < 8) {
+    throw new Error('input must be at least 8 bytes');
   }
   const bufinput = newArray(module, input);
   const bufpassword = newArray(module, password);
-  const bufoutput = newArray0(module, input.length - 4);
+  const bufoutput = newArray0(module, input.length - 8);
   module.paper_unscramble(bufpassword, password.length, bufinput, input.length, bufoutput);
-  let result = copyArray(module, bufoutput, input.length - 4);
+  let result = copyArray(module, bufoutput, input.length - 8);
   module.dealloc(bufinput);
   module.dealloc(bufpassword);
   module.dealloc(bufoutput);
