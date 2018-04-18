@@ -1,13 +1,71 @@
 pub mod hex {
-    use super::{base_decode, base_encode};
-
-    const ALPHABET : &'static str = "0123456789abcdef";
+    const ALPHABET : &'static [u8] = b"0123456789abcdef";
 
     pub fn encode(input: &[u8]) -> String {
-        String::from_utf8(base_encode(ALPHABET, input)).unwrap()
+        let mut v = Vec::with_capacity(input.len() * 2);
+        for &byte in input.iter() {
+            v.push(ALPHABET[(byte >> 4) as usize]);
+            v.push(ALPHABET[(byte & 0xf) as usize]);
+        }
+
+        unsafe {
+            String::from_utf8_unchecked(v)
+        }
     }
     pub fn decode(input: &str) -> Vec<u8> {
-        base_decode(ALPHABET, input.as_bytes())
+        let mut b = Vec::with_capacity(input.len() / 2);
+        let mut modulus = 0;
+        let mut buf = 0;
+
+        for (idx, byte) in input.bytes().enumerate() {
+            buf <<= 4;
+
+            match byte {
+                b'A'...b'F' => buf |= byte - b'A' + 10,
+                b'a'...b'f' => buf |= byte - b'a' + 10,
+                b'0'...b'9' => buf |= byte - b'0',
+                b' '|b'\r'|b'\n'|b'\t' => {
+                    buf >>= 4;
+                    continue
+                }
+                _ => {
+                    // we only assume correct inputs
+                    unimplemented!()
+                }
+            }
+
+            modulus += 1;
+            if modulus == 2 {
+                modulus = 0;
+                b.push(buf);
+            }
+        }
+
+        b
+    }
+
+    #[cfg(test)]
+    mod tests {
+        fn encode(input: &[u8], expected: &str) {
+            let encoded = super::encode(input);
+            assert_eq!(encoded, expected);
+        }
+        fn decode(expected: &[u8], input: &str) {
+            let decoded = super::decode(input);
+            assert_eq!(decoded.as_slice(), expected);
+        }
+
+        #[test]
+        fn test_vector_1() {
+            encode(&[1,2,3,4], "01020304");
+            decode(&[1,2,3,4], "01020304");
+        }
+
+        #[test]
+        fn test_vector_2() {
+            encode(&[0xff,0x0f,0xff,0xff], "ff0fffff");
+            decode(&[0xff,0x0f,0xff,0xff], "ff0fffff");
+        }
     }
 }
 
@@ -21,6 +79,66 @@ pub mod base58 {
     }
     pub fn decode(input: &str) -> Vec<u8> {
         base_decode(ALPHABET, input.as_bytes())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        fn encode(input: &[u8], expected: &str) {
+            let encoded = super::encode(input);
+            assert_eq!(encoded, expected);
+        }
+        fn decode(expected: &[u8], input: &str) {
+            let decoded = super::decode(input);
+            assert_eq!(decoded.as_slice(), expected);
+        }
+
+        #[test]
+        fn test_vector_1() {
+            encode(b"\0\0\0\0", "11111");
+            decode(b"\0\0\0\0", "11111");
+        }
+
+        #[test]
+        fn test_vector_2() {
+            encode(b"This is awesome!", "BRY7dK2V98Sgi7CFWiZbap");
+            decode(b"This is awesome!", "BRY7dK2V98Sgi7CFWiZbap");
+        }
+
+        #[test]
+        fn test_vector_3() {
+            encode(b"Hello World...", "TcgsE5dzphUWfjcb9i5");
+            decode(b"Hello World...", "TcgsE5dzphUWfjcb9i5");
+        }
+
+        #[test]
+        fn test_vector_4() {
+            encode(b"\0abc", "1ZiCa");
+            decode(b"\0abc", "1ZiCa");
+        }
+
+        #[test]
+        fn test_vector_5() {
+            encode(b"\0\0abc", "11ZiCa");
+            decode(b"\0\0abc", "11ZiCa");
+        }
+
+        #[test]
+        fn test_vector_6() {
+            encode(b"\0\0\0abc", "111ZiCa");
+            decode(b"\0\0\0abc", "111ZiCa");
+        }
+
+        #[test]
+        fn test_vector_7() {
+            encode(b"\0\0\0\0abc", "1111ZiCa");
+            decode(b"\0\0\0\0abc", "1111ZiCa");
+        }
+
+        #[test]
+        fn test_vector_8() {
+            encode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
+            decode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
+        }
     }
 }
 
@@ -44,8 +162,6 @@ pub fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     }
 
     let mut string = vec![];
-    //let mut k = 0;
-    //while (alphabet[k] ==
 
     let mut k = 0;
     while (k < input.len()) && (input[k] == 0) {
@@ -65,8 +181,9 @@ pub fn base_decode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     let base = alphabet.len() as u32;
 
     let mut bytes : Vec<u8> = vec![0];
+    let zcount = input.iter().take_while(|x| **x == alphabet[0]).count();
 
-    for i in 0..input.len() {
+    for i in zcount..input.len() {
         let value = match alphabet.iter().position(|&x| x == input[i]) {
                     Some(idx) => idx,
                     None      => panic!()
@@ -83,47 +200,14 @@ pub fn base_decode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
             carry = carry >> 8;
         }
     }
+    let leading_zeros = bytes.iter().rev().take_while(|x| **x == 0).count();
+    if zcount > leading_zeros {
+        if leading_zeros > 0 {
+            for _ in 0..(zcount - leading_zeros - 1) { bytes.push(0); }
+        } else {
+            for _ in 0..zcount { bytes.push(0); }
+        }
+    }
     bytes.reverse();
     bytes
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{base_encode, base_decode};
-
-    struct TestVector {
-        msg: &'static [u8],
-        res: &'static [u8]
-    }
-
-    const TEST_VECTORS : [TestVector;2] =
-        [ TestVector {
-            msg: b"This is awesome!",
-            res: b"BRY7dK2V98Sgi7CFWiZbap"
-          }
-        , TestVector {
-            msg: b"Hello World...",
-            res: b"TcgsE5dzphUWfjcb9i5"
-          }
-        ];
-
-    #[test]
-    fn base58_encode() {
-        let alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-        for tv in TEST_VECTORS.iter() {
-            let v = base_encode(&alphabet, tv.msg);
-            assert_eq!(tv.res, v.as_slice());
-        }
-    }
-
-    #[test]
-    fn base58_decode() {
-        let alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-        for tv in TEST_VECTORS.iter() {
-            let v = base_decode(&alphabet, tv.res);
-            assert_eq!(tv.msg, v.as_slice());
-        }
-    }
 }
