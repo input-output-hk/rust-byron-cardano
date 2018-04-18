@@ -11,9 +11,11 @@ use self::rcw::util::fixed_time_eq;
 
 use std::fmt;
 use std::marker::PhantomData;
-use base58::from_hex;
+use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
+
+use serde;
 
 pub const SEED_SIZE: usize = 32;
 pub const XPRV_SIZE: usize = 96;
@@ -25,7 +27,7 @@ pub const CHAIN_CODE_SIZE: usize = 32;
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Seed([u8; SEED_SIZE]);
 impl Seed {
     /// create a Seed by taking ownership of the given array
@@ -135,7 +137,7 @@ impl XPrv {
     /// ```
     ///
     pub fn from_hex(hex: &str) -> Option<Self> {
-        Self::from_slice(from_hex(hex).as_ref())
+        Self::from_slice(hex::decode(hex).as_ref())
     }
 
     /// get te associated `XPub`
@@ -200,6 +202,41 @@ impl fmt::Debug for XPrv {
 impl AsRef<[u8]> for XPrv {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
+impl serde::Serialize for XPrv
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.as_ref())
+    }
+}
+struct XPrvVisitor();
+impl XPrvVisitor { fn new() -> Self { XPrvVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
+    type Value = XPrv;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting an Extended Private Key (`XPrv`) of {} bytes.", XPRV_SIZE)
+    }
+
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match XPrv::from_slice(v) {
+            None => Err(E::invalid_length(v.len(), &"96 bytes")),
+            Some(xpub) => Ok(xpub)
+        }
+    }
+}
+impl<'de> serde::Deserialize<'de> for XPrv
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        deserializer.deserialize_bytes(XPrvVisitor::new())
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct XPub([u8; XPUB_SIZE]);
@@ -232,7 +269,7 @@ impl XPub {
     /// ```
     ///
     pub fn from_hex(hex: &str) -> Option<Self> {
-        Self::from_slice(from_hex(hex).as_ref())
+        Self::from_slice(hex::decode(hex).as_ref())
     }
 
     /// verify a signature
@@ -287,9 +324,45 @@ impl cbor::CborValue for XPub {
         }).embed("while decoding `XPub`")
     }
 }
+impl serde::Serialize for XPub
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.as_ref())
+    }
+}
+struct XPubVisitor();
+impl XPubVisitor { fn new() -> Self { XPubVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for XPubVisitor {
+    type Value = XPub;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting an Extended Public Key (`XPub`) of {} bytes.", XPUB_SIZE)
+    }
+
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match XPub::from_slice(v) {
+            None => Err(E::invalid_length(v.len(), &"64 bytes")),
+            Some(xpub) => Ok(xpub)
+        }
+    }
+}
+impl<'de> serde::Deserialize<'de> for XPub
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        deserializer.deserialize_bytes(XPubVisitor::new())
+    }
+}
 
 /// a signature with an associated type tag
 ///
+#[derive(Clone)]
 pub struct Signature<T> {
     bytes: [u8; SIGNATURE_SIZE],
     _phantom: PhantomData<T>,
@@ -310,7 +383,7 @@ impl<T> Signature<T> {
     }
 
     pub fn from_hex(hex: &str) -> Option<Self> {
-        Self::from_slice(from_hex(hex).as_ref())
+        Self::from_slice(hex::decode(hex).as_ref())
     }
 
     pub fn coerce<R>(self) -> Signature<R> {
@@ -349,11 +422,47 @@ impl<T> cbor::CborValue for Signature<T> {
         }).embed("while decoding Signature<T>")
     }
 }
+impl<T> serde::Serialize for Signature<T>
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.as_ref())
+    }
+}
+struct SignatureVisitor<T>(PhantomData<T>);
+impl<T> SignatureVisitor<T> { fn new() -> Self { SignatureVisitor (PhantomData) } }
+impl<'de, T> serde::de::Visitor<'de> for SignatureVisitor<T> {
+    type Value = Signature<T>;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expected a signature (`Signature`) of {} bytes.", SIGNATURE_SIZE)
+    }
+
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match Signature::from_slice(v) {
+            None => Err(E::invalid_length(v.len(), &"64 bytes")),
+            Some(sig) => Ok(sig)
+        }
+    }
+}
+impl<'de, T> serde::Deserialize<'de> for Signature<T>
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        deserializer.deserialize_bytes(SignatureVisitor::new())
+    }
+}
 
 pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
 type DerivationIndex = u32;
 
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
 enum DerivationType {
     Soft(u32),
     Hard(u32),

@@ -1,10 +1,27 @@
-const HEX_ALPHABET : &'static str = "0123456789abcdef";
+pub mod hex {
+    use super::{base_decode, base_encode};
 
-pub fn to_hex(input: &[u8]) -> String {
-    String::from_utf8(base_encode(HEX_ALPHABET, input)).unwrap()
+    const ALPHABET : &'static str = "0123456789abcdef";
+
+    pub fn encode(input: &[u8]) -> String {
+        String::from_utf8(base_encode(ALPHABET, input)).unwrap()
+    }
+    pub fn decode(input: &str) -> Vec<u8> {
+        base_decode(ALPHABET, input.as_bytes())
+    }
 }
-pub fn from_hex(input: &str) -> Vec<u8> {
-    base_decode(HEX_ALPHABET, input.as_bytes())
+
+pub mod base58 {
+    use super::{base_decode, base_encode};
+
+    const ALPHABET : &'static str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+    pub fn encode(input: &[u8]) -> String {
+        String::from_utf8(base_encode(ALPHABET, input)).unwrap()
+    }
+    pub fn decode(input: &str) -> Vec<u8> {
+        base_decode(ALPHABET, input.as_bytes())
+    }
 }
 
 pub fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {

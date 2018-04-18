@@ -16,7 +16,7 @@ const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
 const TAG_LEN : usize = 16;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Path(Vec<u32>);
 impl AsRef<[u32]> for Path {
     fn as_ref(&self) -> &[u32] { self.0.as_ref() }
@@ -41,7 +41,7 @@ impl cbor::CborValue for Path {
 
 pub const HDKEY_SIZE : usize = 32;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HDKey([u8;HDKEY_SIZE]);
 impl AsRef<[u8]> for HDKey {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
@@ -109,7 +109,7 @@ impl HDKey {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HDAddressPayload(Vec<u8>);
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }

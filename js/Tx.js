@@ -1,3 +1,4 @@
+import iconv from 'iconv-lite';
 import RustModule from './RustModule';
 import { newArray, newArray0, copyArray } from './utils/arrays';
 import { apply } from './utils/functions';
@@ -157,6 +158,24 @@ export const verify = (module, tx, xpub, signature) => {
         return result === 0
 };
 
+export const selectInputs = (module, inputs, amount) => {
+    const input_str = JSON.stringify(inputs);
+    const input_array = iconv.encode(input_str, 'utf8');
+
+    const bufinput  = newArray(module, input_array);
+    const bufoutput = newArray0(module, 1024);
+
+    let rsz = module.wallet_filter_utxos(bufinput, input_array.length, amount, bufoutput);
+    let output_array = copyArray(module, bufoutput, rsz);
+
+    module.dealloc(bufoutput);
+    module.dealloc(bufinput);
+
+    let output_str = iconv.decode(Buffer.from(output_array), 'utf8');
+    console.log(output_str);
+    return JSON.parse(output_str);
+};
+
 export default {
   newTxOut: apply(newTxOut, RustModule),
   newTxIn:  apply(newTxIn, RustModule),
@@ -165,4 +184,5 @@ export default {
   addOutput: apply(addOutput, RustModule),
   sign: apply(sign, RustModule),
   verify: apply(verify, RustModule),
+  selectInputs: apply(selectInputs, RustModule),
 };
