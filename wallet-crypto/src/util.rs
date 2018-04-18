@@ -132,8 +132,6 @@ pub fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     }
 
     let mut string = vec![];
-    //let mut k = 0;
-    //while (alphabet[k] ==
 
     let mut k = 0;
     while (k < input.len()) && (input[k] == 0) {
