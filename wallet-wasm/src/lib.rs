@@ -16,6 +16,7 @@ use self::wallet_crypto::paperwallet;
 use self::wallet_crypto::address;
 use self::wallet_crypto::hdpayload;
 use self::wallet_crypto::tx;
+use self::wallet_crypto::config::{Config};
 
 use self::wallet_crypto::cbor::{encode_to_cbor, decode_from_cbor};
 
@@ -341,13 +342,16 @@ pub extern "C" fn wallet_tx_add_txout(tx_ptr: *const c_uchar, tx_sz: usize, txou
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_tx_sign(xprv_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, out: *mut c_uchar) {
+pub extern "C" fn wallet_tx_sign(cfg_ptr: *const c_uchar, cfg_size: usize, xprv_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, out: *mut c_uchar) {
+    let cfg_bytes : Vec<u8> = unsafe { read_data(cfg_ptr, cfg_size) };
+    let cfg_str = String::from_utf8(cfg_bytes).unwrap();
+    let cfg : Config = serde_json::from_str(cfg_str.as_str()).unwrap();
     let xprv = unsafe { read_xprv(xprv_ptr) };
     let tx_bytes = unsafe { read_data(tx_ptr, tx_sz) };
 
     let tx = decode_from_cbor(&tx_bytes).unwrap();
 
-    let txinwitness = tx::TxInWitness::new(&xprv, &tx);
+    let txinwitness = tx::TxInWitness::new(&cfg, &xprv, &tx);
 
     let signature = match txinwitness {
         tx::TxInWitness::PkWitness(_, sig) => sig,

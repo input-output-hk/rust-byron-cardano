@@ -116,19 +116,25 @@ export const addOutput = (module, tx, txout) => {
  * Sign the given tx, this function returns the signature, not the TxInWitness
  *
  * @param module - the WASM module that is used for crypto operations
+ * @param config - the configuration
  * @param tx     - the transaction to add the given TxOut
  * @param xprv   - the extended private key to sign the transaction with
  * @returns {*} - the signature
  */
-export const sign = (module, tx, xprv) => {
+export const sign = (module, config, tx, xprv) => {
+        const config_str   = JSON.stringify(config);
+        const config_array = iconv.encode(config_str, 'utf8');
+
         const buftx = newArray(module, tx);
         const bufxprv = newArray(module, xprv);
+        const bufcfg  = newArray(module, config_array);
         const bufsig = newArray0(module, 64);
 
-        module.wallet_tx_sign(bufxprv, buftx, tx.length, bufsig);
+        module.wallet_tx_sign(bufcfg, config_array.length, bufxprv, buftx, tx.length, bufsig);
         let result = copyArray(module, bufsig, 64);
 
         module.dealloc(bufsig);
+        module.dealloc(bufcfg);
         module.dealloc(bufxprv);
         module.dealloc(buftx);
 
