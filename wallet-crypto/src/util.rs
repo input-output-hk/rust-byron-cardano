@@ -1,13 +1,47 @@
 pub mod hex {
-    use super::{base_decode, base_encode};
-
-    const ALPHABET : &'static str = "0123456789abcdef";
+    const ALPHABET : &'static [u8] = b"0123456789abcdef";
 
     pub fn encode(input: &[u8]) -> String {
-        String::from_utf8(base_encode(ALPHABET, input)).unwrap()
+        let mut v = Vec::with_capacity(input.len() * 2);
+        for &byte in input.iter() {
+            v.push(ALPHABET[(byte >> 4) as usize]);
+            v.push(ALPHABET[(byte & 0xf) as usize]);
+        }
+
+        unsafe {
+            String::from_utf8_unchecked(v)
+        }
     }
     pub fn decode(input: &str) -> Vec<u8> {
-        base_decode(ALPHABET, input.as_bytes())
+        let mut b = Vec::with_capacity(input.len() / 2);
+        let mut modulus = 0;
+        let mut buf = 0;
+
+        for (idx, byte) in input.bytes().enumerate() {
+            buf <<= 4;
+
+            match byte {
+                b'A'...b'F' => buf |= byte - b'A' + 10,
+                b'a'...b'f' => buf |= byte - b'a' + 10,
+                b'0'...b'9' => buf |= byte - b'0',
+                b' '|b'\r'|b'\n'|b'\t' => {
+                    buf >>= 4;
+                    continue
+                }
+                _ => {
+                    // we only assume correct inputs
+                    unimplemented!()
+                }
+            }
+
+            modulus += 1;
+            if modulus == 2 {
+                modulus = 0;
+                b.push(buf);
+            }
+        }
+
+        b
     }
 
     #[cfg(test)]
