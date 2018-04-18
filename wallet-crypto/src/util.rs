@@ -109,6 +109,36 @@ pub mod base58 {
             encode(b"Hello World...", "TcgsE5dzphUWfjcb9i5");
             decode(b"Hello World...", "TcgsE5dzphUWfjcb9i5");
         }
+
+        #[test]
+        fn test_vector_4() {
+            encode(b"\0abc", "1ZiCa");
+            decode(b"\0abc", "1ZiCa");
+        }
+
+        #[test]
+        fn test_vector_5() {
+            encode(b"\0\0abc", "11ZiCa");
+            decode(b"\0\0abc", "11ZiCa");
+        }
+
+        #[test]
+        fn test_vector_6() {
+            encode(b"\0\0\0abc", "111ZiCa");
+            decode(b"\0\0\0abc", "111ZiCa");
+        }
+
+        #[test]
+        fn test_vector_7() {
+            encode(b"\0\0\0\0abc", "1111ZiCa");
+            decode(b"\0\0\0\0abc", "1111ZiCa");
+        }
+
+        #[test]
+        fn test_vector_8() {
+            encode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
+            decode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
+        }
     }
 }
 
