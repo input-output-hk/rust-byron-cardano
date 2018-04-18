@@ -181,8 +181,9 @@ pub fn base_decode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     let base = alphabet.len() as u32;
 
     let mut bytes : Vec<u8> = vec![0];
+    let zcount = input.iter().take_while(|x| **x == alphabet[0]).count();
 
-    for i in 0..input.len() {
+    for i in zcount..input.len() {
         let value = match alphabet.iter().position(|&x| x == input[i]) {
                     Some(idx) => idx,
                     None      => panic!()
@@ -197,6 +198,14 @@ pub fn base_decode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
         while carry > 0 {
             bytes.push(carry as u8);
             carry = carry >> 8;
+        }
+    }
+    let leading_zeros = bytes.iter().rev().take_while(|x| **x == 0).count();
+    if zcount > leading_zeros {
+        if leading_zeros > 0 {
+            for _ in 0..(zcount - leading_zeros - 1) { bytes.push(0); }
+        } else {
+            for _ in 0..zcount { bytes.push(0); }
         }
     }
     bytes.reverse();
