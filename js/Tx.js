@@ -145,19 +145,25 @@ export const sign = (module, config, tx, xprv) => {
  * Verify the given signature of a tx
  *
  * @param module  - the WASM module that is used for crypto operations
+ * @param config  - the configuration
  * @param tx      - the transaction to add the given TxOut
  * @param xpub    - the extended private key to sign the transaction with
  * @param signature - the signature to verify
  * @returns {*}   - true or false
  */
-export const verify = (module, tx, xpub, signature) => {
+export const verify = (module, config, tx, xpub, signature) => {
+        const config_str   = JSON.stringify(config);
+        const config_array = iconv.encode(config_str, 'utf8');
+
         const buftx = newArray(module, tx);
         const bufxpub = newArray(module, xpub);
+        const bufcfg  = newArray(module, config_array);
         const bufsig  = newArray(module, signature);
 
-        let result = module.wallet_tx_verify(bufxpub, buftx, tx.length, bufsig);
+        let result = module.wallet_tx_verify(bufcfg, config_array.length, bufxpub, buftx, tx.length, bufsig);
 
         module.dealloc(bufsig);
+        module.dealloc(bufcfg);
         module.dealloc(bufxpub);
         module.dealloc(buftx);
 

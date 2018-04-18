@@ -50,7 +50,7 @@ let mkTest = (i) => {
                 .deep.equal(signature);
         });
         it('verify a TX signature', function() {
-            expect(CardanoCrypto.Tx.verify(tx, xpub, signature))
+            expect(CardanoCrypto.Tx.verify(cfg, tx, xpub, signature))
                 .equal(true);
         });
     });

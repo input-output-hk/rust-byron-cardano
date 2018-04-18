@@ -223,14 +223,13 @@ impl TxInWitness {
 
     /// verify the signature against the given transation `Tx`
     ///
-    pub fn verify_tx(&self, tx: &Tx) -> bool {
+    pub fn verify_tx(&self, cfg: &Config, tx: &Tx) -> bool {
         match self {
             &TxInWitness::PkWitness(ref pk, ref sig) => {
                 let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
 
-                let mut vec = vec![ 0x01 // this is the tag for TxSignature
-                                  , 0x1a, 0x2d, 0x96, 0x4a, 0x09 // this is the magic (serialised in cbor...)
-                                  ];
+                let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
+                vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
                 vec.extend_from_slice(&txid);
 
                 pk.verify(&vec, sig)
@@ -241,8 +240,8 @@ impl TxInWitness {
     }
 
     /// verify the address's public key and the transaction signature
-    pub fn verify(&self, address: &ExtendedAddr, tx: &Tx) -> bool {
-        self.verify_address(address) && self.verify_tx(tx)
+    pub fn verify(&self, cfg: &Config, address: &ExtendedAddr, tx: &Tx) -> bool {
+        self.verify_address(address) && self.verify_tx(&cfg, tx)
     }
 }
 impl cbor::CborValue for TxInWitness {
@@ -535,7 +534,7 @@ mod tests {
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));
-        assert!(txinwitness.verify_tx(&tx));
-        assert!(txinwitness.verify(&ea, &tx));
+        assert!(txinwitness.verify_tx(&cfg, &tx));
+        assert!(txinwitness.verify(&cfg, &ea, &tx));
     }
 }

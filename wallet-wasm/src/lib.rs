@@ -361,7 +361,10 @@ pub extern "C" fn wallet_tx_sign(cfg_ptr: *const c_uchar, cfg_size: usize, xprv_
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_tx_verify(xpub_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, sig_ptr: *const c_uchar) -> i32 {
+pub extern "C" fn wallet_tx_verify(cfg_ptr: *const c_uchar, cfg_size: usize, xpub_ptr: *const c_uchar, tx_ptr: *const c_uchar, tx_sz: usize, sig_ptr: *const c_uchar) -> i32 {
+    let cfg_bytes : Vec<u8> = unsafe { read_data(cfg_ptr, cfg_size) };
+    let cfg_str = String::from_utf8(cfg_bytes).unwrap();
+    let cfg : Config = serde_json::from_str(cfg_str.as_str()).unwrap();
     let xpub = unsafe { read_xpub(xpub_ptr) };
     let signature = unsafe { read_signature(sig_ptr) };
 
@@ -370,7 +373,7 @@ pub extern "C" fn wallet_tx_verify(xpub_ptr: *const c_uchar, tx_ptr: *const c_uc
 
     let txinwitness = tx::TxInWitness::PkWitness(xpub, signature);
 
-    if txinwitness.verify_tx(&tx) { 0 } else { -1 }
+    if txinwitness.verify_tx(&cfg, &tx) { 0 } else { -1 }
 }
 
 mod jrpc {
