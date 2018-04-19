@@ -18,6 +18,8 @@ use self::wallet_crypto::hdpayload;
 use self::wallet_crypto::tx;
 use self::wallet_crypto::tx::fee::Algorithm;
 use self::wallet_crypto::config::{Config};
+use self::wallet_crypto::wallet;
+use self::wallet_crypto::wallet::{Wallet};
 
 use self::wallet_crypto::cbor;
 use self::wallet_crypto::cbor::{encode_to_cbor, decode_from_cbor};
@@ -467,6 +469,7 @@ enum Error {
     ErrorJSON(serde_json::error::Error),
     ErrorCBOR(cbor::Error),
     ErrorFEE(tx::fee::Error),
+    ErrorWallet(wallet::Error),
 }
 impl convert::From<string::FromUtf8Error> for Error {
     fn from(j: string::FromUtf8Error) -> Self { Error::ErrorUtf8(j) }
@@ -479,6 +482,9 @@ impl convert::From<cbor::Error> for Error {
 }
 impl convert::From<tx::fee::Error> for Error {
     fn from(j: tx::fee::Error) -> Self { Error::ErrorFEE(j) }
+}
+impl convert::From<wallet::Error> for Error {
+    fn from(j: wallet::Error) -> Self { Error::ErrorWallet(j) }
 }
 
 type Result<T> = result::Result<T, Error>;
@@ -498,6 +504,33 @@ macro_rules! input_json {
     ($output_ptr:ident, $input_ptr:ident, $input_sz:ident,) => ({
         input_json!($output_ptr, $input_ptr, $input_sz)
     });
+}
+
+#[no_mangle]
+pub extern "C" fn xwallet_create(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
+    let seed = input_json!(output_ptr, input_ptr, input_sz);
+    jrpc_ok!(output_ptr, Wallet::new_from_seed(seed))
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+struct WalletSpendInput {
+    wallet: Wallet,
+    inputs: tx::Inputs,
+    outputs: tx::Outputs,
+    fee_addr: address::ExtendedAddr
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+struct WalletSpendOutput {
+    wallet: Wallet,
+    txaux: tx::TxAux
+}
+
+#[no_mangle]
+pub extern "C" fn xwallet_spend(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
+    let mut input : WalletSpendInput = input_json!(output_ptr, input_ptr, input_sz);
+    let txaux = jrpc_try!(output_ptr, input.wallet.new_transaction(&input.inputs, &input.outputs, &input.fee_addr));
+    jrpc_ok!(output_ptr, WalletSpendOutput { wallet: input.wallet, txaux: txaux })
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

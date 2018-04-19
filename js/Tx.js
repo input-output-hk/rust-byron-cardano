@@ -170,14 +170,32 @@ export const verify = (module, config, tx, xpub, signature) => {
         return result === 0
 };
 
-export const computeFee = (module, inputs) => {
-    const input_str = JSON.stringify(inputs);
+export const createWallet = (module, seed) => {
+    const input_str = JSON.stringify(seed);
     const input_array = iconv.encode(input_str, 'utf8');
 
     const bufinput  = newArray(module, input_array);
-    const bufoutput = newArray0(module, 1024);
+    const bufoutput = newArray0(module, 4096);
 
-    let rsz = module.wallet_filter_utxos(bufinput, input_array.length, bufoutput);
+    let rsz = module.xwallet_create(bufinput, input_array.length, bufoutput);
+    let output_array = copyArray(module, bufoutput, rsz);
+
+    module.dealloc(bufoutput);
+    module.dealloc(bufinput);
+
+    let output_str = iconv.decode(Buffer.from(output_array), 'utf8');
+    return JSON.parse(output_str);
+};
+
+export const spend = (module, wallet, inputs, outputs, fee_addr) => {
+    const input = { wallet: wallet, inputs: inputs, outputs: outputs, fee_addr: fee_addr};
+    const input_str = JSON.stringify(input);
+    const input_array = iconv.encode(input_str, 'utf8');
+
+    const bufinput  = newArray(module, input_array);
+    const bufoutput = newArray0(module, 4096);
+
+    let rsz = module.xwallet_create(bufinput, input_array.length, bufoutput);
     let output_array = copyArray(module, bufoutput, rsz);
 
     module.dealloc(bufoutput);
@@ -195,5 +213,6 @@ export default {
   addOutput: apply(addOutput, RustModule),
   sign: apply(sign, RustModule),
   verify: apply(verify, RustModule),
-  computeFee: apply(computeFee, RustModule),
+  createWallet: apply(createWallet, RustModule),
+  spend: apply(spend, RustModule)
 };

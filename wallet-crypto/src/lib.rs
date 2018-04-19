@@ -15,7 +15,4 @@ pub mod hdpayload;
 pub mod tx;
 
 pub mod cbor;
-
-
-mod wallet;
-pub use wallet::{Wallet};
+pub mod wallet;
