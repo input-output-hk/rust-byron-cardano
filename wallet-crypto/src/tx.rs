@@ -542,7 +542,7 @@ pub mod fee {
     type Result<T> = result::Result<T, Error>;
 
     pub trait Algorithm {
-        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr, fee_addr: &ExtendedAddr) -> Result<(Fee, Inputs)>;
+        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr, fee_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
     }
 
     #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
@@ -573,7 +573,7 @@ pub mod fee {
                   , change_addr: &ExtendedAddr
                   , fee_addr: &ExtendedAddr
                   )
-            -> Result<(Fee, Inputs)>
+            -> Result<(Fee, Inputs, Coin)>
         {
             if inputs.is_empty() { return Err(Error::NoInputs); }
             if outputs.is_empty() { return Err(Error::NoOutputs); }
@@ -625,7 +625,7 @@ pub mod fee {
                 return Err(Error::NotEnoughInput);
             }
 
-            Ok((fee, selected_inputs))
+            Ok((fee, selected_inputs, (input_value - output_value - fee.to_coin()).unwrap()))
         }
     }
 
