@@ -64,8 +64,21 @@ impl Wallet {
     /// existing address you have created used first this function will
     /// start from the beginning and may generate duplicated addresses.
     ///
-    pub fn new_address(&mut self) -> address::ExtendedAddr {
-        unimplemented!()
+    pub fn new_address(&mut self, is_change: bool) -> address::ExtendedAddr {
+        let path = match &self.last_known_path {
+            &None => hdpayload::Path::bip44_new(0x80000000,if is_change { 1 } else { 0 },0),
+            &Some(ref lkp) => if is_change { lkp.bip44_next_change() } else { lkp.bip44_next() }
+        };
+
+        self.force_last_known_path(path.clone());
+
+        let pk = self.get_xprv(&path).public();
+        let hdap = self.get_hdkey().encrypt_path(&path);
+        let addr_type = address::AddrType::ATPubKey;
+        let sd = address::SpendingData::PubKeyASD(pk.clone());
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+
+        address::ExtendedAddr::new(addr_type, sd, attrs)
     }
 
     /// return the path of the given address *if*:
@@ -123,7 +136,7 @@ impl Wallet {
         -> Result<tx::TxAux>
     {
         let alg = tx::fee::LinearFee::default();
-        let change_addr = self.new_address();
+        let change_addr = self.new_address(true);
 
         let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, &change_addr, fee_addr)?;
 
