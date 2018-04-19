@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops, iter, vec, slice, convert};
 use std::collections::{LinkedList, BTreeMap};
 
 use rcw::digest::Digest;
@@ -134,6 +134,7 @@ const MAX_COIN: u64 = 45000000000000000;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Coin(u64);
 impl Coin {
+    pub fn zero() -> Self { Coin(0) }
     pub fn new(v: u64) -> Option<Self> {
         if v <= MAX_COIN { Some(Coin(v)) } else { None }
     }
@@ -147,6 +148,39 @@ impl cbor::CborValue for Coin {
                 None       => cbor::Result::u64(v, cbor::Error::Between(0, MAX_COIN))
             }
         })
+    }
+}
+impl ops::Add for Coin {
+    type Output = Coin;
+    fn add(self, other: Coin) -> Self::Output {
+        Coin(self.0 + other.0)
+    }
+}
+impl<'a> ops::Add<&'a Coin> for Coin {
+    type Output = Coin;
+    fn add(self, other: &'a Coin) -> Self::Output {
+        Coin(self.0 + other.0)
+    }
+}
+impl ops::Sub for Coin {
+    type Output = Option<Coin>;
+    fn sub(self, other: Coin) -> Self::Output {
+        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
+    }
+}
+impl<'a> ops::Sub<&'a Coin> for Coin {
+    type Output = Option<Coin>;
+    fn sub(self, other: &'a Coin) -> Self::Output {
+        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
+    }
+}
+// this instance is necessary to chain the substraction operations
+//
+// i.e. `coin1 - coin2 - coin3`
+impl ops::Sub<Coin> for Option<Coin> {
+    type Output = Option<Coin>;
+    fn sub(self, other: Coin) -> Self::Output {
+        if other.0 > self?.0 { None } else { Some(Coin(self?.0 - other.0)) }
     }
 }
 
