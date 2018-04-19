@@ -11,6 +11,7 @@ use config::{Config};
 
 use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
+use hdpayload;
 use merkle;
 
 use serde;
@@ -397,6 +398,247 @@ impl cbor::CborValue for Tx {
         }).embed("while decoding Tx")
     }
 
+}
+
+/// This is a Resolved version of a `TxIn`.
+///
+/// It contains the `TxIn` which is the value we need to put in the
+/// transaction to reference funds to input to the transation.
+///
+/// It also contains the `TxOut` the value present at the given
+/// `TxIn`'s `TxId` and _index_ in the block chain.
+///
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+pub struct Input {
+    ptr:   TxIn,
+    value: TxOut
+}
+impl Input {
+    pub fn new(ptr: TxIn, value: TxOut) -> Self { Input { ptr: ptr, value: value } }
+
+    pub fn value(&self) -> Coin { self.value.value }
+
+    pub fn get_derivation_path(&self, key: &hdpayload::HDKey) -> Option<hdpayload::Path> {
+        match &self.value.address.attributes.derivation_path {
+            &Some(ref payload) => { key.decrypt_path(payload) },
+            &None              => { None }
+        }
+    }
+}
+
+/// Collection of `Input` that will be used for creating a `Tx` and fee stabilisation
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+pub struct Inputs(Vec<Input>);
+impl Inputs {
+    pub fn new() -> Self { Inputs(Vec::new()) }
+    pub fn as_slice(&self) -> &[Input] { self.0.as_slice() }
+    pub fn push(&mut self, i: Input) { self.0.push(i) }
+    pub fn len(&self) -> usize { self.0.len() }
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+    pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
+}
+impl convert::AsRef<Inputs> for Inputs {
+    fn as_ref(&self) -> &Self { self }
+}
+impl convert::AsRef<[Input]> for Inputs {
+    fn as_ref(&self) -> &[Input] { self.0.as_ref() }
+}
+impl ops::Deref for Inputs {
+    type Target = [Input];
+
+    fn deref(&self) -> &[Input] { self.0.deref() }
+}
+impl iter::FromIterator<Input> for Inputs {
+    fn from_iter<I: IntoIterator<Item = Input>>(iter: I) -> Inputs {
+        Inputs(iter::FromIterator::from_iter(iter))
+    }
+}
+impl iter::Extend<Input> for Inputs {
+    fn extend<I>(&mut self, i: I) where I: IntoIterator<Item=Input> {
+        self.0.extend(i)
+    }
+}
+impl IntoIterator for Inputs {
+    type Item = Input;
+    type IntoIter = vec::IntoIter<Input>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
+impl<'a> IntoIterator for &'a Inputs {
+    type Item = &'a Input;
+    type IntoIter = slice::Iter<'a, Input>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
+
+/// Collection of `Input` that will be used for creating a `Tx` and fee stabilisation
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+pub struct Outputs(Vec<TxOut>);
+impl Outputs {
+    pub fn new() -> Self { Outputs(Vec::new()) }
+    pub fn as_slice(&self) -> &[TxOut] { self.0.as_slice() }
+    pub fn push(&mut self, i: TxOut) { self.0.push(i) }
+    pub fn len(&self) -> usize { self.0.len() }
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+    pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
+
+    pub fn total(&self) -> Coin { self.iter().fold(Coin::zero(), |acc, ref c| acc + c.value) }
+}
+impl convert::AsRef<Outputs> for Outputs {
+    fn as_ref(&self) -> &Self { self }
+}
+impl convert::AsRef<[TxOut]> for Outputs {
+    fn as_ref(&self) -> &[TxOut] { self.0.as_ref() }
+}
+impl ops::Deref for Outputs {
+    type Target = [TxOut];
+
+    fn deref(&self) -> &[TxOut] { self.0.deref() }
+}
+impl iter::FromIterator<TxOut> for Outputs {
+    fn from_iter<I: IntoIterator<Item = TxOut>>(iter: I) -> Outputs {
+        Outputs(iter::FromIterator::from_iter(iter))
+    }
+}
+impl iter::Extend<TxOut> for Outputs {
+    fn extend<I>(&mut self, i: I) where I: IntoIterator<Item=TxOut> {
+        self.0.extend(i)
+    }
+}
+impl IntoIterator for Outputs {
+    type Item = TxOut;
+    type IntoIter = vec::IntoIter<TxOut>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
+impl<'a> IntoIterator for &'a Outputs {
+    type Item = &'a TxOut;
+    type IntoIter = slice::Iter<'a, TxOut>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
+
+pub mod fee {
+    //! fee stabilisation related algorithm
+
+    use std::{result};
+    use super::*;
+
+    /// fee
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+    pub struct Fee(Coin);
+    impl Fee {
+        pub fn new(coin: Coin) -> Self { Fee(coin) }
+        pub fn to_coin(&self) -> Coin { self.0 }
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+    pub enum Error {
+        NoInputs,
+        NoOutputs,
+        NotEnoughInput,
+    }
+
+    type Result<T> = result::Result<T, Error>;
+
+    pub trait Algorithm {
+        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr, fee_addr: &ExtendedAddr) -> Result<(Fee, Inputs)>;
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+    pub struct LinearFee {
+        /// this is the minimal fee
+        constant: f64,
+        /// the transaction's size coefficient fee
+        coefficient: f64
+    }
+    impl LinearFee {
+        pub fn new(constant: f64, coefficient: f64) -> Self {
+            LinearFee { constant: constant, coefficient: coefficient }
+        }
+
+        pub fn estimate(&self, sz: usize) -> Fee {
+            let fee = self.constant + self.coefficient * (sz as f64);
+            Fee(Coin::new(fee as u64).unwrap())
+        }
+    }
+    impl Default for LinearFee {
+        fn default() -> Self { LinearFee::new(155381.0, 43.946) }
+    }
+    impl Algorithm for LinearFee {
+        fn compute( &self
+                  , policy: SelectionPolicy
+                  , inputs: &Inputs
+                  , outputs: &Outputs
+                  , change_addr: &ExtendedAddr
+                  , fee_addr: &ExtendedAddr
+                  )
+            -> Result<(Fee, Inputs)>
+        {
+            if inputs.is_empty() { return Err(Error::NoInputs); }
+            if outputs.is_empty() { return Err(Error::NoOutputs); }
+
+            let output_value = outputs.total();
+            let mut fee = self.estimate(0);
+            let mut input_value = Coin::zero();
+            let mut selected_inputs = Inputs::new();
+
+            // create the Tx on the fly
+            let mut txins = LinkedList::new();
+            let     txouts : LinkedList<TxOut> = outputs.iter().cloned().collect();
+
+            // for now we only support this selection algorithm
+            // we need to remove this assert when we extend to more
+            // granulated selection policy
+            assert!(policy == SelectionPolicy::FirstMatchFirst);
+
+            for input in inputs.iter() {
+                input_value = input_value + input.value();
+                selected_inputs.push(input.clone());
+                txins.push_back(input.ptr.clone());
+
+                // calculate fee from the Tx serialised + estimated size for signing
+                let mut tx = Tx::new_with(txins.clone(), txouts.clone());
+                let txbytes = cbor::encode_to_cbor(&tx).unwrap();
+
+                let estimated_fee = self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len()));
+
+                // add the fee in the correction of the fee
+                tx.add_output(TxOut::new(fee_addr.clone(), estimated_fee.to_coin()));
+                // add the change in the estimated fee
+                match output_value - input_value - estimated_fee.to_coin() {
+                    None => {},
+                    Some(change_value) => {
+                        tx.add_output(TxOut::new(change_addr.clone(), change_value))
+                    }
+                };
+
+                let txbytes = cbor::encode_to_cbor(&tx).unwrap();
+                let corrected_fee = self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len()));
+
+                fee = corrected_fee;
+
+                if input_value >= (output_value + fee.to_coin()) { break; }
+            }
+
+            if (input_value < (output_value + fee.to_coin())) {
+                return Err(Error::NotEnoughInput);
+            }
+
+            Ok((fee, selected_inputs))
+        }
+    }
+
+    /// the input selection method.
+    ///
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+    pub enum SelectionPolicy {
+        /// select the first inputs that matches, no optimisation
+        FirstMatchFirst
+    }
+    impl Default for SelectionPolicy {
+        fn default() -> Self { SelectionPolicy::FirstMatchFirst }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
