@@ -9,14 +9,21 @@
 use hdwallet;
 use hdpayload;
 use address;
+use tx;
+use config;
+use tx::fee::Algorithm;
 
 use std::{result};
 
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Serialize, Deserialize, Debug,PartialEq,Eq)]
 pub enum Error {
     NotMyAddress_NoPayload,
     NotMyAddress_CannotDecodePayload,
     NotMyAddress_NotMyPublicKey,
+    FeeCalculationError(tx::fee::Error)
+}
+impl From<tx::fee::Error> for Error {
+    fn from(j: tx::fee::Error) -> Self { Error::FeeCalculationError(j) }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -25,7 +32,10 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
     seed: hdwallet::Seed,
-    last_known_path: Option<hdpayload::Path>
+    last_known_path: Option<hdpayload::Path>,
+
+    config: config::Config,
+    selection_policy: tx::fee::SelectionPolicy,
 }
 impl Wallet {
     /// generate a new wallet
@@ -36,7 +46,9 @@ impl Wallet {
     pub fn new_from_seed(seed: hdwallet::Seed) -> Self {
         Wallet {
             seed: seed,
-            last_known_path: None
+            last_known_path: None,
+            config: config::Config::default(),
+            selection_policy: tx::fee::SelectionPolicy::default()
         }
     }
 
@@ -97,6 +109,51 @@ impl Wallet {
 
         Ok(path)
     }
+
+    /// function to create a ready to send transaction to the network
+    ///
+    /// it select the needed inputs, compute the fee and possible change
+    /// signes every TxIn as needed.
+    ///
+    pub fn new_transaction( &mut self
+                          , inputs: &tx::Inputs
+                          , outputs: &tx::Outputs
+                          , fee_addr: &address::ExtendedAddr
+                          )
+        -> Result<tx::TxAux>
+    {
+        let alg = tx::fee::LinearFee::default();
+        let change_addr = self.new_address();
+
+        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, &change_addr, fee_addr)?;
+
+        let mut tx = tx::Tx::new_with(
+            selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
+            outputs.iter().cloned().collect()
+        );
+
+        tx.add_output(tx::TxOut::new(fee_addr.clone(), fee.to_coin()));
+        tx.add_output(tx::TxOut::new(change_addr     , change));
+
+        let mut witnesses = vec![];
+
+        for input in selected_inputs {
+            let path = self.recognize_input(&input)?;
+            let key  = self.get_xprv(&path);
+
+            witnesses.push(tx::TxInWitness::new(&self.config, &key, &tx));
+        }
+
+        Ok(tx::TxAux::new(tx, witnesses))
+    }
+
+    /// check if the given transaction input is one of ours
+    ///
+    /// and retuns the associated Path
+    fn recognize_input(&mut self, input: &tx::Input) -> Result<hdpayload::Path> {
+        self.recognize_address(&input.value.address)
+    }
+
 
     /// retrieve the root extended private key from the wallet
     ///
