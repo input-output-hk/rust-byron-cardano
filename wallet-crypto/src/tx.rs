@@ -621,7 +621,7 @@ pub mod fee {
                 if input_value >= (output_value + fee.to_coin()) { break; }
             }
 
-            if (input_value < (output_value + fee.to_coin())) {
+            if input_value < (output_value + fee.to_coin()) {
                 return Err(Error::NotEnoughInput);
             }
 
