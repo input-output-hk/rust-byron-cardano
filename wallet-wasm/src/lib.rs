@@ -16,11 +16,13 @@ use self::wallet_crypto::paperwallet;
 use self::wallet_crypto::address;
 use self::wallet_crypto::hdpayload;
 use self::wallet_crypto::tx;
+use self::wallet_crypto::tx::fee::Algorithm;
 use self::wallet_crypto::config::{Config};
 
+use self::wallet_crypto::cbor;
 use self::wallet_crypto::cbor::{encode_to_cbor, decode_from_cbor};
 
-use std::mem;
+use std::{mem, result, string, convert};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_uint, c_uchar, c_char, c_void};
 use std::iter::repeat;
@@ -459,19 +461,70 @@ macro_rules! jrpc_try {
     ($output_ptr:ident, $expr:expr,) => (jrpc_try!($output_ptr, $expr));
 }
 
-/// this is the type of resolved TxIn.
-///
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-struct Utxo {
-    txin:  tx::TxIn,
-    value: tx::TxOut
+#[derive(Debug)]
+enum Error {
+    ErrorUtf8(string::FromUtf8Error),
+    ErrorJSON(serde_json::error::Error),
+    ErrorCBOR(cbor::Error),
+    ErrorFEE(tx::fee::Error),
+}
+impl convert::From<string::FromUtf8Error> for Error {
+    fn from(j: string::FromUtf8Error) -> Self { Error::ErrorUtf8(j) }
+}
+impl convert::From<serde_json::error::Error> for Error {
+    fn from(j: serde_json::error::Error) -> Self { Error::ErrorJSON(j) }
+}
+impl convert::From<cbor::Error> for Error {
+    fn from(j: cbor::Error) -> Self { Error::ErrorCBOR(j) }
+}
+impl convert::From<tx::fee::Error> for Error {
+    fn from(j: tx::fee::Error) -> Self { Error::ErrorFEE(j) }
+}
+
+type Result<T> = result::Result<T, Error>;
+
+fn input_string_(input_ptr: *const c_uchar, input_sz: usize) -> Result<String> {
+    let input_bytes : Vec<u8> = unsafe { read_data(input_ptr, input_sz) };
+    let input = String::from_utf8(input_bytes)?;
+
+    Ok(input)
+}
+
+macro_rules! input_json {
+    ($output_ptr:ident, $input_ptr:ident, $input_sz:ident) => ({
+        let input = jrpc_try!($output_ptr, input_string_($input_ptr, $input_sz));
+        jrpc_try!($output_ptr, serde_json::from_str(input.as_str()))
+    });
+    ($output_ptr:ident, $input_ptr:ident, $input_sz:ident,) => ({
+        input_json!($output_ptr, $input_ptr, $input_sz)
+    });
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+struct FeeStabilisationInput {
+    inputs: tx::Inputs,
+    outputs: tx::Outputs,
+    selection_policy: tx::fee::SelectionPolicy,
+    change_addr: address::ExtendedAddr,
+    fee_addr: address::ExtendedAddr,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+struct FeeStabilisationOutput {
+    inputs: tx::Inputs,
+    fee:    tx::fee::Fee,
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize, amount :u32, output_ptr: *mut c_uchar) -> i32 {
-    let input_bytes : Vec<u8> = unsafe { read_data(input_ptr, input_sz) };
-    let input : String    = jrpc_try!(output_ptr, String::from_utf8(input_bytes));
-    let utxos : Vec<Utxo> = jrpc_try!(output_ptr, serde_json::from_str(input.as_str()));
+pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
+    let input : FeeStabilisationInput = input_json!(output_ptr, input_ptr, input_sz);
 
-    jrpc_ok!(output_ptr, utxos)
+    let algo = tx::fee::LinearFee::default();
+    let (fee, selection) = jrpc_try!(
+        output_ptr,
+        algo.compute(input.selection_policy, &input.inputs, &input.outputs, &input.change_addr, &input.fee_addr)
+    );
+
+    let output = FeeStabilisationOutput { fee: fee, inputs: selection };
+    jrpc_ok!(output_ptr, output)
 }
