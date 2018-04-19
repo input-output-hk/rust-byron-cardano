@@ -646,6 +646,11 @@ pub struct TxAux {
     tx: Tx,
     witnesses: Vec<TxInWitness>,
 }
+impl TxAux {
+    pub fn new(tx: Tx, witnesses: Vec<TxInWitness>) -> Self {
+        TxAux { tx: tx, witnesses: witnesses }
+    }
+}
 
 pub struct TxProof {
     number: u32,
