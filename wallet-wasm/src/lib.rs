@@ -520,7 +520,7 @@ pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize
     let input : FeeStabilisationInput = input_json!(output_ptr, input_ptr, input_sz);
 
     let algo = tx::fee::LinearFee::default();
-    let (fee, selection) = jrpc_try!(
+    let (fee, selection, _) = jrpc_try!(
         output_ptr,
         algo.compute(input.selection_policy, &input.inputs, &input.outputs, &input.change_addr, &input.fee_addr)
     );
