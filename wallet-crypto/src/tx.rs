@@ -410,8 +410,8 @@ impl cbor::CborValue for Tx {
 ///
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct Input {
-    ptr:   TxIn,
-    value: TxOut
+    pub ptr:   TxIn,
+    pub value: TxOut
 }
 impl Input {
     pub fn new(ptr: TxIn, value: TxOut) -> Self { Input { ptr: ptr, value: value } }
