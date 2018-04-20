@@ -195,7 +195,7 @@ export const spend = (module, wallet, inputs, outputs, fee_addr) => {
     const bufinput  = newArray(module, input_array);
     const bufoutput = newArray0(module, 4096);
 
-    let rsz = module.xwallet_create(bufinput, input_array.length, bufoutput);
+    let rsz = module.xwallet_spend(bufinput, input_array.length, bufoutput);
     let output_array = copyArray(module, bufoutput, rsz);
 
     module.dealloc(bufoutput);
