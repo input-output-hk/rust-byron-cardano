@@ -19,14 +19,22 @@ pub enum AddrType {
 impl Addressing {
     pub fn new(account: u32, typ: AddrType) -> Self {
         let change = match typ {
-                        AddrType::Internal => 0,
-                        AddrType::External => 1,
+                        AddrType::Internal => 1,
+                        AddrType::External => 0,
                     };
         Addressing { account: 0x80000000 | account, change: change, index: 0 }
     }
 
     pub fn to_path(&self) -> Path {
         Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account, self.change, self.index])
+    }
+
+    pub fn address_type(&self) -> AddrType {
+        if self.change == 0 {
+            AddrType::External
+        } else {
+            AddrType::Internal
+        }
     }
 
     pub fn from_path(path: Path) -> Option<Self> {
