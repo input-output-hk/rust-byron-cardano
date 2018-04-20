@@ -29,6 +29,19 @@ impl Addressing {
         Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account, self.change, self.index])
     }
 
+    pub fn from_path(path: Path) -> Option<Self> {
+        if path.as_ref().len() != 5 { return None; }
+        if path.as_ref()[0] != BIP44_PURPOSE   { return None; }
+        if path.as_ref()[1] != BIP44_COIN_TYPE { return None; }
+        if path.as_ref()[2]  < 0x80000000      { return None; }
+
+        Some(Addressing {
+            account: path.as_ref()[2],
+            change:  path.as_ref()[3],
+            index:   path.as_ref()[4],
+        })
+    }
+
     pub fn incr(&self, incr: u32) -> Option<Self> {
         if incr >= 0x80000000 { return None; }
         let mut addr = self.clone();
