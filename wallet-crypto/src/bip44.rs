@@ -1,16 +1,16 @@
 use hdpayload::{Path};
 
-//const BIP44_PATH_LENGTH: usize = 5;
 const BIP44_PURPOSE   : u32 = 0x8000002C;
 const BIP44_COIN_TYPE : u32 = 0x80000717;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Addressing {
     account: u32,
     change: u32,
     index: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum AddrType {
     Internal,
     External,
