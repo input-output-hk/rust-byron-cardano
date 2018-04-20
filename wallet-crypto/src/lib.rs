@@ -15,4 +15,5 @@ pub mod hdpayload;
 pub mod tx;
 
 pub mod cbor;
+pub mod bip44;
 pub mod wallet;
