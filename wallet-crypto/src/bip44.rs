@@ -29,17 +29,20 @@ impl Addressing {
         Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account, self.change, self.index])
     }
 
-    pub fn incr(&self, incr: u32) -> Self {
+    pub fn incr(&self, incr: u32) -> Option<Self> {
+        if incr >= 0x80000000 { return None; }
         let mut addr = self.clone();
         addr.index += incr;
-        addr
+        Some(addr)
     }
 
     pub fn next_chunks(&self, chunk_size: usize) -> Vec<Self> {
         let mut v = Vec::with_capacity(chunk_size);
         for i in 0..chunk_size {
-            let r = self.incr(i as u32);
-            v.push(r);
+            match self.incr(i as u32) {
+                None => break,
+                Some(r) => v.push(r)
+            }
         }
         v
     }
