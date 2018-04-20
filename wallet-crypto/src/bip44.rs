@@ -1,5 +1,3 @@
-extern crate rcw;
-
 use hdpayload::{Path};
 
 //const BIP44_PATH_LENGTH: usize = 5;
@@ -24,7 +22,7 @@ impl Addressing {
                         AddrType::Internal => 0,
                         AddrType::External => 1,
                     };
-        Addressing { account: account, change: change, index: 0 }
+        Addressing { account: 0x80000000 | account, change: change, index: 0 }
     }
 
     pub fn to_path(&self) -> Path {
