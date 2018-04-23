@@ -4,6 +4,8 @@ import { newArray, newArray0, copyArray } from './utils/arrays';
 import { apply } from './utils/functions';
 import { base16 } from './utils/strings';
 
+const MAX_OUTPUT_SIZE = 4096;
+
 /**
  * Create a wallet object from the given seed.
  *
@@ -16,7 +18,7 @@ export const fromSeed = (module, seed) => {
     const input_array = iconv.encode(input_str, 'utf8');
 
     const bufinput  = newArray(module, input_array);
-    const bufoutput = newArray0(module, 4096);
+    const bufoutput = newArray0(module, MAX_OUTPUT_SIZE);
 
     let rsz = module.xwallet_create(bufinput, input_array.length, bufoutput);
     let output_array = copyArray(module, bufoutput, rsz);
@@ -54,7 +56,7 @@ export const generateAddresses = (module, wallet, account, type, indices) => {
     const input_array = iconv.encode(input_str, 'utf8');
 
     const bufinput  = newArray(module, input_array);
-    const bufoutput = newArray0(module, 4096);
+    const bufoutput = newArray0(module, MAX_OUTPUT_SIZE);
 
     let rsz = module.xwallet_addresses(bufinput, input_array.length, bufoutput);
     let output_array = copyArray(module, bufoutput, rsz);
@@ -122,7 +124,7 @@ export const spend = (module, wallet, inputs, outputs, fee_addr, change_addr) =>
     const input_array = iconv.encode(input_str, 'utf8');
 
     const bufinput  = newArray(module, input_array);
-    const bufoutput = newArray0(module, 4096);
+    const bufoutput = newArray0(module, MAX_OUTPUT_SIZE);
 
     let rsz = module.xwallet_spend(bufinput, input_array.length, bufoutput);
     let output_array = copyArray(module, bufoutput, rsz);
