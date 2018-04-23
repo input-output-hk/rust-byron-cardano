@@ -517,7 +517,8 @@ struct WalletSpendInput {
     wallet: Wallet,
     inputs: tx::Inputs,
     outputs: tx::Outputs,
-    fee_addr: address::ExtendedAddr
+    fee_addr: address::ExtendedAddr,
+    change_addr: address::ExtendedAddr
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -529,7 +530,7 @@ struct WalletSpendOutput {
 #[no_mangle]
 pub extern "C" fn xwallet_spend(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
     let mut input : WalletSpendInput = input_json!(output_ptr, input_ptr, input_sz);
-    let txaux = jrpc_try!(output_ptr, input.wallet.new_transaction(&input.inputs, &input.outputs, &input.fee_addr));
+    let txaux = jrpc_try!(output_ptr, input.wallet.new_transaction(&input.inputs, &input.outputs, &input.fee_addr, &input.change_addr));
     jrpc_ok!(
         output_ptr,
         WalletSpendOutput {
