@@ -33,8 +33,8 @@ export const fromSeed = (module, seed) => {
  *
  * @example
  * ```
- * const wallet    = fromSeed([0,1,2,3,4..]).result;
- * const addresses = generateAddresses(
+ * const wallet    = CardanoCrypto.Wallet.fromSeed([0,1,2,3,4..]).result;
+ * const addresses = CardanoCrypto.Wallet.generateAddresses(
  *    [ {account: 0, change: 0, index: 0}
  *    , {account: 0, change: 0, index: 1}
  *    ]).result;
@@ -71,7 +71,7 @@ export const generateAddresses = (module, wallet, addresses) => {
  * @example
  * ```
  * let seed = 'compute seed from mnemonic';
- * let wallet = CardanoCrypto.Tx.createWallet(seed).result;
+ * let wallet = CardanoCrypto.Wallet.fromSeed(seed).result;
  *
  * // the inputs are the resolved UTxO
  * //
@@ -99,7 +99,7 @@ export const generateAddresses = (module, wallet, addresses) => {
  * let fee_addr = "DdzFFzCqrhtCUjHyzgvgigwA5soBgDxpc8WfnG1RGhrsRrWMV8uKdpgVfCXGgNuXhdN4qxPMvRUtbUnWhPzxSdxJrWzPqACZeh6scCH5";
  * let change_addr = "DdzFFzCqrhtCUjHyzgvgigwA5soBgDxpc8WfnG1RGhrsRrWMV8uKdpgVfCXGgNuXhdN4qxPMvRUtbUnWhPzxSdxJrWzPqACZeh6scCH5";
  *
- * let signed_tx = CardanoCrypto.Tx.spend(wallet, inputs, outputs, fee_addr, change_addr).result;
+ * let signed_tx = CardanoCrypto.Wallet.spend(wallet, inputs, outputs, fee_addr, change_addr).result;
  * ```
  *
  * @param module - the WASM module that is used for crypto operations
