@@ -27,7 +27,7 @@ pub const CHAIN_CODE_SIZE: usize = 32;
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Seed([u8; SEED_SIZE]);
 impl Seed {
     /// create a Seed by taking ownership of the given array
