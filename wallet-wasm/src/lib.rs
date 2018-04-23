@@ -534,13 +534,15 @@ pub extern "C" fn xwallet_spend(input_ptr: *const c_uchar, input_sz: usize, outp
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct GenAddressesInput {
     wallet: Wallet,
-    addressings: Vec<bip44::Addressing>
+    account: u32,
+    address_type: bip44::AddrType,
+    indices: Vec<u32>
 }
 
 #[no_mangle]
 pub extern "C" fn xwallet_addresses(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
     let input : GenAddressesInput = input_json!(output_ptr, input_ptr, input_sz);
-    let addresses : Vec<address::ExtendedAddr> = input.addressings.iter().map(|i| input.wallet.make_address(i)).collect();
+    let addresses : Vec<address::ExtendedAddr> = input.wallet.gen_addresses(input.account, input.address_type, input.indices);
     jrpc_ok!(
         output_ptr,
         addresses

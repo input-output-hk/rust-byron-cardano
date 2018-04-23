@@ -10,7 +10,7 @@ use hdwallet;
 use address;
 use tx;
 use config;
-use bip44::{Addressing, BIP44_PURPOSE, BIP44_COIN_TYPE};
+use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
 
 use std::{result};
@@ -56,13 +56,22 @@ impl Wallet {
 
     /// create an extended address from the given addressing
     ///
-    pub fn make_address(&self, addressing: &Addressing) -> address::ExtendedAddr {
-        let pk = self.get_xprv(&addressing).public();
-        let addr_type = address::AddrType::ATPubKey;
-        let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, None);
+    pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Vec<address::ExtendedAddr>
+    {
+        let addressing = Addressing::new(account, addr_type);
 
-        address::ExtendedAddr::new(addr_type, sd, attrs)
+        let change_prv = self.get_root_key()
+            .derive(addressing.account)
+            .derive(addressing.change);
+
+        indices.iter().cloned().map(|index| {
+            let pk = change_prv.derive(index).public();
+            let addr_type = address::AddrType::ATPubKey;
+            let sd = address::SpendingData::PubKeyASD(pk.clone());
+            let attrs = address::Attributes::new_single_key(&pk, None);
+
+            address::ExtendedAddr::new(addr_type, sd, attrs)
+        }).collect()
     }
 
     /// function to create a ready to send transaction to the network

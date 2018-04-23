@@ -34,20 +34,21 @@ export const fromSeed = (module, seed) => {
  * @example
  * ```
  * const wallet    = CardanoCrypto.Wallet.fromSeed([0,1,2,3,4..]).result;
- * const addresses = CardanoCrypto.Wallet.generateAddresses(
- *    [ {account: 0, change: 0, index: 0}
- *    , {account: 0, change: 0, index: 1}
- *    ]).result;
+ * const addresses = CardanoCrypto.Wallet.generateAddresses(0, "External", [0,1,2,3,4]).result;
  * ```
  *
  * @param module - the WASM module that is used for crypto operations
  * @param wallet - The wallet object as created by the `fromSeed` function
- * @param addresses - a list of addresses specification for the address generation
+ * @param account - the account number
+ * @param type    - the addresses type ("Internal" or "External")
+ * @param indices - the addresse indices
  * @returns {*}  - a list of ready to use addresses
  */
-export const generateAddresses = (module, wallet, addresses) => {
+export const generateAddresses = (module, wallet, account, type, indices) => {
     const input = { wallet: wallet
-                  , addressings: addresses
+                  , account: account
+                  , address_type: type
+                  , indices: indices
                   };
     const input_str = JSON.stringify(input);
     const input_array = iconv.encode(input_str, 'utf8');
