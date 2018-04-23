@@ -56,7 +56,7 @@ impl Wallet {
 
     /// create an extended address from the given addressing
     ///
-    pub fn make_address(&mut self, addressing: &Addressing) -> address::ExtendedAddr {
+    pub fn make_address(&self, addressing: &Addressing) -> address::ExtendedAddr {
         let pk = self.get_xprv(&addressing).public();
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
@@ -70,7 +70,7 @@ impl Wallet {
     /// it select the needed inputs, compute the fee and possible change
     /// signes every TxIn as needed.
     ///
-    pub fn new_transaction( &mut self
+    pub fn new_transaction( &self
                           , inputs: &tx::Inputs
                           , outputs: &tx::Outputs
                           , fee_addr: &address::ExtendedAddr
