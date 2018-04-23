@@ -16,10 +16,10 @@ use self::wallet_crypto::paperwallet;
 use self::wallet_crypto::address;
 use self::wallet_crypto::hdpayload;
 use self::wallet_crypto::tx;
-use self::wallet_crypto::tx::fee::Algorithm;
 use self::wallet_crypto::config::{Config};
 use self::wallet_crypto::wallet;
 use self::wallet_crypto::wallet::{Wallet};
+use self::wallet_crypto::bip44;
 
 use self::wallet_crypto::cbor;
 use self::wallet_crypto::cbor::{encode_to_cbor, decode_from_cbor};
@@ -517,53 +517,34 @@ struct WalletSpendInput {
     wallet: Wallet,
     inputs: tx::Inputs,
     outputs: tx::Outputs,
-    fee_addr: address::ExtendedAddr
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct WalletSpendOutput {
-    wallet: Wallet,
-    txaux: Vec<u8>
+    fee_addr: address::ExtendedAddr,
+    change_addr: address::ExtendedAddr
 }
 
 #[no_mangle]
 pub extern "C" fn xwallet_spend(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
-    let mut input : WalletSpendInput = input_json!(output_ptr, input_ptr, input_sz);
-    let txaux = jrpc_try!(output_ptr, input.wallet.new_transaction(&input.inputs, &input.outputs, &input.fee_addr));
+    let input : WalletSpendInput = input_json!(output_ptr, input_ptr, input_sz);
+    let txaux = jrpc_try!(output_ptr, input.wallet.new_transaction(&input.inputs, &input.outputs, &input.fee_addr, &input.change_addr));
     jrpc_ok!(
         output_ptr,
-        WalletSpendOutput {
-            wallet: input.wallet,
-            txaux: jrpc_try!(output_ptr, cbor::encode_to_cbor(&txaux))
-        }
+        jrpc_try!(output_ptr, cbor::encode_to_cbor(&txaux))
     )
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-struct FeeStabilisationInput {
-    inputs: tx::Inputs,
-    outputs: tx::Outputs,
-    selection_policy: tx::fee::SelectionPolicy,
-    change_addr: address::ExtendedAddr,
-    fee_addr: address::ExtendedAddr,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-struct FeeStabilisationOutput {
-    inputs: tx::Inputs,
-    fee:    tx::fee::Fee,
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+struct GenAddressesInput {
+    wallet: Wallet,
+    account: u32,
+    address_type: bip44::AddrType,
+    indices: Vec<u32>
 }
 
 #[no_mangle]
-pub extern "C" fn wallet_filter_utxos(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
-    let input : FeeStabilisationInput = input_json!(output_ptr, input_ptr, input_sz);
-
-    let algo = tx::fee::LinearFee::default();
-    let (fee, selection, _) = jrpc_try!(
+pub extern "C" fn xwallet_addresses(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
+    let input : GenAddressesInput = input_json!(output_ptr, input_ptr, input_sz);
+    let addresses : Vec<address::ExtendedAddr> = input.wallet.gen_addresses(input.account, input.address_type, input.indices);
+    jrpc_ok!(
         output_ptr,
-        algo.compute(input.selection_policy, &input.inputs, &input.outputs, &input.change_addr, &input.fee_addr)
-    );
-
-    let output = FeeStabilisationOutput { fee: fee, inputs: selection };
-    jrpc_ok!(output_ptr, output)
+        addresses
+    )
 }

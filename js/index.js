@@ -5,6 +5,7 @@ import Blake2b from './Blake2b.js';
 import Payload from './Payload.js';
 import Tx from './Tx.js';
 import Config from './Config.js';
+import Wallet from './Wallet.js';
 
 module.exports = {
   Payload,
@@ -14,5 +15,6 @@ module.exports = {
   loadRustModule,
   Blake2b,
   Tx,
+  Wallet,
   Config,
 };

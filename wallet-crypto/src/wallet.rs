@@ -33,8 +33,6 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
     cached_root_key: hdwallet::XPrv,
-    last_known_address: Option<Addressing>,
-    last_known_change:  Option<Addressing>,
 
     config: config::Config,
     selection_policy: tx::fee::SelectionPolicy,
@@ -51,74 +49,29 @@ impl Wallet {
                     .derive(BIP44_COIN_TYPE);
         Wallet {
             cached_root_key: key,
-            last_known_address: None,
-            last_known_change: None,
             config: config::Config::default(),
             selection_policy: tx::fee::SelectionPolicy::default()
         }
     }
 
-    /// this function sets the last known path used for generating addresses
-    ///
-    pub fn force_last_known_address(&mut self, addressing: Addressing) {
-        self.last_known_address = Some(addressing);
-    }
-
-    /// this function sets the last known path used for generating change addresses
-    ///
-    pub fn force_last_known_change(&mut self, addressing: Addressing) {
-        self.last_known_change = Some(addressing);
-    }
-
-    /// create a new extended address
-    ///
-    /// if you try to create address before being aware of all the
-    /// existing address you have created used first this function will
-    /// start from the beginning and may generate duplicated addresses.
-    ///
-    pub fn new_address(&mut self) -> address::ExtendedAddr {
-        let addressing = match &self.last_known_address {
-            &None => Addressing::new(0, AddrType::External),
-            &Some(ref lkp) => {
-                // for now we assume we will never generate 0x80000000 addresses
-                lkp.incr(1).unwrap()
-            }
-        };
-
-        self.force_last_known_address(addressing.clone());
-
-        self.make_address(&addressing)
-    }
-
-    /// create a new extended address for change purpose
-    ///
-    /// if you try to create address before being aware of all the
-    /// existing address you have created used first this function will
-    /// start from the beginning and may generate duplicated addresses.
-    ///
-    pub fn new_change(&mut self) -> address::ExtendedAddr {
-        let addressing = match &self.last_known_change {
-            &None => Addressing::new(0, AddrType::Internal),
-            &Some(ref lkp) => {
-                // for now we assume we will never generate 0x80000000 addresses
-                lkp.incr(1).unwrap()
-            }
-        };
-
-        self.force_last_known_address(addressing.clone());
-
-        self.make_address(&addressing)
-    }
-
     /// create an extended address from the given addressing
     ///
-    fn make_address(&mut self, addressing: &Addressing) -> address::ExtendedAddr {
-        let pk = self.get_xprv(&addressing).public();
-        let addr_type = address::AddrType::ATPubKey;
-        let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, None);
+    pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Vec<address::ExtendedAddr>
+    {
+        let addressing = Addressing::new(account, addr_type);
 
-        address::ExtendedAddr::new(addr_type, sd, attrs)
+        let change_prv = self.get_root_key()
+            .derive(addressing.account)
+            .derive(addressing.change);
+
+        indices.iter().cloned().map(|index| {
+            let pk = change_prv.derive(index).public();
+            let addr_type = address::AddrType::ATPubKey;
+            let sd = address::SpendingData::PubKeyASD(pk.clone());
+            let attrs = address::Attributes::new_single_key(&pk, None);
+
+            address::ExtendedAddr::new(addr_type, sd, attrs)
+        }).collect()
     }
 
     /// function to create a ready to send transaction to the network
@@ -126,17 +79,17 @@ impl Wallet {
     /// it select the needed inputs, compute the fee and possible change
     /// signes every TxIn as needed.
     ///
-    pub fn new_transaction( &mut self
+    pub fn new_transaction( &self
                           , inputs: &tx::Inputs
                           , outputs: &tx::Outputs
                           , fee_addr: &address::ExtendedAddr
+                          , change_addr: &address::ExtendedAddr
                           )
         -> Result<tx::TxAux>
     {
         let alg = tx::fee::LinearFee::default();
-        let change_addr = self.new_change();
 
-        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, &change_addr, fee_addr)?;
+        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr, fee_addr)?;
 
         let mut tx = tx::Tx::new_with(
             selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
@@ -144,7 +97,7 @@ impl Wallet {
         );
 
         tx.add_output(tx::TxOut::new(fee_addr.clone(), fee.to_coin()));
-        tx.add_output(tx::TxOut::new(change_addr     , change));
+        tx.add_output(tx::TxOut::new(change_addr.clone(), change));
 
         let mut witnesses = vec![];
 
