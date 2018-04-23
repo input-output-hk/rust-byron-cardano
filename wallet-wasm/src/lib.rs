@@ -509,7 +509,7 @@ macro_rules! input_json {
 #[no_mangle]
 pub extern "C" fn xwallet_create(input_ptr: *const c_uchar, input_sz: usize, output_ptr: *mut c_uchar) -> i32 {
     let seed = input_json!(output_ptr, input_ptr, input_sz);
-    jrpc_ok!(output_ptr, Wallet::new_from_seed(seed))
+    jrpc_ok!(output_ptr, Wallet::new_from_seed(&seed))
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]

@@ -7,11 +7,10 @@
 //!
 
 use hdwallet;
-use hdpayload;
 use address;
 use tx;
 use config;
-use bip44::{Addressing, AddrType};
+use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
 
 use std::{result};
@@ -33,7 +32,7 @@ pub type Result<T> = result::Result<T, Error>;
 /// the Wallet object
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
-    seed: hdwallet::Seed,
+    cached_root_key: hdwallet::XPrv,
     last_known_address: Option<Addressing>,
     last_known_change:  Option<Addressing>,
 
@@ -46,9 +45,12 @@ impl Wallet {
     pub fn new() -> Self { unimplemented!() }
 
     /// create a new wallet from the given seed
-    pub fn new_from_seed(seed: hdwallet::Seed) -> Self {
+    pub fn new_from_seed(seed: &hdwallet::Seed) -> Self {
+        let key= hdwallet::XPrv::generate_from_seed(&seed)
+                    .derive(BIP44_PURPOSE)
+                    .derive(BIP44_COIN_TYPE);
         Wallet {
-            seed: seed,
+            cached_root_key: key,
             last_known_address: None,
             last_known_change: None,
             config: config::Config::default(),
@@ -112,55 +114,11 @@ impl Wallet {
     ///
     fn make_address(&mut self, addressing: &Addressing) -> address::ExtendedAddr {
         let pk = self.get_xprv(&addressing).public();
-        let hdap = self.get_hdkey().encrypt_path(&addressing.to_path());
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, None);
 
         address::ExtendedAddr::new(addr_type, sd, attrs)
-    }
-
-    /// return the path of the given address *if*:
-    ///
-    /// - the hdpayload is actually ours
-    /// - the public key is actually ours
-    ///
-    /// if the address is actually ours, we return the `hdpayload::Path` and
-    /// update the `Wallet` internal state.
-    ///
-    pub fn recognize_address(&mut self, addr: &address::ExtendedAddr) -> Result<Addressing> {
-        // retrieve the key to decrypt the payload from the extended address
-        let hdkey = self.get_hdkey();
-
-        // try to decrypt the path, if it fails, it is not one of our address
-        let hdpa = match addr.attributes.derivation_path.clone() {
-            Some(hdpa) => hdpa,
-            None => return Err(Error::NotMyAddress_NoPayload)
-        };
-        let addressing = match hdkey.decrypt_path(&hdpa) {
-            Some(path) => match Addressing::from_path(path) {
-                None => return Err(Error::NotMyAddress_InvalidAddressing),
-                Some(addressing) => addressing
-            },
-            None => return Err(Error::NotMyAddress_CannotDecodePayload)
-        };
-
-        // now we have the path, we can retrieve the associated XPub
-        let xpub = self.get_xprv(&addressing).public();
-        let addr2 = address::ExtendedAddr::new(
-            addr.addr_type.clone(),
-            address::SpendingData::PubKeyASD(xpub),
-            addr.attributes.clone()
-        );
-        if addr != &addr2 { return Err(Error::NotMyAddress_NotMyPublicKey); }
-
-        if addressing.address_type() == AddrType::Internal {
-            self.force_last_known_change(addressing.clone())
-        } else {
-            self.force_last_known_address(addressing.clone())
-        }
-
-        Ok(addressing)
     }
 
     /// function to create a ready to send transaction to the network
@@ -191,8 +149,7 @@ impl Wallet {
         let mut witnesses = vec![];
 
         for input in selected_inputs {
-            let path = self.recognize_input(&input)?;
-            let key  = self.get_xprv(&path);
+            let key  = self.get_xprv(&input.addressing);
 
             witnesses.push(tx::TxInWitness::new(&self.config, &key, &tx));
         }
@@ -200,32 +157,21 @@ impl Wallet {
         Ok(tx::TxAux::new(tx, witnesses))
     }
 
-    /// check if the given transaction input is one of ours
-    ///
-    /// and retuns the associated Path
-    fn recognize_input(&mut self, input: &tx::Input) -> Result<Addressing> {
-        self.recognize_address(&input.value.address)
-    }
-
-
-    /// retrieve the root extended private key from the wallet
+    /// retrieve the root extended private key from the wallet but pre
+    /// derived for the purpose and coin type.
     ///
     /// TODO: this function is not meant to be public
-    fn get_root_key(&self) -> hdwallet::XPrv {
-        hdwallet::XPrv::generate_from_seed(&self.seed)
-    }
-
-    /// retrieve the HD key from the wallet.
-    ///
-    /// TODO: this function is not meant to be public
-    fn get_hdkey(&self) -> hdpayload::HDKey {
-        hdpayload::HDKey::new(&self.get_root_key().public())
+    fn get_root_key<'a>(&'a self) -> &'a hdwallet::XPrv {
+        &self.cached_root_key
     }
 
     /// retrieve the key from the wallet and the given path
     ///
     /// TODO: this function is not meant to be public
     fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
-        addressing.to_path().as_ref().iter().cloned().fold(self.get_root_key(), |k, i| k.derive(i))
+        self.get_root_key()
+            .derive(addressing.account)
+            .derive(addressing.change)
+            .derive(addressing.index)
     }
 }

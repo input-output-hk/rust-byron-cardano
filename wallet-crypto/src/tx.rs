@@ -13,6 +13,7 @@ use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
 use hdpayload;
 use merkle;
+use bip44::{Addressing};
 
 use serde;
 
@@ -411,10 +412,12 @@ impl cbor::CborValue for Tx {
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct Input {
     pub ptr:   TxIn,
-    pub value: TxOut
+    pub value: TxOut,
+    pub addressing: Addressing
 }
 impl Input {
-    pub fn new(ptr: TxIn, value: TxOut) -> Self { Input { ptr: ptr, value: value } }
+    pub fn new(ptr: TxIn, value: TxOut, addressing: Addressing) -> Self
+    { Input { ptr: ptr, value: value, addressing: addressing } }
 
     pub fn value(&self) -> Coin { self.value.value }
 
