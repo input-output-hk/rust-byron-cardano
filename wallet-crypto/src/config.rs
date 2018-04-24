@@ -16,7 +16,7 @@ use cbor;
 /// ```
 /// use wallet_crypto::config::{ProtocolMagic};
 ///
-/// assert_eq!(ProtocolMagic::default(), ProtocolMagic::new(764824073));
+/// assert_eq!(ProtocolMagic::default(), ProtocolMagic::new(0x2D964A09));
 /// ```
 ///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
