@@ -15,7 +15,7 @@ use tx::fee::Algorithm;
 
 use std::{result};
 
-#[derive(Serialize, Deserialize, Debug,PartialEq,Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
     NotMyAddress_NoPayload,
     NotMyAddress_CannotDecodePayload,

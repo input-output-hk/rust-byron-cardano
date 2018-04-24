@@ -11,7 +11,7 @@ use self::rcw::util::fixed_time_eq;
 
 use std::fmt;
 use std::marker::PhantomData;
-use util::hex;
+use util::{hex};
 use cbor;
 use cbor::{ExtendedResult};
 

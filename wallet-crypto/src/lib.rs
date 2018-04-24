@@ -5,7 +5,7 @@ extern crate serde;
 extern crate rcw;
 
 mod crc32;
-mod util;
+pub mod util;
 mod merkle;
 pub mod config;
 pub mod hdwallet;
