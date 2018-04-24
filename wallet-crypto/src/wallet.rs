@@ -67,8 +67,8 @@ impl Wallet {
         indices.iter().cloned().map(|index| {
             let pk = change_prv.derive(index).public();
             let addr_type = address::AddrType::ATPubKey;
-            let sd = address::SpendingData::PubKeyASD(pk.clone());
-            let attrs = address::Attributes::new_single_key(&pk, None);
+            let sd = address::SpendingData::PubKeyASD(pk);
+            let attrs = address::Attributes::new_bootstrap_era(None);
 
             address::ExtendedAddr::new(addr_type, sd, attrs)
         }).collect()
