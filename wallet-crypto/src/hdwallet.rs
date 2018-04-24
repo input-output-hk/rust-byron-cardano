@@ -208,7 +208,11 @@ impl serde::Serialize for XPrv
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.as_ref())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&hex::encode(self.as_ref()))
+        } else {
+            serializer.serialize_bytes(self.as_ref())
+        }
     }
 }
 struct XPrvVisitor();
@@ -220,6 +224,16 @@ impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
         write!(fmt, "Expecting an Extended Private Key (`XPrv`) of {} bytes.", XPRV_SIZE)
     }
 
+    fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        let bytes = hex::decode(v);
+
+        match XPrv::from_slice(&bytes) {
+            None => Err(E::invalid_length(bytes.len(), &"96 bytes")),
+            Some(xpub) => Ok(xpub)
+        }
+    }
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
         where E: serde::de::Error
     {
@@ -234,7 +248,11 @@ impl<'de> serde::Deserialize<'de> for XPrv
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
-        deserializer.deserialize_bytes(XPrvVisitor::new())
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(XPrvVisitor::new())
+        } else {
+            deserializer.deserialize_bytes(XPrvVisitor::new())
+        }
     }
 }
 
