@@ -3,4 +3,5 @@ Cargo.lock
 node_modules/
 dist
 .idea
+*.swp
 npm-debug.log

@@ -1,5 +1,0 @@
-# Exclude everything:
-*
-
-# But the dist folder
-!dist/*
