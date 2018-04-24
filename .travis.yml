@@ -9,11 +9,8 @@ matrix:
     - rust: beta
     - rust: nightly
     - rust: nightly
-      env: NODE_JS_GLUE
+      env:  TARGET="wasm32-unknown-unknown"
       before_script:
-        - rustup target add wasm32-unknown-unknown --toolchain nightly
-        - nvm install 8.2.1
-        - npm install
-        - ./build
+        - rustup target add ${TARGET} --toolchain nightly
       script:
-        - npm run test
+        - cargo  +nightly build --target ${TARGET} --release --verbose
