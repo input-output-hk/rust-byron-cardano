@@ -1,0 +1,19 @@
+[package]
+name = "ariadne"
+version = "0.1.0"
+authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+license = "MIT"
+description = "Wallet CLI interface"
+keywords = [ "Cardano", "Wallet", "cli" ]
+
+[dependencies]
+wallet-crypto = { path = "../wallet-crypto" }
+rand = "0.4"
+serde = "1.0"
+serde_derive = "1.0"
+serde_yaml = "0.7"
+
+[dependencies.clap]
+version = "2.31"
+default-features = false
+features = [ "suggestions", "color", "wrap_help" ]
