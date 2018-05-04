@@ -1,0 +1,12 @@
+[package]
+name = "blockchain"
+version = "0.1.0"
+authors = ["vincent.hanquez@iohk.io"]
+license = "MIT"
+description = "blockchain"
+keywords = [ "Cardano", "BlockChain" ]
+
+[build-dependencies]
+
+[dependencies]
+wallet-crypto = { path = "../wallet-crypto" }

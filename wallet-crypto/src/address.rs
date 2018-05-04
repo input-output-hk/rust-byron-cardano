@@ -6,7 +6,8 @@ use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 use rcw::sha3::Sha3;
 
-use util::base58;
+use redeem;
+use util::{base58};
 use cbor;
 use cbor::{ExtendedResult};
 use hdwallet::{XPub};
@@ -353,7 +354,7 @@ impl cbor::CborValue for ExtendedAddr {
 }
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Ok(())
+        write!(f, "{}", base58::encode(&self.to_bytes()))
     }
 }
 impl serde::Serialize for ExtendedAddr
@@ -382,7 +383,10 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
     fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
         where E: serde::de::Error
     {
-        let bytes = base58::decode(v);
+        let bytes = match base58::decode(v) {
+            Err(err) => { return Err(E::custom(format!("invalid base58:{}", err))); },
+            Ok(v) => v
+        };
 
         match cbor::decode_from_cbor(&bytes) {
             Err((val, err)) => { Err(E::custom(format!("{:?}\n{:?}", err, val))) },
@@ -413,7 +417,6 @@ impl<'de> serde::Deserialize<'de> for ExtendedAddr
 }
 
 pub type Script = [u8;32]; // TODO
-pub type RedeemPublicKey = [u8;32]; //TODO
 
 const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
 const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
@@ -423,7 +426,7 @@ const SPENDING_DATA_TAG_REDEEM : u64 = 2; // TODO
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),
-    RedeemASD (RedeemPublicKey)
+    RedeemASD (redeem::PublicKey)
     // UnknownASD... whatever...
 }
 impl cbor::CborValue for SpendingData {
@@ -435,7 +438,10 @@ impl cbor::CborValue for SpendingData {
                 v.push(cbor::CborValue::encode(pk));
             },
             &SpendingData::ScriptASD(_)      => unimplemented!(),
-            &SpendingData::RedeemASD(_)      => unimplemented!(),
+            &SpendingData::RedeemASD(ref pk) => {
+                v.push(cbor::CborValue::encode(&SPENDING_DATA_TAG_REDEEM));
+                v.push(cbor::CborValue::encode(pk));
+            }
         };
         cbor::Value::Array(v)
     }
@@ -450,6 +456,13 @@ impl cbor::CborValue for SpendingData {
                     return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
                 }
                 Ok(SpendingData::PubKeyASD(pk))
+            } else if n == SPENDING_DATA_TAG_REDEEM {
+                let (sum_type, pk) = cbor::array_decode_elem(sum_type, 0)
+                    .embed("while decoding the public key")?;
+                if sum_type.len() != 0 {
+                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
+                }
+                Ok(SpendingData::RedeemASD(pk))
             } else {
                 cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
             }
@@ -526,7 +539,6 @@ mod tests {
 
     #[test]
     fn encode_decode_digest_blake2b() {
-        let b = b"some random bytes...";
         let digest = DigestBlake2b224::new(b"some random bytes...");
         assert!(cbor::hs::encode_decode(&digest))
     }
@@ -563,7 +575,7 @@ mod tests {
     #[test]
     fn decode_address_1() {
         let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
-        let bytes     = base58::decode(addr_str);
+        let bytes     = base58::decode(addr_str).unwrap();
 
         let r = ExtendedAddr::from_bytes(&bytes).unwrap();
 
@@ -574,7 +586,7 @@ mod tests {
     #[test]
     fn decode_address_2() {
         let addr_str  = "DdzFFzCqrhsi8XFMabbnHecVusaebqQCkXTqDnCumx5esKB1pk1zbhX5BtdAivZbQePFVujgzNCpBVXactPSmphuHRC5Xk8qmBd49QjW";
-        let bytes     = base58::decode(addr_str);
+        let bytes     = base58::decode(addr_str).unwrap();
 
         let r = ExtendedAddr::from_bytes(&bytes).unwrap();
 

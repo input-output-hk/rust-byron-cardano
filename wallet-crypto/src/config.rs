@@ -3,6 +3,7 @@
 //!
 
 use cbor;
+use std::fmt;
 
 /// this is the protocol magic number
 ///
@@ -23,6 +24,11 @@ use cbor;
 pub struct ProtocolMagic(u32);
 impl ProtocolMagic {
     pub fn new(val: u32) -> Self { ProtocolMagic(val) }
+}
+impl fmt::Display for ProtocolMagic {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 impl cbor::CborValue for ProtocolMagic {
     fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
