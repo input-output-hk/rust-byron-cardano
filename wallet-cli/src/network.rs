@@ -117,9 +117,7 @@ impl HasCommand for Network {
                 let storage = config.get_storage().unwrap();
                 blob::write(&storage, hh.bytes(), &b[2..]);
             },
-            ("sync", _) => {
-                net_sync(config);
-            },
+            ("sync", _) => net_sync(config),
             _ => {
                 println!("{}", args.usage());
                 ::std::process::exit(1);
