@@ -4,6 +4,7 @@ pub mod pack;
 pub mod tag;
 mod tmpfile;
 mod bitmap;
+mod bloom;
 use std::{fs, io};
 
 use std::collections::BTreeMap;
