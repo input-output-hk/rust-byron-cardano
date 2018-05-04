@@ -2,8 +2,10 @@
 // a pack file is:
 //
 // MAGIC (8 Bytes)
+// BLOOM SIZE (4 bytes BE)
+// 0-PADDING (4 bytes)
 // FANOUT (256*4 bytes)
-// not implemented BLOOM FILTER (4096 bytes)
+// BLOOM FILTER (BLOOM_SIZE bytes)
 // BLOCK HASHES present in this pack ordered lexigraphically (#ENTRIES * 32 bytes)
 // OFFSET of BLOCK in the same order as BLOCK_HASHES (#ENTRIES * 8 bytes)
 
@@ -17,18 +19,31 @@ use std::fs;
 use storage::rcw::blake2b;
 use storage::rcw::digest::Digest;
 use storage::types::HASH_SIZE;
-use storage::bitmap;
+use storage::bloom;
+use storage::types::BlockHash;
 
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;
 const OFF_SIZE : usize = 8;
 const SIZE_SIZE : usize = 4;
+
 const FANOUT_ELEMENTS : usize = 256;
 const FANOUT_SIZE : usize = FANOUT_ELEMENTS*SIZE_SIZE;
-//const BLOOM_SIZE : usize = 4096;
-const LOOKUP_SIZE : usize = FANOUT_SIZE;
 
-const HEADER_SIZE : usize = MAGIC_SIZE + LOOKUP_SIZE;
+const HEADER_SIZE : usize = BLOOM_OFFSET as usize;
+
+const FANOUT_OFFSET : usize = MAGIC_SIZE + 8;
+const BLOOM_OFFSET : usize = FANOUT_OFFSET + FANOUT_SIZE;
+
+// calculate the file offset from where the hashes are stored
+fn offset_hashes(bloom_size: usize) -> u64 {
+    8 + 8 + FANOUT_SIZE as u64 + bloom_size as u64
+}
+
+// calculate the file offset from where the offsets are stored
+fn offset_offsets(bloom_size: usize, number_hashes: u32) -> u64 {
+    offset_hashes(bloom_size) + HASH_SIZE as u64 * number_hashes as u64
+}
 
 type Offset = u64;
 type Size = u32;
@@ -36,13 +51,12 @@ pub type IndexOffset = u32;
 
 pub struct Lookup {
     pub fanout: Fanout,
+    pub bloom: Bloom,
 }
 
 pub struct Fanout([u32;FANOUT_ELEMENTS]);
 pub struct FanoutStart(u32);
 pub struct FanoutNb(pub u32);
-
-//pub struct Bloom([u8;BLOOM_SIZE]);
 
 impl Fanout {
     /*
@@ -76,6 +90,15 @@ impl Fanout {
         FanoutNb(self.0[255])
     }
 }
+
+pub struct Bloom(Vec<u8>);
+
+impl Bloom {
+    pub fn search(&self, blk: &BlockHash) -> bool {
+        bloom::is_set(&self.0[..], blk)
+    }
+}
+
 
 fn write_size(buf: &mut [u8], sz: Size) {
     buf[0] = (sz >> 24) as u8;
@@ -131,7 +154,19 @@ pub fn create_index(storage: &super::Storage, index: &Index) -> (Lookup, super::
 
     assert!(entries == index.offsets.len());
 
+    let bloom_size = if entries < 0x1000 {
+        4096
+    } else if entries < 0x5000 {
+        8192
+    } else if entries < 0x22000 {
+        16384
+    } else {
+        32768
+    };
+
     hdr_buf[0..8].clone_from_slice(&MAGIC[..]);
+    write_size(&mut hdr_buf[8..12], bloom_size);
+    write_size(&mut hdr_buf[12..16], 0);
 
     // write fanout to hdr_buf
     let fanout = {
@@ -148,12 +183,19 @@ pub fn create_index(storage: &super::Storage, index: &Index) -> (Lookup, super::
         }
 
         for i in 0..FANOUT_ELEMENTS {
-            let ofs = 8 + i * SIZE_SIZE; /* start at 8, because 0..8 is the magic */
+            let ofs = FANOUT_OFFSET + i * SIZE_SIZE; /* start at 16, because 0..8 is the magic, followed by size, and padding */
             write_size(&mut hdr_buf[ofs..ofs+SIZE_SIZE], fanout_incr[i]);
         }
         Fanout(fanout_incr)
     };
     tmpfile.write_all(&hdr_buf).unwrap();
+
+    let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
+    for hash in index.hashes.iter() {
+        bloom::set(&mut bloom[..], hash);
+    }
+
+    tmpfile.write_all(&bloom[..]).unwrap();
 
     let mut sorted = Vec::with_capacity(entries);
     for i in 0..entries {
@@ -170,7 +212,7 @@ pub fn create_index(storage: &super::Storage, index: &Index) -> (Lookup, super::
         write_offset(&mut buf, ofs);
         tmpfile.write_all(&buf[..]).unwrap();
     }
-    (Lookup { fanout: fanout }, tmpfile)
+    (Lookup { fanout: fanout, bloom: Bloom(bloom) }, tmpfile)
 }
 
 pub fn open_index(storage_config: &super::StorageConfig, pack: &super::PackHash) -> fs::File {
@@ -199,14 +241,18 @@ pub fn index_get_header(mut file: &fs::File) -> io::Result<Lookup> {
     if &hdr_buf[0..8] != MAGIC {
         return Err(io::Error::last_os_error());
     }
+    let bloom_size = read_size(&hdr_buf[8..12]);
 
-    let mut fanout = [0u32;FANOUT_ELEMENTS]; 
+    let mut fanout = [0u32;FANOUT_ELEMENTS];
     for i in 0..FANOUT_ELEMENTS {
-        let ofs = 8+i*SIZE_SIZE;
+        let ofs = FANOUT_OFFSET+i*SIZE_SIZE;
         fanout[i] = read_size(&hdr_buf[ofs..ofs+SIZE_SIZE])
     }
+    let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
 
-    Ok(Lookup { fanout: Fanout(fanout) })
+    file.read_exact(&mut bloom[..]);
+
+    Ok(Lookup { fanout: Fanout(fanout), bloom: Bloom(bloom) })
 }
 
 pub fn read_index_fanout(storage_config: &super::StorageConfig, pack: &super::PackHash) -> io::Result<Lookup> {
