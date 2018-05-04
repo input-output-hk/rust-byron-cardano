@@ -18,16 +18,23 @@ use std::{result, fmt};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
-    FeeCalculationError(tx::fee::Error)
+    FeeCalculationError(tx::fee::Error),
+    WalletError(hdwallet::Error)
 }
 impl From<tx::fee::Error> for Error {
     fn from(j: tx::fee::Error) -> Self { Error::FeeCalculationError(j) }
+}
+impl From<hdwallet::Error> for Error {
+    fn from(j: hdwallet::Error) -> Self { Error::WalletError(j) }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::FeeCalculationError(err) => {
                 write!(f, "Fee calculation error: {}", err)
+            },
+            &Error::WalletError(err) => {
+                write!(f, "HD Wallet error: {}", err)
             }
         }
     }
@@ -43,6 +50,7 @@ pub struct Wallet {
     config: config::Config,
     selection_policy: tx::fee::SelectionPolicy,
 }
+
 impl Wallet {
     /// generate a new wallet
     ///
@@ -50,11 +58,12 @@ impl Wallet {
 
     /// create a new wallet from the given seed
     pub fn new_from_seed(seed: &hdwallet::Seed) -> Self {
-        let key= hdwallet::XPrv::generate_from_seed(&seed)
-                    .derive(BIP44_PURPOSE)
-                    .derive(BIP44_COIN_TYPE);
+        Self::new_from_root_xprv(hdwallet::XPrv::generate_from_seed(&seed))
+    }
+
+    pub fn new_from_root_xprv(key: hdwallet::XPrv) -> Self {
         Wallet {
-            cached_root_key: key,
+            cached_root_key: key.derive(BIP44_PURPOSE).derive(BIP44_COIN_TYPE),
             config: config::Config::default(),
             selection_policy: tx::fee::SelectionPolicy::default()
         }
@@ -62,14 +71,13 @@ impl Wallet {
 
     /// create a new wallet from the given seed
     pub fn new_from_bip39(seed: &bip39::Seed) -> Self {
-        let key= hdwallet::XPrv::generate_from_bip39(seed)
-                    .derive(BIP44_PURPOSE)
-                    .derive(BIP44_COIN_TYPE);
-        Wallet {
-            cached_root_key: key,
-            config: config::Config::default(),
-            selection_policy: tx::fee::SelectionPolicy::default()
-        }
+        Self::new_from_root_xprv(hdwallet::XPrv::generate_from_bip39(&seed))
+    }
+
+    pub fn account(&self, account: u32) -> Account {
+        let account_key = self.get_root_key().derive(account).public();
+
+        Account::new(account, account_key)
     }
 
     /// create an extended address from the given addressing
@@ -82,14 +90,15 @@ impl Wallet {
             .derive(addressing.account)
             .derive(addressing.change);
 
-        indices.iter().cloned().map(|index| {
+        let mut res = vec![];
+        for index in indices {
             let pk = change_prv.derive(index).public();
             let addr_type = address::AddrType::ATPubKey;
             let sd = address::SpendingData::PubKeyASD(pk);
             let attrs = address::Attributes::new_bootstrap_era(None);
-
-            address::ExtendedAddr::new(addr_type, sd, attrs)
-        }).collect()
+            res.push(address::ExtendedAddr::new(addr_type, sd, attrs));
+        }
+        res
     }
 
     /// function to create a ready to send transaction to the network
@@ -142,5 +151,37 @@ impl Wallet {
             .derive(addressing.account)
             .derive(addressing.change)
             .derive(addressing.index)
+    }
+}
+
+/// Account associated to a given wallet.
+///
+/// Already contains the derived public key for the account of the wallet (see bip44).
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Account {
+    account: u32,
+    cached_account_key: hdwallet::XPub
+}
+impl Account {
+    fn new(account: u32, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
+
+    /// create an extended address from the given addressing
+    ///
+    pub fn gen_addresses(&self, addr_type: AddrType, indices: Vec<u32>) -> Result<Vec<address::ExtendedAddr>>
+    {
+        let addressing = Addressing::new(self.account, addr_type).unwrap();
+
+        let change_prv = self.cached_account_key
+            .derive(addressing.change)?;
+
+        let mut res = vec![];
+        for index in indices {
+            let pk = change_prv.derive(index)?;
+            let addr_type = address::AddrType::ATPubKey;
+            let sd = address::SpendingData::PubKeyASD(pk);
+            let attrs = address::Attributes::new_bootstrap_era(None);
+            res.push(address::ExtendedAddr::new(addr_type, sd, attrs));
+        }
+        Ok(res)
     }
 }
