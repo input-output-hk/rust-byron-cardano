@@ -10,21 +10,27 @@ use hdwallet;
 use address;
 use tx;
 use config;
+use bip39;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
 
-use std::{result};
+use std::{result, fmt};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
-    NotMyAddress_NoPayload,
-    NotMyAddress_CannotDecodePayload,
-    NotMyAddress_NotMyPublicKey,
-    NotMyAddress_InvalidAddressing,
     FeeCalculationError(tx::fee::Error)
 }
 impl From<tx::fee::Error> for Error {
     fn from(j: tx::fee::Error) -> Self { Error::FeeCalculationError(j) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Error::FeeCalculationError(err) => {
+                write!(f, "Fee calculation error: {}", err)
+            }
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -54,11 +60,23 @@ impl Wallet {
         }
     }
 
+    /// create a new wallet from the given seed
+    pub fn new_from_bip39(seed: &bip39::Seed) -> Self {
+        let key= hdwallet::XPrv::generate_from_bip39(seed)
+                    .derive(BIP44_PURPOSE)
+                    .derive(BIP44_COIN_TYPE);
+        Wallet {
+            cached_root_key: key,
+            config: config::Config::default(),
+            selection_policy: tx::fee::SelectionPolicy::default()
+        }
+    }
+
     /// create an extended address from the given addressing
     ///
     pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Vec<address::ExtendedAddr>
     {
-        let addressing = Addressing::new(account, addr_type);
+        let addressing = Addressing::new(account, addr_type).unwrap();
 
         let change_prv = self.get_root_key()
             .derive(addressing.account)
@@ -82,21 +100,19 @@ impl Wallet {
     pub fn new_transaction( &self
                           , inputs: &tx::Inputs
                           , outputs: &tx::Outputs
-                          , fee_addr: &address::ExtendedAddr
                           , change_addr: &address::ExtendedAddr
                           )
-        -> Result<tx::TxAux>
+        -> Result<(tx::TxAux, tx::fee::Fee)>
     {
         let alg = tx::fee::LinearFee::default();
 
-        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr, fee_addr)?;
+        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr)?;
 
         let mut tx = tx::Tx::new_with(
             selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
             outputs.iter().cloned().collect()
         );
 
-        tx.add_output(tx::TxOut::new(fee_addr.clone(), fee.to_coin()));
         tx.add_output(tx::TxOut::new(change_addr.clone(), change));
 
         let mut witnesses = vec![];
@@ -107,7 +123,7 @@ impl Wallet {
             witnesses.push(tx::TxInWitness::new(&self.config, &key, &tx));
         }
 
-        Ok(tx::TxAux::new(tx, witnesses))
+        Ok((tx::TxAux::new(tx, witnesses), fee))
     }
 
     /// retrieve the root extended private key from the wallet but pre

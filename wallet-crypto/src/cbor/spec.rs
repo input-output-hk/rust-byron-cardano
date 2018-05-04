@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, LinkedList};
 use std::cmp::{min};
 use std::{io, result, fmt};
+use util::hex;
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
 pub enum MajorType {
@@ -64,6 +65,16 @@ fn major_type_byte_encoding() {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReaderError {
+    NotEnoughBytes,
+    EndOfBuffer
+}
+impl From<ReaderError> for Error {
+    fn from(e: ReaderError) -> Error { Error::ReaderError(e) }
+}
+
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum Error {
     ExpectedU8,
@@ -89,7 +100,9 @@ pub enum Error {
     InvalidValue(Box<Value>),
     UnparsedValues,
     Between(u64, u64),
-    CannotParse,
+    ReaderError(ReaderError),
+    UnknownMinorType(u8),
+    ExpectedValue,
 
     EmbedWith(&'static str, Box<Error>)
 }
@@ -114,12 +127,14 @@ impl fmt::Debug for Error {
             &Error::ObjectUndefinedElement(ref ok) => write!(f, "Key {:?} undefined", ok),
             &Error::InvalidSize(size) => write!(f, "invalid size, expected {:?}", size),
             &Error::NotOneOf(val) => write!(f, "Expected one of: {:?}", val),
-            &Error::InvalidSumtype(index) => write!(f, "expected sumtype's index {:?}", index),
+            &Error::InvalidSumtype(index) => write!(f, "invalid sumtype index {:?}", index),
             &Error::InvalidTag(tag) => write!(f, "expected tag id {:?}", tag),
             &Error::InvalidValue(ref val) => write!(f, "expected value {:?}", val),
             &Error::UnparsedValues => write!(f, "unparsed values"),
             &Error::Between(min, max) => write!(f, "expected between [{:?}..{:?}]", min, max),
-            &Error::CannotParse => write!(f, "cannot parse... generic error"),
+            &Error::ReaderError(ref err) => write!(f, "reader error: {:?}", err),
+            &Error::UnknownMinorType(t) => write!(f, "unknown minor type: {:X}", t),
+            &Error::ExpectedValue => write!(f, "Cannot parse the value"),
             &Error::EmbedWith(ref msg, ref embedded) => {
                 write!(f, "{}\n", msg)?;
                 write!(f, "  {:?}", *embedded)
@@ -133,6 +148,7 @@ pub trait ExtendedResult {
     fn embed(self, &'static str) -> Self;
     fn u64(v: u64, err: Error) -> Self;
     fn i64(v: i64, err: Error) -> Self;
+    fn text(v: String, err: Error) -> Self;
     fn bytes(v: Bytes, err: Error) -> Self;
     fn array(v: Vec<Value>, err: Error) -> Self;
     fn iarray(v: LinkedList<Value>, err: Error) -> Self;
@@ -147,6 +163,7 @@ impl<V> ExtendedResult for Result<V> {
     }
     fn u64(v: u64, err: Error) -> Self { Err((Value::U64(v), err)) }
     fn i64(v: i64, err: Error) -> Self { Err((Value::I64(v), err)) }
+    fn text(v: String, err: Error) -> Self { Err((Value::Text(v), err)) }
     fn bytes(v: Bytes, err: Error) -> Self { Err((Value::Bytes(v), err)) }
     fn array(v: Vec<Value>, err: Error) -> Self { Err((Value::Array(v), err)) }
     fn iarray(v: LinkedList<Value>, err: Error) -> Self { Err((Value::IArray(v), err)) }
@@ -186,6 +203,7 @@ pub enum Value {
     U64(u64),
     I64(i64),
     Bytes(Bytes),
+    Text(String),
     Array(Vec<Value>),
     ArrayStart,
     IArray(LinkedList<Value>),
@@ -205,6 +223,12 @@ impl Value {
         match self {
             Value::I64(v) => Ok(v),
             v              => Err((v, Error::ExpectedI64))
+        }
+    }
+    pub fn text(self) -> Result<String> {
+        match self {
+            Value::Text(v) => Ok(v),
+            v              => Err((v, Error::ExpectedText))
         }
     }
     pub fn bytes(self) -> Result<Bytes> {
@@ -245,9 +269,12 @@ impl Value {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ObjectKey {
-    Integer(u64)
+    Integer(u64),
+    Bytes(Bytes),
+    // Text(String),
+    // Bool(bool)
 }
 
 pub trait CborValue: Sized {
@@ -288,8 +315,19 @@ impl CborValue for u64 {
         v.u64().embed("while decoding `u64'")
     }
 }
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+impl CborValue for String {
+    fn encode(&self)  -> Value { Value::Text(self.clone()) }
+    fn decode(v: Value) -> Result<Self> {
+        v.text().embed("while decoding `text'")
+    }
+}
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Bytes(Vec<u8>);
+impl fmt::Debug for Bytes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.as_ref()))
+    }
+}
 impl AsRef<[u8]> for Bytes { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 impl Bytes {
     pub fn new(bytes: Vec<u8>) -> Self { Bytes(bytes) }
@@ -438,8 +476,11 @@ pub fn decode_from_cbor<V>(buf: &[u8]) -> Result<V>
     let mut decoder = Decoder::new(reader);
 
     match decoder.value() {
-        None => Err((Value::Null, Error::CannotParse)),
-        Some(value) => {
+        Err(err) => Err((Value::Null, err)),
+        Ok(None) => {
+            Err((Value::Null, Error::ExpectedValue))
+        },
+        Ok(Some(value)) => {
             CborValue::decode(value)
         }
     }
@@ -518,6 +559,13 @@ impl<W> Encoder<W> where W: io::Write {
         self.write_bytes(v.as_ref())
     }
 
+    fn write_text(&mut self, s: &String) -> io::Result<()> {
+        let v = s.as_bytes();
+        self.write_header(MajorType::TEXT, v.len() as u64)?;
+        self.write_bytes(v)
+    }
+
+
     fn write_array(&mut self, v: &Vec<Value>) -> io::Result<()> {
         self.write_header(MajorType::ARRAY, v.len() as u64)?;
         for e in v.iter() { self.write(e)?; }
@@ -545,6 +593,7 @@ impl<W> Encoder<W> where W: io::Write {
             &Value::U64(ref v)    => self.write_header(MajorType::UINT, *v),
             &Value::I64(ref v)    => self.write_header(MajorType::NINT, *v as u64),
             &Value::Bytes(ref v)  => self.write_bs(v),
+            &Value::Text(ref v)   => self.write_text(v),
             &Value::Array(ref v)  => self.write_array(&v),
             &Value::IArray(ref v) => self.write_iarray(&v),
             &Value::ArrayStart    => self.start_indefinite(MajorType::ARRAY),
@@ -559,21 +608,22 @@ impl<W> Encoder<W> where W: io::Write {
     }
     pub fn write_key(&mut self, key: &ObjectKey) -> io::Result<()> {
         match key {
-            &ObjectKey::Integer(ref v) => self.write_header(MajorType::UINT, *v)
+            &ObjectKey::Integer(ref v) => self.write_header(MajorType::UINT, *v),
+            &ObjectKey::Bytes(ref v)   => self.write_bs(v)
         }
     }
 }
 
 pub trait Read {
-    fn next(&mut self) -> Option<u8>;
+    fn next(&mut self) -> result::Result<u8, ReaderError>;
     fn peek(&self) -> Option<u8>;
     fn discard(&mut self);
     fn read(&mut self, len: usize) -> Vec<u8>;
     fn read_into(&mut self, buf: &mut [u8]) -> usize;
 }
 impl Read for Vec<u8> {
-    fn next(&mut self) -> Option<u8> {
-        if self.len() > 0 { Some(self.remove(0)) } else { None }
+    fn next(&mut self) -> result::Result<u8, ReaderError> {
+        if self.len() > 0 { Ok(self.remove(0)) } else { Err(ReaderError::NotEnoughBytes) }
     }
     fn peek(&self) -> Option<u8> {
         if self.len() > 0 { Some(self[0]) } else { None }
@@ -613,20 +663,23 @@ impl<R> Decoder<R> where R: Read {
         self.reader.peek().map(MajorType::from_byte)
     }
 
-    fn u8(&mut self) -> Option<u64> { self.reader.next().map(|b| { b as u64 } ) }
-    fn u16(&mut self) -> Option<u64> {
+    fn u8(&mut self) -> result::Result<u64, Error> {
+        let b = self.reader.next()?;
+        Ok(b as u64)
+    }
+    fn u16(&mut self) ->result::Result<u64, Error> { 
         let b1 = self.u8()?;
         let b2 = self.u8()?;
-        Some(b1 << 8 | b2)
+        Ok(b1 << 8 | b2)
     }
-    fn u32(&mut self) -> Option<u64> {
+    fn u32(&mut self) -> result::Result<u64, Error> {
         let b1 = self.u8()?;
         let b2 = self.u8()?;
         let b3 = self.u8()?;
         let b4 = self.u8()?;
-        Some(b1 << 24 | b2 << 16 | b3 << 8 | b4)
+        Ok(b1 << 24 | b2 << 16 | b3 << 8 | b4)
     }
-    fn u64(&mut self) -> Option<u64> {
+    fn u64(&mut self) -> result::Result<u64, Error> {
         let b1 = self.u8()?;
         let b2 = self.u8()?;
         let b3 = self.u8()?;
@@ -635,97 +688,180 @@ impl<R> Decoder<R> where R: Read {
         let b6 = self.u8()?;
         let b7 = self.u8()?;
         let b8 = self.u8()?;
-        Some(b1 << 56 | b2 << 48 | b3 << 40 | b4 << 32 | b5 << 24 | b6 << 16 | b7 << 8 | b8)
+        Ok(b1 << 56 | b2 << 48 | b3 << 40 | b4 << 32 | b5 << 24 | b6 << 16 | b7 << 8 | b8)
     }
 
     fn get_minor(&mut self) -> Option<u8> {
         self.reader.peek().map(|b| { b & 0b0001_1111 } )
     }
 
-    fn get_minor_type(&mut self) -> Option<u64> {
-        let b = self.get_minor()?;
+    fn get_minor_type(&mut self) -> result::Result<Option<u64>, Error> {
+        let b = match self.get_minor() {
+            None => return Ok(None) ,
+            Some(b) => b,
+        };
         match b & 0b0001_1111 {
-            0x00...0x17 => { self.consume(); Some(b as u64) },
-            0x18        => { self.consume(); self.u8() },
-            0x19        => { self.consume(); self.u16() },
-            0x1a        => { self.consume(); self.u32() },
-            0x1b        => { self.consume(); self.u64() },
-            0x1c...0x1e => None,
-            0x1f        => None,
-            _           => None
+            0x00...0x17 => { self.consume(); Ok(Some(b as u64)) },
+            0x18        => { self.consume(); self.u8().map(|v| Some(v)) },
+            0x19        => { self.consume(); self.u16().map(|v| Some(v)) },
+            0x1a        => { self.consume(); self.u32().map(|v| Some(v)) },
+            0x1b        => { self.consume(); self.u64().map(|v| Some(v)) },
+            0x1c...0x1e => Err(Error::UnknownMinorType(b & 0b0001_1111)),
+            0x1f        => Ok(None),
+            _           => Err(Error::UnknownMinorType(b))
         }
     }
 
-    fn key(&mut self) -> Option<ObjectKey> {
-        let ty = self.peek_type()?;
+    fn key(&mut self) -> result::Result<Option<ObjectKey>, Error> {
+        let ty = match self.peek_type() {
+            Some(b) => b,
+            None => return Ok(None)
+        };
         match ty {
-            MajorType::UINT => { self.get_minor_type().map(ObjectKey::Integer) },
-            _ => None,
-        }
-    }
-
-    pub fn value(&mut self) -> Option<Value> {
-        let ty = self.peek_type()?;
-        match ty {
-            MajorType::UINT  => { self.get_minor_type().map(Value::U64) },
-            MajorType::NINT  => { self.get_minor_type().map(|v| Value::I64(v as i64)) },
+            MajorType::UINT => { self.get_minor_type().map(|opt| opt.map(ObjectKey::Integer)) },
             MajorType::BYTES => {
-                let len = self.get_minor_type()?;
+                let len = match self.get_minor_type()? {
+                    Some(b) => b,
+                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                };
                 let buf = self.reader.read(len as usize);
-                if len as usize != buf.len() { None } else { Some(Value::Bytes(Bytes::new(buf)) ) }
+                if len as usize != buf.len() {
+                    Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                } else {
+                    Ok(Some(ObjectKey::Bytes(Bytes::new(buf)) ))
+                }
             },
-            MajorType::TEXT  => { unimplemented!() }
+            _ => {
+                error!("Expected A {{UINT, BYTES}}, received: {:?}", ty);
+                Err(Error::ExpectedU64)
+            },
+        }
+    }
+
+    pub fn value(&mut self) -> result::Result<Option<Value>, Error> {
+        let ty = match self.peek_type() {
+            None => return Ok(None),
+            Some(b) => b
+        };
+        match ty {
+            MajorType::UINT  => { self.get_minor_type().map(|opt| opt.map(Value::U64)) },
+            MajorType::NINT  => { self.get_minor_type().map(|opt| opt.map(|v| Value::I64(v as i64))) },
+            MajorType::BYTES => {
+                let len = match self.get_minor_type()? {
+                    Some(b) => b,
+                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                };
+                let buf = self.reader.read(len as usize);
+                if len as usize != buf.len() {
+                    Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                } else {
+                    Ok(Some(Value::Bytes(Bytes::new(buf)) ))
+                }
+            },
+            MajorType::TEXT  => {
+                let len = match self.get_minor_type()? {
+                    Some(b) => b,
+                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                };
+                let buf = self.reader.read(len as usize);
+                if len as usize != buf.len() {
+                    Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                } else {
+                    Ok(String::from_utf8(buf).ok().map(|s| Value::Text(s)))
+                 }
+            },
             MajorType::ARRAY => {
-                let maybe_len = self.get_minor_type();
+                let maybe_len = self.get_minor_type()?;
                 match maybe_len {
                     None      => {
-                        if self.get_minor()? == 0x1F {
+                        if self.get_minor() == Some(0x1F) {
                             // this is an Indefinite array
                             let mut array = LinkedList::new();
                             // consume the minor type
                             self.consume();
                             loop {
-                                let val = self.value()?;
+                                let val = match self.value()? {
+                                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                    Some(v) => v,
+                                };
                                 if val == Value::Break { break; }
                                 array.push_back(val);
                             }
-                            Some(Value::IArray(array))
+                            Ok(Some(Value::IArray(array)))
                         } else {
-                            None
+                            Err(Error::ExpectedT7)
                         }
                     },
                     Some(len) => {
                         let mut array = vec![];
-                        for _ in 0..len { array.push(self.value()?); }
-                        Some(Value::Array(array))
+                        for _ in 0..len {
+                            match self.value()? {
+                                None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                Some(v) => array.push(v)
+                            }
+                         }
+                        Ok(Some(Value::Array(array)))
                     }
                 }
             },
             MajorType::MAP => {
-                let maybe_len = self.get_minor_type();
+                let maybe_len = self.get_minor_type()?;
                 match maybe_len {
-                    None      => { unimplemented!() /* test for an Indefinite array */ },
+                    None      => {
+                        if self.get_minor() == Some(0x1F) {
+                           let mut map = BTreeMap::new();
+                            // consume the minor type
+                            self.consume();
+                            loop {
+                                let k = match self.key()? {
+                                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                    Some(k) => k
+                                };
+                                let v = match self.value()? {
+                                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                    Some(v) => v
+                                };
+                                if v == Value::Break { break; }
+                                map.insert(k, v);
+                            }
+                            Ok(Some(Value::Object(map)))
+                        } else {
+                            Err(Error::ExpectedT7)
+                        }
+                    },
                     Some(len) => {
                         let mut map = BTreeMap::new();
                         for _ in 0..len {
-                            let k = self.key()?;
-                            let v = self.value()?;
+                            let k = match self.key()? {
+                                None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                Some(k) => k
+                            };
+                            let v = match self.value()? {
+                                None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                                Some(v) => v
+                            };
                             map.insert(k, v);
                         }
-                        Some(Value::Object(map))
+                        Ok(Some(Value::Object(map)))
                     }
                 }
             },
             MajorType::TAG => {
-                let tag = self.get_minor_type()?;
-                let obj = self.value()?;
-                Some(Value::Tag(tag, Box::new(obj)))
+                let tag = match self.get_minor_type()? {
+                    None => return Err(Error::ExpectedTag),
+                    Some(t) => t
+                };
+                let obj = match self.value()? {
+                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes)),
+                    Some(v) => v
+                };
+                Ok(Some(Value::Tag(tag, Box::new(obj))))
             },
             MajorType::T7 => {
                 let v = self.get_minor();
                 match v {
-                    Some(0x1f) => { self.consume(); Some(Value::Break) },
-                    _          => { self.consume(); Some(Value::Null) },
+                    Some(0x1f) => { self.consume(); Ok(Some(Value::Break)) },
+                    _          => { self.consume(); Ok(Some(Value::Null)) },
                 }
             }
         }

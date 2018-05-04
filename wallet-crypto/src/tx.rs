@@ -1,4 +1,4 @@
-use std::{fmt, ops, iter, vec, slice, convert};
+use std::{fmt, ops, iter, vec, slice, convert, result};
 use std::collections::{LinkedList, BTreeMap};
 
 use rcw::digest::Digest;
@@ -8,19 +8,44 @@ use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
 use config::{Config};
+use redeem;
 
 use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
 use hdpayload;
-use merkle;
 use bip44::{Addressing};
+use coin;
+use coin::{Coin};
 
 use serde;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum Error {
+    InvalidHashSize(usize),
+    HexadecimalError(hex::Error),
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Error::InvalidHashSize(sz) => {
+                write!(f, "invalid hash size, expected {} but received {} bytes.", HASH_SIZE, sz)
+            },
+            &Error::HexadecimalError(err) => {
+                write!(f, "Invalid hexadecimal input: {}", err)
+            }
+        }
+    }
+}
+impl From<hex::Error> for Error {
+    fn from(e: hex::Error) -> Error { Error::HexadecimalError(e) }
+}
+
+pub type Result<T> = result::Result<T, Error>;
 
 pub const HASH_SIZE : usize = 32;
 
 /// Blake2b 256 bits
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Hash([u8;HASH_SIZE]);
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
@@ -36,24 +61,26 @@ impl Hash {
     }
 
     pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Hash(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != HASH_SIZE { return None; }
+    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != HASH_SIZE { return Err(Error::InvalidHashSize(bytes.len())); }
         let mut buf = [0;HASH_SIZE];
 
         buf[0..HASH_SIZE].clone_from_slice(bytes);
-        Some(Self::from_bytes(buf))
+        Ok(Self::from_bytes(buf))
+    }
+    pub fn from_hex(hex: &str) -> Result<Self> {
+        let bytes = hex::decode(hex)?;
+        Self::from_slice(&bytes)
+    }
+}
+impl fmt::Debug for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0[..]))
     }
 }
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.iter().for_each(|byte| {
-            if byte < &0x10 {
-                write!(f, "0{:x}", byte).unwrap()
-            } else {
-                write!(f, "{:x}", byte).unwrap()
-            }
-        });
-        Ok(())
+        write!(f, "{}", hex::encode(&self.0[..]))
     }
 }
 impl cbor::CborValue for Hash {
@@ -61,10 +88,11 @@ impl cbor::CborValue for Hash {
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.bytes().and_then(|bytes| {
             match Hash::from_slice(bytes.as_ref()) {
-                Some(digest) => Ok(digest),
-                None         => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(32))
-                }
+                Ok(digest) => Ok(digest),
+                Err(Error::InvalidHashSize(_)) => {
+                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(HASH_SIZE))
+                },
+                Err(err) => panic!("unexpected error: {}", err)
             }
         }).embed("while decoding Hash")
     }
@@ -72,7 +100,7 @@ impl cbor::CborValue for Hash {
 impl serde::Serialize for Hash
 {
     #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
         if serializer.is_human_readable() {
@@ -91,29 +119,29 @@ impl<'de> serde::de::Visitor<'de> for HashVisitor {
         write!(fmt, "Expecting a Blake2b_256 hash (`Hash`)")
     }
 
-    fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
+    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
         where E: serde::de::Error
     {
-        let bytes = hex::decode(v);
-
-        match Hash::from_slice(&bytes) {
-            None => Err(E::invalid_length(bytes.len(), &"32 bytes")),
-            Some(r) => Ok(r)
+        match Hash::from_hex(v) {
+            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+            Err(Error::InvalidHashSize(sz)) => Err(E::invalid_length(sz, &"32 bytes")),
+            Ok(h) => Ok(h)
         }
     }
 
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
         where E: serde::de::Error
     {
         match Hash::from_slice(v) {
-            None => Err(E::invalid_length(v.len(), &"32 bytes")),
-            Some(r) => Ok(r)
+            Err(Error::InvalidHashSize(sz)) => Err(E::invalid_length(sz, &"32 bytes")),
+            Err(err) => panic!("unexpected error: {}", err),
+            Ok(h) => Ok(h)
         }
     }
 }
 impl<'de> serde::Deserialize<'de> for Hash
 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
         if deserializer.is_human_readable() {
@@ -129,67 +157,15 @@ impl<'de> serde::Deserialize<'de> for Hash
 // to hash a `Tx` by serializing it cbor first.
 pub type TxId = Hash;
 
-const MAX_COIN: u64 = 45000000000000000;
-
-// TODO: add custom implementation of `serde::de::Deserialize` so we can check the
-// upper bound of the `Coin`.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct Coin(u64);
-impl Coin {
-    pub fn zero() -> Self { Coin(0) }
-    pub fn new(v: u64) -> Option<Self> {
-        if v <= MAX_COIN { Some(Coin(v)) } else { None }
-    }
-}
-impl cbor::CborValue for Coin {
-    fn encode(&self) -> cbor::Value { cbor::Value::U64(self.0) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.u64().and_then(|v| {
-            match Coin::new(v) {
-                Some(coin) => Ok(coin),
-                None       => cbor::Result::u64(v, cbor::Error::Between(0, MAX_COIN))
-            }
-        })
-    }
-}
-impl ops::Add for Coin {
-    type Output = Coin;
-    fn add(self, other: Coin) -> Self::Output {
-        Coin(self.0 + other.0)
-    }
-}
-impl<'a> ops::Add<&'a Coin> for Coin {
-    type Output = Coin;
-    fn add(self, other: &'a Coin) -> Self::Output {
-        Coin(self.0 + other.0)
-    }
-}
-impl ops::Sub for Coin {
-    type Output = Option<Coin>;
-    fn sub(self, other: Coin) -> Self::Output {
-        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
-    }
-}
-impl<'a> ops::Sub<&'a Coin> for Coin {
-    type Output = Option<Coin>;
-    fn sub(self, other: &'a Coin) -> Self::Output {
-        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
-    }
-}
-// this instance is necessary to chain the substraction operations
-//
-// i.e. `coin1 - coin2 - coin3`
-impl ops::Sub<Coin> for Option<Coin> {
-    type Output = Option<Coin>;
-    fn sub(self, other: Coin) -> Self::Output {
-        if other.0 > self?.0 { None } else { Some(Coin(self?.0 - other.0)) }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
+}
+impl fmt::Display for TxOut {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} -> {}", self.address, self.value)
+    }
 }
 impl TxOut {
     pub fn new(addr: ExtendedAddr, value: Coin) -> Self {
@@ -220,8 +196,6 @@ impl cbor::CborValue for TxOut {
 type TODO = u8;
 type ValidatorScript = TODO;
 type RedeemerScript = TODO;
-type RedeemPublicKey = TODO;
-type RedeemSignature = TODO;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
@@ -229,7 +203,12 @@ pub enum TxInWitness {
     /// the `XPub` is the public key set in the AddrSpendingData
     PkWitness(XPub, Signature<Tx>),
     ScriptWitness(ValidatorScript, RedeemerScript),
-    RedeemWitness(RedeemPublicKey, RedeemSignature),
+    RedeemWitness(redeem::PublicKey, redeem::Signature),
+}
+impl fmt::Display for TxInWitness {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 impl TxInWitness {
     /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
@@ -253,7 +232,12 @@ impl TxInWitness {
                 &ea == address
             },
             &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
-            &TxInWitness::RedeemWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(ref pk, _) => {
+                let sd = SpendingData::RedeemASD(pk.clone());
+                let ea = ExtendedAddr::new(address.addr_type, sd, address.attributes.clone());
+
+                &ea == address
+            },
         }
     }
 
@@ -271,7 +255,15 @@ impl TxInWitness {
                 pk.verify(&vec, sig)
             },
             &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
-            &TxInWitness::RedeemWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(ref pk, ref sig) => {
+                let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
+
+                let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
+                vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
+                vec.extend_from_slice(&txid);
+
+                pk.verify(sig, &vec)
+            },
         }
     }
 
@@ -292,7 +284,14 @@ impl cbor::CborValue for TxInWitness {
                 (0u64, cbor::encode_to_cbor(&v).unwrap())
             },
             &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
-            &TxInWitness::RedeemWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(ref pk, ref sig) => {
+                let v = cbor::Value::Array(
+                    vec![ cbor::CborValue::encode(pk)
+                        , cbor::CborValue::encode(sig)
+                        ]
+                );
+                (2u64, cbor::encode_to_cbor(&v).unwrap())
+            }
         };
         cbor::Value::Array(
             vec![ cbor::CborValue::encode(&i)
@@ -315,7 +314,20 @@ impl cbor::CborValue for TxInWitness {
                         Ok(TxInWitness::PkWitness(pk, sig))
                     }).embed("while decoding `TxInWitness::PkWitness`")
                 },
-                _ => { unimplemented!() }
+                2u64 => {
+                    let (sum_type, tag) : (Vec<cbor::Value>, cbor::Value) = cbor::array_decode_elem(sum_type, 0).embed("sum_type's value")?;
+                    if !sum_type.is_empty() { return cbor::Result::array(sum_type, cbor::Error::UnparsedValues); }
+                    tag.tag().and_then(|(t, v)| {
+                        if t != 24 { return cbor::Result::tag(t, v, cbor::Error::InvalidTag(t)); }
+                        (*v).bytes()
+                    }).and_then(|bytes| {
+                        let (pk, sig) = cbor::decode_from_cbor(bytes.as_ref())?;
+                        Ok(TxInWitness::RedeemWitness(pk, sig))
+                    }).embed("while decoding `TxInWitness::RedeemWitness`")
+                },
+                _ => {
+                    cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(v))
+                }
             }
         }).embed("While decoding TxInWitness")
     }
@@ -325,6 +337,11 @@ impl cbor::CborValue for TxInWitness {
 pub struct TxIn {
     pub id: TxId,
     pub index: u32,
+}
+impl fmt::Display for TxIn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}@{}", self.id, self.index)
+    }
 }
 impl TxIn {
     pub fn new(id: TxId, index: u32) -> Self { TxIn { id: id, index: index } }
@@ -362,6 +379,17 @@ pub struct Tx {
     // attributes: TxAttributes
     //
     // So far, there is no TxAttributes... the structure contains only the unparsed/unknown stuff
+}
+impl fmt::Display for Tx {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for input in self.inputs.iter() {
+            writeln!(f, "-> {}", input)?;
+        }
+        for output in self.outputs.iter() {
+            writeln!(f, "   {} ->", output)?;
+        }
+        write!(f, "")
+    }
 }
 impl Tx {
     pub fn new() -> Self { Tx::new_with(LinkedList::new(), LinkedList::new()) }
@@ -485,7 +513,9 @@ impl Outputs {
     pub fn is_empty(&self) -> bool { self.0.is_empty() }
     pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
 
-    pub fn total(&self) -> Coin { self.iter().fold(Coin::zero(), |acc, ref c| acc + c.value) }
+    pub fn total(&self) -> coin::Result<Coin> {
+        self.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))
+    }
 }
 impl convert::AsRef<Outputs> for Outputs {
     fn as_ref(&self) -> &Self { self }
@@ -524,7 +554,7 @@ impl<'a> IntoIterator for &'a Outputs {
 pub mod fee {
     //! fee stabilisation related algorithm
 
-    use std::{result};
+    use std::{result, fmt};
     use super::*;
 
     /// fee
@@ -540,12 +570,27 @@ pub mod fee {
         NoInputs,
         NoOutputs,
         NotEnoughInput,
+        CoinError(coin::Error)
+    }
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
+                &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
+                &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
+                &Error::CoinError(err) => write!(f, "Error on coin operations: {}", err)
+            }
+        }
     }
 
     type Result<T> = result::Result<T, Error>;
 
+    impl From<coin::Error> for Error {
+        fn from(e: coin::Error) -> Error { Error::CoinError(e) }
+    }
+
     pub trait Algorithm {
-        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr, fee_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
+        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
     }
 
     #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
@@ -560,9 +605,10 @@ pub mod fee {
             LinearFee { constant: constant, coefficient: coefficient }
         }
 
-        pub fn estimate(&self, sz: usize) -> Fee {
+        pub fn estimate(&self, sz: usize) -> Result<Fee> {
             let fee = self.constant + self.coefficient * (sz as f64);
-            Fee(Coin::new(fee as u64).unwrap())
+            let coin = Coin::new(fee as u64)?;
+            Ok(Fee(coin))
         }
     }
     impl Default for LinearFee {
@@ -574,15 +620,14 @@ pub mod fee {
                   , inputs: &Inputs
                   , outputs: &Outputs
                   , change_addr: &ExtendedAddr
-                  , fee_addr: &ExtendedAddr
                   )
             -> Result<(Fee, Inputs, Coin)>
         {
             if inputs.is_empty() { return Err(Error::NoInputs); }
             if outputs.is_empty() { return Err(Error::NoOutputs); }
 
-            let output_value = outputs.total();
-            let mut fee = self.estimate(0);
+            let output_value = outputs.total()?;
+            let mut fee = self.estimate(0)?;
             let mut input_value = Coin::zero();
             let mut selected_inputs = Inputs::new();
 
@@ -596,7 +641,7 @@ pub mod fee {
             assert!(policy == SelectionPolicy::FirstMatchFirst);
 
             for input in inputs.iter() {
-                input_value = input_value + input.value();
+                input_value = (input_value + input.value())?;
                 selected_inputs.push(input.clone());
                 txins.push_back(input.ptr.clone());
 
@@ -604,10 +649,8 @@ pub mod fee {
                 let mut tx = Tx::new_with(txins.clone(), txouts.clone());
                 let txbytes = cbor::encode_to_cbor(&tx).unwrap();
 
-                let estimated_fee = self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len()));
+                let estimated_fee = (self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len())))?;
 
-                // add the fee in the correction of the fee
-                tx.add_output(TxOut::new(fee_addr.clone(), estimated_fee.to_coin()));
                 // add the change in the estimated fee
                 match output_value - input_value - estimated_fee.to_coin() {
                     None => {},
@@ -619,12 +662,12 @@ pub mod fee {
                 let txbytes = cbor::encode_to_cbor(&tx).unwrap();
                 let corrected_fee = self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len()));
 
-                fee = corrected_fee;
+                fee = corrected_fee?;
 
-                if input_value >= (output_value + fee.to_coin()) { break; }
+                if Ok(input_value) >= (output_value + fee.to_coin()) { break; }
             }
 
-            if input_value < (output_value + fee.to_coin()) {
+            if Ok(input_value) < (output_value + fee.to_coin()) {
                 return Err(Error::NotEnoughInput);
             }
 
@@ -646,8 +689,14 @@ pub mod fee {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
-    tx: Tx,
-    witnesses: Vec<TxInWitness>,
+    pub tx: Tx,
+    pub witnesses: Vec<TxInWitness>,
+}
+impl fmt::Display for TxAux {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Tx:\n{}", self.tx)?;
+        writeln!(f, "witnesses: {:?}\n", self.witnesses)
+    }
 }
 impl TxAux {
     pub fn new(tx: Tx, witnesses: Vec<TxInWitness>) -> Self {
@@ -670,13 +719,46 @@ impl cbor::CborValue for TxAux {
             Ok(TxAux::new(tx, witnesses))
         }).embed("While decoding TxAux.")
     }
-
 }
 
+#[derive(Debug)]
 pub struct TxProof {
-    number: u32,
-    root: merkle::Root<Tx>,
-    witnesses_hash: Hash,
+    pub number: u32,
+    pub root: Hash,
+    pub witnesses_hash: Hash,
+}
+impl TxProof {
+    pub fn new(number: u32, root: Hash, witnesses_hash: Hash) -> Self {
+        TxProof {
+            number: number,
+            root: root,
+            witnesses_hash: witnesses_hash
+        }
+    }
+}
+impl fmt::Display for TxProof {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "number: {}, root: {}, witnesses: {}", self.number, self.root, self.witnesses_hash)
+    }
+}
+impl cbor::CborValue for TxProof {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Array(
+            vec![ cbor::CborValue::encode(&self.number)
+                , cbor::CborValue::encode(&self.root)
+                , cbor::CborValue::encode(&self.witnesses_hash)
+                ]
+        )
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, number)    = cbor::array_decode_elem(array, 0).embed("number")?;
+            let (array, root)      = cbor::array_decode_elem(array, 0).embed("root")?;
+            let (array, witnesses) = cbor::array_decode_elem(array, 0).embed("witnesses")?;
+            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
+            Ok(TxProof::new(number, root, witnesses))
+        }).embed("While decoding TxAux.")
+    }
 }
 
 #[cfg(test)]
@@ -847,7 +929,6 @@ mod tests {
 
     #[test]
     fn txaux_encode_decode() {
-        let cfg = Config::default();
         let tx : Tx = cbor::decode_from_cbor(TX).expect("to decode a `Tx`");
         let txinwitness : TxInWitness = cbor::decode_from_cbor(TX_IN_WITNESS).expect("to decode a `TxInWitness`");
 
