@@ -125,11 +125,13 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
         match nb {
             pack::FanoutNb(0) => {},
             _                 => {
-                let idx_filepath = storage.config.get_index_filepath(packref);
-                let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                match pack::search_index(&mut idx_file, hash, start, nb) {
-                    None       => {},
-                    Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
+                if lookup.bloom.search(hash) {
+                    let idx_filepath = storage.config.get_index_filepath(packref);
+                    let mut idx_file = fs::File::open(idx_filepath).unwrap();
+                    match pack::search_index(&mut idx_file, hash, start, nb) {
+                        None       => {},
+                        Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
+                    }
                 }
             }
         }
