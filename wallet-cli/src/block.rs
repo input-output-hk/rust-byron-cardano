@@ -93,7 +93,7 @@ impl HasCommand for Block {
 
                 match block_location(&storage, hh.bytes()) {
                     None => {
-                        println!("Error: block `{}' does not exit", hh);
+                        println!("Error: block `{}' does not exist", hh);
                         ::std::process::exit(1);
                     },
                     Some(loc) => {
