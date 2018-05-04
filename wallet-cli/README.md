@@ -1,11 +1,7 @@
 >                             ***STILL IN DEVELOPMENT***
 
 ***
-# Ariadne
-
-> With Ariadne's help you can leave **Deadalus**.
-
-# Summary
+# Ariadne summary
 
 `ariadne` is a command line interface to perform actions on a `Cardano`
 compatible wallet.
@@ -21,8 +17,8 @@ compatible wallet.
 # Usage
 
 ```shell
-sh$ ariadne wallet generate
-sh$ ariadne wallet address "Main" 0 1 2
+$ ariadne wallet generate
+$ ariadne wallet address "Main" 0 1 2
 jYTLseJK1m2GQZeYxYKkiea3Phfqt9TUEUCjTDezYSQbd6sY5VaNFr3SKRhD
 jYTLseJK1m2RmsXD44EZVe2EqGtBnQyFnPwjS2Q36c3iLwWCPGmAVWKR9ufE
 jYTLseJK1m2eYuy16w7tjPNqtVdAaQ5bnb4Cyya2YH9AqJoNPQ1VLgE4MaXL
