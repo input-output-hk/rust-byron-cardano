@@ -13,4 +13,4 @@ matrix:
       before_script:
         - rustup target add ${TARGET} --toolchain nightly
       script:
-        - cargo  +nightly build --target ${TARGET} --release --verbose
+        - cargo  +nightly build --target ${TARGET} --release --verbose  --package rcw --package wallet-crypto --package protocol  --package blockchain
