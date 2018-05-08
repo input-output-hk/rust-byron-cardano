@@ -15,8 +15,8 @@ pub enum BlockHeader {
 impl BlockHeader {
     pub fn get_previous_header(&self) -> HeaderHash {
         match self {
-            BlockHeader::GenesisBlockHeader(ref blo) => blo.previous_header.clone(),
-            BlockHeader::MainBlockHeader(ref blo) => blo.previous_header.clone(),
+            &BlockHeader::GenesisBlockHeader(ref blo) => blo.previous_header.clone(),
+            &BlockHeader::MainBlockHeader(ref blo) => blo.previous_header.clone(),
         }
     }
 }

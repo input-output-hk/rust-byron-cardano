@@ -1,8 +1,7 @@
-use std::path::{PathBuf, Path};
+use std::path::{PathBuf};
 use std::{fs};
 
-use wallet_crypto::util::hex::{encode};
-use wallet_crypto::util::hex::{decode};
+use wallet_crypto::util::hex;
 
 use super::types::*;
 
@@ -33,17 +32,17 @@ impl StorageConfig {
     }
     pub fn get_pack_filepath(&self, packhash: &PackHash) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::Pack);
-        p.push(encode(packhash));
+        p.push(hex::encode(packhash));
         p
     }
     pub fn get_index_filepath(&self, packhash: &PackHash) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::Index);
-        p.push(encode(packhash));
+        p.push(hex::encode(packhash));
         p
     }
     pub fn get_blob_filepath(&self, blockhash: &BlockHash) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::Blob);
-        p.push(encode(blockhash));
+        p.push(hex::encode(blockhash));
         p
     }
     pub fn get_tag_filepath<P: AsRef<str>>(&self, s: P) -> PathBuf {
@@ -60,7 +59,7 @@ impl StorageConfig {
             if entry.file_type().unwrap().is_file() {
                 if let Ok(s) = entry.file_name().into_string() {
                     if s.len() == 64 {
-                        let v = decode(s.as_ref()).unwrap();
+                        let v = hex::decode(s.as_ref()).unwrap();
                         let mut packref = [0;HASH_SIZE];
                         packref.clone_from_slice(&v[..]);
                         packs.push(packref);
@@ -79,7 +78,7 @@ impl StorageConfig {
             if entry.file_type().unwrap().is_file() {
                 if let Ok(s) = entry.file_name().into_string() {
                     if s.len() == 64 {
-                        let v = decode(s.as_ref()).unwrap();
+                        let v = hex::decode(s.as_ref()).unwrap();
                         let mut blobref = [0;HASH_SIZE];
                         blobref.clone_from_slice(&v[..]);
                         blobs.push(blobref);

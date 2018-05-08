@@ -5,12 +5,12 @@ script:
   - cargo test --verbose --all
 matrix:
   include:
-    #- rust: stable
-    #- rust: beta
+    - rust: stable
+    - rust: beta
     - rust: nightly
     - rust: nightly
       env:  TARGET="wasm32-unknown-unknown"
       before_script:
         - rustup target add ${TARGET} --toolchain nightly
       script:
-        - cargo  +nightly build --target ${TARGET} --release --verbose
+        - cargo  +nightly build --target ${TARGET} --release --verbose  --package rcw --package wallet-crypto --package protocol  --package blockchain

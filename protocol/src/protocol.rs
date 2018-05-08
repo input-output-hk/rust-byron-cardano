@@ -227,8 +227,8 @@ impl<T: Write+Read> Connection<T> {
             None => false,
             Some(con) => {
                 match &con.received {
-                    None => false,
-                    Some(v) => v.len() > 0,
+                    &None => false,
+                    &Some(ref v) => v.len() > 0,
                 }
             }
         }
@@ -350,7 +350,7 @@ impl<T: Write+Read> Connection<T> {
                                 self.server_cons.remove(&id);
                                 self.server_cons.insert(id, ServerLightConnection::Established(nodeid.clone()));
 
-                                match self.client_cons.iter().find(|(_,v)| v.node_id.match_ack(&nodeid)) {
+                                match self.client_cons.iter().find(|&(_,v)| v.node_id.match_ack(&nodeid)) {
                                     None        => { Ok(()) },
                                     Some((z,_)) => {
                                         self.map_to_client.insert(nodeid, *z);
