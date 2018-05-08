@@ -273,7 +273,7 @@ impl Value {
 pub enum ObjectKey {
     Integer(u64),
     Bytes(Bytes),
-    // Text(String),
+    Text(String),
     // Bool(bool)
 }
 
@@ -609,7 +609,8 @@ impl<W> Encoder<W> where W: io::Write {
     pub fn write_key(&mut self, key: &ObjectKey) -> io::Result<()> {
         match key {
             &ObjectKey::Integer(ref v) => self.write_header(MajorType::UINT, *v),
-            &ObjectKey::Bytes(ref v)   => self.write_bs(v)
+            &ObjectKey::Bytes(ref v)   => self.write_bs(v),
+            &ObjectKey::Text(ref v)    => self.write_text(v),
         }
     }
 }
@@ -731,6 +732,18 @@ impl<R> Decoder<R> where R: Read {
                     Ok(Some(ObjectKey::Bytes(Bytes::new(buf)) ))
                 }
             },
+            MajorType::TEXT => {
+                let len = match self.get_minor_type()? {
+                    Some(b) => b,
+                    None => return Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                };
+                let buf = self.reader.read(len as usize);
+                if len as usize != buf.len() {
+                    Err(Error::ReaderError(ReaderError::NotEnoughBytes))
+                } else {
+                    Ok(String::from_utf8(buf).ok().map(|s| ObjectKey::Text(s)))
+                }
+            },
             _ => {
                 error!("Expected A {{UINT, BYTES}}, received: {:?}", ty);
                 Err(Error::ExpectedU64)
@@ -768,7 +781,7 @@ impl<R> Decoder<R> where R: Read {
                     Err(Error::ReaderError(ReaderError::NotEnoughBytes))
                 } else {
                     Ok(String::from_utf8(buf).ok().map(|s| Value::Text(s)))
-                 }
+                }
             },
             MajorType::ARRAY => {
                 let maybe_len = self.get_minor_type()?;
