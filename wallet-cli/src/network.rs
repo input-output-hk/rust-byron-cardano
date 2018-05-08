@@ -37,6 +37,49 @@ fn network_get_head_header(storage: &storage::Storage, net: &mut Network) -> blo
     mbh
 }
 
+fn net_sync(config: Config) {
+    let storage = config.get_storage().unwrap();
+
+    let mut net = Network::new(&config);
+
+    // read from the tags (try OLDEST_BLOCK, then HEAD) is they exist
+    let read_tag = tag::read(&storage, &OLDEST_BLOCK.to_string()).or_else(|| { tag::read(&storage, &HEAD.to_string()) });
+    let oldest_ref = match read_tag {
+        None => {
+            let mbh = network_get_head_header(&storage, &mut net);
+            mbh.get_previous_header()
+        },
+        Some(oldest_ref) => {
+            let hh = blockchain::HeaderHash::from_slice(&oldest_ref).expect("blockid invalid");
+            hh
+        },
+    };
+
+    println!("last known start block is {}", oldest_ref);
+
+    let mut to_get = oldest_ref.clone();
+    loop {
+        let mut b = GetBlock::only(to_get.clone()).execute(&mut net.0)
+            .expect("to get one block at least");
+        blob::write(&storage, to_get.bytes(), &b[2..]);
+        let blk : blockchain::Block = cbor::decode_from_cbor(&b[2..]).unwrap();
+        match blk {
+            blockchain::Block::GenesisBlock(blk) => {
+                let tag_name = tag::get_epoch_tag(blk.header.consensus.epoch);
+                println!("Genesis block {} epoch {} difficulty {}", to_get, blk.header.consensus.epoch, blk.header.consensus.chain_difficulty);
+                tag::write(&storage, &OLDEST_BLOCK.to_string(), blk.header.previous_header.as_ref());
+                tag::write(&storage, &tag_name, to_get.as_ref());
+                to_get = blk.header.previous_header.clone()
+            }
+            blockchain::Block::MainBlock(blk) => {
+                println!("block {} epoch {} slotid {}", to_get, blk.header.consensus.slot_id.epoch, blk.header.consensus.slot_id.slotid);
+                tag::write(&storage, &OLDEST_BLOCK.to_string(), blk.header.previous_header.as_ref());
+                to_get = blk.header.previous_header.clone()
+            }
+        }
+    }
+}
+
 impl HasCommand for Network {
     type Output = ();
 
@@ -74,48 +117,7 @@ impl HasCommand for Network {
                 let storage = config.get_storage().unwrap();
                 blob::write(&storage, hh.bytes(), &b[2..]);
             },
-            ("sync", _) => {
-                let storage = config.get_storage().unwrap();
-
-                let mut net = Network::new(&config);
-
-                // read from the tags (try OLDEST_BLOCK, then HEAD) is they exist
-                let read_tag = tag::read(&storage, &OLDEST_BLOCK.to_string()).or_else(|| { tag::read(&storage, &HEAD.to_string()) });
-                let oldest_ref = match read_tag {
-                    None => {
-                        let mbh = network_get_head_header(&storage, &mut net);
-                        mbh.get_previous_header()
-                    },
-                    Some(oldest_ref) => {
-                        let hh = blockchain::HeaderHash::from_slice(&oldest_ref).expect("blockid invalid");
-                        hh
-                    },
-                };
-
-                println!("last known start block is {}", oldest_ref);
-
-                let mut to_get = oldest_ref.clone();
-                loop {
-                    let mut b = GetBlock::only(to_get.clone()).execute(&mut net.0)
-                        .expect("to get one block at least");
-                    blob::write(&storage, to_get.bytes(), &b[2..]);
-                    let blk : blockchain::Block = cbor::decode_from_cbor(&b[2..]).unwrap();
-                    match blk {
-                        blockchain::Block::GenesisBlock(blk) => {
-                            let tag_name = tag::get_epoch_tag(blk.header.consensus.epoch);
-                            println!("Genesis block {} epoch {} difficulty {}", to_get, blk.header.consensus.epoch, blk.header.consensus.chain_difficulty);
-                            tag::write(&storage, &OLDEST_BLOCK.to_string(), blk.header.previous_header.as_ref());
-                            tag::write(&storage, &tag_name, to_get.as_ref());
-                            to_get = blk.header.previous_header.clone()
-                        }
-                        blockchain::Block::MainBlock(blk) => {
-                            println!("block {} epoch {} slotid {}", to_get, blk.header.consensus.slot_id.epoch, blk.header.consensus.slot_id.slotid);
-                            tag::write(&storage, &OLDEST_BLOCK.to_string(), blk.header.previous_header.as_ref());
-                            to_get = blk.header.previous_header.clone()
-                        }
-                    }
-                }
-            },
+            ("sync", _) => net_sync(config),
             _ => {
                 println!("{}", args.usage());
                 ::std::process::exit(1);

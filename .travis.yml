@@ -5,8 +5,8 @@ script:
   - cargo test --verbose --all
 matrix:
   include:
-    - rust: stable
-    - rust: beta
+    #- rust: stable
+    #- rust: beta
     - rust: nightly
     - rust: nightly
       env:  TARGET="wasm32-unknown-unknown"

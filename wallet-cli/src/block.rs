@@ -4,10 +4,24 @@ use command::{HasCommand};
 use clap::{ArgMatches, Arg, SubCommand, App};
 use config::{Config};
 use storage::{pack_blobs, block_location, block_read_location, tag, pack, PackParameters};
+use storage::types::PackHash;
+use storage;
 use blockchain;
 use ansi_term::Colour::*;
 
 pub struct Block;
+
+fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
+    let store_config = config.get_storage_config();
+    let storage = config.get_storage().unwrap();
+    let (_, hashes) = storage::pack::dump_index(&store_config, packref).unwrap();
+    for h in hashes.iter() {
+        match storage::block_read(&storage, h) {
+            None      => eprintln!("unpacking {} but cannot be found", hex::encode(h)),
+            Some(blk) => storage::blob::write(&storage, &h, &blk[..]),
+        }
+    }
+}
 
 impl HasCommand for Block {
     type Output = ();
@@ -26,6 +40,11 @@ impl HasCommand for Block {
             .subcommand(SubCommand::with_name("pack")
                 .about("internal pack command")
                 .arg(Arg::with_name("preserve-blobs").long("keep").help("keep what is being packed in its original state"))
+            )
+            .subcommand(SubCommand::with_name("unpack")
+                .about("internal unpack command")
+                .arg(Arg::with_name("preserve-packs").long("keep").help("keep what is being unpacked in its original state"))
+                .arg(Arg::with_name("packhash").help("pack to query").index(1))
             )
             .subcommand(SubCommand::with_name("tag")
                 .about("show content of a tag or set a tag")
@@ -56,6 +75,14 @@ impl HasCommand for Block {
                         }
                     }
                 }
+            },
+            ("unpack", Some(opts)) => {
+                let packrefhex = opts.value_of("packhash")
+                            .and_then(|s| Some(s.to_string()))
+                            .unwrap();
+                let mut packref = [0u8;32];
+                packref.clone_from_slice(&hex::decode(&packrefhex).unwrap()[..]);
+                block_unpack(&config, &packref, opts.is_present("preserve-pack"));
             },
             ("pack", Some(opts)) => {
                 let mut storage = config.get_storage().unwrap();
@@ -93,7 +120,7 @@ impl HasCommand for Block {
 
                 match block_location(&storage, hh.bytes()) {
                     None => {
-                        println!("Error: block `{}' does not exit", hh);
+                        println!("Error: block `{}' does not exist", hh);
                         ::std::process::exit(1);
                     },
                     Some(loc) => {
