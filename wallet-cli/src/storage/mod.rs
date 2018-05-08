@@ -144,8 +144,8 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
 
 pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockHash) -> Option<Vec<u8>> {
     match loc {
-        BlockLocation::Loose                 => Some(blob::read(storage, hash)),
-        BlockLocation::Packed(packref, iofs) => {
+        &BlockLocation::Loose                 => Some(blob::read(storage, hash)),
+        &BlockLocation::Packed(ref packref, ref iofs) => {
             match storage.lookups.get(packref) {
                 None         => { unreachable!(); },
                 Some(lookup) => {
