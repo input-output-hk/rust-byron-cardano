@@ -674,10 +674,26 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
     XPrv::from_bytes(out)
 }
 
-fn point_of_trunc28_mul8(sk: &[u8]) -> GeP3 {
+fn point_of_trunc28_mul8(sk: &[u8]) -> [u8;32] {
     assert!(sk.len() == 32);
-    let a = ge_scalarmult_base(sk);
-    a
+    let copy = add_28_mul8(&[0u8;32], sk);
+    let a = ge_scalarmult_base(&copy);
+    a.to_bytes()
+}
+
+fn point_plus(p1: &[u8], p2: &[u8]) -> Result<[u8;32]> {
+    let a = match GeP3::from_bytes_negate_vartime(p1) {
+        Some(g) => g,
+        None    => { return Err(Error::InvalidDerivation); }
+    };
+    let b = match GeP3::from_bytes_negate_vartime(p2) {
+        Some(g) => g,
+        None    => { return Err(Error::InvalidDerivation); }
+    };
+    let r = a + b.to_cached();
+    let mut r = r.to_p2().to_bytes();
+    r[31] ^= 0x80;
+    Ok(r)
 }
 
 fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub> {
@@ -706,22 +722,15 @@ fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub> {
     let zl = &zout[0..32];
     let _zr = &zout[32..64];
 
-    let a = match GeP3::from_bytes_negate_vartime(pk) {
-        Some(g) => g,
-        None => {
-            return Err(Error::InvalidDerivation);
-        }
-    };
-
     // left = kl + 8 * trunc28(zl)
-    let left = a + point_of_trunc28_mul8(zl).to_cached();
+    let left = point_plus(pk, &point_of_trunc28_mul8(zl))?;
 
     let mut iout = [0u8; 64];
     imac.raw_result(&mut iout);
     let cc = &iout[32..];
 
     let mut out = [0u8; XPUB_SIZE];
-    mk_xpub(&mut out, &left.to_p2().to_bytes(), cc);
+    mk_xpub(&mut out, &left, cc);
 
     imac.reset();
     zmac.reset();
@@ -732,8 +741,7 @@ fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub> {
 
 fn mk_public_key(extended_secret: &[u8]) -> [u8; PUBLIC_KEY_SIZE] {
     assert!(extended_secret.len() == 64);
-    let a = ge_scalarmult_base(&extended_secret[0..32]);
-    a.to_bytes()
+    ed25519::to_public(extended_secret)
 }
 
 #[cfg(test)]
@@ -804,6 +812,16 @@ mod tests {
     fn do_sign(xprv: &XPrv, expected_signature: &[u8]) {
         let signature : Signature<Vec<u8>> = xprv.sign(MSG);
         assert_eq!(signature.as_ref(), expected_signature);
+    }
+
+    #[test]
+    fn xpub_derive()  {
+        let derivation_index = 0x10000000;
+        let prv = XPrv::from_bytes(D1);
+        let xpub = prv.public();
+        let child_prv = prv.derive(derivation_index);
+        let child_xpub = xpub.derive(derivation_index).unwrap();
+        assert_eq!(child_prv.public(), child_xpub);
     }
 
     #[test]
