@@ -224,15 +224,15 @@ pub enum BlockSignature {
 impl cbor::CborValue for BlockSignature {
     fn encode(&self) -> cbor::Value {
         match self {
-            BlockSignature::Signature(sig) =>
+            &BlockSignature::Signature(ref sig) =>
                 cbor::Value::Array(vec![ cbor::Value::U64(0), cbor::CborValue::encode(sig) ]),
-            BlockSignature::ProxyLight(v) => {
+            &BlockSignature::ProxyLight(ref v) => {
                 let mut r = Vec::new();
                 r.push(cbor::Value::U64(1));
                 r.extend_from_slice(v);
                 cbor::Value::Array(r)
             },
-            BlockSignature::ProxyHeavy(v) => {
+            &BlockSignature::ProxyHeavy(ref v) => {
                 let mut r = Vec::new();
                 r.push(cbor::Value::U64(2));
                 r.extend_from_slice(v);

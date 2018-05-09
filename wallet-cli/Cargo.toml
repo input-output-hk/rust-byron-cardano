@@ -11,6 +11,7 @@ rcw = { path = "../rcw" }
 wallet-crypto = { path = "../wallet-crypto" }
 protocol = { path = "../protocol" }
 blockchain = { path = "../blockchain" }
+storage = { path = "../storage" }
 rand = "0.4"
 serde = "1.0"
 serde_derive = "1.0"

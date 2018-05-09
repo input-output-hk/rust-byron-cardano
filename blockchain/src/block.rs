@@ -54,8 +54,8 @@ pub enum Block {
 impl Block {
     pub fn get_header(&self) -> BlockHeader {
         match self {
-            Block::GenesisBlock(blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
-            Block::MainBlock(blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
+            &Block::GenesisBlock(ref blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
+            &Block::MainBlock(ref blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
         }
     }
 }

@@ -245,13 +245,13 @@ impl cbor::CborValue for HeaderExtraData {
 impl cbor::CborValue for SscProof {
     fn encode(&self) -> cbor::Value {
         match self {
-            SscProof::Commitments(commhash, vss) =>
+            &SscProof::Commitments(ref commhash, ref vss) =>
                 cbor::Value::Array(vec![ cbor::Value::U64(0u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
-            SscProof::Openings(commhash, vss) =>
+            &SscProof::Openings(ref commhash, ref vss) =>
                 cbor::Value::Array(vec![ cbor::Value::U64(1u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
-            SscProof::Shares(commhash, vss) =>
+            &SscProof::Shares(ref commhash, ref vss) =>
                 cbor::Value::Array(vec![ cbor::Value::U64(2u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
-            SscProof::Certificate(cert) =>
+            &SscProof::Certificate(ref cert) =>
                 cbor::Value::Array(vec![ cbor::Value::U64(3u64), cbor::CborValue::encode(cert) ]),
         }
     }
