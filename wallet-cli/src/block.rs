@@ -25,11 +25,11 @@ fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
 
 fn display_block(blk: &blockchain::Block) {
     match blk {
-        blockchain::Block::GenesisBlock(mblock) => {
+        &blockchain::Block::GenesisBlock(ref mblock) => {
             println!("genesis block display unimplemented");
             println!("{:?}", mblock)
         },
-        blockchain::Block::MainBlock(mblock) => {
+        &blockchain::Block::MainBlock(ref mblock) => {
             let hdr = &mblock.header;
             let body = &mblock.body;
             println!("### Header");
