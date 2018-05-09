@@ -16,11 +16,11 @@ use std::io::SeekFrom;
 use std::io;
 use std::io::{Write,Read,Seek};
 use std::fs;
-use storage::rcw::blake2b;
-use storage::rcw::digest::Digest;
-use storage::types::HASH_SIZE;
-use storage::bloom;
-use storage::types::BlockHash;
+use rcw::blake2b;
+use rcw::digest::Digest;
+use types::HASH_SIZE;
+use bloom;
+use types::BlockHash;
 
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;

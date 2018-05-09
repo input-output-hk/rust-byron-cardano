@@ -1,3 +1,10 @@
+extern crate rcw;
+extern crate wallet_crypto;
+extern crate blockchain;
+extern crate protocol;
+extern crate rand;
+extern crate flate2;
+
 pub mod types;
 pub mod config;
 pub mod pack;
@@ -9,11 +16,9 @@ use std::{fs, io};
 
 use std::collections::BTreeMap;
 
-use rcw;
-
-use self::types::*;
-use self::config::*;
-use self::tmpfile::*;
+use types::*;
+use config::*;
+use tmpfile::*;
 
 const USE_COMPRESSION : bool = true;
 

@@ -3,7 +3,7 @@ use std::{fs};
 
 use wallet_crypto::util::hex;
 
-use super::types::*;
+use types::*;
 
 #[derive(Clone)]
 pub struct StorageConfig {

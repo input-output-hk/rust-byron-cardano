@@ -10,6 +10,7 @@ extern crate rcw;
 extern crate wallet_crypto;
 extern crate blockchain;
 extern crate protocol;
+extern crate storage;
 extern crate rand;
 extern crate ansi_term;
 extern crate termion;
@@ -19,7 +20,6 @@ mod config;
 mod account;
 mod command;
 mod wallet;
-mod storage;
 mod network;
 mod block;
 
