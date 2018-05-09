@@ -427,6 +427,9 @@ pub mod command {
             println!("{}", l);
     
             match l {
+                packet::BlockHeaderResponse::Err(_t) => {
+                    Err("block header response failed")
+                },
                 packet::BlockHeaderResponse::Ok(mut ll) => {
                     match ll.pop_front() {
                         Some(bh) => Ok(bh),
