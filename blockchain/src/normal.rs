@@ -69,7 +69,11 @@ impl TxPayload {
 }
 impl cbor::CborValue for TxPayload {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        let mut l = LinkedList::new();
+        for x in self.txaux.iter() {
+            l.push_back(cbor::CborValue::encode(x));
+        }
+        cbor::CborValue::encode(&l)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.iarray().and_then(|array| {
@@ -179,7 +183,11 @@ impl fmt::Display for Block {
 }
 impl cbor::CborValue for Block {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        let mut v = Vec::new();
+        v.push(cbor::CborValue::encode(&self.header));
+        v.push(cbor::CborValue::encode(&self.body));
+        v.push(self.extra.clone());
+        cbor::Value::Array(v)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -204,7 +212,22 @@ pub enum BlockSignature {
 }
 impl cbor::CborValue for BlockSignature {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        match self {
+            BlockSignature::Signature(sig) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(0), cbor::CborValue::encode(sig) ]),
+            BlockSignature::ProxyLight(v) => {
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(1));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },
+            BlockSignature::ProxyHeavy(v) => {
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(2));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },
+        }
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -232,7 +255,12 @@ pub struct Consensus {
 }
 impl cbor::CborValue for Consensus {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.slot_id),
+            cbor::CborValue::encode(&self.leader_key),
+            cbor::CborValue::encode(&self.chain_difficulty),
+            cbor::CborValue::encode(&self.block_signature),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
