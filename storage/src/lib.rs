@@ -1,7 +1,6 @@
 extern crate rcw;
 extern crate wallet_crypto;
 extern crate blockchain;
-extern crate protocol;
 extern crate rand;
 extern crate flate2;
 
