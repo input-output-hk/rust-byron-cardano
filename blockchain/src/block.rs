@@ -2,11 +2,11 @@ use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor};
 
-use types::HeaderHash;
+use types::{HeaderHash, SlotId};
 use genesis;
 use normal;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
@@ -18,6 +18,18 @@ impl BlockHeader {
             &BlockHeader::GenesisBlockHeader(ref blo) => blo.previous_header.clone(),
             &BlockHeader::MainBlockHeader(ref blo) => blo.previous_header.clone(),
         }
+    }
+
+    pub fn get_slotid(&self) -> SlotId {
+        match self {
+            &BlockHeader::GenesisBlockHeader(ref blo) => SlotId { epoch: blo.consensus.epoch, slotid: 0 },
+            &BlockHeader::MainBlockHeader(ref blo) => blo.consensus.slot_id.clone(),
+        }
+    }
+
+    pub fn compute_hash(&self) -> HeaderHash {
+        let v = cbor::encode_to_cbor(self).unwrap();
+        HeaderHash::new(&v[..])
     }
 }
 
@@ -39,6 +51,15 @@ pub enum Block {
     GenesisBlock(genesis::Block),
     MainBlock(normal::Block),
 }
+impl Block {
+    pub fn get_header(&self) -> BlockHeader {
+        match self {
+            Block::GenesisBlock(blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
+            Block::MainBlock(blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
+        }
+    }
+}
+
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

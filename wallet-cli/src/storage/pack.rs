@@ -250,7 +250,7 @@ pub fn index_get_header(mut file: &fs::File) -> io::Result<Lookup> {
     }
     let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
 
-    file.read_exact(&mut bloom[..]);
+    file.read_exact(&mut bloom[..])?;
 
     Ok(Lookup { fanout: Fanout(fanout), bloom: Bloom(bloom) })
 }

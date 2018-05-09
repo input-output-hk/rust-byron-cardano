@@ -32,7 +32,11 @@ impl Network {
 
 // TODO return BlockHeader not MainBlockHeader
 fn network_get_head_header(storage: &storage::Storage, net: &mut Network) -> blockchain::BlockHeader {
-    let mbh = GetBlockHeader::first().execute(&mut net.0).expect("to get one header at least");
+    let block_headers = GetBlockHeader::tip().execute(&mut net.0).expect("to get one header at least");
+    if block_headers.len() != 1 {
+        panic!("get head header return more than 1 header")
+    }
+    let mbh = block_headers[0].clone();
     tag::write(&storage, &HEAD.to_string(), mbh.get_previous_header().as_ref());
     mbh
 }

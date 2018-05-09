@@ -7,9 +7,9 @@ use std::collections::{LinkedList};
 use wallet_crypto::hdwallet;
 
 use types;
-use types::{HeaderHash, HeaderExtraData};
+use types::{HeaderHash, HeaderExtraData, SlotId};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
@@ -29,7 +29,12 @@ impl BodyProof {
 
 impl cbor::CborValue for BodyProof {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.tx),
+            cbor::CborValue::encode(&self.mpc),
+            cbor::CborValue::encode(&self.proxy_sk),
+            cbor::CborValue::encode(&self.update),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -43,7 +48,7 @@ impl cbor::CborValue for BodyProof {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxPayload {
     txaux: LinkedList<tx::TxAux>
 }
@@ -69,7 +74,11 @@ impl TxPayload {
 }
 impl cbor::CborValue for TxPayload {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        let mut l = LinkedList::new();
+        for x in self.txaux.iter() {
+            l.push_back(cbor::CborValue::encode(x));
+        }
+        cbor::CborValue::encode(&l)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.iarray().and_then(|array| {
@@ -82,7 +91,7 @@ impl cbor::CborValue for TxPayload {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Body {
     pub tx: TxPayload,
     pub scc: cbor::Value,
@@ -115,7 +124,7 @@ impl cbor::CborValue for Body {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeader {
     pub protocol_magic: ProtocolMagic,
     pub previous_header: HeaderHash,
@@ -145,7 +154,13 @@ impl BlockHeader {
 }
 impl cbor::CborValue for BlockHeader {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.protocol_magic),
+            cbor::CborValue::encode(&self.previous_header),
+            cbor::CborValue::encode(&self.body_proof),
+            cbor::CborValue::encode(&self.consensus),
+            cbor::CborValue::encode(&self.extra_data),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -160,7 +175,7 @@ impl cbor::CborValue for BlockHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
@@ -179,7 +194,11 @@ impl fmt::Display for Block {
 }
 impl cbor::CborValue for Block {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        let mut v = Vec::new();
+        v.push(cbor::CborValue::encode(&self.header));
+        v.push(cbor::CborValue::encode(&self.body));
+        v.push(self.extra.clone());
+        cbor::Value::Array(v)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -192,31 +211,11 @@ impl cbor::CborValue for Block {
     }
 }
 
-#[derive(Debug)]
-pub struct SlotId {
-    pub epoch: u32,
-    pub slotid: u32,
-}
-
-impl cbor::CborValue for SlotId {
-    fn encode(&self) -> cbor::Value {
-        unimplemented!()
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, epoch) = cbor::array_decode_elem(array, 0).embed("epoch")?;
-            let (array, slotid) = cbor::array_decode_elem(array, 0).embed("slotid")?;
-            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-            Ok(SlotId { epoch: epoch, slotid: slotid })
-        }).embed("While decoding Slotid")
-    }
-}
-
 type ChainDifficulty = u64;
 
 type SignData = ();
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
     ProxyLight(Vec<cbor::Value>),
@@ -224,7 +223,22 @@ pub enum BlockSignature {
 }
 impl cbor::CborValue for BlockSignature {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        match self {
+            BlockSignature::Signature(sig) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(0), cbor::CborValue::encode(sig) ]),
+            BlockSignature::ProxyLight(v) => {
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(1));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },
+            BlockSignature::ProxyHeavy(v) => {
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(2));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },
+        }
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -243,7 +257,7 @@ impl cbor::CborValue for BlockSignature {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Consensus {
     pub slot_id: SlotId,
     pub leader_key: hdwallet::XPub,
@@ -252,7 +266,12 @@ pub struct Consensus {
 }
 impl cbor::CborValue for Consensus {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.slot_id),
+            cbor::CborValue::encode(&self.leader_key),
+            cbor::CborValue::encode(&self.chain_difficulty),
+            cbor::CborValue::encode(&self.block_signature),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {

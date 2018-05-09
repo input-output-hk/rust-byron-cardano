@@ -1,6 +1,8 @@
 use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor, util, tx};
+use rcw::blake2b::Blake2b;
+use rcw::digest::Digest;
 
 const HASH_SIZE : usize = 32;
 
@@ -24,7 +26,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HeaderHash([u8;HASH_SIZE]);
 impl AsRef<[u8]> for HeaderHash { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 impl fmt::Debug for HeaderHash {
@@ -47,6 +49,14 @@ impl HeaderHash {
 
         buf[0..HASH_SIZE].clone_from_slice(bytes);
         Some(Self::from_bytes(buf))
+    }
+
+    pub fn new(bytes: &[u8]) -> Self {
+        let mut b2b = Blake2b::new(HASH_SIZE);
+        let mut out = [0;HASH_SIZE];
+        b2b.input(bytes);
+        b2b.result(&mut out);
+        Self::from_bytes(out)
     }
 }
 
@@ -93,10 +103,10 @@ impl Default for SoftwareVersion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeaderAttributes(cbor::Value);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeaderExtraData {
     pub block_version: BlockVersion,
     pub software_version: SoftwareVersion,
@@ -114,7 +124,7 @@ impl HeaderExtraData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SscProof {
     Commitments(tx::Hash, tx::Hash),
     Openings(tx::Hash, tx::Hash),
@@ -211,7 +221,14 @@ impl cbor::CborValue for BlockHeaderAttributes {
 
 impl cbor::CborValue for HeaderExtraData {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(
+            vec![
+                cbor::CborValue::encode(&self.block_version),
+                cbor::CborValue::encode(&self.software_version),
+                cbor::CborValue::encode(&self.attributes),
+                cbor::CborValue::encode(&self.extra_data_proof),
+            ]
+        )
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -227,7 +244,16 @@ impl cbor::CborValue for HeaderExtraData {
 
 impl cbor::CborValue for SscProof {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        match self {
+            SscProof::Commitments(commhash, vss) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(0u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
+            SscProof::Openings(commhash, vss) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(1u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
+            SscProof::Shares(commhash, vss) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(2u64), cbor::CborValue::encode(commhash), cbor::CborValue::encode(vss) ]),
+            SscProof::Certificate(cert) =>
+                cbor::Value::Array(vec![ cbor::Value::U64(3u64), cbor::CborValue::encode(cert) ]),
+        }
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -258,3 +284,28 @@ impl cbor::CborValue for SscProof {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SlotId {
+    pub epoch: u32,
+    pub slotid: u32,
+}
+
+impl cbor::CborValue for SlotId {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Array(vec![ cbor::Value::U64(self.epoch as u64), cbor::Value::U64(self.slotid as u64) ])
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, epoch) = cbor::array_decode_elem(array, 0).embed("epoch")?;
+            let (array, slotid) = cbor::array_decode_elem(array, 0).embed("slotid")?;
+            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
+            Ok(SlotId { epoch: epoch, slotid: slotid })
+        }).embed("While decoding Slotid")
+    }
+}
+
+impl fmt::Display for SlotId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.epoch, self.slotid)
+    }
+}

@@ -9,4 +9,5 @@ keywords = [ "Cardano", "BlockChain" ]
 [build-dependencies]
 
 [dependencies]
+rcw = { path = "../rcw" }
 wallet-crypto = { path = "../wallet-crypto" }

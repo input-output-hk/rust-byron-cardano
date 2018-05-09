@@ -2,6 +2,8 @@ use std::fs;
 use std::io::{Write,Read};
 use wallet_crypto::util::{hex};
 
+use blockchain;
+
 pub const OLDEST_BLOCK : &str = "OLDEST_BLOCK";
 pub const HEAD : &str = "HEAD";
 
@@ -15,6 +17,10 @@ pub fn write<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &[u8]) 
     tmp_file.render_permanent(&storage.config.get_tag_filepath(name)).unwrap();
 }
 
+pub fn write_hash<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &blockchain::HeaderHash) {
+    write(storage, name, content.as_ref())
+}
+
 pub fn read<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<Vec<u8>> {
     if ! exist(storage, name) { return None; }
     let mut content = Vec::new();
@@ -24,6 +30,10 @@ pub fn read<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<Vec<u8>
     String::from_utf8(content.clone()).ok()
         .and_then(|r| hex::decode(&r).ok())
         .or(Some(content))
+}
+
+pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<blockchain::HeaderHash> {
+    read(storage, name).and_then(|v| blockchain::HeaderHash::from_slice(&v[..]))
 }
 
 pub fn exist<S: AsRef<str>>(storage: &super::Storage, name: &S) -> bool {

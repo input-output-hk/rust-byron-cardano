@@ -232,7 +232,8 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
 
 #[derive(Debug)]
 pub enum BlockHeaderResponse {
-    Ok(LinkedList<blockchain::BlockHeader>)
+    Ok(LinkedList<blockchain::BlockHeader>),
+    Err(String)
 }
 impl fmt::Display for BlockHeaderResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -241,7 +242,10 @@ impl fmt::Display for BlockHeaderResponse {
                 for i in ll {
                     write!(f, "{}\n", i)?;
                 }
-            }
+            },
+            &BlockHeaderResponse::Err(ref s) => {
+                write!(f, "Err {}\n", s.to_string())?;
+            },
         }
         write!(f, "")
     }
@@ -255,7 +259,10 @@ impl cbor::CborValue for BlockHeaderResponse {
                        , cbor::CborValue::encode(l)
                        ]
                 )
-            }
+            },
+            &BlockHeaderResponse::Err(ref s) => {
+                cbor::Value::Array(vec![ cbor::Value::U64(1), cbor::Value::Text(s.clone()) ])
+            },
         }
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
@@ -265,6 +272,10 @@ impl cbor::CborValue for BlockHeaderResponse {
                 let (array, l) = cbor::array_decode_elem(array, 0)?;
                 if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
                 Ok(BlockHeaderResponse::Ok(l))
+            } else if code == 1u64 {
+                let (array, s) = cbor::array_decode_elem(array, 0)?;
+                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
+                Ok(BlockHeaderResponse::Err(s))
             } else {
                 cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
             }
