@@ -11,6 +11,7 @@ use address;
 use tx;
 use config;
 use bip39;
+use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
 
@@ -19,6 +20,7 @@ use std::{result, fmt};
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
     FeeCalculationError(tx::fee::Error),
+    AddressingError(bip44::Error),
     WalletError(hdwallet::Error)
 }
 impl From<tx::fee::Error> for Error {
@@ -27,11 +29,17 @@ impl From<tx::fee::Error> for Error {
 impl From<hdwallet::Error> for Error {
     fn from(j: hdwallet::Error) -> Self { Error::WalletError(j) }
 }
+impl From<bip44::Error> for Error {
+    fn from(e: bip44::Error) -> Self { Error::AddressingError(e) }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::FeeCalculationError(err) => {
                 write!(f, "Fee calculation error: {}", err)
+            },
+            &Error::AddressingError(err) => {
+                write!(f, "Addressing error: {}", err)
             },
             &Error::WalletError(err) => {
                 write!(f, "HD Wallet error: {}", err)
@@ -75,30 +83,16 @@ impl Wallet {
     }
 
     pub fn account(&self, account: u32) -> Account {
-        let account_key = self.get_root_key().derive(account).public();
+        let account_key = self.get_root_key().derive(account | 0x8000_0000).public();
 
-        Account::new(account, account_key)
+        Account::new(account | 0x8000_0000, account_key)
     }
 
     /// create an extended address from the given addressing
     ///
-    pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Vec<address::ExtendedAddr>
+    pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Result<Vec<address::ExtendedAddr>>
     {
-        let addressing = Addressing::new(account, addr_type).unwrap();
-
-        let change_prv = self.get_root_key()
-            .derive(addressing.account)
-            .derive(addressing.change);
-
-        let mut res = vec![];
-        for index in indices {
-            let pk = change_prv.derive(index).public();
-            let addr_type = address::AddrType::ATPubKey;
-            let sd = address::SpendingData::PubKeyASD(pk);
-            let attrs = address::Attributes::new_bootstrap_era(None);
-            res.push(address::ExtendedAddr::new(addr_type, sd, attrs));
-        }
-        res
+        self.account(account).gen_addresses(addr_type, indices)
     }
 
     /// function to create a ready to send transaction to the network
@@ -169,7 +163,7 @@ impl Account {
     ///
     pub fn gen_addresses(&self, addr_type: AddrType, indices: Vec<u32>) -> Result<Vec<address::ExtendedAddr>>
     {
-        let addressing = Addressing::new(self.account, addr_type).unwrap();
+        let addressing = Addressing::new(self.account, addr_type)?;
 
         let change_prv = self.cached_account_key
             .derive(addressing.change)?;

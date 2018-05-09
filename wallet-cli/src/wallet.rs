@@ -143,7 +143,7 @@ impl HasCommand for Wallet {
                         };
                         let indices = values_t!(opts.values_of("indices"), u32).unwrap_or_else(|_| vec![0]);
 
-                        let addresses = wallet.0.gen_addresses(account, addr_type, indices);
+                        let addresses = wallet.0.gen_addresses(account, addr_type, indices).unwrap();
                         for addr in addresses {
                             println!("{}", base58::encode(&addr.to_bytes()));
                         };
