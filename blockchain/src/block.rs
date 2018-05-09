@@ -19,6 +19,13 @@ impl BlockHeader {
             &BlockHeader::MainBlockHeader(ref blo) => blo.previous_header.clone(),
         }
     }
+
+    pub fn get_slotid(&self) -> SlotId {
+        match self {
+            &BlockHeader::GenesisBlockHeader(ref blo) => SlotId { epoch: blo.consensus.epoch, slotid: 0 },
+            &BlockHeader::MainBlockHeader(ref blo) => blo.consensus.slot_id.clone(),
+        }
+    }
 }
 
 impl fmt::Display for BlockHeader {
