@@ -406,16 +406,25 @@ pub mod command {
     }
 
     #[derive(Debug)]
-    pub struct GetBlockHeader(Option<blockchain::HeaderHash>);
+    pub struct GetBlockHeader {
+        from: Vec<blockchain::HeaderHash>,
+        to: Option<blockchain::HeaderHash>
+    }
     impl GetBlockHeader {
-        pub fn first() -> Self { GetBlockHeader(None) }
-        pub fn some(hh: blockchain::HeaderHash) -> Self { GetBlockHeader(Some(hh)) }
+        pub fn tip() -> Self { GetBlockHeader { from: vec![], to: None } }
+        pub fn range(from: &[blockchain::HeaderHash], to: blockchain::HeaderHash) -> Self {
+            let mut vec = Vec::new();
+            for f in from.iter() {
+                vec.push(f.clone());
+            }
+            GetBlockHeader { from: vec, to: Some(to) }
+        }
     }
 
     impl<W> Command<W> for GetBlockHeader where W: Read+Write {
-        type Output = blockchain::BlockHeader;
+        type Output = Vec<blockchain::BlockHeader>;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            let (get_header_id, get_header_dat) = packet::send_msg_getheaders(&[], &self.0);
+            let (get_header_id, get_header_dat) = packet::send_msg_getheaders(&self.from[..], &self.to);
             connection.send_bytes(id, &[get_header_id]).unwrap();
             connection.send_bytes(id, &get_header_dat[..]).unwrap();
             Ok(())
@@ -424,17 +433,18 @@ pub mod command {
             // require the initial header
             let dat = connection.wait_msg(id).unwrap();
             let l : packet::BlockHeaderResponse = cbor::decode_from_cbor(&dat).unwrap();
-            println!("{}", l);
     
             match l {
                 packet::BlockHeaderResponse::Err(_t) => {
                     Err("block header response failed")
                 },
                 packet::BlockHeaderResponse::Ok(mut ll) => {
-                    match ll.pop_front() {
-                        Some(bh) => Ok(bh),
-                        None     => panic!("pop front")
+                    let mut vec = Vec::new();
+                    for x in ll.iter_mut() {
+                        vec.push(x.clone())
                     }
+                    println!("headers received {}", vec.len());
+                    Ok(vec)
                 },
             }
         }
