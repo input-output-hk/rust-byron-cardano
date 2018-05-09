@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/input-output-hk/rust-cardano-crypto.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano-crypto)
+
 # rust implementation of cardano wallet and crypto
 
 ## Installation
