@@ -7,7 +7,7 @@ use std::collections::{LinkedList};
 use wallet_crypto::hdwallet;
 
 use types;
-use types::{HeaderHash, HeaderExtraData, SlotId};
+use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
@@ -211,8 +211,6 @@ impl cbor::CborValue for Block {
     }
 }
 
-type ChainDifficulty = u64;
-
 type SignData = ();
 
 #[derive(Debug, Clone)]
@@ -277,14 +275,14 @@ impl cbor::CborValue for Consensus {
         value.array().and_then(|array| {
             let (array, slotid)  = cbor::array_decode_elem(array, 0).embed("slotid code")?;
             let (array, leaderkey)  = cbor::array_decode_elem(array, 0).embed("leader key")?;
-            let (array, chain_difficulty) : (Vec<cbor::Value>, Vec<u64>) = cbor::array_decode_elem(array, 0).embed("chain difficulty")?;
+            let (array, chain_difficulty) = cbor::array_decode_elem(array, 0).embed("chain difficulty")?;
             let (array, block_signature) = cbor::array_decode_elem(array, 0).embed("block signature")?;
 
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Consensus {
                 slot_id: slotid,
                 leader_key: leaderkey,
-                chain_difficulty: chain_difficulty[0],
+                chain_difficulty: chain_difficulty,
                 block_signature: block_signature,
             })
         }).embed("While decoding main::Consensus")
