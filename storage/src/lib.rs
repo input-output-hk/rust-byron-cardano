@@ -4,6 +4,7 @@ extern crate blockchain;
 extern crate rand;
 extern crate flate2;
 
+pub mod block;
 pub mod types;
 pub mod config;
 pub mod pack;
@@ -47,6 +48,14 @@ impl Storage {
 
         let storage = Storage { config: cfg.clone(), lookups: lookups };
         Ok(storage)
+    }
+
+    /// create a reverse iterator over the stored blocks
+    ///
+    /// it will iterate from the tag `HEAD` until there is no more
+    /// value to parse
+    pub fn reverse_iter<'a>(&'a self) -> block::ReverseIter<'a> {
+        block::ReverseIter::new(self).unwrap()
     }
 }
 
