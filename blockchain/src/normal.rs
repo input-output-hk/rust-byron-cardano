@@ -9,7 +9,7 @@ use wallet_crypto::hdwallet;
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
@@ -43,7 +43,7 @@ impl cbor::CborValue for BodyProof {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxPayload {
     txaux: LinkedList<tx::TxAux>
 }
@@ -82,7 +82,7 @@ impl cbor::CborValue for TxPayload {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Body {
     pub tx: TxPayload,
     pub scc: cbor::Value,
@@ -115,7 +115,7 @@ impl cbor::CborValue for Body {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeader {
     pub protocol_magic: ProtocolMagic,
     pub previous_header: HeaderHash,
@@ -160,7 +160,7 @@ impl cbor::CborValue for BlockHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
@@ -196,7 +196,7 @@ type ChainDifficulty = u64;
 
 type SignData = ();
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
     ProxyLight(Vec<cbor::Value>),
@@ -223,7 +223,7 @@ impl cbor::CborValue for BlockSignature {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Consensus {
     pub slot_id: SlotId,
     pub leader_key: hdwallet::XPub,

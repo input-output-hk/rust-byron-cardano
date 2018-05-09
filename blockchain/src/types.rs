@@ -24,7 +24,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HeaderHash([u8;HASH_SIZE]);
 impl AsRef<[u8]> for HeaderHash { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 impl fmt::Debug for HeaderHash {
@@ -93,10 +93,10 @@ impl Default for SoftwareVersion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeaderAttributes(cbor::Value);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeaderExtraData {
     pub block_version: BlockVersion,
     pub software_version: SoftwareVersion,
@@ -114,7 +114,7 @@ impl HeaderExtraData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SscProof {
     Commitments(tx::Hash, tx::Hash),
     Openings(tx::Hash, tx::Hash),

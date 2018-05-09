@@ -7,7 +7,7 @@ use std::collections::{LinkedList};
 use types;
 use types::HeaderHash;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BodyProof(tx::Hash);
 
 impl cbor::CborValue for BodyProof {
@@ -19,7 +19,7 @@ impl cbor::CborValue for BodyProof {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Body {
     //pub slot_leaders: Vec<tx::Hash>
     pub slot_leaders: LinkedList<cbor::Value>,
@@ -42,7 +42,7 @@ impl cbor::CborValue for Body {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeader {
     pub protocol_magic: ProtocolMagic,
     pub previous_header: HeaderHash,
@@ -87,7 +87,7 @@ impl cbor::CborValue for BlockHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
@@ -115,7 +115,7 @@ impl cbor::CborValue for Block {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Consensus {
     pub epoch: u32,
     pub chain_difficulty: u32,

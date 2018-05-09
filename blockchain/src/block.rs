@@ -6,7 +6,7 @@ use types::{HeaderHash, SlotId};
 use genesis;
 use normal;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
