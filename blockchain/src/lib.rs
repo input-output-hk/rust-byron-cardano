@@ -1,3 +1,4 @@
+extern crate rcw;
 extern crate wallet_crypto;
 mod types;
 pub mod genesis; /* genesis block related value */
