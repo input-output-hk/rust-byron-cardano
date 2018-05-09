@@ -227,10 +227,17 @@ impl cbor::CborValue for Attributes {
                 );
             }
         };
-        map.insert(
-            cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION),
-            cbor::CborValue::encode(&self.derivation_path)
-        );
+        match &self.derivation_path {
+            &Some(ref dp) => {
+                map.insert(
+                    cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION),
+                    cbor::CborValue::encode(dp)
+                );
+            },
+            &None => {
+                /* insert nothing */
+            }
+        }
         cbor::Value::Object(map)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
@@ -238,7 +245,7 @@ impl cbor::CborValue for Attributes {
             let (object, stake_distribution) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE))
                 .or_else(|(val, _)| val.object().map(|obj| (obj, StakeDistribution::BootstrapEraDistr)))?;
             let (object, derivation_path) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION))
-                .embed("expected the derivation_path")?;
+                .or_else(|(val, _)| val.object().map(|obj| (obj, None)))?;
             if object.len() != 0 {
                 return cbor::Result::object(object, cbor::Error::UnparsedValues);
             }
@@ -595,5 +602,16 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+    }
+
+    #[test]
+    fn decode_address_no_derivation_path() {
+        let bytes     = vec![0x82, 0xd8, 0x18, 0x58, 0x21, 0x83, 0x58, 0x1c, 0x10, 0x2a, 0x74, 0xca, 0x44, 0x05, 0xb8, 0xc1, 0x8d, 0x20, 0x84, 0x1e, 0x8c, 0x66, 0x4f, 0xe1, 0xde, 0x7d, 0x66, 0x07, 0x48, 0x08, 0x70, 0x4f, 0x91, 0x79, 0xe0, 0xfa, 0xa0, 0x00, 0x1a, 0xad, 0xf7, 0x10, 0x68];
+
+        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+
+        assert_eq!(r.addr_type, AddrType::ATPubKey);
+        assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(bytes, r.to_bytes());
     }
 }
