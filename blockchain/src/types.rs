@@ -258,3 +258,28 @@ impl cbor::CborValue for SscProof {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SlotId {
+    pub epoch: u32,
+    pub slotid: u32,
+}
+
+impl cbor::CborValue for SlotId {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Array(vec![ cbor::Value::U64(self.epoch as u64), cbor::Value::U64(self.slotid as u64) ])
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, epoch) = cbor::array_decode_elem(array, 0).embed("epoch")?;
+            let (array, slotid) = cbor::array_decode_elem(array, 0).embed("slotid")?;
+            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
+            Ok(SlotId { epoch: epoch, slotid: slotid })
+        }).embed("While decoding Slotid")
+    }
+}
+
+impl fmt::Display for SlotId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.epoch, self.slotid)
+    }
+}

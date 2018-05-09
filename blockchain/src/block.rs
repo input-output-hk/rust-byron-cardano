@@ -2,7 +2,7 @@ use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor};
 
-use types::HeaderHash;
+use types::{HeaderHash, SlotId};
 use genesis;
 use normal;
 

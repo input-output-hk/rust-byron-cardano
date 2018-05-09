@@ -7,7 +7,7 @@ use std::collections::{LinkedList};
 use wallet_crypto::hdwallet;
 
 use types;
-use types::{HeaderHash, HeaderExtraData};
+use types::{HeaderHash, HeaderExtraData, SlotId};
 
 #[derive(Debug)]
 pub struct BodyProof {
@@ -189,26 +189,6 @@ impl cbor::CborValue for Block {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Block::new(header, body, extra))
         }).embed("While decoding block::Block")
-    }
-}
-
-#[derive(Debug)]
-pub struct SlotId {
-    pub epoch: u32,
-    pub slotid: u32,
-}
-
-impl cbor::CborValue for SlotId {
-    fn encode(&self) -> cbor::Value {
-        unimplemented!()
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, epoch) = cbor::array_decode_elem(array, 0).embed("epoch")?;
-            let (array, slotid) = cbor::array_decode_elem(array, 0).embed("slotid")?;
-            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-            Ok(SlotId { epoch: epoch, slotid: slotid })
-        }).embed("While decoding Slotid")
     }
 }
 
