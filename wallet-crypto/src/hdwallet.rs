@@ -282,7 +282,7 @@ impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
     {
         match XPrv::from_hex(v) {
             Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-            Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
+            Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
             Err(err) => panic!("unexpected error happended: {}", err),
             Ok(xpub) => Ok(xpub)
         }
@@ -291,7 +291,7 @@ impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
         where E: serde::de::Error
     {
         match XPrv::from_slice(v) {
-            Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
+            Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
             Err(err) => panic!("unexpected error happended: {}", err),
             Ok(xpub) => Ok(xpub)
         }
@@ -401,7 +401,11 @@ impl serde::Serialize for XPub
     fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.as_ref())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&hex::encode(self.as_ref()))
+        } else {
+            serializer.serialize_bytes(self.as_ref())
+        }
     }
 }
 struct XPubVisitor();
@@ -411,6 +415,17 @@ impl<'de> serde::de::Visitor<'de> for XPubVisitor {
 
     fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Expecting an Extended Public Key (`XPub`) of {} bytes.", XPUB_SIZE)
+    }
+
+    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match XPub::from_hex(v) {
+            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+            Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+            Err(err) => panic!("unexpected error happended: {}", err),
+            Ok(xpub) => Ok(xpub)
+        }
     }
 
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
@@ -428,7 +443,11 @@ impl<'de> serde::Deserialize<'de> for XPub
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
-        deserializer.deserialize_bytes(XPubVisitor::new())
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(XPubVisitor::new())
+        } else {
+            deserializer.deserialize_bytes(XPubVisitor::new())
+        }
     }
 }
 
@@ -497,7 +516,11 @@ impl<T> serde::Serialize for Signature<T>
     fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.as_ref())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&hex::encode(self.as_ref()))
+        } else {
+            serializer.serialize_bytes(self.as_ref())
+        }
     }
 }
 struct SignatureVisitor<T>(PhantomData<T>);
@@ -507,6 +530,17 @@ impl<'de, T> serde::de::Visitor<'de> for SignatureVisitor<T> {
 
     fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "Expected a signature (`Signature`) of {} bytes.", SIGNATURE_SIZE)
+    }
+
+    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match Signature::from_hex(v) {
+            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+            Err(Error::InvalidSignatureSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+            Err(err) => panic!("unexpected error happended: {}", err),
+            Ok(xpub) => Ok(xpub)
+        }
     }
 
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
@@ -524,7 +558,11 @@ impl<'de, T> serde::Deserialize<'de> for Signature<T>
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
-        deserializer.deserialize_bytes(SignatureVisitor::new())
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(SignatureVisitor::new())
+        } else {
+            deserializer.deserialize_bytes(SignatureVisitor::new())
+        }
     }
 }
 
