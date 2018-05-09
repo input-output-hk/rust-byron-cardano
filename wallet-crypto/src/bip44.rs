@@ -17,6 +17,7 @@
 
 use hdpayload::{Path};
 use std::{fmt, result};
+use serde;
 
 /// the BIP44 derivation path has a specific length
 pub const BIP44_PATH_LENGTH : usize = 5;
@@ -73,7 +74,7 @@ impl fmt::Display for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Account(u32);
 impl Account {
     pub fn new(account: u32) -> Result<Self> {
@@ -81,11 +82,63 @@ impl Account {
         Ok(Account(account))
     }
 
+    pub fn index(&self) -> u32 { self.0 }
+
     pub fn internal(&self) -> Result<Change> {
         Change::new(*self, 1)
     }
     pub fn external(&self) -> Result<Change> {
         Change::new(*self, 0)
+    }
+}
+impl serde::Serialize for Account
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_u32(self.0)
+    }
+}
+struct AccountVisitor();
+impl AccountVisitor { fn new() -> Self { AccountVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for AccountVisitor {
+    type Value = Account;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting a valid Account derivation index.")
+    }
+
+    fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        self.visit_u32(v as u32)
+    }
+    fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match Account::new(v) {
+            Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"value greater than 0x80000000")),
+            Err(err) => panic!("unexpected error: {}", err),
+            Ok(h) => Ok(h)
+        }
+    }
+
+    fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        if v > 0xFFFFFFFF {
+            return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+        }
+        self.visit_u32(v as u32)
+    }
+}
+impl<'de> serde::Deserialize<'de> for Account
+{
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        deserializer.deserialize_u32(AccountVisitor::new())
     }
 }
 
@@ -109,7 +162,7 @@ impl Change {
 ///
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Addressing {
-    pub account: u32,
+    pub account: Account,
     pub change: u32,
     pub index: u32,
 }
@@ -138,18 +191,17 @@ impl Addressing {
                         AddrType::Internal => 1,
                         AddrType::External => 0,
                     };
-        if account  <  0x80000000 { return Err(Error::AccountOutOfBound(account)); }
-        Ok(Addressing { account: account, change: change, index: 0 })
+        Ok(Addressing { account: Account::new(account)?, change: change, index: 0 })
     }
 
     fn new_from_change(change: &Change, index: u32) -> Result<Self> {
         if index  >= 0x80000000 { return Err(Error::IndexOutOfBound(index)); }
-        Ok(Addressing{account: change.account.0, change: change.change, index: index})
+        Ok(Addressing{account: change.account, change: change.change, index: index})
     }
 
     /// return a path ready for derivation
     pub fn to_path(&self) -> Path {
-        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account, self.change, self.index])
+        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.0, self.change, self.index])
     }
 
     pub fn address_type(&self) -> AddrType {
@@ -176,7 +228,7 @@ impl Addressing {
         if i  >= 0x80000000      { return Err(Error::IndexOutOfBound(i)); }
 
         Ok(Addressing {
-            account: path.as_ref()[2],
+            account: Account::new(path.as_ref()[2])?,
             change:  path.as_ref()[3],
             index:   path.as_ref()[4],
         })
