@@ -129,6 +129,21 @@ impl Wallet {
         Ok((tx::TxAux::new(tx, witnesses), fee))
     }
 
+    pub fn verify_transaction(&self, inputs: &tx::Inputs, txaux: &tx::TxAux) -> bool {
+        let tx = &txaux.tx;
+
+        assert!(inputs.len() == txaux.witnesses.len());
+
+        for i in 0..inputs.len() {
+            let addr = &inputs.as_slice()[i].value.address;
+            if ! txaux.witnesses[i].verify(&self.config, addr, tx) {
+                return false;
+            }
+        }
+
+        true
+    }
+
     /// retrieve the root extended private key from the wallet but pre
     /// derived for the purpose and coin type.
     ///
@@ -142,7 +157,7 @@ impl Wallet {
     /// TODO: this function is not meant to be public
     fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
         self.get_root_key()
-            .derive(addressing.account)
+            .derive(addressing.account.index())
             .derive(addressing.change)
             .derive(addressing.index)
     }
@@ -177,5 +192,62 @@ impl Account {
             res.push(address::ExtendedAddr::new(addr_type, sd, attrs));
         }
         Ok(res)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use address::ExtendedAddr;
+    use tx;
+    use serde_json;
+
+    const WALLET_JSON : &str = "
+{
+  \"cached_root_key\": \"e006b83e6d823350bb8214db696b501b0b1545a953acf1dfde7e6e7e2434c245372ccc4f5e5788488fae9b5d4b8f6c1a6e74d6440949c02bac3238e4fffcc12de2cf47583ab3d30bc186db0b5ce47b91ed92090115775cb9b91532f28ca56875\",
+  \"config\": {
+    \"protocol_magic\": 633343913
+  },
+  \"selection_policy\": \"FirstMatchFirst\"
+}
+    ";
+
+    const INPUTS_JSON : &str = "
+[{
+  \"ptr\": {
+    \"index\": 1,
+    \"id\": \"5a32a92201e2fdd066559389223507bf0a0bdfab71c423fc3f25f95b93028d3a\"
+  },
+  \"value\": {
+    \"address\": \"Ae2tdPwUPEZ6zd3CNebhUggZHVN1CzcP2uVdoGFAUcHaLGw3yf7gwVTXw44\",
+    \"value\": 1000000
+  },
+  \"addressing\": {
+    \"account\": 2147483648,
+    \"change\": 0,
+    \"index\": 0
+  }
+}]
+    ";
+
+    const OUTPUTS_JSON : &str = "
+[{
+  \"address\": \"DdzFFzCqrhtB8bzt1u6zvhsMS2QsNLMssP3rCrjAiwRJj587seCpxzzsnzUMyVLUzkXSFfgm57dhBJyqA1JaVgC6cqdsvAuhdPTD476y\",
+  \"value\": 1
+}]
+    ";
+
+    const CHANGE_ADDR_JSON : &str = "\"Ae2tdPwUPEZ6zd3CNebhUggZHVN1CzcP2uVdoGFAUcHaLGw3yf7gwVTXw44\"";
+
+    #[test]
+    fn check_pk_witnesses_of_transaction() {
+        let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
+        let inputs : tx::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
+        let outputs : tx::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
+
+        let (aux, _) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+
+        assert!(wallet.verify_transaction(&inputs, &aux));
     }
 }
