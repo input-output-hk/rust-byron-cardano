@@ -29,7 +29,12 @@ impl BodyProof {
 
 impl cbor::CborValue for BodyProof {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.tx),
+            cbor::CborValue::encode(&self.mpc),
+            cbor::CborValue::encode(&self.proxy_sk),
+            cbor::CborValue::encode(&self.update),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -149,7 +154,13 @@ impl BlockHeader {
 }
 impl cbor::CborValue for BlockHeader {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.protocol_magic),
+            cbor::CborValue::encode(&self.previous_header),
+            cbor::CborValue::encode(&self.body_proof),
+            cbor::CborValue::encode(&self.consensus),
+            cbor::CborValue::encode(&self.extra_data),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
