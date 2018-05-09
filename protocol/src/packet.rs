@@ -366,6 +366,7 @@ mod tests {
         let b = cbor::decode_from_cbor(GET_BLOCK_HEADER_BYTES).unwrap();
         match b {
             BlockHeaderResponse::Ok(ll) => assert!(ll.len() == 1),
+            BlockHeaderResponse::Err(error) => panic!("test failed: {}", error)
         }
     }
 
