@@ -46,6 +46,15 @@ pub enum Block {
     GenesisBlock(genesis::Block),
     MainBlock(normal::Block),
 }
+impl Block {
+    pub fn get_header(&self) -> BlockHeader {
+        match self {
+            Block::GenesisBlock(blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
+            Block::MainBlock(blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
+        }
+    }
+}
+
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
