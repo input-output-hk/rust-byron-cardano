@@ -26,6 +26,11 @@ impl BlockHeader {
             &BlockHeader::MainBlockHeader(ref blo) => blo.consensus.slot_id.clone(),
         }
     }
+
+    pub fn compute_hash(&self) -> HeaderHash {
+        let v = cbor::encode_to_cbor(self).unwrap();
+        HeaderHash::new(&v[..])
+    }
 }
 
 impl fmt::Display for BlockHeader {
