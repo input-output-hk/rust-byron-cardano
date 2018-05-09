@@ -5,14 +5,14 @@ use std::{fmt};
 use std::collections::{LinkedList};
 
 use types;
-use types::HeaderHash;
+use types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof(tx::Hash);
 
 impl cbor::CborValue for BodyProof {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::CborValue::encode(&self.0)
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.decode().and_then(|hash| Ok(BodyProof(hash))).embed("While decoding BodyProof")
@@ -72,7 +72,13 @@ impl BlockHeader {
 }
 impl cbor::CborValue for BlockHeader {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.protocol_magic),
+            cbor::CborValue::encode(&self.previous_header),
+            cbor::CborValue::encode(&self.body_proof),
+            cbor::CborValue::encode(&self.consensus),
+            cbor::CborValue::encode(&self.extra_data),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
@@ -118,18 +124,21 @@ impl cbor::CborValue for Block {
 #[derive(Debug, Clone)]
 pub struct Consensus {
     pub epoch: u32,
-    pub chain_difficulty: u32,
+    pub chain_difficulty: ChainDifficulty,
 }
 impl cbor::CborValue for Consensus {
     fn encode(&self) -> cbor::Value {
-        unimplemented!()
+        cbor::Value::Array(vec![
+            cbor::CborValue::encode(&self.epoch),
+            cbor::CborValue::encode(&self.chain_difficulty),
+        ])
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.array().and_then(|array| {
             let (array, epoch) = cbor::array_decode_elem(array, 0).embed("epoch")?;
-            let (array, chain_difficulty) : (Vec<cbor::Value>, Vec<u32>) = cbor::array_decode_elem(array, 0).embed("chain_difficulty")?;
+            let (array, chain_difficulty) = cbor::array_decode_elem(array, 0).embed("chain_difficulty")?;
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-            Ok(Consensus { epoch: epoch, chain_difficulty: chain_difficulty[0] })
+            Ok(Consensus { epoch: epoch, chain_difficulty: chain_difficulty })
         }).embed("While decoding genesis::Consensus")
     }
 }

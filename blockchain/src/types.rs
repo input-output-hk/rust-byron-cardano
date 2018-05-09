@@ -132,6 +132,28 @@ pub enum SscProof {
     Certificate(tx::Hash)
 }
 
+#[derive(Debug,Clone,Copy)]
+pub struct ChainDifficulty(u64);
+
+impl fmt::Display for ChainDifficulty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SlotId {
+    pub epoch: u32,
+    pub slotid: u32,
+}
+impl fmt::Display for SlotId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.epoch, self.slotid)
+    }
+}
+
+
+
 // **************************************************************************
 // CBOR implementations
 // **************************************************************************
@@ -280,14 +302,21 @@ impl cbor::CborValue for SscProof {
             } else {
                 cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
             }
-        }).embed("While decoding block::Block")
+        }).embed("While decoding SscProof")
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SlotId {
-    pub epoch: u32,
-    pub slotid: u32,
+impl cbor::CborValue for ChainDifficulty {
+    fn encode(&self) -> cbor::Value {
+        cbor::Value::Array(vec![ cbor::Value::U64(self.0)])
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, difficulty) = cbor::array_decode_elem(array, 0).embed("epoch")?;
+            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
+            Ok(ChainDifficulty(difficulty))
+        }).embed("While decoding ChainDifficulty")
+    }
 }
 
 impl cbor::CborValue for SlotId {
@@ -301,11 +330,5 @@ impl cbor::CborValue for SlotId {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(SlotId { epoch: epoch, slotid: slotid })
         }).embed("While decoding Slotid")
-    }
-}
-
-impl fmt::Display for SlotId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}", self.epoch, self.slotid)
     }
 }
