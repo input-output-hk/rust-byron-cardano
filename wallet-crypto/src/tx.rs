@@ -721,7 +721,7 @@ impl cbor::CborValue for TxAux {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxProof {
     pub number: u32,
     pub root: Hash,
