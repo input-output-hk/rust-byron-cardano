@@ -1,6 +1,8 @@
 use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor, util, tx};
+use rcw::blake2b::Blake2b;
+use rcw::digest::Digest;
 
 const HASH_SIZE : usize = 32;
 
@@ -47,6 +49,14 @@ impl HeaderHash {
 
         buf[0..HASH_SIZE].clone_from_slice(bytes);
         Some(Self::from_bytes(buf))
+    }
+
+    pub fn new(bytes: &[u8]) -> Self {
+        let mut b2b = Blake2b::new(HASH_SIZE);
+        let mut out = [0;HASH_SIZE];
+        b2b.input(bytes);
+        b2b.result(&mut out);
+        Self::from_bytes(out)
     }
 }
 
