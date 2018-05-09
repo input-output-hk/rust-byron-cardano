@@ -97,6 +97,8 @@ impl Bloom {
     pub fn search(&self, blk: &BlockHash) -> bool {
         bloom::is_set(&self.0[..], blk)
     }
+
+    pub fn len(&self) -> usize { self.0.len() }
 }
 
 
@@ -263,20 +265,21 @@ pub fn read_index_fanout(storage_config: &super::StorageConfig, pack: &super::Pa
 // conduct a search in the index file, returning the offset index of a found element
 //
 // TODO switch to bilinear search with n > something
-pub fn search_index(mut file: &fs::File, blk: &super::BlockHash, start_elements: FanoutStart, hier_elements: FanoutNb) -> Option<IndexOffset> {
+pub fn search_index(mut file: &fs::File, bloom_size: usize, blk: &super::BlockHash, start_elements: FanoutStart, hier_elements: FanoutNb) -> Option<IndexOffset> {
+    let hsz = offset_hashes(bloom_size);
     match hier_elements.0 {
         0 => None,
         1 => {
             let ofs_element = start_elements.0;
             let ofs = ofs_element as u64 * HASH_SIZE as u64;
-            file.seek(SeekFrom::Start(HEADER_SIZE as u64 + ofs)).unwrap();
+            file.seek(SeekFrom::Start(hsz + ofs)).unwrap();
             let hash = file_read_hash(file);
             if &hash == blk { Some(ofs_element) } else { None }
         },
         2 => {
             let ofs_element = start_elements.0;
             let ofs = ofs_element as u64 * HASH_SIZE as u64;
-            file.seek(SeekFrom::Start(HEADER_SIZE as u64 + ofs)).unwrap();
+            file.seek(SeekFrom::Start(hsz + ofs)).unwrap();
             let hash = file_read_hash(file);
             let hash2 = file_read_hash(file);
             if &hash == blk { Some(ofs_element) } else if &hash2 == blk { Some(ofs_element+1) } else { None }
@@ -286,7 +289,7 @@ pub fn search_index(mut file: &fs::File, blk: &super::BlockHash, start_elements:
             let end = start_elements.0 + n;
             let mut ofs_element = start;
             let ofs = ofs_element as u64 * HASH_SIZE as u64;
-            file.seek(SeekFrom::Start(HEADER_SIZE as u64 + ofs)).unwrap();
+            file.seek(SeekFrom::Start(hsz + ofs)).unwrap();
             while ofs_element < end {
                 let hash = file_read_hash(file);
                 if &hash == blk {
