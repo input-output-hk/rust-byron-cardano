@@ -8,7 +8,7 @@
 /// ```
 /// use wallet_crypto::bip44::{Account, Change, Addressing};
 ///
-/// let addr = Account::new(0x80000000).unwrap()
+/// let addr = Account::new(0).unwrap()
 ///     .external().unwrap()
 ///     .index(0).unwrap();
 ///
@@ -78,11 +78,19 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Account(u32);
 impl Account {
     pub fn new(account: u32) -> Result<Self> {
-        if account  <  0x80000000 { return Err(Error::AccountOutOfBound(account)); }
+        if account >= 0x80000000 { return Err(Error::AccountOutOfBound(account)); }
         Ok(Account(account))
     }
 
-    pub fn index(&self) -> u32 { self.0 }
+    pub fn index(&self) -> u32 { self.0 | 0x80000000 }
+
+
+    pub fn change(&self, typ: AddrType) -> Result<Change> {
+        match typ {
+            AddrType::Internal => self.internal(),
+            AddrType::External => self.external(),
+        }
+    }
 
     pub fn internal(&self) -> Result<Change> {
         Change::new(*self, 1)
@@ -118,7 +126,7 @@ impl<'de> serde::de::Visitor<'de> for AccountVisitor {
         where E: serde::de::Error
     {
         match Account::new(v) {
-            Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"value greater than 0x80000000")),
+            Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
             Err(err) => panic!("unexpected error: {}", err),
             Ok(h) => Ok(h)
         }
@@ -142,7 +150,7 @@ impl<'de> serde::Deserialize<'de> for Account
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Change {
     account: Account,
     change:  u32
@@ -154,7 +162,7 @@ impl Change {
     }
 
     pub fn index(&self, index: u32) -> Result<Addressing> {
-        Addressing::new_from_change(self, index)
+        Addressing::new_from_change(*self, index)
     }
 }
 
@@ -182,9 +190,9 @@ impl Addressing {
     /// ```
     /// use wallet_crypto::bip44::{Addressing, AddrType};
     ///
-    /// let addr = Addressing::new(0x80000000, AddrType::External).unwrap();
+    /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///
-    /// assert!(Addressing::new(0, AddrType::External).is_err());
+    /// assert!(Addressing::new(0x80000000, AddrType::External).is_err());
     /// ```
     pub fn new(account: u32, typ: AddrType) -> Result<Self> {
         let change = match typ {
@@ -194,14 +202,14 @@ impl Addressing {
         Ok(Addressing { account: Account::new(account)?, change: change, index: 0 })
     }
 
-    fn new_from_change(change: &Change, index: u32) -> Result<Self> {
+    fn new_from_change(change: Change, index: u32) -> Result<Self> {
         if index  >= 0x80000000 { return Err(Error::IndexOutOfBound(index)); }
         Ok(Addressing{account: change.account, change: change.change, index: index})
     }
 
     /// return a path ready for derivation
     pub fn to_path(&self) -> Path {
-        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.0, self.change, self.index])
+        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.index(), self.change, self.index])
     }
 
     pub fn address_type(&self) -> AddrType {
@@ -221,16 +229,14 @@ impl Addressing {
         let t = path.as_ref()[1];
         if t != BIP44_COIN_TYPE { return Err(Error::InvalidType(t)); }
         let a = path.as_ref()[2];
-        if a  <  0x80000000      { return Err(Error::AccountOutOfBound(a)); }
         let c = path.as_ref()[3];
-        if c  >= 0x80000000      { return Err(Error::ChangeOutOfBound(c)); }
         let i = path.as_ref()[4];
-        if i  >= 0x80000000      { return Err(Error::IndexOutOfBound(i)); }
 
-        Ok(Addressing {
-            account: Account::new(path.as_ref()[2])?,
-            change:  path.as_ref()[3],
-            index:   path.as_ref()[4],
+        Account::new(a)
+        .and_then(|account| {
+            Change::new(account, c)
+        }).and_then(|change| {
+            Addressing::new_from_change(change, i)
         })
     }
 
@@ -242,7 +248,7 @@ impl Addressing {
     /// ```
     /// use wallet_crypto::bip44::{Addressing, AddrType};
     ///
-    /// let addr = Addressing::new(0x80000000, AddrType::External).unwrap();
+    /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///
     /// let next = addr.incr(32).unwrap().incr(10).unwrap();
     ///

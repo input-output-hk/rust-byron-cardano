@@ -98,7 +98,6 @@ impl Config {
     pub fn find_account(&self, account: &Account) -> Option<u32> {
         self.accounts.iter().position(|acc| acc == account)
             .map(|v| v as u32)
-            .map(|v| v | 0x80000000)
     }
 
     /// write the config in the given file
