@@ -18,7 +18,7 @@ fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
     for h in hashes.iter() {
         match storage::block_read(&storage, h) {
             None      => eprintln!("unpacking {} but cannot be found", hex::encode(h)),
-            Some(blk) => storage::blob::write(&storage, &h, &blk[..]),
+            Some(blk) => storage::blob::write(&storage, &h, &blk[..]).unwrap(),
         }
     }
 }
