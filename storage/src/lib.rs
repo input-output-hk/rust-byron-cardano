@@ -39,7 +39,7 @@ impl From<block::Error> for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
-    config: StorageConfig,
+    pub config: StorageConfig,
     lookups: BTreeMap<PackHash, pack::Lookup>,
 }
 
