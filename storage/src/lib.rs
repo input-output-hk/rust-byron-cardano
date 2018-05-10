@@ -204,24 +204,40 @@ pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<Vec<u8>> {
     }
 }
 
-// packing parameters
-//
-// optionally set the maximum number of blobs in this pack
-// optionally set the maximum size in bytes of the pack file.
-//            note that the limits is best effort, not strict.
+/// packing parameters
+///
+/// optionally set the maximum number of blobs in this pack
+/// optionally set the maximum size in bytes of the pack file.
+///            note that the limits is best effort, not strict.
 pub struct PackParameters {
     pub limit_nb_blobs: Option<u32>,
     pub limit_size: Option<u64>,
     pub delete_blobs_after_pack: bool,
+    pub range: Option<(BlockHash, BlockHash)>,
+}
+impl Default for PackParameters {
+    fn default() -> Self {
+        PackParameters {
+            limit_nb_blobs: None,
+            limit_size: None,
+            delete_blobs_after_pack: true,
+            range: None,
+        }
+    }
 }
 
 pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     let mut writer = pack::PackWriter::init(&storage.config);
-    let block_hashes = storage.config.list_blob(params.limit_nb_blobs);
     let mut blob_packed = Vec::new();
-    for bh in block_hashes.iter() {
-        let blob = blob::read_raw(storage, bh).unwrap();
-        writer.append(bh, &blob[..]);
+
+    let block_hashes : Vec<BlockHash> = if let Some((from, to)) = params.range {
+        storage.range(from, to).unwrap().iter().cloned().collect()
+    } else {
+        storage.config.list_blob(params.limit_nb_blobs)
+    };
+    for bh in block_hashes {
+        let blob = blob::read_raw(storage, &bh).unwrap();
+        writer.append(&bh, &blob[..]);
         blob_packed.push(bh);
         match params.limit_size {
             None => {},
