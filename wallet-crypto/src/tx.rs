@@ -614,6 +614,9 @@ pub mod fee {
     impl Default for LinearFee {
         fn default() -> Self { LinearFee::new(155381.0, 43.946) }
     }
+
+    const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
+    const CBOR_TXAUX_OVERHEAD: usize = 51;
     impl Algorithm for LinearFee {
         fn compute( &self
                   , policy: SelectionPolicy
@@ -649,7 +652,7 @@ pub mod fee {
                 let mut tx = Tx::new_with(txins.clone(), txouts.clone());
                 let txbytes = cbor::encode_to_cbor(&tx).unwrap();
 
-                let estimated_fee = (self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len())))?;
+                let estimated_fee = (self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len())))?;
 
                 // add the change in the estimated fee
                 match output_value - input_value - estimated_fee.to_coin() {
@@ -660,7 +663,7 @@ pub mod fee {
                 };
 
                 let txbytes = cbor::encode_to_cbor(&tx).unwrap();
-                let corrected_fee = self.estimate(txbytes.len() + 5 + (42 * selected_inputs.len()));
+                let corrected_fee = self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len()));
 
                 fee = corrected_fee?;
 
