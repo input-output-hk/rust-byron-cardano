@@ -23,6 +23,38 @@ fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
     }
 }
 
+fn pack_reindex(config: &Config, packref: &PackHash) {
+    let storage_config = config.get_storage_config();
+    let storage = config.get_storage().unwrap();
+    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    let mut index = storage::pack::Index::new();
+    loop {
+        let ofs = reader.pos;
+        println!("offset {}", ofs);
+        match reader.get_next() {
+            None    => { break; },
+            Some(b) => {
+                let blk : blockchain::Block = cbor::decode_from_cbor(&b[..]).unwrap();
+                let hdr = blk.get_header();
+                let hash = hdr.compute_hash();
+                let mut packref = [0u8;32];
+                packref.clone_from_slice(hash.as_ref());
+                println!("packing hash {} slotid {}", hash, hdr.get_slotid());
+                index.append(&packref, ofs);
+            },
+        }
+    }
+
+    let (_, tmpfile) = storage::pack::create_index(&storage, &index);
+    tmpfile.render_permanent(&storage.config.get_index_filepath(&packref)).unwrap();
+}
+
+fn packref_fromhex(s: &String) -> PackHash {
+    let mut packref = [0u8;32];
+    packref.clone_from_slice(&hex::decode(&s).unwrap()[..]);
+    packref
+}
+
 fn display_block(blk: &blockchain::Block) {
     match blk {
         &blockchain::Block::GenesisBlock(ref mblock) => {
@@ -78,6 +110,10 @@ impl HasCommand for Block {
                 .about("internal debug command")
                 .arg(Arg::with_name("packhash").help("pack to query").index(1))
             )
+            .subcommand(SubCommand::with_name("re-index")
+                .about("internal re-index command")
+                .arg(Arg::with_name("packhash").help("pack to re-index").index(1).required(true))
+            )
             .subcommand(SubCommand::with_name("pack")
                 .about("internal pack command")
                 .arg(Arg::with_name("preserve-blobs").long("keep").help("keep what is being packed in its original state"))
@@ -122,9 +158,13 @@ impl HasCommand for Block {
                 let packrefhex = opts.value_of("packhash")
                             .and_then(|s| Some(s.to_string()))
                             .unwrap();
-                let mut packref = [0u8;32];
-                packref.clone_from_slice(&hex::decode(&packrefhex).unwrap()[..]);
-                block_unpack(&config, &packref, opts.is_present("preserve-pack"));
+                block_unpack(&config, &packref_fromhex(&packrefhex), opts.is_present("preserve-pack"));
+            },
+            ("re-index", Some(opts)) => {
+                let packrefhex = opts.value_of("packhash")
+                            .and_then(|s| Some(s.to_string()))
+                            .unwrap();
+                pack_reindex(&config, &packref_fromhex(&packrefhex))
             },
             ("pack", Some(opts)) => {
                 let mut storage = config.get_storage().unwrap();
