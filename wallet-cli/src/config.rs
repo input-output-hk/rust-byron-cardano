@@ -76,7 +76,7 @@ impl Config {
     pub fn get_storage_config(&self) -> StorageConfig {
         StorageConfig::new(&self.get_block_dir(), &self.network_type)
     }
-    pub fn get_storage(&self) -> io::Result<storage::Storage> {
+    pub fn get_storage(&self) -> storage::Result<storage::Storage> {
         storage::Storage::init(&self.get_storage_config())
     }
 

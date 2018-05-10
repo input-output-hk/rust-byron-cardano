@@ -13,7 +13,7 @@ pub mod refpack;
 mod tmpfile;
 mod bitmap;
 mod bloom;
-use std::{fs, io};
+use std::{fs, io, result};
 
 use std::collections::BTreeMap;
 
@@ -23,13 +23,27 @@ use tmpfile::*;
 
 const USE_COMPRESSION : bool = true;
 
+#[derive(Debug)]
+pub enum Error {
+    IoError(io::Error),
+    BlockError(block::Error)
+}
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self { Error::IoError(e) }
+}
+impl From<block::Error> for Error {
+    fn from(e: block::Error) -> Self { Error::BlockError(e) }
+}
+
+pub type Result<T> = result::Result<T, Error>;
+
 pub struct Storage {
     config: StorageConfig,
     lookups: BTreeMap<PackHash, pack::Lookup>,
 }
 
 impl Storage {
-    pub fn init(cfg: &StorageConfig) -> io::Result<Self> {
+    pub fn init(cfg: &StorageConfig) -> Result<Self> {
         let mut lookups = BTreeMap::new();
 
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Blob))?;
@@ -56,8 +70,13 @@ impl Storage {
     ///
     /// it will iterate from the tag `HEAD` until there is no more
     /// value to parse
-    pub fn reverse_iter<'a>(&'a self) -> block::ReverseIter<'a> {
-        block::ReverseIter::new(self).unwrap()
+    pub fn reverse_iter<'a>(&'a self) -> Result<block::ReverseIter<'a>> {
+        block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
+    }
+
+    /// construct a range between the given hash
+    pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
+        block::Range::new(self, from, to).map_err(|err| Error::BlockError(err))
     }
 }
 
@@ -72,45 +91,46 @@ pub mod blob {
     use flate2::write::DeflateEncoder;
     use flate2::write::DeflateDecoder;
 
-    pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) {
+    use super::{Result, Error};
+
+    pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
         let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Blob);
         if super::USE_COMPRESSION {
             let mut e = DeflateEncoder::new(Vec::new(), Compression::best());
-            e.write_all(block).unwrap();
-            let compressed_block = e.finish().unwrap();
-            tmp_file.write_all(&compressed_block[..]).unwrap();
+            e.write_all(block)?;
+            let compressed_block = e.finish()?;
+            tmp_file.write_all(&compressed_block[..])?;
         } else {
-            tmp_file.write_all(block).unwrap();
+            tmp_file.write_all(block)?;
         }
-        tmp_file.render_permanent(&path).unwrap();
-
+        tmp_file.render_permanent(&path).map_err(|e| Error::IoError(e))
     }
 
-    pub fn read_raw(storage: &super::Storage, hash: &super::BlockHash) -> Vec<u8> {
+    pub fn read_raw(storage: &super::Storage, hash: &super::BlockHash) -> Result<Vec<u8>> {
         let mut content = Vec::new();
         let path = storage.config.get_blob_filepath(&hash);
 
-        let mut file = fs::File::open(path).unwrap();
-        file.read_to_end(&mut content).unwrap();
-        content
+        let mut file = fs::File::open(path)?;
+        file.read_to_end(&mut content)?;
+        Ok(content)
     }
 
-    pub fn read(storage: &super::Storage, hash: &super::BlockHash) -> Vec<u8> {
+    pub fn read(storage: &super::Storage, hash: &super::BlockHash) -> Result<Vec<u8>> {
         let mut content = Vec::new();
         let path = storage.config.get_blob_filepath(&hash);
 
-        let mut file = fs::File::open(path).unwrap();
-        file.read_to_end(&mut content).unwrap();
+        let mut file = fs::File::open(path)?;
+        file.read_to_end(&mut content)?;
 
         if super::USE_COMPRESSION {
             let mut writer = Vec::new();
             let mut deflater = DeflateDecoder::new(writer);
-            deflater.write_all(&content[..]).unwrap();
-            writer = deflater.finish().unwrap();
-            writer
+            deflater.write_all(&content[..])?;
+            writer = deflater.finish()?;
+            Ok(writer)
         } else {
-            content
+            Ok(content)
         }
     }
 
@@ -160,7 +180,7 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
 
 pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockHash) -> Option<Vec<u8>> {
     match loc {
-        &BlockLocation::Loose                 => Some(blob::read(storage, hash)),
+        &BlockLocation::Loose                 => blob::read(storage, hash).ok(),
         &BlockLocation::Packed(ref packref, ref iofs) => {
             match storage.lookups.get(packref) {
                 None         => { unreachable!(); },
@@ -184,24 +204,40 @@ pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<Vec<u8>> {
     }
 }
 
-// packing parameters
-//
-// optionally set the maximum number of blobs in this pack
-// optionally set the maximum size in bytes of the pack file.
-//            note that the limits is best effort, not strict.
+/// packing parameters
+///
+/// optionally set the maximum number of blobs in this pack
+/// optionally set the maximum size in bytes of the pack file.
+///            note that the limits is best effort, not strict.
 pub struct PackParameters {
     pub limit_nb_blobs: Option<u32>,
     pub limit_size: Option<u64>,
     pub delete_blobs_after_pack: bool,
+    pub range: Option<(BlockHash, BlockHash)>,
+}
+impl Default for PackParameters {
+    fn default() -> Self {
+        PackParameters {
+            limit_nb_blobs: None,
+            limit_size: None,
+            delete_blobs_after_pack: true,
+            range: None,
+        }
+    }
 }
 
 pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     let mut writer = pack::PackWriter::init(&storage.config);
-    let block_hashes = storage.config.list_blob(params.limit_nb_blobs);
     let mut blob_packed = Vec::new();
-    for bh in block_hashes.iter() {
-        let blob = blob::read_raw(storage, bh);
-        writer.append(bh, &blob[..]);
+
+    let block_hashes : Vec<BlockHash> = if let Some((from, to)) = params.range {
+        storage.range(from, to).unwrap().iter().cloned().collect()
+    } else {
+        storage.config.list_blob(params.limit_nb_blobs)
+    };
+    for bh in block_hashes {
+        let blob = blob::read_raw(storage, &bh).unwrap();
+        writer.append(&bh, &blob[..]);
         blob_packed.push(bh);
         match params.limit_size {
             None => {},
