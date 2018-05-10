@@ -14,6 +14,7 @@ use bip39;
 use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
+use cbor;
 
 use std::{result, fmt};
 
@@ -124,7 +125,8 @@ impl Wallet {
         for input in selected_inputs {
             let key  = self.get_xprv(&input.addressing);
 
-            witnesses.push(tx::TxInWitness::new(&self.config, &key, &tx));
+            let txwitness = tx::TxInWitness::new(&self.config, &key, &tx);
+            witnesses.push(txwitness);
         }
 
         Ok((tx::TxAux::new(tx, witnesses), fee))
@@ -200,7 +202,9 @@ impl Account {
 mod test {
     use super::*;
     use address::ExtendedAddr;
+    use cbor;
     use tx;
+    use coin;
     use serde_json;
 
     const WALLET_JSON : &str = "
@@ -250,5 +254,23 @@ mod test {
         let (aux, _) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
 
         assert!(wallet.verify_transaction(&inputs, &aux));
+    }
+
+    #[test]
+    fn check_fee_transaction() {
+        let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
+        let inputs : tx::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
+        let outputs : tx::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
+
+        let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+
+        let bytes = cbor::encode_to_cbor(&aux).unwrap();
+
+        let expected = coin::Coin::new(bytes.len() as u64 * 44 + 155381).unwrap();
+
+        println!("computed fee: {:?}", fee.to_coin());
+        println!("expected fee: {:?}", expected);
+        assert!(fee.to_coin() >= expected);
     }
 }
