@@ -2,7 +2,8 @@
 
 use types::{BlockHash, HASH_SIZE};
 use std::collections::vec_deque::{VecDeque, Iter};
-use std::{io, result, fmt};
+use std::{io, fs, result, fmt};
+use config::{StorageConfig};
 
 #[derive(Debug)]
 pub enum Error {
@@ -46,4 +47,14 @@ impl RefPack {
         for bh in self.iter() { writer.write_all(&bh[..])?; }
         Ok(())
     }
+}
+
+pub fn read_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P) -> Result<RefPack> {
+    let mut file = fs::File::open(storage_config.get_refpack_filepath(name))?;
+    RefPack::read(&mut file)
+}
+
+pub fn write_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P, rf: &RefPack) -> Result<()> {
+    let mut file = fs::File::open(storage_config.get_refpack_filepath(name))?;
+    rf.write(&mut file)
 }
