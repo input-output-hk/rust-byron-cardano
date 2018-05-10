@@ -82,17 +82,18 @@ impl Wallet {
         Self::new_from_root_xprv(hdwallet::XPrv::generate_from_bip39(&seed))
     }
 
-    pub fn account(&self, account: u32) -> Account {
-        let account_key = self.get_root_key().derive(account | 0x8000_0000).public();
+    pub fn account(&self, account_index: u32) -> Result<Account> {
+        let account = bip44::Account::new(account_index)?;
+        let account_key = self.get_root_key().derive(account.index()).public();
 
-        Account::new(account | 0x8000_0000, account_key)
+        Ok(Account::new(account, account_key))
     }
 
     /// create an extended address from the given addressing
     ///
     pub fn gen_addresses(&self, account: u32, addr_type: AddrType, indices: Vec<u32>) -> Result<Vec<address::ExtendedAddr>>
     {
-        self.account(account).gen_addresses(addr_type, indices)
+        self.account(account)?.gen_addresses(addr_type, indices)
     }
 
     /// function to create a ready to send transaction to the network
@@ -168,17 +169,17 @@ impl Wallet {
 /// Already contains the derived public key for the account of the wallet (see bip44).
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Account {
-    account: u32,
+    account: bip44::Account,
     cached_account_key: hdwallet::XPub
 }
 impl Account {
-    fn new(account: u32, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
+    fn new(account: bip44::Account, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
 
     /// create an extended address from the given addressing
     ///
     pub fn gen_addresses(&self, addr_type: AddrType, indices: Vec<u32>) -> Result<Vec<address::ExtendedAddr>>
     {
-        let addressing = Addressing::new(self.account, addr_type)?;
+        let addressing = self.account.change(addr_type)?.index(0)?;
 
         let change_prv = self.cached_account_key
             .derive(addressing.change)?;
@@ -223,7 +224,7 @@ mod test {
     \"value\": 1000000
   },
   \"addressing\": {
-    \"account\": 2147483648,
+    \"account\": 0,
     \"change\": 0,
     \"index\": 0
   }
