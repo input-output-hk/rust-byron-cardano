@@ -81,6 +81,7 @@ impl HasCommand for Block {
             .subcommand(SubCommand::with_name("pack")
                 .about("internal pack command")
                 .arg(Arg::with_name("preserve-blobs").long("keep").help("keep what is being packed in its original state"))
+                .arg(Arg::with_name("range").help("<tag|ref>..<tag|ref>").index(1).required(false))
             )
             .subcommand(SubCommand::with_name("unpack")
                 .about("internal unpack command")
@@ -127,11 +128,26 @@ impl HasCommand for Block {
             },
             ("pack", Some(opts)) => {
                 let mut storage = config.get_storage().unwrap();
-                let pack_params = PackParameters {
-                    limit_nb_blobs: None,
-                    limit_size: None,
-                    delete_blobs_after_pack: ! opts.is_present("preserve-blobs"),
-                };
+                let mut pack_params = PackParameters::default();
+                pack_params.delete_blobs_after_pack = ! opts.is_present("preserve-blobs");
+                if opts.is_present("range") {
+                    let range = value_t!(opts.value_of("range"), internal::RangeOption).unwrap();
+                    let from = match tag::read(&storage, &range.from) {
+                        None => hex::decode(&range.from).unwrap(),
+                        Some(t) => t
+                    };
+                    let to = if let &Some(ref to_str) = &range.to {
+                        match tag::read(&storage, to_str) {
+                            None => hex::decode(to_str).unwrap(),
+                            Some(t) => t
+                        }
+                    } else {
+                        panic!("We do not support packing without a terminal block");
+                    };
+                    let mut from_bytes = [0;32]; from_bytes[0..32].clone_from_slice(from.as_slice());
+                    let mut to_bytes = [0;32];   to_bytes[0..32].clone_from_slice(to.as_slice());
+                    pack_params.range = Some((from_bytes, to_bytes));
+                }
                 let packhash = pack_blobs(&mut storage, &pack_params);
                 println!("pack created: {}", hex::encode(&packhash));
             },
@@ -190,3 +206,36 @@ impl HasCommand for Block {
 }
 
 
+mod internal {
+    use std::str::FromStr;
+
+    #[derive(Debug)]
+    pub struct RangeOption {
+        pub from: String,
+        pub to: Option<String>
+    }
+
+    #[derive(Debug)]
+    pub enum Error {
+        Empty,
+        InvalidRange
+    }
+
+    impl FromStr for RangeOption {
+        type Err = Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            if s.is_empty() { return Err(Error::Empty); }
+
+            let mut v : Vec<&str> = s.split("..").collect();
+            if v.is_empty() || v.len() > 2 { return Err(Error::InvalidRange); }
+
+            let h1 = v.pop().unwrap().to_string(); // we expect at least one
+            if let Some(h2) = v.pop().map(|v| v.to_string()) {
+                Ok(RangeOption { from: h2, to: Some(h1)})
+            } else {
+                Ok(RangeOption { from: h1, to: None})
+            }
+        }
+    }
+}
