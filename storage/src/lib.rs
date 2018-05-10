@@ -9,6 +9,7 @@ pub mod types;
 pub mod config;
 pub mod pack;
 pub mod tag;
+pub mod refpack;
 mod tmpfile;
 mod bitmap;
 mod bloom;
