@@ -6,8 +6,6 @@ use super::super::tag;
 use blockchain::{HeaderHash, Block};
 use wallet_crypto::{cbor};
 use types::{BlockHash};
-use refpack::{RefPack};
-use refpack;
 
 use std::{result, iter};
 
@@ -71,29 +69,3 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
         }
     }
 }
-
-pub struct Range(RefPack);
-impl Range {
-    pub fn new(storage: &Storage, from: BlockHash, to: BlockHash) -> Result<Self> {
-        let ri = ReverseIter::from(storage, &to[..])?;
-        let mut rp = RefPack::new();
-        let mut finished = false;
-
-        for block in ri {
-            let hash = block.get_header().compute_hash().into_bytes();
-            rp.push_front(hash);
-            if hash == from { finished = true; break; }
-        }
-
-        if ! finished {
-            Err(Error::HashNotFound(to))
-        } else {
-            Ok(Range(rp))
-        }
-    }
-
-    pub fn refpack(self) -> RefPack { self.0 }
-
-    pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> { self.0.iter() }
-}
-
