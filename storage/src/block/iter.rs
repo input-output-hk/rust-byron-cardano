@@ -5,18 +5,10 @@ use super::super::{Storage, block_location, block_read_location};
 use super::super::tag;
 use blockchain::{HeaderHash, Block};
 use wallet_crypto::{cbor};
-use types::{BlockHash};
 
-use std::{result, iter};
+use std::{iter};
 
-#[derive(Debug)]
-pub enum Error {
-    NoTagHead,
-    InvalidHeaderHash(Vec<u8>),
-    HashNotFound(BlockHash)
-}
-
-pub type Result<T> = result::Result<T, Error>;
+use super::error::{Error, Result};
 
 /// reverse iterator over the block chain
 pub struct ReverseIter<'a> {

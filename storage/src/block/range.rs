@@ -2,7 +2,8 @@ use refpack;
 use super::super::{Storage};
 use types::{BlockHash};
 
-use super::iter::{ReverseIter, Error, Result};
+use super::error::{Error, Result};
+use super::iter::{ReverseIter};
 
 pub struct Range(refpack::RefPack);
 impl Range {
