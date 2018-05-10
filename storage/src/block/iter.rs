@@ -31,7 +31,9 @@ impl<'a> ReverseIter<'a> {
             None => return Err(Error::InvalidHeaderHash(bh.iter().cloned().collect())),
             Some(hh) => hh
         };
-        // TODO: check location of the hash actually exists
+        if let None = block_location(storage, hh.bytes()) {
+            return Err(Error::HashNotFound(hh.into_bytes()));
+        }
         let ri = ReverseIter {
             storage: storage,
             current_block: Some(hh)
