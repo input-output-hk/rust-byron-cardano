@@ -6,38 +6,37 @@ use super::super::tag;
 use blockchain::{HeaderHash, Block};
 use wallet_crypto::{cbor};
 
-use std::{result, iter};
+use std::{iter};
 
-#[derive(Debug)]
-pub enum Error {
-    NoTagHead,
-    InvalidHeaderHash(Vec<u8>)
-}
-
-pub type Result<T> = result::Result<T, Error>;
+use super::error::{Error, Result};
 
 /// reverse iterator over the block chain
-/// 
-/// This will allow the easy operation of looking for the 
 pub struct ReverseIter<'a> {
     storage: &'a Storage,
     current_block: Option<HeaderHash>
 }
 impl<'a> ReverseIter<'a> {
-    pub fn new(storage: &'a Storage) -> Result<Self> {
-        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
-            None => return Err(Error::NoTagHead),
-            Some(t) => t
-        };
-        let hh = match HeaderHash::from_slice(hh_bytes.as_slice()) {
-            None => return Err(Error::InvalidHeaderHash(hh_bytes)),
+    pub fn from(storage: &'a Storage, bh: &[u8]) -> Result<Self> {
+        let hh = match HeaderHash::from_slice(&bh) {
+            None => return Err(Error::InvalidHeaderHash(bh.iter().cloned().collect())),
             Some(hh) => hh
         };
+        if let None = block_location(storage, hh.bytes()) {
+            return Err(Error::HashNotFound(hh.into_bytes()));
+        }
         let ri = ReverseIter {
             storage: storage,
             current_block: Some(hh)
         };
         Ok(ri)
+    }
+
+    pub fn new(storage: &'a Storage) -> Result<Self> {
+        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
+            None => return Err(Error::NoTagHead),
+            Some(t) => t
+        };
+        Self::from(storage, &hh_bytes)
     }
 }
 impl<'a> iter::Iterator for ReverseIter<'a> {
