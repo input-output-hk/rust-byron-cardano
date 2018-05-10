@@ -1,9 +1,11 @@
 //! pack of references, in a certain order
 
 use types::{BlockHash, HASH_SIZE};
-use std::collections::vec_deque::{VecDeque, Iter};
+use std::collections::vec_deque::{VecDeque};
 use std::{io, fs, result, fmt};
 use config::{StorageConfig};
+
+pub use std::collections::vec_deque::{Iter};
 
 #[derive(Debug)]
 pub enum Error {

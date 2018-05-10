@@ -5,39 +5,46 @@ use super::super::{Storage, block_location, block_read_location};
 use super::super::tag;
 use blockchain::{HeaderHash, Block};
 use wallet_crypto::{cbor};
+use types::{BlockHash};
+use refpack::{RefPack};
+use refpack;
 
 use std::{result, iter};
 
 #[derive(Debug)]
 pub enum Error {
     NoTagHead,
-    InvalidHeaderHash(Vec<u8>)
+    InvalidHeaderHash(Vec<u8>),
+    HashNotFound(BlockHash)
 }
 
 pub type Result<T> = result::Result<T, Error>;
 
 /// reverse iterator over the block chain
-/// 
-/// This will allow the easy operation of looking for the 
 pub struct ReverseIter<'a> {
     storage: &'a Storage,
     current_block: Option<HeaderHash>
 }
 impl<'a> ReverseIter<'a> {
-    pub fn new(storage: &'a Storage) -> Result<Self> {
-        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
-            None => return Err(Error::NoTagHead),
-            Some(t) => t
-        };
-        let hh = match HeaderHash::from_slice(hh_bytes.as_slice()) {
-            None => return Err(Error::InvalidHeaderHash(hh_bytes)),
+    pub fn from(storage: &'a Storage, bh: &[u8]) -> Result<Self> {
+        let hh = match HeaderHash::from_slice(&bh) {
+            None => return Err(Error::InvalidHeaderHash(bh.iter().cloned().collect())),
             Some(hh) => hh
         };
+        // TODO: check location of the hash actually exists
         let ri = ReverseIter {
             storage: storage,
             current_block: Some(hh)
         };
         Ok(ri)
+    }
+
+    pub fn new(storage: &'a Storage) -> Result<Self> {
+        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
+            None => return Err(Error::NoTagHead),
+            Some(t) => t
+        };
+        Self::from(storage, &hh_bytes)
     }
 }
 impl<'a> iter::Iterator for ReverseIter<'a> {
@@ -62,3 +69,29 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
         }
     }
 }
+
+pub struct Range(RefPack);
+impl Range {
+    pub fn new(storage: &Storage, from: BlockHash, to: BlockHash) -> Result<Self> {
+        let ri = ReverseIter::from(storage, &to[..])?;
+        let mut rp = RefPack::new();
+        let mut finished = false;
+
+        for block in ri {
+            let hash = block.get_header().compute_hash().into_bytes();
+            rp.push_front(hash);
+            if hash == from { finished = true; break; }
+        }
+
+        if ! finished {
+            Err(Error::HashNotFound(to))
+        } else {
+            Ok(Range(rp))
+        }
+    }
+
+    pub fn refpack(self) -> RefPack { self.0 }
+
+    pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> { self.0.iter() }
+}
+
