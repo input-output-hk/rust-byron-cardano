@@ -14,7 +14,7 @@ use super::{TmpFile};
 use std::iter::repeat;
 use std::io::SeekFrom;
 use std::io;
-use std::io::{Write,Read,Seek};
+use std::io::{Write,Read,Seek,ErrorKind};
 use std::fs;
 use rcw::blake2b;
 use rcw::digest::Digest;
@@ -126,6 +126,7 @@ fn write_offset(buf: &mut [u8], sz: Offset) {
     buf[6] = (sz >> 8) as u8;
     buf[7] = sz as u8;
 }
+
 fn read_offset(buf: &[u8]) -> Offset {
     ((buf[0] as u64) << 56)
         | ((buf[1] as u64) << 48)
@@ -405,5 +406,51 @@ impl PackWriter {
         let path = self.storage_config.get_pack_filepath(&packhash);
         self.tmpfile.render_permanent(&path).unwrap();
         (packhash, self.index.clone())
+    }
+}
+
+// A Reader
+pub struct PackReader {
+    file: fs::File,
+    pub pos: Offset,
+    hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
+}
+
+fn align4(p: Offset) -> Offset {
+    if (p % 4) == 0 {
+        p
+    } else {
+        p + (4 - (p % 4))
+    }
+}
+
+impl PackReader {
+    pub fn init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> Self {
+        let file = fs::File::open(cfg.get_pack_filepath(packhash)).unwrap();
+        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
+        PackReader { file: file, pos: 0, hash_context: ctxt }
+    }
+
+    pub fn get_next(&mut self) -> Option<Vec<u8>> {
+        match read_block_raw_next(&mut self.file) {
+            Err(err) => {
+                if err.kind() == ErrorKind::UnexpectedEof {
+                    None
+                } else {
+                    Err(err).unwrap()
+                }
+            }
+            Ok(block_raw) => {
+                self.hash_context.input(&block_raw[..]);
+                self.pos += 4 + align4(block_raw.len() as u64);
+                Some(compression::decompress_conditional(block_raw))
+            },
+        }
+    }
+
+    pub fn finalize(&mut self) -> super::PackHash {
+        let mut packhash : super::PackHash = [0u8;HASH_SIZE];
+        self.hash_context.result(&mut packhash);
+        packhash
     }
 }
