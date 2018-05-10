@@ -490,12 +490,23 @@ pub mod command {
         to:   blockchain::HeaderHash
     }
     impl GetBlock {
-        pub fn only(hh: blockchain::HeaderHash) -> Self { GetBlock::from(hh.clone(), hh) }
-        pub fn from(from: blockchain::HeaderHash, to: blockchain::HeaderHash) -> Self { GetBlock { from: from, to: to } }
+        pub fn only(hh: &blockchain::HeaderHash) -> Self { GetBlock::from(&hh.clone(), &hh.clone()) }
+        pub fn from(from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
+    }
+
+    fn strip_msg_response(msg: &[u8]) -> Result<Vec<u8>, &'static str> {
+        // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
+        if msg.len() > 2 && msg[0] == 0x82 && msg[1] == 0x00 {
+            let mut v = Vec::new();
+            v.extend_from_slice(&msg[2..]);
+            Ok(v)
+        } else {
+            Err("get block decoder failed with something unexpected")
+        }
     }
 
     impl<W> Command<W> for GetBlock where W: Read+Write {
-        type Output = Vec<u8>; // packet::blockchain::Block;
+        type Output = Vec<Vec<u8>>; // packet::blockchain::Block;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             // require the initial header
             let (get_header_id, get_header_dat) = packet::send_msg_getblocks(&self.from, &self.to);
@@ -503,8 +514,15 @@ pub mod command {
             connection.send_bytes(id, &get_header_dat[..]).unwrap();
             Ok(())
         }
+
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
-            Ok(connection.wait_msg(id).unwrap())
+            let msg_response = connection.wait_msg_eos(id).unwrap();
+            let mut msgs = Vec::new();
+            for response in msg_response.iter() {
+                let msg = strip_msg_response(&response[..])?;
+                msgs.push(msg)
+            }
+            Ok(msgs)
         }
     }
 
