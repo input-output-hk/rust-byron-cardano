@@ -64,21 +64,24 @@ impl fmt::Display for LightId {
 pub struct LightConnection {
     id: LightId,
     node_id: ntt::protocol::NodeId,
-    received: Option<Vec<u8>>
+    received: Vec<Vec<u8>>,
+    eos: bool,
 }
 impl LightConnection {
     pub fn new_with_nodeid(id: LightId, nonce: u64) -> Self {
         LightConnection {
             id: id,
             node_id: ntt::protocol::NodeId::make_syn(nonce),
-            received: None
+            received: Vec::new(),
+            eos: false,
         }
     }
     pub fn new_expecting_nodeid(id: LightId, node: ntt::protocol::NodeId) -> Self {
         LightConnection {
             id: id,
             node_id: node,
-            received: None
+            received: Vec::new(),
+            eos: false,
         }
     }
 
@@ -86,24 +89,25 @@ impl LightConnection {
 
     /// tell if the `LightConnection` has some pending message to read
     pub fn pending_received(&self) -> bool {
-        self.received.is_some()
+        self.received.len() > 0
+    }
+
+    pub fn is_eos(&self) -> bool {
+        self.eos
     }
 
     /// consume the eventual data to read
     /// 
     /// to call only if you are ready to process the data
-    pub fn get_received(&mut self) -> Option<Vec<u8>> {
-        let mut v = None;
-        ::std::mem::swap(&mut self.received, &mut v);
-        v
+    pub fn pop_received(&mut self) -> Option<Vec<u8>> {
+        if self.received.len() > 0 { Some(self.received.remove(0)) } else { None }
     }
 
     /// add data to the received bucket
-    fn receive(&mut self, bytes: &[u8]) {
-        self.received = Some(match self.get_received() {
-            None => bytes.iter().cloned().collect(),
-            Some(mut v) => { v.extend_from_slice(bytes); v }
-        });
+    fn add_to_receive(&mut self, bytes: &[u8]) {
+        let mut v = Vec::new();
+        v.extend_from_slice(bytes);
+        self.received.push(v)
     }
 }
 
@@ -222,32 +226,45 @@ impl<T: Write+Read> Connection<T> {
         self.ntt.close_light(id.0).unwrap();
     }
 
-    pub fn has_bytes_to_read(&self, id: LightId) -> bool {
+    pub fn has_bytes_to_read_or_finish(&self, id: LightId) -> bool {
         match self.client_cons.get(&id) {
             None => false,
-            Some(con) => {
-                match &con.received {
-                    &None => false,
-                    &Some(ref v) => v.len() > 0,
-                }
-            }
+            Some(con) => con.pending_received() || con.eos,
         }
     }
 
     pub fn wait_msg(&mut self, id: LightId) -> Result<Vec<u8>> {
-        while !self.has_bytes_to_read(id) {
-            self.broadcast()?;
+        while !self.has_bytes_to_read_or_finish(id) {
+            self.process_messages()?;
         }
 
         match self.client_cons.get_mut(&id) {
             None => panic!("oops"),
             Some(ref mut con) => {
-                let mut y = None;
-                ::std::mem::swap(&mut con.received, &mut y);
-                match y {
+                match con.pop_received() {
+                    None => panic!("oops 2"),
                     Some(yy) => Ok(yy),
-                    None => panic!("oops 2")
                 }
+            },
+        }
+    }
+
+    // same as wait_msg, except returns a vector of result
+    pub fn wait_msg_eos(&mut self, id: LightId) -> Result<Vec<Vec<u8>>> {
+        let mut r = Vec::new();
+        loop {
+            while !self.has_bytes_to_read_or_finish(id) {
+                self.process_messages()?;
+            }
+
+            match self.client_cons.get_mut(&id) {
+                None => panic!("oops"),
+                Some(ref mut con) => {
+                    match con.pop_received() {
+                        None => { if con.eos { return Ok(r) } else { panic!("oops 2") } },
+                        Some(yy) => r.push(yy),
+                    }
+                },
             }
         }
     }
@@ -284,7 +301,17 @@ impl<T: Write+Read> Connection<T> {
                         Ok(())
                     },
                     Some(ServerLightConnection::Established(v)) => {
-                        self.map_to_client.remove(&v);
+                        match self.map_to_client.remove(&v) {
+                            Some(lightid) => {
+                                match self.client_cons.get_mut(&lightid) {
+                                    None => {},
+                                    Some (ref mut con) => {
+                                        con.eos = true
+                                    },
+                                }
+                            },
+                            None          => {},
+                        }
                         /*
                         if let Some(_) = v.received {
                             self.server_dones.insert(id, v);
@@ -322,42 +349,44 @@ impl<T: Write+Read> Connection<T> {
                     Some(slc) => Some(slc.clone())
                 };
                 match v {
-                    Some(slc) => {
-                        match slc {
-                            ServerLightConnection::Established(nodeid) => {
-                                match self.map_to_client.get(&nodeid) {
-                                    None => Err(Error::NodeIdNotFound(nodeid)),
-                                    Some(client_id) => {
-                                        match self.client_cons.get_mut(client_id) {
-                                            None => Err(Error::ClientIdNotFoundFromNodeId(nodeid, *client_id)),
-                                            Some(con) => {
-                                                let bytes = self.ntt.recv_len(len).unwrap();
-                                                con.receive(&bytes);
-                                                Ok(())
-                                            }
-                                        }
-                                    },
-                                }
-                            },
-                            ServerLightConnection::Establishing => {
-                                let bytes = self.ntt.recv_len(len).unwrap();
-                                let nodeid = match ntt::protocol::NodeId::from_slice(&bytes[..]) {
-                                    None         => panic!("ERROR: expecting nodeid but receive stuff"),
-                                    Some(nodeid) => nodeid,
-                                };
-
-                                //let scon = LightConnection::new_expecting_nodeid(id, &nodeid);
-                                self.server_cons.remove(&id);
-                                self.server_cons.insert(id, ServerLightConnection::Established(nodeid.clone()));
-
-                                match self.client_cons.iter().find(|&(_,v)| v.node_id.match_ack(&nodeid)) {
-                                    None        => { Ok(()) },
-                                    Some((z,_)) => {
-                                        self.map_to_client.insert(nodeid, *z);
+                    // connection is established to a client side yet
+                    // append the data to the receiving buffer
+                    Some(ServerLightConnection::Established(nodeid)) => {
+                        match self.map_to_client.get(&nodeid) {
+                            None => Err(Error::NodeIdNotFound(nodeid)),
+                            Some(client_id) => {
+                                match self.client_cons.get_mut(client_id) {
+                                    None => Err(Error::ClientIdNotFoundFromNodeId(nodeid, *client_id)),
+                                    Some(con) => {
+                                        let bytes = self.ntt.recv_len(len).unwrap();
+                                        con.add_to_receive(&bytes);
                                         Ok(())
                                     }
                                 }
                             },
+                        }
+                    },
+                    // connection is not established to client side yet
+                    // wait for the nodeid and try to match to an existing client
+                    // if matching, then we remove the establishing server connection and
+                    // add a established connection and setup the routing to the client
+                    Some(ServerLightConnection::Establishing) => {
+                        let bytes = self.ntt.recv_len(len).unwrap();
+                        let nodeid = match ntt::protocol::NodeId::from_slice(&bytes[..]) {
+                            None         => panic!("ERROR: expecting nodeid but receive stuff"),
+                            Some(nodeid) => nodeid,
+                        };
+
+                        //let scon = LightConnection::new_expecting_nodeid(id, &nodeid);
+                        self.server_cons.remove(&id);
+                        self.server_cons.insert(id, ServerLightConnection::Established(nodeid.clone()));
+
+                        match self.client_cons.iter().find(|&(_,v)| v.node_id.match_ack(&nodeid)) {
+                            None        => { Ok(()) },
+                            Some((z,_)) => {
+                                self.map_to_client.insert(nodeid, *z);
+                                Ok(())
+                            }
                         }
                     },
                     None => {
