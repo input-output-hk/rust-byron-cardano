@@ -5,5 +5,5 @@ pub type PackHash = [u8;HASH_SIZE];
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum StorageFileType {
-    Pack, Index, Blob, Tag
+    Pack, Index, Blob, Tag, RefPack
 }

@@ -23,6 +23,7 @@ impl StorageConfig {
     pub fn get_filetype_dir(&self, ft: StorageFileType) -> PathBuf {
         let mut p = self.get_path();
         match ft {
+            StorageFileType::RefPack => p.push("refpack/"),
             StorageFileType::Pack => p.push("pack/"),
             StorageFileType::Index => p.push("index/"),
             StorageFileType::Blob => p.push("blob/"),
@@ -48,6 +49,11 @@ impl StorageConfig {
     pub fn get_tag_filepath<P: AsRef<str>>(&self, s: P) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::Tag);
         p.push(s.as_ref());
+        p
+    }
+    pub fn get_refpack_filepath<S: AsRef<str>>(&self, name: S) -> PathBuf {
+        let mut p = self.get_filetype_dir(StorageFileType::RefPack);
+        p.push(name.as_ref());
         p
     }
 

@@ -9,6 +9,7 @@ pub mod types;
 pub mod config;
 pub mod pack;
 pub mod tag;
+pub mod refpack;
 mod tmpfile;
 mod bitmap;
 mod bloom;
@@ -35,6 +36,7 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Pack))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Tag))?;
+        fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
 
         let packhashes = cfg.list_indexes();
         for p in packhashes.iter() {
