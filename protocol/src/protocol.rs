@@ -291,7 +291,12 @@ impl<T: Write+Read> Connection<T> {
         }
     }
 
-    pub fn broadcast(&mut self) -> Result<()> {
+    // Process one message from the connection. This is one of two type:
+    // a control message or a data message
+    //
+    // control message control light stream creation and closing
+    // whereas data message are associated to a light connection
+    pub fn process_messages(&mut self) -> Result<()> {
         use ntt::protocol::{ControlHeader, Command};
         match self.ntt.recv()? {
             Command::Control(ControlHeader::CloseConnection, cid) => {
