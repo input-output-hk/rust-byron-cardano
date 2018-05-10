@@ -21,6 +21,7 @@ use rcw::digest::Digest;
 use types::HASH_SIZE;
 use bloom;
 use types::BlockHash;
+use compression;
 
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;
@@ -326,26 +327,24 @@ impl Index {
     }
 }
 
-use flate2::write::DeflateDecoder;
-
-pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> Vec<u8>{
+pub fn read_block_raw_next(mut file: &fs::File) -> io::Result<Vec<u8>> {
     let mut sz_buf = [0u8;SIZE_SIZE];
-    
-    file.seek(SeekFrom::Start(ofs)).unwrap();
-    file.read_exact(&mut sz_buf).unwrap();
-
+    file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
     let mut v : Vec<u8> = repeat(0).take(sz as usize).collect();
-    file.read_exact(v.as_mut_slice()).unwrap();
-    if super::USE_COMPRESSION {
-        let mut writer = Vec::new();
-        let mut deflater = DeflateDecoder::new(writer);
-        deflater.write_all(&v[..]).unwrap();
-        writer = deflater.finish().unwrap();
-        writer
-    } else {
-        v
+    file.read_exact(v.as_mut_slice())?;
+    if (v.len() % 4) != 0 {
+        let to_align = 4 - (v.len() % 4);
+        let mut align = [0u8;4];
+        file.read_exact(&mut align[0..to_align])?;
     }
+    Ok(v)
+}
+
+pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> Vec<u8> {
+    file.seek(SeekFrom::Start(ofs)).unwrap();
+    let v = read_block_raw_next(file).unwrap();
+    compression::decompress_conditional(v)
 }
 
 // A Writer for a specific pack that accumulate some numbers for reportings,
@@ -376,7 +375,7 @@ impl PackWriter {
         self.nb_blobs
     }
 
-    pub fn append(&mut self, blockhash: &super::BlockHash, block: &[u8]) {
+    pub fn append_raw(&mut self, blockhash: &super::BlockHash, block: &[u8]) {
         let len = block.len() as Size;
         let mut sz_buf = [0u8;SIZE_SIZE];
         write_size(&mut sz_buf, len);
@@ -393,6 +392,11 @@ impl PackWriter {
         self.index.append(blockhash, self.pos);
         self.pos += 4 + len as u64 + pad_bytes as u64;
         self.nb_blobs += 1;
+    }
+
+    pub fn append(&mut self, blockhash: &super::BlockHash, block: &[u8]) {
+        let compressed_block = compression::compress_conditional(block);
+        self.append_raw(blockhash, &compressed_block[..])
     }
 
     pub fn finalize(&mut self) -> (super::PackHash, Index) {

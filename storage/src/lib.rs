@@ -11,6 +11,7 @@ pub mod pack;
 pub mod tag;
 pub mod refpack;
 mod tmpfile;
+mod compression;
 mod bitmap;
 mod bloom;
 use std::{fs, io, result};
@@ -86,24 +87,14 @@ fn tmpfile_create_type(storage: &Storage, filetype: StorageFileType) -> TmpFile 
 
 pub mod blob {
     use std::fs;
-    use std::io::{Write,Read};
-    use flate2::Compression;
-    use flate2::write::DeflateEncoder;
-    use flate2::write::DeflateDecoder;
-
+    use std::io::{Read};
     use super::{Result, Error};
+    use compression;
 
     pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
         let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Blob);
-        if super::USE_COMPRESSION {
-            let mut e = DeflateEncoder::new(Vec::new(), Compression::best());
-            e.write_all(block)?;
-            let compressed_block = e.finish()?;
-            tmp_file.write_all(&compressed_block[..])?;
-        } else {
-            tmp_file.write_all(block)?;
-        }
+        compression::compress_write(&mut tmp_file, block)?;
         tmp_file.render_permanent(&path).map_err(|e| Error::IoError(e))
     }
 
@@ -123,15 +114,7 @@ pub mod blob {
         let mut file = fs::File::open(path)?;
         file.read_to_end(&mut content)?;
 
-        if super::USE_COMPRESSION {
-            let mut writer = Vec::new();
-            let mut deflater = DeflateDecoder::new(writer);
-            deflater.write_all(&content[..])?;
-            writer = deflater.finish()?;
-            Ok(writer)
-        } else {
-            Ok(content)
-        }
+        Ok(compression::decompress_conditional(content))
     }
 
     pub fn exist(storage: &super::Storage, hash: &super::BlockHash) -> bool {
