@@ -1,0 +1,23 @@
+[package]
+name = "hermes"
+version = "0.1.0"
+authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+
+[dependencies]
+rcw           = { path = "../rcw" }
+wallet-crypto = { path = "../wallet-crypto" }
+blockchain    = { path = "../blockchain" }
+storage       = { path = "../storage" }
+
+serde = "1.0"
+serde_derive = "1.0"
+serde_yaml = "0.7"
+log = "0.4"
+env_logger = "0.5.9"
+iron = "*"
+router ="*"
+
+[dependencies.clap]
+version = "2.31"
+default-features = false
+features = [ "suggestions", "color", "wrap_help" ]
