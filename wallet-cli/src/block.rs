@@ -131,6 +131,10 @@ impl HasCommand for Block {
                 .arg(Arg::with_name("preserve-blobs").long("keep").help("keep what is being packed in its original state"))
                 .arg(Arg::with_name("range").help("<tag|ref>..<tag|ref>").index(1).required(false))
             )
+            .subcommand(SubCommand::with_name("epoch-refpack")
+                .about("generate the refpack of a given epoch")
+                .arg(Arg::with_name("epoch").help("The epoch to generate the refpack").index(1).required(true))
+            )
             .subcommand(SubCommand::with_name("unpack")
                 .about("internal unpack command")
                 .arg(Arg::with_name("preserve-packs").long("keep").help("keep what is being unpacked in its original state"))
@@ -202,6 +206,12 @@ impl HasCommand for Block {
                 }
                 let packhash = pack_blobs(&mut storage, &pack_params);
                 println!("pack created: {}", hex::encode(&packhash));
+            },
+            ("epoch-refpack", Some(opts)) => {
+                let storage = config.get_storage().unwrap();
+                let epoch = value_t!(opts.value_of("epoch"), String).unwrap();
+                storage::refpack_epoch_pack(&storage, &epoch).unwrap();
+                println!("refpack successfuly created");
             },
             ("tag", Some(opt)) => {
                 let mut storage = config.get_storage().unwrap();
