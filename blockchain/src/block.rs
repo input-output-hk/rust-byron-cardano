@@ -191,6 +191,7 @@ mod test {
 }
 
 #[cfg(test)]
+#[cfg(feature = "with-bench")]
 mod bench {
     use wallet_crypto::cbor;
     use super::{HeaderHash, Block};

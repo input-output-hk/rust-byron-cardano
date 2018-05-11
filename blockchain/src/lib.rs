@@ -1,9 +1,10 @@
-#![feature(test)]
+#![cfg_attr(feature = "with-bench", feature(test))]
 
 extern crate rcw;
 extern crate wallet_crypto;
 
 #[cfg(test)]
+#[cfg(feature = "with-bench")]
 extern crate test;
 
 mod types;
