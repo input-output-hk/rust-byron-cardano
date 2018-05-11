@@ -477,7 +477,7 @@ pub mod command {
                     for x in ll.iter_mut() {
                         vec.push(x.clone())
                     }
-                    println!("headers received {}", vec.len());
+                    //println!("headers received {}", vec.len());
                     Ok(vec)
                 },
             }
