@@ -27,6 +27,10 @@ impl Handler {
 impl iron::Handler for Handler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let ref packid = req.extensions.get::<router::Router>().unwrap().find("packid").unwrap();
+        if ! packid.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            error!("invalid packid: {}", packid);
+            return Ok(Response::with(status::BadRequest));
+        }
         info!("query pack: {}", packid);
         let packhash_vec = match tag::read(&self.storage, &packid) {
             None => hex::decode(&packid).unwrap(),
