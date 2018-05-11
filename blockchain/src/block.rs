@@ -206,6 +206,7 @@ mod bench {
     }
 
     #[bench]
+    #[ignore]
     fn encode_block_cbor(b: &mut test::Bencher) {
         let blk : Block = cbor::decode_from_cbor(BLOCK).unwrap();
         b.iter(|| {
