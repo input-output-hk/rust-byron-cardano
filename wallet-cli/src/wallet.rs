@@ -44,7 +44,7 @@ impl HasCommand for Wallet {
                 .arg(Arg::with_name("MNEMONIC SIZE")
                     .long("number-of-mnemonic-words")
                     .takes_value(true)
-                    .value_name("MNEMOENIC_SIZE")
+                    .value_name("MNEMONIC_SIZE")
                     .possible_values(&["12", "15", "18", "21", "24"])
                     .help("set the number of the mnemonic words")
                     .required(false)
