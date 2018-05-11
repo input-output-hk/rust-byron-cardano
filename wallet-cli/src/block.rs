@@ -60,6 +60,35 @@ fn pack_reindex(config: &Config, packref: &PackHash) {
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packref)).unwrap();
 }
 
+fn pack_is_epoch(config: &Config,
+                 packref: &PackHash,
+                 start_previous_header: &blockchain::HeaderHash,
+                 debug: bool)
+             -> (bool, blockchain::HeaderHash) {
+    let storage_config = config.get_storage_config();
+    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    let mut known_prev_header = start_previous_header.clone();
+    loop {
+        match reader.get_next() {
+            None      => { return (true, known_prev_header.clone()); },
+            Some(blk_raw) => {
+                let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+                let hdr = blk.get_header();
+                let hash = hdr.compute_hash();
+                let prev_hdr = hdr.get_previous_header();
+                if debug {
+                    println!("slotid={} hash={} prev={}", hdr.get_slotid(), hash, prev_hdr);
+                }
+                if &prev_hdr != &known_prev_header {
+                    return (false, hash)
+                } else {
+                    known_prev_header = hash.clone();
+                }
+            }
+        }
+    }
+}
+
 fn packref_fromhex(s: &String) -> PackHash {
     let mut packref = [0u8;32];
     packref.clone_from_slice(&hex::decode(&s).unwrap()[..]);
@@ -140,6 +169,12 @@ impl HasCommand for Block {
                 .arg(Arg::with_name("preserve-packs").long("keep").help("keep what is being unpacked in its original state"))
                 .arg(Arg::with_name("packhash").help("pack to query").index(1))
             )
+            .subcommand(SubCommand::with_name("is-pack-epoch")
+                .about("internal check to see if a pack is a valid epoch-pack")
+                .arg(Arg::with_name("packhash").help("pack to query").index(1))
+                .arg(Arg::with_name("previoushash").help("pack to query").index(2))
+                .arg(Arg::with_name("epoch-id").help("pack to query").index(3))
+            )
             .subcommand(SubCommand::with_name("tag")
                 .about("show content of a tag or set a tag")
                 .arg(Arg::with_name("tag-name").help("name of the tag").index(1).required(true))
@@ -182,6 +217,30 @@ impl HasCommand for Block {
                             .unwrap();
                 pack_reindex(&config, &packref_fromhex(&packrefhex))
             },
+            ("is-pack-epoch", Some(opts)) => {
+                let packrefhex = opts.value_of("packhash")
+                            .and_then(|s| Some(s.to_string()))
+                            .unwrap();
+                let previoushashhex = opts.value_of("previoushash")
+                            .and_then(|s| Some(s.to_string()))
+                            .unwrap();
+                //let epoch_id = values_t!(opts.value_of("epoch-id"), blockchain::EpochId).unwrap_or_else(|_| 0);
+                let epoch_id = 0;
+                let previoushash = blockchain::HeaderHash::from_slice(&hex::decode(&previoushashhex).unwrap()[..]).unwrap();
+                let (result, lasthash) = pack_is_epoch(&config,
+                                                       &packref_fromhex(&packrefhex),
+                                                       &previoushash, false);
+                match result {
+                    true => {
+                        println!("Pack is valid");
+                        println!("last hash {}", lasthash);
+                    },
+                    false => {
+                        println!("Pack is invalid");
+                        println!("last hash {}", lasthash);
+                    }
+                }
+            }
             ("pack", Some(opts)) => {
                 let mut storage = config.get_storage().unwrap();
                 let mut pack_params = PackParameters::default();
