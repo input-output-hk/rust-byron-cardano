@@ -9,6 +9,8 @@ use storage;
 use blockchain;
 use ansi_term::Colour::*;
 
+use std::io::{Write, stdout};
+
 pub struct Block;
 
 fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
@@ -113,6 +115,7 @@ impl HasCommand for Block {
             .about("block/blobs operations")
             .subcommand(SubCommand::with_name("cat")
                 .about("show content of a block")
+                .arg(Arg::with_name("noparse").long("raw").help("cat the binary encoded block, no pretty print"))
                 .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(1).required(true))
             )
             .subcommand(SubCommand::with_name("debug-index")
@@ -233,12 +236,18 @@ impl HasCommand for Block {
                         match block_read_location(&storage, &loc, hh.bytes()) {
                             None        => println!("error while reading"),
                             Some(bytes) => {
-                                let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
-                                let hdr = blk.get_header();
-                                let hash = hdr.compute_hash();
-                                println!("blk location: {:?}", loc);
-                                println!("hash computed: {} expected: {}", hash, hh);
-                                display_block(&blk)
+                                if opt.is_present("noparse") {
+                                    println!("{:?}", bytes);
+                                    //stdout().write(&bytes).unwrap();
+                                    //stdout().flush().unwrap();
+                                } else {
+                                    let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
+                                    let hdr = blk.get_header();
+                                    let hash = hdr.compute_hash();
+                                    println!("blk location: {:?}", loc);
+                                    println!("hash computed: {} expected: {}", hash, hh);
+                                    display_block(&blk)
+                                }
                             }
                         }
                     }
