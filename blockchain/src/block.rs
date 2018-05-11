@@ -206,6 +206,21 @@ mod bench {
     }
 
     #[bench]
+    fn encode_block_cbor(b: &mut test::Bencher) {
+        let blk : Block = cbor::decode_from_cbor(BLOCK).unwrap();
+        b.iter(|| {
+            let _ : Vec<u8> = cbor::encode_to_cbor(&blk).unwrap();
+        })
+    }
+
+    #[bench]
+    fn encode_blockheader_cbor(b: &mut test::Bencher) {
+        let blk : Block = cbor::decode_from_cbor(BLOCK).unwrap();
+        let hdr = blk.get_header();
+        b.iter(|| { let _ : Vec<u8> = cbor::encode_to_cbor(&hdr).unwrap(); } )
+    }
+
+    #[bench]
     fn compute_header_hash(b: &mut test::Bencher) {
         let blk : Block = cbor::decode_from_cbor(BLOCK).unwrap();
         let hdr = blk.get_header();
