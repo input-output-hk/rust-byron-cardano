@@ -5,7 +5,7 @@ use clap::{ArgMatches, Arg, SubCommand, App};
 use config::{Config};
 use storage;
 use storage::{blob, tag};
-use storage::tag::{OLDEST_BLOCK, HEAD};
+use storage::tag::{HEAD};
 use rand;
 use std::net::TcpStream;
 use std::time::{SystemTime, Duration};
