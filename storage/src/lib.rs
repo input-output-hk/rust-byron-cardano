@@ -17,6 +17,8 @@ mod bloom;
 use std::{fs, io, result};
 
 use std::collections::BTreeMap;
+use refpack::{RefPack};
+use wallet_crypto::cbor;
 
 use types::*;
 use config::*;
@@ -27,13 +29,22 @@ const USE_COMPRESSION : bool = true;
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
-    BlockError(block::Error)
+    BlockError(block::Error),
+    CborBlockError(cbor::Value, cbor::Error),
+    RefPackError(refpack::Error),
+    EpochError(u32, u32)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
 }
 impl From<block::Error> for Error {
     fn from(e: block::Error) -> Self { Error::BlockError(e) }
+}
+impl From<refpack::Error> for Error {
+    fn from(e: refpack::Error) -> Self { Error::RefPackError(e) }
+}
+impl From<(cbor::Value, cbor::Error)> for Error {
+    fn from((v, e): (cbor::Value, cbor::Error)) -> Self { Error::CborBlockError(v, e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -246,4 +257,37 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     // append to lookups
     storage.lookups.insert(packhash, lookup);
     packhash
+}
+
+pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<()> {
+    let mut rp = RefPack::new();
+    let packhash_vec = tag::read(storage, tag).expect("EPOCH not found");
+    let mut packhash = [0;HASH_SIZE];
+    packhash[..].clone_from_slice(packhash_vec.as_slice());
+    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+
+    let mut current_epoch = None;
+    let mut current_slotid = 0;
+
+    while let Some(block_bytes) = pack.get_next() {
+        let block : blockchain::Block = wallet_crypto::cbor::decode_from_cbor(&block_bytes)?;
+
+        let hdr = block.get_header();
+        let slotid = hdr.get_slotid();
+        if let Some(curr_epoch) = current_epoch {
+            if slotid.epoch != curr_epoch {
+                return Err(Error::EpochError(curr_epoch, slotid.epoch));
+            }
+        } else {
+            current_epoch = Some(slotid.epoch);
+        }
+
+        while current_slotid < slotid.slotid {
+            rp.push_back([0;32]);
+            current_slotid += 1;
+        }
+        rp.push_back(hdr.compute_hash().into_bytes());
+    }
+
+    refpack::write_refpack(&storage.config, tag, &rp).map_err(From::from)
 }

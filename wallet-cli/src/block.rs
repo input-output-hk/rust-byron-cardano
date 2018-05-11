@@ -9,6 +9,8 @@ use storage;
 use blockchain;
 use ansi_term::Colour::*;
 
+use std::io::{Write, stdout};
+
 pub struct Block;
 
 fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
@@ -113,6 +115,7 @@ impl HasCommand for Block {
             .about("block/blobs operations")
             .subcommand(SubCommand::with_name("cat")
                 .about("show content of a block")
+                .arg(Arg::with_name("noparse").long("raw").help("cat the binary encoded block, no pretty print"))
                 .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(1).required(true))
             )
             .subcommand(SubCommand::with_name("debug-index")
@@ -127,6 +130,10 @@ impl HasCommand for Block {
                 .about("internal pack command")
                 .arg(Arg::with_name("preserve-blobs").long("keep").help("keep what is being packed in its original state"))
                 .arg(Arg::with_name("range").help("<tag|ref>..<tag|ref>").index(1).required(false))
+            )
+            .subcommand(SubCommand::with_name("epoch-refpack")
+                .about("generate the refpack of a given epoch")
+                .arg(Arg::with_name("epoch").help("The epoch to generate the refpack").index(1).required(true))
             )
             .subcommand(SubCommand::with_name("unpack")
                 .about("internal unpack command")
@@ -200,6 +207,12 @@ impl HasCommand for Block {
                 let packhash = pack_blobs(&mut storage, &pack_params);
                 println!("pack created: {}", hex::encode(&packhash));
             },
+            ("epoch-refpack", Some(opts)) => {
+                let storage = config.get_storage().unwrap();
+                let epoch = value_t!(opts.value_of("epoch"), String).unwrap();
+                storage::refpack_epoch_pack(&storage, &epoch).unwrap();
+                println!("refpack successfuly created");
+            },
             ("tag", Some(opt)) => {
                 let mut storage = config.get_storage().unwrap();
 
@@ -233,12 +246,18 @@ impl HasCommand for Block {
                         match block_read_location(&storage, &loc, hh.bytes()) {
                             None        => println!("error while reading"),
                             Some(bytes) => {
-                                let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
-                                let hdr = blk.get_header();
-                                let hash = hdr.compute_hash();
-                                println!("blk location: {:?}", loc);
-                                println!("hash computed: {} expected: {}", hash, hh);
-                                display_block(&blk)
+                                if opt.is_present("noparse") {
+                                    println!("{:?}", bytes);
+                                    //stdout().write(&bytes).unwrap();
+                                    //stdout().flush().unwrap();
+                                } else {
+                                    let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
+                                    let hdr = blk.get_header();
+                                    let hash = hdr.compute_hash();
+                                    println!("blk location: {:?}", loc);
+                                    println!("hash computed: {} expected: {}", hash, hh);
+                                    display_block(&blk)
+                                }
                             }
                         }
                     }

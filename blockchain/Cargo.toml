@@ -11,3 +11,6 @@ keywords = [ "Cardano", "BlockChain" ]
 [dependencies]
 rcw = { path = "../rcw" }
 wallet-crypto = { path = "../wallet-crypto" }
+
+[features]
+with-bench = []
