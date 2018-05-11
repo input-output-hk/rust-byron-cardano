@@ -303,9 +303,8 @@ impl HasCommand for Block {
                             None        => println!("error while reading"),
                             Some(bytes) => {
                                 if opt.is_present("noparse") {
-                                    println!("{:?}", bytes);
-                                    //stdout().write(&bytes).unwrap();
-                                    //stdout().flush().unwrap();
+                                    stdout().write(&bytes).unwrap();
+                                    stdout().flush().unwrap();
                                 } else {
                                     let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
                                     let hdr = blk.get_header();

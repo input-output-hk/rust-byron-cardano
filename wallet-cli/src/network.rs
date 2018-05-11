@@ -5,6 +5,7 @@ use clap::{ArgMatches, Arg, SubCommand, App};
 use config::{Config};
 use storage;
 use storage::{blob, tag};
+use storage::types::{PackHash};
 use storage::tag::{HEAD};
 use rand;
 use std::net::TcpStream;
@@ -56,14 +57,14 @@ fn decode_hash_hex(s: &String) -> blockchain::HeaderHash {
 }
 
 fn find_earliest_epoch(storage: &storage::Storage, start_epochid: blockchain::EpochId)
-        -> Option<(blockchain::EpochId, blockchain::HeaderHash)> {
+        -> Option<(blockchain::EpochId, PackHash)> {
     let mut epoch_id = start_epochid;
     loop {
         match tag::read_hash(storage, &tag::get_epoch_tag(epoch_id)) {
             None => {},
             Some(h) => {
                 println!("latest known epoch found is {}", epoch_id);
-                return Some((epoch_id, h))
+                return Some((epoch_id, h.into_bytes()))
             },
         }
 
@@ -81,6 +82,7 @@ fn find_earliest_epoch(storage: &storage::Storage, start_epochid: blockchain::Ep
 // should gives the latest known hash of the chain.
 fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
                   epoch_id: blockchain::EpochId,
+                  download_from_slot: u32,
                   x_start_hash: &blockchain::HeaderHash,
                   latest_hash: &blockchain::HeaderHash) -> blockchain::HeaderHash {
     let mut start_hash = x_start_hash.clone();
@@ -88,7 +90,7 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     let mut writer = storage::pack::PackWriter::init(&storage.config);
     let mut last_packed = None;
     let epoch_time_start = SystemTime::now();
-    let mut expected_slotid = 0;
+    let mut expected_slotid = download_from_slot;
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
         let hdr_time_start = SystemTime::now();
@@ -98,7 +100,7 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
 
         let mut start = 0;
         let mut end = block_headers.len() - 1;
-        while block_headers[start].get_slotid().epoch > epoch_id {
+        while end > start && block_headers[start].get_slotid().epoch > epoch_id {
             start += 1
         }
         while end > start && block_headers[end].get_slotid().epoch < epoch_id {
@@ -191,18 +193,19 @@ fn net_sync_fast(config: Config) {
 
     // find the earliest epoch we know about starting from network_slotid
     let (latest_known_epoch_id, start_hash) = match find_earliest_epoch(&storage, network_slotid.epoch) {
-        None => { (0, genesis) },
-        Some(r) => { r },
+        None => { (blockchain::SlotId {epoch: 0, slotid: 0}, genesis) },
+        Some(r) => { get_last_blockid(&storage.config, &r.1).unwrap() }
     };
-
     println!("latest known epoch {} hash={}", latest_known_epoch_id, start_hash);
 
-    let mut download_epoch_id = latest_known_epoch_id;
+    let mut download_epoch_id = latest_known_epoch_id.epoch;
+    let mut download_from_slot = latest_known_epoch_id.slotid;
     let mut download_start_hash = start_hash;
     while download_epoch_id < network_slotid.epoch {
         println!("downloading epoch {}", download_epoch_id);
-        download_start_hash = download_epoch(&storage, &mut net, download_epoch_id, &download_start_hash, &network_tip);
-        download_epoch_id += 1
+        download_start_hash = download_epoch(&storage, &mut net, download_epoch_id, download_from_slot, &download_start_hash, &network_tip);
+        download_epoch_id += 1;
+        download_from_slot = 0;
     }
 
 }
@@ -242,7 +245,7 @@ impl HasCommand for Network {
                     .expect("to get one block at least");
 
                 let storage = config.get_storage().unwrap();
-                blob::write(&storage, hh.bytes(), &b[0][..]);
+                blob::write(&storage, hh.bytes(), &b[0][..]).unwrap();
             },
             ("sync", _) => net_sync_fast(config),
             _ => {
@@ -253,3 +256,25 @@ impl HasCommand for Network {
     }
 }
 
+
+fn get_last_blockid(storage_config: &storage::config::StorageConfig, packref: &PackHash) -> Option<(blockchain::SlotId, blockchain::HeaderHash)> {
+    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    let mut last_blk_raw = None;
+
+    while let Some(blk_raw) = reader.get_next() {
+        last_blk_raw = Some(blk_raw);
+    }
+    if let Some(blk_raw) = last_blk_raw {
+        let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+        let hdr = blk.get_header();
+        let mut slid = hdr.get_slotid();
+        slid.slotid += 1;
+        if slid.slotid >= 21600 {
+            slid.epoch += 1;
+            slid.slotid = 0;
+        }
+        Some((slid, hdr.compute_hash()))
+    } else {
+        None
+    }
+}
