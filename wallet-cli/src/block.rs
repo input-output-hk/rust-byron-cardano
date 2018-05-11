@@ -62,8 +62,7 @@ fn pack_reindex(config: &Config, packref: &PackHash) {
 
 fn pack_is_epoch(config: &Config,
                  packref: &PackHash,
-                 start_previous_header: &blockchain::HeaderHash,
-                 debug: bool)
+                 start_previous_header: &blockchain::HeaderHash)
              -> (bool, blockchain::HeaderHash) {
     let storage_config = config.get_storage_config();
     let mut reader = storage::pack::PackReader::init(&storage_config, packref);
@@ -76,9 +75,7 @@ fn pack_is_epoch(config: &Config,
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 let prev_hdr = hdr.get_previous_header();
-                if debug {
-                    println!("slotid={} hash={} prev={}", hdr.get_slotid(), hash, prev_hdr);
-                }
+                debug!("slotid={} hash={} prev={}", hdr.get_slotid(), hash, prev_hdr);
                 if &prev_hdr != &known_prev_header {
                     return (false, hash)
                 } else {
@@ -229,7 +226,7 @@ impl HasCommand for Block {
                 let previoushash = blockchain::HeaderHash::from_slice(&hex::decode(&previoushashhex).unwrap()[..]).unwrap();
                 let (result, lasthash) = pack_is_epoch(&config,
                                                        &packref_fromhex(&packrefhex),
-                                                       &previoushash, false);
+                                                       &previoushash);
                 match result {
                     true => {
                         println!("Pack is valid");
