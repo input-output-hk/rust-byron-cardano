@@ -374,8 +374,8 @@ impl cbor::CborValue for TxIn {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tx {
-    inputs: LinkedList<TxIn>,
-    outputs: LinkedList<TxOut>,
+    pub inputs: LinkedList<TxIn>,
+    pub outputs: LinkedList<TxOut>,
     // attributes: TxAttributes
     //
     // So far, there is no TxAttributes... the structure contains only the unparsed/unknown stuff

@@ -1,9 +1,11 @@
-use wallet_crypto::{wallet, bip44, bip39, paperwallet};
+use wallet_crypto::{wallet, bip44, bip39, paperwallet, cbor, tx, address};
 use wallet_crypto::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, SubCommand, App};
 use config::{Config};
 use account::{Account};
+use storage::{tag, pack};
+use blockchain::{Block};
 use rand;
 
 use termion::{style, color, clear, cursor};
@@ -92,6 +94,14 @@ impl HasCommand for Wallet {
                     .multiple(true)
                 )
             )
+            .subcommand(SubCommand::with_name("find-addresses")
+                .about("retrieve addresses in what have been synced from the network")
+                .arg(Arg::with_name("addresses")
+                    .help("list of addresses to retrieve")
+                    .multiple(true)
+                    .required(true)
+                )
+            )
     }
     fn run(config: Config, args: &ArgMatches) -> Self::Output {
         let mut cfg = config;
@@ -150,6 +160,47 @@ impl HasCommand for Wallet {
                         None // we don't need to update the wallet
                     }
                 }
+            },
+            ("find-addresses", Some(opts)) => {
+                let storage = cfg.get_storage().unwrap();
+                let addresses_bytes : Vec<_> = values_t!(opts.values_of("addresses"), String)
+                    .unwrap().iter().map(|s| base58::decode(s).unwrap()).collect();
+                let mut addresses : Vec<address::ExtendedAddr> = vec![];
+                for address in addresses_bytes {
+                    addresses.push(cbor::decode_from_cbor(&address).unwrap());
+                }
+                let mut epoch_id = 0;
+                while let Some(h) = tag::read_hash(&storage, &tag::get_epoch_tag(epoch_id)) {
+                    info!("looking in epoch {}", epoch_id);
+                    let mut reader = pack::PackReader::init(&storage.config, &h.into_bytes());
+                    while let Some(blk_bytes) = reader.get_next() {
+                        let blk : Block = cbor::decode_from_cbor(&blk_bytes).unwrap();
+                        let hdr = blk.get_header();
+                        let blk_hash = hdr.compute_hash();
+                        debug!("  looking at slot {}", hdr.get_slotid().slotid);
+                        match blk {
+                            Block::GenesisBlock(_) => {
+                                debug!("    ignoring genesis block")
+                            },
+                            Block::MainBlock(mblk) => {
+                                for txaux in mblk.body.tx.iter() {
+                                    for txout in &txaux.tx.outputs {
+                                        if let Some(_) = addresses.iter().find(|a| *a == &txout.address) {
+                                            println!("found address: {} in block {} at Epoch {} SlotId {}",
+                                                base58::encode(&cbor::encode_to_cbor(&txout.address).unwrap()),
+                                                blk_hash,
+                                                hdr.get_slotid().epoch,
+                                                hdr.get_slotid().slotid,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    epoch_id += 1;
+                }
+                None
             },
             _ => {
                 println!("{}", args.usage());
