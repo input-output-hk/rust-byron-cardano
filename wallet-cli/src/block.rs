@@ -12,13 +12,22 @@ use ansi_term::Colour::*;
 pub struct Block;
 
 fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
-    let store_config = config.get_storage_config();
+    let storage_config = config.get_storage_config();
     let storage = config.get_storage().unwrap();
-    let (_, hashes) = storage::pack::dump_index(&store_config, packref).unwrap();
-    for h in hashes.iter() {
-        match storage::block_read(&storage, h) {
-            None      => eprintln!("unpacking {} but cannot be found", hex::encode(h)),
-            Some(blk) => storage::blob::write(&storage, &h, &blk[..]).unwrap(),
+
+    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    loop {
+        match reader.get_next() {
+            None => { break; },
+            Some(blk_raw) => {
+                let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+                let hdr = blk.get_header();
+                let hash = hdr.compute_hash();
+                println!("unpacking {}", hash);
+                let mut hash_repack = [0u8;32];
+                hash_repack.clone_from_slice(hash.as_ref());
+                storage::blob::write(&storage, &hash_repack, &blk_raw[..]).unwrap()
+            }
         }
     }
 }
