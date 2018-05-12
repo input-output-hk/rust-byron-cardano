@@ -135,6 +135,10 @@ pub struct Connection<T> {
 
 impl<T: Write+Read> Connection<T> {
 
+    pub fn get_backend(&self) -> &T {
+        self.ntt.get_backend()
+    }
+
     // search for the next free LIGHT ID in the client connection map
     fn find_next_connection_id(&self) -> LightId {
         let mut x = LightId(ntt::LIGHT_ID_MIN);

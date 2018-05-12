@@ -38,6 +38,11 @@ pub struct Connection<W: Sized> {
 }
 
 impl<W: Sized+Write+Read> Connection<W> {
+
+    pub fn get_backend(&self) -> &W {
+        &self.stream
+    }
+
     pub fn set_debug(&mut self) {
         self.debug = true
     }
