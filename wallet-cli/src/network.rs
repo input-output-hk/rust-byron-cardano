@@ -8,27 +8,35 @@ use storage::{blob, tag};
 use storage::types::{PackHash};
 use storage::tag::{HEAD};
 use rand;
-use std::net::TcpStream;
 use std::time::{SystemTime, Duration};
 use blockchain;
+use mstream::{MStream, MetricStart, MetricStats};
 
 use protocol;
 use protocol::command::*;
 
-pub struct Network(protocol::Connection<TcpStream>);
+pub struct Network(protocol::Connection<MStream>);
+
 impl Network {
     fn new(cfg: &Config) -> Self {
         let drg_seed = rand::random();
         let mut hs = protocol::packet::Handshake::default();
-        hs.protocol_magic = cfg.protocol_magic;
+        hs.protocol_magic = cfg.network.protocol_magic;
 
-        let stream = TcpStream::connect(cfg.network_domain.clone()).unwrap();
-        stream.set_nodelay(true).unwrap();
+        let stream = MStream::init(&cfg.network.network_domain.clone());
 
         let conn = protocol::ntt::Connection::handshake(drg_seed, stream).unwrap();
         let mut conne = protocol::Connection::new(conn);
         conne.handshake(&hs).unwrap();
         Network(conne)
+    }
+
+    fn read_start(&self) -> MetricStart {
+        MetricStart::new(self.0.get_backend().get_read_sz())
+    }
+
+    fn read_elapsed(&self, start: &MetricStart) -> MetricStats {
+        start.diff(self.0.get_backend().get_read_sz())
     }
 }
 
@@ -92,10 +100,10 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     let mut expected_slotid = 0;
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
-        let hdr_time_start = SystemTime::now();
+        let metrics = net.read_start();
         let block_headers = network_get_blocks_headers(&mut net, &start_hash, latest_hash);
-        let hdr_time_elapsed = hdr_time_start.elapsed().unwrap();
-        println!("  got {} headers in {}", block_headers.len(), duration_print(hdr_time_elapsed));
+        let hdr_metrics = net.read_elapsed(&metrics);
+        println!("  got {} headers   {}", block_headers.len(), hdr_metrics);
 
         let mut start = 0;
         let mut end = block_headers.len() - 1;
@@ -169,7 +177,7 @@ fn net_sync_fast(config: Config) {
     let storage = config.get_storage().unwrap();
     let mut net = Network::new(&config);
 
-    let genesis = decode_hash_hex(&config.network_genesis);
+    let genesis = decode_hash_hex(&config.network.network_genesis);
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 

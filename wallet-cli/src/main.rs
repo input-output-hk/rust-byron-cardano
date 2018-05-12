@@ -17,6 +17,7 @@ extern crate termion;
 extern crate flate2;
 
 mod config;
+mod mstream;
 mod account;
 mod command;
 mod wallet;
