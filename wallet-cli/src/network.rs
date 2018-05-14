@@ -1,14 +1,13 @@
-use wallet_crypto::util::{hex};
-use wallet_crypto::{cbor};
+use wallet_crypto::{cbor, util::{hex}};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, SubCommand, App};
-use config::{Config};
 use storage;
-use storage::{blob, tag};
+use storage::{blob, tag, Storage};
 use storage::types::{PackHash};
 use storage::tag::{HEAD};
 use std::time::{SystemTime, Duration};
 use blockchain;
+use config::{Config};
 
 use protocol::command::*;
 use exe_common::{config::{net}, network::{Network}};
@@ -18,7 +17,7 @@ pub fn new_network(cfg: &net::Config) -> Network {
 }
 
 // TODO return BlockHeader not MainBlockHeader
-fn network_get_head_header(storage: &storage::Storage, net: &mut Network) -> blockchain::BlockHeader {
+fn network_get_head_header(storage: &Storage, net: &mut Network) -> blockchain::BlockHeader {
     let block_headers = GetBlockHeader::tip().execute(&mut net.0).expect("to get one header at least");
     if block_headers.len() != 1 {
         panic!("get head header return more than 1 header")
@@ -146,9 +145,8 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     }
 }
 
-fn net_sync_fast(config: Config) {
-    let storage = config.get_storage().unwrap();
-    let netcfg_file = config.get_storage_config().get_config_file();
+fn net_sync_fast(storage: Storage) {
+    let netcfg_file = storage.config.get_config_file();
     let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
     let mut net = new_network(&net_cfg);
 
@@ -190,25 +188,61 @@ fn net_sync_fast(config: Config) {
 
 impl HasCommand for Network {
     type Output = ();
+    type Config = ();
 
     fn clap_options<'a, 'b>() -> App<'a, 'b> {
         SubCommand::with_name("network")
             .about("blockchain network operation")
+            .subcommand(SubCommand::with_name("new")
+                .about("create a new network, networks can be shared between wallets and work independently.")
+                .arg(Arg::with_name("template")
+                        .long("template").help("the template for the new network").required(false)
+                        .possible_values(&["mainnet", "testnet"]).default_value("mainnet"))
+                .arg(Arg::with_name("name").help("the network name").index(1).required(true))
+            )
             .subcommand(SubCommand::with_name("get-block-header")
+                .arg(Arg::with_name("name").help("the network name").index(1).required(true))
                 .about("get a given block header")
             )
             .subcommand(SubCommand::with_name("get-block")
                 .about("get a given block")
-                .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(1).required(true))
+                .arg(Arg::with_name("name").help("the network name").index(1).required(true))
+                .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(2).required(true))
             )
             .subcommand(SubCommand::with_name("sync")
                 .about("get the next block repeatedly")
+                .arg(Arg::with_name("name").help("the network name").index(1).required(true))
             )
     }
 
-    fn run(config: Config, args: &ArgMatches) -> Self::Output {
+    fn run(_: Self::Config, args: &ArgMatches) -> Self::Output {
         match args.subcommand() {
-            ("get-block-header", _) => {
+            ("new", Some(opts)) => {
+                let net_cfg = match value_t!(opts.value_of("template"), String).unwrap().as_str() {
+                    "mainnet" => { net::Config::mainnet() },
+                    "testnet" => { net::Config::testnet() },
+                    _         => {
+                        // we do not support custom template yet.
+                        // in the mean while the error is handled by clap
+                        // (possible_values)
+                        panic!("invalid template option")
+                    }
+                };
+                let name = value_t!(opts.value_of("name"), String).unwrap();
+
+                let mut config = Config::default();
+                config.network = name;
+
+                let storage_config = config.get_storage_config();
+                let _ = Storage::init(&storage_config).unwrap();
+
+                let network_file = storage_config.get_config_file();
+                net_cfg.to_file(&network_file)
+            },
+            ("get-block-header", Some(opts)) => {
+                let name = value_t!(opts.value_of("name"), String).unwrap();
+                let mut config = Config::default();
+                config.network = name;
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
                 let mut net = new_network(&net_cfg);
@@ -216,8 +250,11 @@ impl HasCommand for Network {
                 let mbh = network_get_head_header(&storage, &mut net);
                 println!("prv block header: {}", mbh.get_previous_header());
             },
-            ("get-block", Some(opt)) => {
-                let hh_hex = value_t!(opt.value_of("blockid"), String).unwrap();
+            ("get-block", Some(opts)) => {
+                let name = value_t!(opts.value_of("name"), String).unwrap();
+                let mut config = Config::default();
+                config.network = name;
+                let hh_hex = value_t!(opts.value_of("blockid"), String).unwrap();
                 let hh_bytes = hex::decode(&hh_hex).unwrap();
                 let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
                 let netcfg_file = config.get_storage_config().get_config_file();
@@ -229,7 +266,12 @@ impl HasCommand for Network {
                 let storage = config.get_storage().unwrap();
                 blob::write(&storage, hh.bytes(), &b[0][..]).unwrap();
             },
-            ("sync", _) => net_sync_fast(config),
+            ("sync", Some(opts)) => {
+                let name = value_t!(opts.value_of("name"), String).unwrap();
+                let mut config = Config::default();
+                config.network = name;
+                net_sync_fast(config.get_storage().unwrap())
+            },
             _ => {
                 println!("{}", args.usage());
                 ::std::process::exit(1);

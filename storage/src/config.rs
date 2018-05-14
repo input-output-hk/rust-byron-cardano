@@ -7,18 +7,15 @@ use types::*;
 
 #[derive(Clone)]
 pub struct StorageConfig {
-    pub root_path: PathBuf,
-    pub blk_type: String, // example "mainnet" or "testnet"
+    pub root_path: PathBuf
 }
 
 impl StorageConfig {
-    pub fn new(path_buf: &PathBuf, blk_type: &String) -> Self {
-        StorageConfig { root_path: path_buf.clone(), blk_type: blk_type.clone() }
+    pub fn new(path_buf: &PathBuf) -> Self {
+        StorageConfig { root_path: path_buf.clone() }
     }
     pub fn get_path(&self) -> PathBuf {
-        let mut p = self.root_path.clone();
-        p.push(&self.blk_type);
-        p
+        self.root_path.clone()
     }
     pub fn get_filetype_dir(&self, ft: StorageFileType) -> PathBuf {
         let mut p = self.get_path();
@@ -32,7 +29,7 @@ impl StorageConfig {
         p
     }
     pub fn get_config_file(&self) -> PathBuf {
-        let mut p = self.get_filetype_dir(StorageFileType::Pack);
+        let mut p = self.get_path();
         p.push("config.yml");
         p
     }

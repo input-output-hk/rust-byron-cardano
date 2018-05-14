@@ -22,6 +22,7 @@ impl Wallet {
 
 impl HasCommand for Wallet {
     type Output = Option<Config>;
+    type Config = Config;
 
     fn clap_options<'a, 'b>() -> App<'a, 'b> {
         SubCommand::with_name("wallet")

@@ -136,6 +136,7 @@ fn display_block(blk: &blockchain::Block) {
 
 impl HasCommand for Block {
     type Output = ();
+    type Config = Config;
 
     fn clap_options<'a, 'b>() -> App<'a, 'b> {
         SubCommand::with_name("block")

@@ -10,9 +10,8 @@ use storage::config::StorageConfig;
 /// Configuration file for the Wallet CLI
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub network_type: String,
+    pub network: String,
     pub root_dir: PathBuf,
-    pub block_dir: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -26,25 +25,23 @@ impl Default for Config {
 impl Config {
     pub fn new(root_dir: PathBuf, network_type: String) -> Self {
         Config {
-            network_type: network_type,
+            network: network_type,
             root_dir: root_dir,
-            block_dir: None,
         }
     }
 
-    pub fn get_block_dir(&self) -> PathBuf {
-        match self.block_dir {
-            None    => {
-                let mut blk_dir_default = self.root_dir.clone();
-                blk_dir_default.push("blocks");
-                blk_dir_default
-            },
-            Some(ref v) => v.clone(),
-        }
+    pub fn get_network_dir(&self) -> PathBuf {
+        // TODO: check if `network`  starts with a `/`. if that is the case
+        // it is an absolute path and it means the user wanted to use this
+        // directly instead of our standard profile.
+        let mut blk_dir_default = self.root_dir.clone();
+        blk_dir_default.push("networks");
+        blk_dir_default.push(self.network.as_str());
+        blk_dir_default
     }
 
     pub fn get_storage_config(&self) -> StorageConfig {
-        StorageConfig::new(&self.get_block_dir(), &self.network_type)
+        StorageConfig::new(&self.get_network_dir())
     }
     pub fn get_storage(&self) -> storage::Result<storage::Storage> {
         storage::Storage::init(&self.get_storage_config())
