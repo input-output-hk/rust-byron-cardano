@@ -21,7 +21,6 @@ mod config;
 mod account;
 mod command;
 mod wallet;
-mod network;
 mod block;
 
 use config::{Config};
@@ -44,10 +43,10 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
         .arg(Arg::with_name("config").short("c").long("config").value_name("FILE").help("Sets a custom config file").takes_value(true))
-        .subcommand(Config::clap_options())
-        .subcommand(Wallet::clap_options())
-        .subcommand(Network::clap_options())
-        .subcommand(Block::clap_options())
+        .subcommand(Config::mk_command())
+        .subcommand(Wallet::mk_command())
+        .subcommand(Network::mk_command())
+        .subcommand(Block::mk_command())
         .get_matches();
 
     let cfg_path = matches.value_of("config")
@@ -55,18 +54,18 @@ fn main() {
     let cfg = Config::from_file(&cfg_path);
 
     match matches.subcommand() {
-        ("config", Some(sub_matches)) => {
+        (Config::COMMAND, Some(sub_matches)) => {
             if let Some(cfg2) = Config::run(cfg, sub_matches) {
                 cfg2.to_file(&cfg_path);
             };
         },
-        ("wallet", Some(sub_matches)) => {
+        (Wallet::COMMAND, Some(sub_matches)) => {
             if let Some(cfg2) = Wallet::run(cfg, sub_matches) {
                 cfg2.to_file(&cfg_path);
             };
         },
-        ("network", Some(sub_matches)) => { Network::run((), sub_matches); },
-        ("block",   Some(sub_matches)) => { Block::run(cfg, sub_matches); },
+        (Network::COMMAND, Some(sub_matches)) => { Network::run((), sub_matches); },
+        (Block::COMMAND,   Some(sub_matches)) => { Block::run(cfg, sub_matches); },
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);

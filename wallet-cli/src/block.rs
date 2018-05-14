@@ -138,9 +138,11 @@ impl HasCommand for Block {
     type Output = ();
     type Config = Config;
 
-    fn clap_options<'a, 'b>() -> App<'a, 'b> {
-        SubCommand::with_name("block")
-            .about("block/blobs operations")
+    const COMMAND : &'static str = "block";
+
+
+    fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+        app.about("block/blobs operations")
             .subcommand(SubCommand::with_name("cat")
                 .about("show content of a block")
                 .arg(Arg::with_name("noparse").long("raw").help("cat the binary encoded block, no pretty print"))

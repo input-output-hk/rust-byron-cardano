@@ -24,9 +24,10 @@ impl HasCommand for Wallet {
     type Output = Option<Config>;
     type Config = Config;
 
-    fn clap_options<'a, 'b>() -> App<'a, 'b> {
-        SubCommand::with_name("wallet")
-            .about("wallet management")
+    const COMMAND : &'static str = "wallet";
+
+    fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+        app.about("wallet management")
             .subcommand(SubCommand::with_name("generate")
                 .about("generate a new wallet")
                 .arg(Arg::with_name("LANGUAGE")

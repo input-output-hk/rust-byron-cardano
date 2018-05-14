@@ -140,9 +140,10 @@ impl HasCommand for Config {
     type Output = Option<Config>;
     type Config = Config;
 
-    fn clap_options<'a, 'b>() -> App<'a, 'b> {
-        SubCommand::with_name("config")
-            .about("get or set info from the config")
+    const COMMAND : &'static str = "config";
+
+    fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+        app.about("get or set info from the config")
             .arg(Arg::with_name("path").help("path to a given option in the config").index(1).required(true))
             .arg(Arg::with_name("value").help("value to set to the given option").index(2).required(false))
     }
