@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::env::{home_dir};
-use std::io;
 use clap::{ArgMatches, Arg, SubCommand, App};
 use serde_yaml;
 
@@ -11,23 +10,12 @@ use command::{HasCommand};
 use storage;
 use storage::config::StorageConfig;
 
-use wallet_crypto::config::{ProtocolMagic};
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NetConfig {
-    pub network_type: String,
-    pub network_domain: String,
-    pub network_genesis: String,
-    pub protocol_magic: ProtocolMagic,
-}
-
 /// Configuration file for the Wallet CLI
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub accounts: Vec<Account>,
     pub wallet: Option<Wallet>,
-    pub network: NetConfig,
+    pub network: String,
     pub root_dir: PathBuf,
     pub block_dir: Option<PathBuf>,
 }
@@ -40,44 +28,22 @@ impl Default for Config {
     }
 }
 
-impl NetConfig {
-    pub fn mainnet() -> Self {
-        NetConfig {
-            network_type: "mainnet".to_string(),
-            network_domain: "relays.cardano-mainnet.iohk.io:3000".to_string(),
-            network_genesis: "89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4".to_string(),
-            protocol_magic: ProtocolMagic::default(),
-        }
-    }
-    pub fn testnet() -> Self {
-        NetConfig {
-            network_type: "testnet".to_string(),
-            network_domain: "relays.awstest.iohkdev.io:3000".to_string(),
-            network_genesis: "B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90".to_string(),
-            protocol_magic: ProtocolMagic::new(633343913),
-        }
-    }
-}
-
 impl Config {
-    pub fn new_mainnet(root_dir: PathBuf) -> Self {
+    pub fn new(root_dir: PathBuf, network: String) -> Self {
         Config {
             accounts: vec![Account::default()],
             wallet: None,
-            network: NetConfig::mainnet(),
+            network: network,
             root_dir: root_dir,
             block_dir: None,
         }
+    }
+    pub fn new_mainnet(root_dir: PathBuf) -> Self {
+        Self::new(root_dir, "mainnet".to_string())
     }
 
     pub fn new_testnet(root_dir: PathBuf) -> Self {
-        Config {
-            accounts: vec![Account::default()],
-            wallet: None,
-            network: NetConfig::testnet(),
-            root_dir: root_dir,
-            block_dir: None,
-        }
+        Self::new(root_dir, "testnet".to_string())
     }
 
     pub fn get_block_dir(&self) -> PathBuf {
@@ -93,7 +59,7 @@ impl Config {
     }
 
     pub fn get_storage_config(&self) -> StorageConfig {
-        StorageConfig::new(&self.get_block_dir(), &self.network.network_type)
+        StorageConfig::new(&self.get_block_dir(), &self.network)
     }
     pub fn get_storage(&self) -> storage::Result<storage::Storage> {
         storage::Storage::init(&self.get_storage_config())

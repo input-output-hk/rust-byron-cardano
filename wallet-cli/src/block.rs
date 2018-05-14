@@ -6,8 +6,9 @@ use config::{Config};
 use storage::{pack_blobs, block_location, block_read_location, tag, pack, PackParameters};
 use storage::types::PackHash;
 use storage;
-use { blockchain, blockchain::{HeaderHash} };
+use blockchain;
 use ansi_term::Colour::*;
+use exe_common::{config::{net}};
 
 use std::io::{Write, stdout};
 
@@ -268,9 +269,9 @@ impl HasCommand for Block {
             },
             ("integrity-check", _) => {
                 let storage = config.get_storage().unwrap();
-                let genesis_bytes = hex::decode(&config.network.network_genesis).unwrap();
-                let genesis = HeaderHash::from_slice(&genesis_bytes).unwrap();
-                storage::integrity_check(&storage, genesis, 20);
+                let netcfg_file = config.get_storage_config().get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                storage::integrity_check(&storage, net_cfg.genesis, 20);
                 println!("integrity check succeed");
             },
             ("epoch-refpack", Some(opts)) => {

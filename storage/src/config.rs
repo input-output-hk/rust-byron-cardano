@@ -31,6 +31,11 @@ impl StorageConfig {
         }
         p
     }
+    pub fn get_config_file(&self) -> PathBuf {
+        let mut p = self.get_filetype_dir(StorageFileType::Pack);
+        p.push("config.yml");
+        p
+    }
     pub fn get_pack_filepath(&self, packhash: &PackHash) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::Pack);
         p.push(hex::encode(packhash));

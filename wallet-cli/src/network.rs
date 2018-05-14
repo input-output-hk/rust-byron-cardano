@@ -7,16 +7,14 @@ use storage;
 use storage::{blob, tag};
 use storage::types::{PackHash};
 use storage::tag::{HEAD};
-use rand;
 use std::time::{SystemTime, Duration};
 use blockchain;
 
-use protocol;
 use protocol::command::*;
-use exe_common::network::Network;
+use exe_common::{config::{net}, network::{Network}};
 
-pub fn new_config(cfg: &Config) -> Network {
-    Network::new(cfg.network.protocol_magic, &cfg.network.network_domain.clone())
+pub fn new_network(cfg: &net::Config) -> Network {
+    Network::new(cfg.protocol_magic, &cfg.domain.clone())
 }
 
 // TODO return BlockHeader not MainBlockHeader
@@ -37,10 +35,6 @@ fn network_get_blocks_headers(net: &mut Network, from: &blockchain::HeaderHash, 
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
-}
-
-fn decode_hash_hex(s: &String) -> blockchain::HeaderHash {
-    blockchain::HeaderHash::from_slice(&hex::decode(&s).unwrap()).expect("blockid invalid")
 }
 
 fn find_earliest_epoch(storage: &storage::Storage, start_epochid: blockchain::EpochId)
@@ -154,9 +148,9 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
 
 fn net_sync_fast(config: Config) {
     let storage = config.get_storage().unwrap();
-    let mut net = new_config(&config);
-
-    let genesis = decode_hash_hex(&config.network.network_genesis);
+    let netcfg_file = config.get_storage_config().get_config_file();
+    let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+    let mut net = new_network(&net_cfg);
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 
@@ -165,7 +159,7 @@ fn net_sync_fast(config: Config) {
     let network_tip = mbh.compute_hash();
     let network_slotid = mbh.get_slotid();
 
-    println!("Configured genesis : {}", genesis);
+    println!("Configured genesis : {}", net_cfg.genesis);
     println!("Network TIP is     : {}", network_tip);
     println!("Network TIP slotid : {}", network_slotid);
 
@@ -179,7 +173,7 @@ fn net_sync_fast(config: Config) {
 
     // find the earliest epoch we know about starting from network_slotid
     let (latest_known_epoch_id, start_hash) = match find_earliest_epoch(&storage, network_slotid.epoch) {
-        None => { (0, genesis) },
+        None => { (0, net_cfg.genesis) },
         Some(r) => { get_last_blockid(&storage.config, &r.1).unwrap() }
     };
     println!("latest known epoch {} hash={}", latest_known_epoch_id, start_hash);
@@ -215,7 +209,9 @@ impl HasCommand for Network {
     fn run(config: Config, args: &ArgMatches) -> Self::Output {
         match args.subcommand() {
             ("get-block-header", _) => {
-                let mut net = new_config(&config);
+                let netcfg_file = config.get_storage_config().get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                let mut net = new_network(&net_cfg);
                 let storage = config.get_storage().unwrap();
                 let mbh = network_get_head_header(&storage, &mut net);
                 println!("prv block header: {}", mbh.get_previous_header());
@@ -224,7 +220,9 @@ impl HasCommand for Network {
                 let hh_hex = value_t!(opt.value_of("blockid"), String).unwrap();
                 let hh_bytes = hex::decode(&hh_hex).unwrap();
                 let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
-                let mut net = new_config(&config);
+                let netcfg_file = config.get_storage_config().get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                let mut net = new_network(&net_cfg);
                 let mut b = GetBlock::only(&hh).execute(&mut net.0)
                     .expect("to get one block at least");
 
