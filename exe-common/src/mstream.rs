@@ -30,9 +30,21 @@ pub struct MetricStats {
     duration: Duration,
 }
 
+fn size_print(bytes: u64) -> String {
+    if bytes > 1024*1024 {
+        format!("{:.1} mb", bytes as f64 / (1024*1024) as f64)
+    } else if bytes > 2048 {
+        format!("{:.2} kb", bytes as f64 / 1024 as f64)
+    } else {
+        format!("{}  b", bytes)
+    }
+}
+
 impl fmt::Display for MetricStats {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} bytes transfered in {}.{:03} seconds", self.bytes_transfered, self.duration.as_secs(), self.duration.subsec_millis())
+        let x = self.duration.as_secs() * 1_000_000_000 + self.duration.subsec_nanos() as u64;
+        let s = self.bytes_transfered * 1_000_000_000 / x;
+        write!(f, "{} bytes transfered in {}.{:03} seconds. {}/s", self.bytes_transfered, self.duration.as_secs(), self.duration.subsec_millis(), size_print(s))
     }
 }
 
