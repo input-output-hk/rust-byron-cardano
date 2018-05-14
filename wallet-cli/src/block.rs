@@ -6,7 +6,7 @@ use config::{Config};
 use storage::{pack_blobs, block_location, block_read_location, tag, pack, PackParameters};
 use storage::types::PackHash;
 use storage;
-use blockchain;
+use { blockchain, blockchain::{HeaderHash} };
 use ansi_term::Colour::*;
 
 use std::io::{Write, stdout};
@@ -166,6 +166,9 @@ impl HasCommand for Block {
                 .arg(Arg::with_name("preserve-packs").long("keep").help("keep what is being unpacked in its original state"))
                 .arg(Arg::with_name("packhash").help("pack to query").index(1))
             )
+            .subcommand(SubCommand::with_name("integrity-check")
+                .about("check the integrity of the blockchain")
+            )
             .subcommand(SubCommand::with_name("is-pack-epoch")
                 .about("internal check to see if a pack is a valid epoch-pack")
                 .arg(Arg::with_name("packhash").help("pack to query").index(1))
@@ -262,6 +265,13 @@ impl HasCommand for Block {
                 }
                 let packhash = pack_blobs(&mut storage, &pack_params);
                 println!("pack created: {}", hex::encode(&packhash));
+            },
+            ("integrity-check", _) => {
+                let storage = config.get_storage().unwrap();
+                let genesis_bytes = hex::decode(&config.network.network_genesis).unwrap();
+                let genesis = HeaderHash::from_slice(&genesis_bytes).unwrap();
+                storage::integrity_check(&storage, genesis, 20);
+                println!("integrity check succeed");
             },
             ("epoch-refpack", Some(opts)) => {
                 let storage = config.get_storage().unwrap();
