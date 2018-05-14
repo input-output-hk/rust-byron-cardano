@@ -1,0 +1,12 @@
+[package]
+name = "exe-common"
+version = "0.1.0"
+authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+
+[dependencies]
+rcw = { path = "../rcw" }
+wallet-crypto = { path = "../wallet-crypto" }
+blockchain = { path = "../blockchain" }
+storage = { path = "../storage" }
+protocol = { path = "../protocol" }
+rand = "0.4"

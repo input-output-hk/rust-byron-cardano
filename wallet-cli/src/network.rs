@@ -10,34 +10,13 @@ use storage::tag::{HEAD};
 use rand;
 use std::time::{SystemTime, Duration};
 use blockchain;
-use mstream::{MStream, MetricStart, MetricStats};
 
 use protocol;
 use protocol::command::*;
+use exe_common::network::Network;
 
-pub struct Network(protocol::Connection<MStream>);
-
-impl Network {
-    fn new(cfg: &Config) -> Self {
-        let drg_seed = rand::random();
-        let mut hs = protocol::packet::Handshake::default();
-        hs.protocol_magic = cfg.network.protocol_magic;
-
-        let stream = MStream::init(&cfg.network.network_domain.clone());
-
-        let conn = protocol::ntt::Connection::handshake(drg_seed, stream).unwrap();
-        let mut conne = protocol::Connection::new(conn);
-        conne.handshake(&hs).unwrap();
-        Network(conne)
-    }
-
-    fn read_start(&self) -> MetricStart {
-        MetricStart::new(self.0.get_backend().get_read_sz())
-    }
-
-    fn read_elapsed(&self, start: &MetricStart) -> MetricStats {
-        start.diff(self.0.get_backend().get_read_sz())
-    }
+pub fn new_config(cfg: &Config) -> Network {
+    Network::new(cfg.network.protocol_magic, &cfg.network.network_domain.clone())
 }
 
 // TODO return BlockHeader not MainBlockHeader
@@ -175,7 +154,7 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
 
 fn net_sync_fast(config: Config) {
     let storage = config.get_storage().unwrap();
-    let mut net = Network::new(&config);
+    let mut net = new_config(&config);
 
     let genesis = decode_hash_hex(&config.network.network_genesis);
 
@@ -236,7 +215,7 @@ impl HasCommand for Network {
     fn run(config: Config, args: &ArgMatches) -> Self::Output {
         match args.subcommand() {
             ("get-block-header", _) => {
-                let mut net = Network::new(&config);
+                let mut net = new_config(&config);
                 let storage = config.get_storage().unwrap();
                 let mbh = network_get_head_header(&storage, &mut net);
                 println!("prv block header: {}", mbh.get_previous_header());
@@ -245,7 +224,7 @@ impl HasCommand for Network {
                 let hh_hex = value_t!(opt.value_of("blockid"), String).unwrap();
                 let hh_bytes = hex::decode(&hh_hex).unwrap();
                 let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
-                let mut net = Network::new(&config);
+                let mut net = new_config(&config);
                 let mut b = GetBlock::only(&hh).execute(&mut net.0)
                     .expect("to get one block at least");
 

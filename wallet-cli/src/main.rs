@@ -8,6 +8,7 @@ extern crate env_logger;
 extern crate serde_yaml;
 extern crate rcw;
 extern crate wallet_crypto;
+extern crate exe_common;
 extern crate blockchain;
 extern crate protocol;
 extern crate storage;
@@ -17,7 +18,6 @@ extern crate termion;
 extern crate flate2;
 
 mod config;
-mod mstream;
 mod account;
 mod command;
 mod wallet;
@@ -27,7 +27,7 @@ mod block;
 use config::{Config};
 use command::{HasCommand};
 use wallet::{Wallet};
-use network::{Network};
+use exe_common::network::{Network};
 use block::{Block};
 
 use std::env::{home_dir};
