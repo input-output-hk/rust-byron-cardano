@@ -17,10 +17,7 @@ pub struct ReverseIter<'a> {
 }
 impl<'a> ReverseIter<'a> {
     pub fn from(storage: &'a Storage, bh: &[u8]) -> Result<Self> {
-        let hh = match HeaderHash::from_slice(&bh) {
-            None => return Err(Error::InvalidHeaderHash(bh.iter().cloned().collect())),
-            Some(hh) => hh
-        };
+        let hh = HeaderHash::from_slice(&bh)?;
         if let None = block_location(storage, hh.bytes()) {
             return Err(Error::HashNotFound(hh.into_bytes()));
         }

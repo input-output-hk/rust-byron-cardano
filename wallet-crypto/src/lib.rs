@@ -22,6 +22,7 @@ pub mod hdpayload;
 pub mod tx;
 pub mod coin;
 pub mod redeem;
+pub mod hash;
 
 pub mod cbor;
 pub mod bip39;

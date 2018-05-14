@@ -1,10 +1,8 @@
-use std::{fmt, ops, iter, vec, slice, convert, result};
+use std::{fmt, ops, iter, vec, slice, convert};
 use std::collections::{LinkedList, BTreeMap};
 
-use rcw::digest::Digest;
-use rcw::blake2b::Blake2b;
+use hash::{Blake2b256};
 
-use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
 use config::{Config};
@@ -17,145 +15,10 @@ use bip44::{Addressing};
 use coin;
 use coin::{Coin};
 
-use serde;
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub enum Error {
-    InvalidHashSize(usize),
-    HexadecimalError(hex::Error),
-}
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Error::InvalidHashSize(sz) => {
-                write!(f, "invalid hash size, expected {} but received {} bytes.", HASH_SIZE, sz)
-            },
-            &Error::HexadecimalError(err) => {
-                write!(f, "Invalid hexadecimal input: {}", err)
-            }
-        }
-    }
-}
-impl From<hex::Error> for Error {
-    fn from(e: hex::Error) -> Error { Error::HexadecimalError(e) }
-}
-
-pub type Result<T> = result::Result<T, Error>;
-
-pub const HASH_SIZE : usize = 32;
-
-/// Blake2b 256 bits
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Hash([u8;HASH_SIZE]);
-impl AsRef<[u8]> for Hash {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-impl Hash {
-    pub fn new(buf: &[u8]) -> Self
-    {
-        let mut b2b = Blake2b::new(HASH_SIZE);
-        let mut out = [0;HASH_SIZE];
-        b2b.input(buf);
-        b2b.result(&mut out);
-        Self::from_bytes(out)
-    }
-
-    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Hash(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != HASH_SIZE { return Err(Error::InvalidHashSize(bytes.len())); }
-        let mut buf = [0;HASH_SIZE];
-
-        buf[0..HASH_SIZE].clone_from_slice(bytes);
-        Ok(Self::from_bytes(buf))
-    }
-    pub fn from_hex(hex: &str) -> Result<Self> {
-        let bytes = hex::decode(hex)?;
-        Self::from_slice(&bytes)
-    }
-}
-impl fmt::Debug for Hash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.0[..]))
-    }
-}
-impl fmt::Display for Hash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.0[..]))
-    }
-}
-impl cbor::CborValue for Hash {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Hash::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidHashSize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(HASH_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Hash")
-    }
-}
-impl serde::Serialize for Hash
-{
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-        where S: serde::Serializer,
-    {
-        if serializer.is_human_readable() {
-            serializer.serialize_str(&hex::encode(self.as_ref()))
-        } else {
-            serializer.serialize_bytes(&self.as_ref())
-        }
-    }
-}
-struct HashVisitor();
-impl HashVisitor { fn new() -> Self { HashVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for HashVisitor {
-    type Value = Hash;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting a Blake2b_256 hash (`Hash`)")
-    }
-
-    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Hash::from_hex(v) {
-            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-            Err(Error::InvalidHashSize(sz)) => Err(E::invalid_length(sz, &"32 bytes")),
-            Ok(h) => Ok(h)
-        }
-    }
-
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Hash::from_slice(v) {
-            Err(Error::InvalidHashSize(sz)) => Err(E::invalid_length(sz, &"32 bytes")),
-            Err(err) => panic!("unexpected error: {}", err),
-            Ok(h) => Ok(h)
-        }
-    }
-}
-impl<'de> serde::Deserialize<'de> for Hash
-{
-    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
-        where D: serde::Deserializer<'de>
-    {
-        if deserializer.is_human_readable() {
-            deserializer.deserialize_str(HashVisitor::new())
-        } else {
-            deserializer.deserialize_bytes(HashVisitor::new())
-        }
-    }
-}
-
 // TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
 // if this is confirmed, we need to make a proper type, wrapping it around
 // to hash a `Tx` by serializing it cbor first.
-pub type TxId = Hash;
+pub type TxId = Blake2b256;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxOut {
@@ -727,11 +590,11 @@ impl cbor::CborValue for TxAux {
 #[derive(Debug, Clone)]
 pub struct TxProof {
     pub number: u32,
-    pub root: Hash,
-    pub witnesses_hash: Hash,
+    pub root: Blake2b256,
+    pub witnesses_hash: Blake2b256,
 }
 impl TxProof {
-    pub fn new(number: u32, root: Hash, witnesses_hash: Hash) -> Self {
+    pub fn new(number: u32, root: Blake2b256, witnesses_hash: Blake2b256) -> Self {
         TxProof {
             number: number,
             root: root,

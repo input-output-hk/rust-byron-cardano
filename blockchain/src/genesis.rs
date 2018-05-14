@@ -1,4 +1,4 @@
-use wallet_crypto::{tx, cbor};
+use wallet_crypto::{cbor, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
@@ -8,7 +8,7 @@ use types;
 use types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
-pub struct BodyProof(tx::Hash);
+pub struct BodyProof(Blake2b256);
 
 impl cbor::CborValue for BodyProof {
     fn encode(&self) -> cbor::Value {

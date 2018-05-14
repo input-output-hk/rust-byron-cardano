@@ -1,10 +1,6 @@
 use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
-use wallet_crypto::{cbor, util, tx};
-use rcw::blake2b::Blake2b;
-use rcw::digest::Digest;
-
-const HASH_SIZE : usize = 32;
+use wallet_crypto::{cbor, hash, hash::{HASH_SIZE, Blake2b256}};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -26,39 +22,23 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HeaderHash([u8;HASH_SIZE]);
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+pub struct HeaderHash(Blake2b256);
 impl AsRef<[u8]> for HeaderHash { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
-impl fmt::Debug for HeaderHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", util::hex::encode(self.as_ref()))
-    }
-}
 impl fmt::Display for HeaderHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", util::hex::encode(self.as_ref()))
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
 }
-
 impl HeaderHash {
-    pub fn bytes<'a>(&'a self) -> &'a [u8;HASH_SIZE] { &self.0 }
-    pub fn into_bytes(self) -> [u8;HASH_SIZE] { self.0 }
-    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != HASH_SIZE { return None; }
-        let mut buf = [0;HASH_SIZE];
-
-        buf[0..HASH_SIZE].clone_from_slice(bytes);
-        Some(Self::from_bytes(buf))
+    pub fn bytes<'a>(&'a self) -> &'a [u8;HASH_SIZE] { self.0.bytes() }
+    pub fn into_bytes(self) -> [u8;HASH_SIZE] { self.0.into_bytes() }
+    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from_bytes(bytes)) }
+    pub fn from_slice(bytes: &[u8]) -> hash::Result<Self> {
+        Blake2b256::from_slice(bytes).map(|h| HeaderHash(h))
     }
-
-    pub fn new(bytes: &[u8]) -> Self {
-        let mut b2b = Blake2b::new(HASH_SIZE);
-        let mut out = [0;HASH_SIZE];
-        b2b.input(bytes);
-        b2b.result(&mut out);
-        Self::from_bytes(out)
+    pub fn from_hex<S: AsRef<str>>(hex: &S) -> hash::Result<Self> {
+        Blake2b256::from_hex(hex).map(|h| HeaderHash(h))
     }
+    pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
@@ -112,10 +92,10 @@ pub struct HeaderExtraData {
     pub block_version: BlockVersion,
     pub software_version: SoftwareVersion,
     pub attributes: BlockHeaderAttributes,
-    pub extra_data_proof: tx::Hash // hash of the Extra body data
+    pub extra_data_proof: Blake2b256 // hash of the Extra body data
 }
 impl HeaderExtraData {
-    pub fn new(block_version: BlockVersion, software_version: SoftwareVersion, attributes: BlockHeaderAttributes, extra_data_proof: tx::Hash) -> Self {
+    pub fn new(block_version: BlockVersion, software_version: SoftwareVersion, attributes: BlockHeaderAttributes, extra_data_proof: Blake2b256) -> Self {
         HeaderExtraData {
             block_version: block_version,
             software_version: software_version,
@@ -127,10 +107,10 @@ impl HeaderExtraData {
 
 #[derive(Debug, Clone)]
 pub enum SscProof {
-    Commitments(tx::Hash, tx::Hash),
-    Openings(tx::Hash, tx::Hash),
-    Shares(tx::Hash, tx::Hash),
-    Certificate(tx::Hash)
+    Commitments(Blake2b256, Blake2b256),
+    Openings(Blake2b256, Blake2b256),
+    Shares(Blake2b256, Blake2b256),
+    Certificate(Blake2b256)
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -222,16 +202,9 @@ impl cbor::CborValue for SoftwareVersion {
 }
 
 impl cbor::CborValue for HeaderHash {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
+    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Self::from_slice(bytes.as_ref()) {
-                Some(digest) => Ok(digest),
-                None         => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(HASH_SIZE))
-                }
-            }
-        }).embed("while decoding Hash")
+        cbor::CborValue::decode(value).map(|h| HeaderHash(h))
     }
 }
 

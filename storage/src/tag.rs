@@ -33,7 +33,7 @@ pub fn read<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<Vec<u8>
 }
 
 pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<blockchain::HeaderHash> {
-    read(storage, name).and_then(|v| blockchain::HeaderHash::from_slice(&v[..]))
+    read(storage, name).and_then(|v| blockchain::HeaderHash::from_slice(&v[..]).ok())
 }
 
 pub fn exist<S: AsRef<str>>(storage: &super::Storage, name: &S) -> bool {

@@ -1,10 +1,9 @@
-use wallet_crypto::{tx, cbor};
+use wallet_crypto::{tx, hdwallet, cbor, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
 use std::collections::linked_list::{Iter};
 use std::collections::{LinkedList};
-use wallet_crypto::hdwallet;
 
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
@@ -13,11 +12,11 @@ use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
-    pub proxy_sk: tx::Hash, // delegation hash
-    pub update: tx::Hash, // UpdateProof (hash of UpdatePayload)
+    pub proxy_sk: Blake2b256, // delegation hash
+    pub update: Blake2b256, // UpdateProof (hash of UpdatePayload)
 }
 impl BodyProof {
-    pub fn new(tx: tx::TxProof, mpc: types::SscProof, proxy_sk: tx::Hash, update: tx::Hash) -> Self {
+    pub fn new(tx: tx::TxProof, mpc: types::SscProof, proxy_sk: Blake2b256, update: Blake2b256) -> Self {
         BodyProof {
             tx: tx,
             mpc: mpc,

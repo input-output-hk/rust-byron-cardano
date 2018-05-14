@@ -11,6 +11,8 @@ keywords = [ "Cardano", "BlockChain" ]
 [dependencies]
 rcw = { path = "../rcw" }
 wallet-crypto = { path = "../wallet-crypto" }
+serde = "1.0"
+serde_derive = "1.0"
 
 [features]
 with-bench = []
