@@ -7,5 +7,6 @@ authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 rcw = { path = "../rcw" }
 wallet-crypto = { path = "../wallet-crypto" }
 blockchain = { path = "../blockchain" }
+log = "*"
 rand = "0.4"
 flate2 = "1.0.1"

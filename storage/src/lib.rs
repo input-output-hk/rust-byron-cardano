@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 extern crate rcw;
 extern crate wallet_crypto;
 extern crate blockchain;
@@ -18,7 +20,8 @@ use std::{fs, io, result};
 
 use std::collections::BTreeMap;
 use refpack::{RefPack};
-use wallet_crypto::cbor;
+use wallet_crypto::{cbor};
+use blockchain::{HeaderHash};
 
 use types::*;
 use config::*;
@@ -270,7 +273,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
     let mut current_slotid = 0;
 
     while let Some(block_bytes) = pack.get_next() {
-        let block : blockchain::Block = wallet_crypto::cbor::decode_from_cbor(&block_bytes)?;
+        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes)?;
 
         let hdr = block.get_header();
         let slotid = hdr.get_slotid();
@@ -290,4 +293,59 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
     }
 
     refpack::write_refpack(&storage.config, tag, &rp).map_err(From::from)
+}
+
+pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: u32) {
+    let mut previous_header = genesis_hash;
+    for epochid in 0..count {
+        println!("check epoch {}'s integrity", epochid);
+        previous_header = epoch_integrity_check(storage, epochid, previous_header);
+    }
+}
+
+fn epoch_integrity_check(storage: &Storage, epochid: u32, previous_header: HeaderHash) -> HeaderHash {
+    let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
+    let mut packhash = [0;HASH_SIZE];
+    packhash[..].clone_from_slice(packhash_vec.as_slice());
+    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+
+    let mut current_slotid = 0;
+    let mut error = false;
+
+    let mut prev = previous_header;
+
+    while let Some(block_bytes) = pack.get_next() {
+        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes).expect("a valid block");
+
+        let hdr = block.get_header();
+        let slotid = hdr.get_slotid();
+        if slotid.epoch != epochid {
+            error!("  block {}", hdr.compute_hash());
+            error = true;
+        }
+
+        if hdr.get_previous_header() != prev {
+            error!("  invalid previous header ({}.{})", slotid.epoch, slotid.slotid);
+            error!("    - expected {}", prev);
+            error!("    - received {}", hdr.get_previous_header());
+            error = true;
+        }
+
+        if current_slotid != slotid.slotid {
+            warn!("  missing slots {}.{} to {}.{}", epochid, current_slotid, epochid, slotid.slotid);
+        }
+        current_slotid = slotid.slotid + 1;
+        prev = hdr.compute_hash();
+    }
+
+    const KNOWN_EPOCH_SIZE : u32 = 21600;
+    if current_slotid != KNOWN_EPOCH_SIZE {
+        warn!("  missing slots {}.{} to {}.{}", epochid, current_slotid, epochid, KNOWN_EPOCH_SIZE);
+    }
+
+    if error {
+       panic!("epoch {} seems corrupted, see log above", epochid);
+    }
+
+    prev
 }
