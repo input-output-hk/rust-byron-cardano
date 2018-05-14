@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::env::{home_dir};
-use clap::{ArgMatches, Arg, SubCommand, App};
+use clap::{ArgMatches, Arg, App};
 use serde_yaml;
 
 use account::{Account};
-use wallet::{Wallet};
+use command::{Wallet};
 use command::{HasCommand};
 
 use storage;

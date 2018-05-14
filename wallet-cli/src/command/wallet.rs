@@ -1,4 +1,4 @@
-use wallet_crypto::{wallet, bip44, bip39, paperwallet, cbor, tx, address};
+use wallet_crypto::{wallet, bip44, bip39, paperwallet, cbor, address};
 use wallet_crypto::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, SubCommand, App};

@@ -1,4 +1,10 @@
-pub mod blockchain; 
+mod blockchain;
+mod block;
+mod wallet;
+
+pub use self::blockchain::{*};
+pub use self::block::{*};
+pub use self::wallet::{*}; 
 
 use clap::{ArgMatches, App, SubCommand};
 

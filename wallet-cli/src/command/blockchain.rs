@@ -67,15 +67,16 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     let mut start_hash = x_start_hash.clone();
     let mut found_epoch_boundary = None;
     let mut writer = storage::pack::PackWriter::init(&storage.config);
-    let mut last_packed = None;
+    let mut previous_headerhash = start_hash.clone();
     let epoch_time_start = SystemTime::now();
     let mut expected_slotid = 0;
+
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
         let metrics = net.read_start();
         let block_headers = network_get_blocks_headers(&mut net, &start_hash, latest_hash);
         let hdr_metrics = net.read_elapsed(&metrics);
-        println!("  got {} headers   {}", block_headers.len(), hdr_metrics);
+        println!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
 
         let mut start = 0;
         let mut end = block_headers.len() - 1;
@@ -93,25 +94,34 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         let latest_block = &block_headers[start];
         let first_block = &block_headers[end];
 
-        let blk_time_start = SystemTime::now();
+        let metrics = net.read_start();
         let blocks_raw = GetBlock::from(&first_block.compute_hash(), &latest_block.compute_hash())
                                 .execute(&mut net.0)
                                 .expect("to get one block at least");
-        let blk_time_elapsed = blk_time_start.elapsed().unwrap();
-        println!("  got {} blocks in {}", blocks_raw.len(), duration_print(blk_time_elapsed));
+        let blocks_metrics = net.read_elapsed(&metrics);
+        println!("  got {} blocks  ( {} )", blocks_raw.len(), blocks_metrics);
 
         for block_raw in blocks_raw.iter() {
             let block : blockchain::Block = cbor::decode_from_cbor(&block_raw).unwrap();
             let hdr = block.get_header();
             let slot = hdr.get_slotid();
             let blockhash = hdr.compute_hash();
+            let block_previous_header = hdr.get_previous_header();
+
             if slot.epoch != epoch_id {
                 panic!("trying to append a block of different epoch id {}", slot.epoch)
             }
+
+            if previous_headerhash != block_previous_header {
+                panic!("previous header doesn't match: hash {} slotid {} got {} expected {}", blockhash, slot.epoch, block_previous_header, previous_headerhash)
+            }
+
+            /*
             match last_packed {
                 None    => {},
                 Some(ref p) => { if p == &blockhash { continue; } else {} },
             }
+            */
             if slot.slotid == expected_slotid {
                 expected_slotid += 1
             } else {
@@ -120,13 +130,16 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
             }
 
             writer.append(&storage::types::header_to_blockhash(&blockhash), block_raw);
-            last_packed = Some(blockhash);
+            previous_headerhash = blockhash.clone();
         }
         // println!("packing {}", slot);
+        start_hash = previous_headerhash.clone();
+        /*
         match last_packed {
             None    => {},
             Some(ref p) => { start_hash = p.clone() },
         }
+        */
 
         match found_epoch_boundary {
             None    => {},
@@ -190,7 +203,7 @@ impl HasCommand for Network {
     type Output = ();
     type Config = ();
 
-    const COMMAND : &'static str = "blockchain";
+    const COMMAND : &'static str = "network";
 
     fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
         app.about("blockchain network operation")
@@ -198,7 +211,6 @@ impl HasCommand for Network {
                 .about("create a new network, networks can be shared between wallets and work independently.")
                 .arg(Arg::with_name("template")
                         .long("template").help("the template for the new network").required(false)
-                        .value_name("TEMPLATE")
                         .possible_values(&["mainnet", "testnet"]).default_value("mainnet"))
                 .arg(Arg::with_name("name").help("the network name").index(1).required(true))
             )

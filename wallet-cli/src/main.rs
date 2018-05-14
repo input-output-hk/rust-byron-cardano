@@ -20,14 +20,10 @@ extern crate flate2;
 mod config;
 mod account;
 mod command;
-mod wallet;
-mod block;
 
 use config::{Config};
 use command::{HasCommand};
-use wallet::{Wallet};
 use exe_common::network::{Network};
-use block::{Block};
 
 use std::env::{home_dir};
 use std::path::{PathBuf};
@@ -44,9 +40,9 @@ fn main() {
         .about(crate_description!())
         .arg(Arg::with_name("config").short("c").long("config").value_name("FILE").help("Sets a custom config file").takes_value(true))
         .subcommand(Config::mk_command())
-        .subcommand(Wallet::mk_command())
+        .subcommand(command::Wallet::mk_command())
         .subcommand(Network::mk_command())
-        .subcommand(Block::mk_command())
+        .subcommand(command::Block::mk_command())
         .get_matches();
 
     let cfg_path = matches.value_of("config")
@@ -59,13 +55,13 @@ fn main() {
                 cfg2.to_file(&cfg_path);
             };
         },
-        (Wallet::COMMAND, Some(sub_matches)) => {
-            if let Some(cfg2) = Wallet::run(cfg, sub_matches) {
+        (command::Wallet::COMMAND, Some(sub_matches)) => {
+            if let Some(cfg2) = command::Wallet::run(cfg, sub_matches) {
                 cfg2.to_file(&cfg_path);
             };
         },
         (Network::COMMAND, Some(sub_matches)) => { Network::run((), sub_matches); },
-        (Block::COMMAND,   Some(sub_matches)) => { Block::run(cfg, sub_matches); },
+        (command::Block::COMMAND,   Some(sub_matches)) => { command::Block::run(cfg, sub_matches); },
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);
