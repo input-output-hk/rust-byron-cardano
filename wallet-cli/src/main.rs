@@ -65,7 +65,7 @@ fn main() {
                 cfg2.to_file(&cfg_path);
             };
         },
-        ("network", Some(sub_matches)) => { Network::run(cfg, sub_matches); },
+        ("network", Some(sub_matches)) => { Network::run((), sub_matches); },
         ("block",   Some(sub_matches)) => { Block::run(cfg, sub_matches); },
         _ => {
             println!("{}", matches.usage());
