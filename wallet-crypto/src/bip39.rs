@@ -1,3 +1,24 @@
+//! BIP39 mnemonics
+//!
+//! Can be used to generate the root key of a given HDWallet,
+//! an address or simply convert bits to mnemonic for human friendly
+//! value.
+//!
+//! For more details about the protocol, see Bitcoin Improvment Proposal 39.
+//!
+//! # Examples
+//!
+//! ```
+//! extern crate rand;
+//! extern crate wallet_crypto;
+//! use wallet_crypto::bip39::{Entropy, MnemonicString, Type::{*}, dictionary};
+//! use rand::{random};
+//!
+//! let entropy = Entropy::generate(Type12Words, || random());
+//!
+//! let mnemonic_phrase = entropy.to_mnemonics().to_string(&dictionary::ENGLISH);
+//! ```
+
 use rcw::hmac::{Hmac};
 use rcw::sha2::{Sha512};
 use rcw::pbkdf2::{pbkdf2};
