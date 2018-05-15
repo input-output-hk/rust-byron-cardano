@@ -61,6 +61,19 @@ fn pack_reindex(config: &Config, packref: &PackHash) {
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packref)).unwrap();
 }
 
+fn pack_debug(config: &Config,
+              packref: &PackHash) {
+    let storage_config = config.get_storage_config();
+    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    while let Some(blk_raw) = reader.get_next() {
+        let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+        let hdr = blk.get_header();
+        let hash = hdr.compute_hash();
+        let prev_hdr = hdr.get_previous_header();
+        println!("slotid={} hash={} prev={}", hdr.get_slotid(), hash, prev_hdr);
+    }
+}
+
 fn pack_is_epoch(config: &Config,
                  packref: &PackHash,
                  start_previous_header: &blockchain::HeaderHash)
@@ -152,6 +165,10 @@ impl HasCommand for Block {
                 .about("internal debug command")
                 .arg(Arg::with_name("packhash").help("pack to query").index(1))
             )
+            .subcommand(SubCommand::with_name("debug-pack")
+                .about("internal debug command")
+                .arg(Arg::with_name("packhash").help("pack to query").index(1))
+            )
             .subcommand(SubCommand::with_name("re-index")
                 .about("internal re-index command")
                 .arg(Arg::with_name("packhash").help("pack to re-index").index(1).required(true))
@@ -209,6 +226,12 @@ impl HasCommand for Block {
                     }
                 }
             },
+            ("debug-pack", Some(opts)) => {
+                let packrefhex = opts.value_of("packhash")
+                            .and_then(|s| Some(s.to_string()))
+                            .unwrap();
+                pack_debug(&config, &packref_fromhex(&packrefhex));
+            },
             ("unpack", Some(opts)) => {
                 let packrefhex = opts.value_of("packhash")
                             .and_then(|s| Some(s.to_string()))
@@ -229,7 +252,6 @@ impl HasCommand for Block {
                             .and_then(|s| Some(s.to_string()))
                             .unwrap();
                 //let epoch_id = values_t!(opts.value_of("epoch-id"), blockchain::EpochId).unwrap_or_else(|_| 0);
-                let epoch_id = 0;
                 let previoushash = blockchain::HeaderHash::from_slice(&hex::decode(&previoushashhex).unwrap()[..]).unwrap();
                 let (result, lasthash) = pack_is_epoch(&config,
                                                        &packref_fromhex(&packrefhex),
