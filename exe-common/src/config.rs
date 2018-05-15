@@ -1,5 +1,5 @@
 pub mod net {
-    use blockchain::{HeaderHash};
+    use blockchain::{HeaderHash,EpochId};
     use wallet_crypto::config::{ProtocolMagic};
     use std::{path::{Path}, fs::{File}};
     use serde_yaml;
@@ -9,6 +9,7 @@ pub mod net {
         pub domain: String,
         pub genesis: HeaderHash,
         pub protocol_magic: ProtocolMagic,
+        pub epoch_start: EpochId,
     }
     impl Config {
         pub fn mainnet() -> Self {
@@ -16,6 +17,7 @@ pub mod net {
                 domain: "relays.cardano-mainnet.iohk.io:3000".to_string(),
                 genesis: HeaderHash::from_hex(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
                 protocol_magic: ProtocolMagic::default(),
+                epoch_start: 0,
             }
         }
 
@@ -24,6 +26,7 @@ pub mod net {
                 domain: "relays.awstest.iohkdev.io:3000".to_string(),
                 genesis: HeaderHash::from_hex(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
                 protocol_magic: ProtocolMagic::new(633343913),
+                epoch_start: 4,
             }
         }
 
