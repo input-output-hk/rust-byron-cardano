@@ -24,7 +24,8 @@ pub mod net {
         pub fn testnet() -> Self {
             Config {
                 domain: "relays.awstest.iohkdev.io:3000".to_string(),
-                genesis: HeaderHash::from_hex(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
+                //genesis: HeaderHash::from_hex(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
+                genesis: HeaderHash::from_hex(&"fcccb905dac43709c987d9b15de62de89bbee2770a0f21ff1f0b57b84a6012b8").unwrap(),
                 protocol_magic: ProtocolMagic::new(633343913),
                 epoch_start: 4,
             }
