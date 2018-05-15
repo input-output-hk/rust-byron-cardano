@@ -5,7 +5,6 @@ use clap::{ArgMatches, Arg, App};
 use config::{Config};
 use storage::{tag, pack};
 use blockchain::{Block};
-use exe_common::config::{net};
 
 pub struct FindAddress;
 
@@ -24,8 +23,6 @@ impl HasCommand for FindAddress {
         let name = value_t!(args.value_of("name"), String).unwrap();
         let mut config = Config::default();
         config.network = name;
-        let netcfg_file = config.get_storage_config().get_config_file();
-        let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
         let storage = config.get_storage().unwrap();
         let addresses_bytes : Vec<_> = values_t!(args.values_of("addresses"), String)
             .unwrap().iter().map(|s| base58::decode(s).unwrap()).collect();
