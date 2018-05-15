@@ -498,19 +498,19 @@ pub mod command {
         pub fn from(from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
     }
 
-    fn strip_msg_response(msg: &[u8]) -> Result<Vec<u8>, &'static str> {
+    fn strip_msg_response(msg: &[u8]) -> Result<blockchain::RawBlock, &'static str> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         if msg.len() > 2 && msg[0] == 0x82 && msg[1] == 0x00 {
             let mut v = Vec::new();
             v.extend_from_slice(&msg[2..]);
-            Ok(v)
+            Ok(blockchain::RawBlock::from_dat(v))
         } else {
-            Err("get block decoder failed with something unexpected")
+            Err("message block decoder failed with something unexpected")
         }
     }
 
     impl<W> Command<W> for GetBlock where W: Read+Write {
-        type Output = Vec<Vec<u8>>; // packet::blockchain::Block;
+        type Output = Vec<blockchain::RawBlock>;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             // require the initial header
             let (get_header_id, get_header_dat) = packet::send_msg_getblocks(&self.from, &self.to);
