@@ -7,6 +7,24 @@ use genesis;
 use normal;
 
 #[derive(Debug, Clone)]
+pub struct RawBlockHeader(pub Vec<u8>);
+
+#[derive(Debug, Clone)]
+pub struct RawBlock(pub Vec<u8>);
+
+impl RawBlockHeader {
+    pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
+    pub fn decode(&self) -> cbor::Result<BlockHeader> { cbor::decode_from_cbor(&self.0[..]) }
+}
+impl RawBlock {
+    pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
+    pub fn decode(&self) -> cbor::Result<Block> { cbor::decode_from_cbor(&self.0[..]) }
+}
+
+impl AsRef<[u8]> for RawBlockHeader { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
+impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
+
+#[derive(Debug, Clone)]
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
