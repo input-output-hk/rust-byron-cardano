@@ -18,16 +18,19 @@ pub fn new_network(cfg: &net::Config) -> Network {
 
 // TODO return BlockHeader not MainBlockHeader
 fn network_get_head_header(storage: &Storage, net: &mut Network) -> blockchain::BlockHeader {
-    let block_headers = GetBlockHeader::tip().execute(&mut net.0).expect("to get one header at least");
+    let block_headers_raw = GetBlockHeader::tip().execute(&mut net.0).expect("to get one header at least");
+
+    let block_headers = block_headers_raw.decode().unwrap();
+
     if block_headers.len() != 1 {
         panic!("get head header return more than 1 header")
     }
     let mbh = block_headers[0].clone();
-    tag::write(&storage, &HEAD.to_string(), mbh.get_previous_header().as_ref());
+    //tag::write(&storage, &HEAD.to_string(), mbh.get_previous_header().as_ref());
     mbh
 }
 
-fn network_get_blocks_headers(net: &mut Network, from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> Vec<blockchain::BlockHeader> {
+fn network_get_blocks_headers(net: &mut Network, from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> blockchain::RawBlockHeaderMultiple {
     let mbh = GetBlockHeader::range(&vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
     mbh
 }
@@ -74,8 +77,9 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
         let metrics = net.read_start();
-        let block_headers = network_get_blocks_headers(&mut net, &start_hash, latest_hash);
+        let block_headers_raw = network_get_blocks_headers(&mut net, &start_hash, latest_hash);
         let hdr_metrics = net.read_elapsed(&metrics);
+        let block_headers = block_headers_raw.decode().unwrap();
         println!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
 
         let mut start = 0;

@@ -412,6 +412,7 @@ pub mod command {
     use std::io::{Read, Write};
     use super::{LightId, Connection};
     use wallet_crypto::{cbor};
+    use wallet_crypto::cbor::hs::util::decode_sum_type;
     use blockchain;
     use packet;
 
@@ -460,7 +461,7 @@ pub mod command {
     }
 
     impl<W> Command<W> for GetBlockHeader where W: Read+Write {
-        type Output = Vec<blockchain::BlockHeader>;
+        type Output = blockchain::RawBlockHeaderMultiple;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             let (get_header_id, get_header_dat) = packet::send_msg_getheaders(&self.from[..], &self.to);
             connection.send_bytes(id, &[get_header_id]).unwrap();
@@ -470,19 +471,16 @@ pub mod command {
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
             // require the initial header
             let dat = connection.wait_msg(id).unwrap();
-            let l : packet::BlockHeaderResponse = cbor::decode_from_cbor(&dat).unwrap();
-    
-            match l {
-                packet::BlockHeaderResponse::Err(_t) => {
-                    Err("block header response failed")
-                },
-                packet::BlockHeaderResponse::Ok(mut ll) => {
-                    let mut vec = Vec::new();
-                    for x in ll.iter_mut() {
-                        vec.push(x.clone())
+            match decode_sum_type(&dat) {
+                None => Err("message block decoder failed with something unexpected"),
+                Some((sumval, dat)) => {
+                    if sumval == 0 {
+                        let mut v = Vec::new();
+                        v.extend_from_slice(dat);
+                        Ok(blockchain::RawBlockHeaderMultiple::from_dat(v))
+                    } else {
+                        Err("message block decoder failed with something unexpected")
                     }
-                    //println!("headers received {}", vec.len());
-                    Ok(vec)
                 },
             }
         }
@@ -500,12 +498,17 @@ pub mod command {
 
     fn strip_msg_response(msg: &[u8]) -> Result<blockchain::RawBlock, &'static str> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
-        if msg.len() > 2 && msg[0] == 0x82 && msg[1] == 0x00 {
-            let mut v = Vec::new();
-            v.extend_from_slice(&msg[2..]);
-            Ok(blockchain::RawBlock::from_dat(v))
-        } else {
-            Err("message block decoder failed with something unexpected")
+        match decode_sum_type(msg) {
+            None => Err("message block decoder failed with something unexpected"),
+            Some((sumval, dat)) => {
+                if sumval == 0 {
+                    let mut v = Vec::new();
+                    v.extend_from_slice(dat);
+                    Ok(blockchain::RawBlock::from_dat(v))
+                } else {
+                    Err("message block decoder failed with something unexpected")
+                }
+            },
         }
     }
 

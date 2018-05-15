@@ -1,4 +1,5 @@
 use std::{fmt};
+use std::collections::LinkedList;
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor};
 
@@ -7,11 +8,25 @@ use genesis;
 use normal;
 
 #[derive(Debug, Clone)]
+pub struct RawBlockHeaderMultiple(pub Vec<u8>);
+
+#[derive(Debug, Clone)]
 pub struct RawBlockHeader(pub Vec<u8>);
 
 #[derive(Debug, Clone)]
 pub struct RawBlock(pub Vec<u8>);
 
+impl RawBlockHeaderMultiple {
+    pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeaderMultiple(dat) }
+    pub fn decode(&self) -> cbor::Result<Vec<BlockHeader>> {
+        let list : LinkedList<BlockHeader> = cbor::decode_from_cbor(&self.0[..])?;
+        let mut v = Vec::new();
+        for x in list {
+            v.push(x);
+        }
+        Ok(v)
+    }
+}
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
     pub fn decode(&self) -> cbor::Result<BlockHeader> { cbor::decode_from_cbor(&self.0[..]) }
