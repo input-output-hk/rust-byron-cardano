@@ -36,6 +36,7 @@ impl ByteAddr {
 
     pub fn get_shifter(self) -> u8 { self.0 }
 
+    #[allow(dead_code)]
     pub fn get_next(self) -> Option<ByteAddr> {
         if self.0 == 7 {
             None
@@ -45,6 +46,7 @@ impl ByteAddr {
     }
 }
 
+#[allow(dead_code)]
 pub fn new(size: usize) -> Vec<u8> {
     let v : Vec<u8> = repeat(0).take(size as usize).collect();
     v
@@ -65,6 +67,7 @@ pub fn get_bit(data: &[u8], bit: usize) -> bool {
     val == 0x1
 }
 
+#[allow(dead_code)]
 pub fn get_bits(data: &[u8], start_bit: usize, nb_bits: usize) -> Vec<bool> {
     let mut v = Vec::with_capacity(nb_bits);
     let (start_byte_addr, start_bit_addr) = addr(start_bit);

@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::env::{home_dir};
-use std::io;
 
 use serde_yaml;
 

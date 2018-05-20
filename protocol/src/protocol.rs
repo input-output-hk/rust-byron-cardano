@@ -411,7 +411,6 @@ impl<T: Write+Read> Connection<T> {
 pub mod command {
     use std::io::{Read, Write};
     use super::{LightId, Connection};
-    use wallet_crypto::{cbor};
     use wallet_crypto::cbor::hs::util::decode_sum_type;
     use blockchain;
     use packet;

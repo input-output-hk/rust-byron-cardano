@@ -4,7 +4,7 @@ use clap::{ArgMatches, Arg, SubCommand, App};
 use storage;
 use storage::{blob, tag, Storage};
 use storage::types::{PackHash};
-use storage::tag::{HEAD};
+//use storage::tag::{HEAD};
 use std::time::{SystemTime, Duration};
 use blockchain;
 use config::{Config};

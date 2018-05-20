@@ -1,5 +1,4 @@
 use protocol;
-use protocol::command::*;
 use mstream::{MStream, MetricStart, MetricStats};
 use wallet_crypto::config::{ProtocolMagic};
 use rand;
