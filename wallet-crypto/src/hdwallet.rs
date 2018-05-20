@@ -235,7 +235,7 @@ impl XPrv {
     }
 
     pub fn derive(&self, index: DerivationIndex) -> Self {
-        derive_private(self, index)
+        derive_private(self, index, DerivationScheme::V2)
     }
 }
 impl PartialEq for XPrv {
@@ -361,7 +361,7 @@ impl XPub {
     }
 
     pub fn derive(&self, index: DerivationIndex) -> Result<Self> {
-        derive_public(self, index)
+        derive_public(self, index, DerivationScheme::V2)
     }
 }
 impl PartialEq for XPub {
@@ -651,7 +651,13 @@ fn add_28_mul8(x: &[u8], y: &[u8]) -> [u8; 32] {
     out
 }
 
-fn derive_private(xprv: &XPrv, index: DerivationIndex) -> XPrv {
+#[derive(Clone, Copy)]
+pub enum DerivationScheme {
+    V1,
+    V2,
+}
+
+fn derive_private(xprv: &XPrv, index: DerivationIndex, _scheme: DerivationScheme) -> XPrv {
     /*
      * If so (hardened child):
      *    let Z = HMAC-SHA512(Key = cpar, Data = 0x00 || ser256(left(kpar)) || ser32(i)).
@@ -734,7 +740,7 @@ fn point_plus(p1: &[u8], p2: &[u8]) -> Result<[u8;32]> {
     Ok(r)
 }
 
-fn derive_public(xpub: &XPub, index: DerivationIndex) -> Result<XPub> {
+fn derive_public(xpub: &XPub, index: DerivationIndex, _scheme: DerivationScheme) -> Result<XPub> {
     let pk = &xpub.as_ref()[0..32];
     let chaincode = &xpub.as_ref()[32..64];
 
@@ -837,7 +843,7 @@ mod tests {
     }
 
     fn derive_xprv_eq(parent_xprv: &XPrv, idx: DerivationIndex, expected_xprv: [u8; 96]) {
-        let child_xprv = derive_private(parent_xprv, idx);
+        let child_xprv = derive_private(parent_xprv, idx, DerivationScheme::V2);
         compare_xprv(child_xprv.as_ref(), &expected_xprv);
     }
 
