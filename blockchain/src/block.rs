@@ -3,7 +3,7 @@ use std::collections::LinkedList;
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor};
 
-use types::{HeaderHash, SlotId};
+use types::{HeaderHash, SlotId, EpochId};
 use genesis;
 use normal;
 
@@ -43,6 +43,36 @@ impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockDate {
+    Genesis(EpochId),
+    Normal(SlotId),
+}
+
+impl BlockDate {
+    pub fn get_epochid(&self) -> EpochId {
+        match self {
+            &BlockDate::Genesis(e) => e,
+            &BlockDate::Normal(ref s) => s.epoch,
+        }
+    }
+    pub fn next(&self) -> Self {
+        match self {
+            &BlockDate::Genesis(e) => BlockDate::Normal(SlotId { epoch: e, slotid: 0 }),
+            &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()),
+        }
+    }
+}
+
+impl fmt::Display for BlockDate {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BlockDate::Genesis(epoch) => write!(f, "{}.GENESIS", epoch),
+            BlockDate::Normal(slotid) => write!(f, "{}.{}", slotid.epoch, slotid.slotid),
+        }
+    }
 }
 
 impl BlockHeader {
