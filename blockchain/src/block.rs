@@ -83,10 +83,17 @@ impl BlockHeader {
         }
     }
 
-    pub fn get_slotid(&self) -> SlotId {
+    pub fn get_blockdate(&self) -> BlockDate {
         match self {
-            &BlockHeader::GenesisBlockHeader(ref blo) => SlotId { epoch: blo.consensus.epoch, slotid: 0 },
-            &BlockHeader::MainBlockHeader(ref blo) => blo.consensus.slot_id.clone(),
+            &BlockHeader::GenesisBlockHeader(ref blo) => BlockDate::Genesis(blo.consensus.epoch),
+            &BlockHeader::MainBlockHeader(ref blo) => BlockDate::Normal(blo.consensus.slot_id.clone()),
+        }
+    }
+    // TODO: TO REMOVE deprecated use get_blockdate
+    pub fn get_slotid(&self) -> BlockDate {
+        self.get_blockdate()
+    }
+
     pub fn is_genesis_block(&self) -> bool {
         match self {
             &BlockHeader::GenesisBlockHeader(_) => true,

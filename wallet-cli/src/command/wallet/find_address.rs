@@ -38,7 +38,7 @@ impl HasCommand for FindAddress {
                 let blk : Block = cbor::decode_from_cbor(&blk_bytes).unwrap();
                 let hdr = blk.get_header();
                 let blk_hash = hdr.compute_hash();
-                debug!("  looking at slot {}", hdr.get_slotid().slotid);
+                debug!("  looking at date {}", hdr.get_blockdate());
                 match blk {
                     Block::GenesisBlock(_) => {
                         debug!("    ignoring genesis block")
@@ -47,11 +47,10 @@ impl HasCommand for FindAddress {
                         for txaux in mblk.body.tx.iter() {
                             for txout in &txaux.tx.outputs {
                                 if let Some(_) = addresses.iter().find(|a| *a == &txout.address) {
-                                    println!("found address: {} in block {} at Epoch {} SlotId {}",
+                                    println!("found address: {} in block {} at {}",
                                         base58::encode(&cbor::encode_to_cbor(&txout.address).unwrap()),
                                         blk_hash,
-                                        hdr.get_slotid().epoch,
-                                        hdr.get_slotid().slotid,
+                                        hdr.get_blockdate()
                                     );
                                 }
                             }

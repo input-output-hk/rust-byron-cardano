@@ -21,7 +21,7 @@ use std::{fs, io, result};
 use std::collections::BTreeMap;
 use refpack::{RefPack};
 use wallet_crypto::{cbor};
-use blockchain::{HeaderHash};
+use blockchain::{HeaderHash, BlockDate};
 
 use types::*;
 use config::*;
@@ -34,8 +34,14 @@ pub enum Error {
     IoError(io::Error),
     BlockError(block::Error),
     CborBlockError(cbor::Value, cbor::Error),
+    // ** RefPack creation errors
     RefPackError(refpack::Error),
-    EpochError(u32, u32)
+    RefPackUnexpectedGenesis(u32),
+    // ** Epoch pack assumption errors
+    EpochExpectingGenesis,
+    EpochError(u32, u32),
+    EpochSlotRewind(u32, u32),
+    EpochChainInvalid(BlockDate, HeaderHash, HeaderHash)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -157,11 +163,10 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
         match nb {
             pack::FanoutNb(0) => {},
             _                 => {
-                let bloom_size = lookup.bloom.len();
                 if lookup.bloom.search(hash) {
                     let idx_filepath = storage.config.get_index_filepath(packref);
                     let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                    match pack::search_index(&mut idx_file, bloom_size, hash, start, nb) {
+                    match pack::search_index(&mut idx_file, &lookup.params, hash, start, nb) {
                         None       => {},
                         Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
                     }
@@ -262,6 +267,9 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     packhash
 }
 
+// Create a pack of references (packref) of all the hash in an epoch pack
+//
+// If the pack is not valid, then an error is returned
 pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<()> {
     let mut rp = RefPack::new();
     let packhash_vec = tag::read(storage, tag).expect("EPOCH not found");
@@ -269,27 +277,51 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
     packhash[..].clone_from_slice(packhash_vec.as_slice());
     let mut pack = pack::PackReader::init(&storage.config, &packhash);
 
-    let mut current_epoch = None;
-    let mut current_slotid = 0;
+    let mut current_state = None;
 
     while let Some(block_bytes) = pack.get_next() {
         let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes)?;
-
         let hdr = block.get_header();
-        let slotid = hdr.get_slotid();
-        if let Some(curr_epoch) = current_epoch {
-            if slotid.epoch != curr_epoch {
-                return Err(Error::EpochError(curr_epoch, slotid.epoch));
-            }
-        } else {
-            current_epoch = Some(slotid.epoch);
-        }
+        let hash = hdr.compute_hash();
+        let date = hdr.get_blockdate();
 
-        while current_slotid < slotid.slotid {
-            rp.push_back([0;32]);
-            current_slotid += 1;
+        // either we have seen genesis yet or not
+        match current_state {
+            None      => {
+                if !hdr.is_genesis_block() {
+                    return Err(Error::EpochExpectingGenesis)
+                }
+                current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
+                rp.push_back(hash.into_bytes());
+            },
+            Some((current_epoch, expected_slotid, current_prevhash)) => {
+                match date.clone() {
+                    blockchain::BlockDate::Genesis(_) => {
+                        return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
+                    },
+                    blockchain::BlockDate::Normal(ref slotid) => {
+                        if slotid.epoch != current_epoch {
+                            return Err(Error::EpochError(current_epoch, slotid.epoch));
+                        }
+                        if slotid.slotid < expected_slotid {
+                            return Err(Error::EpochSlotRewind(current_epoch, slotid.slotid));
+                        }
+                        if hdr.get_previous_header() != current_prevhash {
+                            return Err(Error::EpochChainInvalid(date, hdr.get_previous_header(), current_prevhash))
+                        }
+
+                        let mut current_slotid = expected_slotid;
+
+                        while current_slotid < slotid.slotid {
+                            rp.push_back([0;32]);
+                            current_slotid += 1;
+                        }
+                        rp.push_back(hash.clone().into_bytes());
+                        current_state = Some((current_epoch, current_slotid, hash));
+                    },
+                }
+            },
         }
-        rp.push_back(hdr.compute_hash().into_bytes());
     }
 
     refpack::write_refpack(&storage.config, tag, &rp).map_err(From::from)
@@ -299,53 +331,67 @@ pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: u32) 
     let mut previous_header = genesis_hash;
     for epochid in 0..count {
         println!("check epoch {}'s integrity", epochid);
-        previous_header = epoch_integrity_check(storage, epochid, previous_header);
+        previous_header = epoch_integrity_check(storage, epochid, previous_header).unwrap();
     }
 }
 
-fn epoch_integrity_check(storage: &Storage, epochid: u32, previous_header: HeaderHash) -> HeaderHash {
+fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: HeaderHash) -> Result<HeaderHash> {
     let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
     let mut pack = pack::PackReader::init(&storage.config, &packhash);
 
-    let mut current_slotid = 0;
-    let mut error = false;
-
-    let mut prev = previous_header;
+    let mut current_state = None;
 
     while let Some(block_bytes) = pack.get_next() {
-        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes).expect("a valid block");
-
+        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes)?;
         let hdr = block.get_header();
-        let slotid = hdr.get_slotid();
-        if slotid.epoch != epochid {
-            error!("  block {}", hdr.compute_hash());
-            error = true;
+        let hash = hdr.compute_hash();
+        let prevhash = hdr.get_previous_header();
+        let date = hdr.get_blockdate();
+
+        // either we have seen genesis yet or not
+        match current_state {
+            None      => {
+                if !hdr.is_genesis_block() {
+                    return Err(Error::EpochExpectingGenesis)
+                }
+                if last_known_hash != prevhash {
+                    return Err(Error::EpochChainInvalid(date, last_known_hash, prevhash))
+                }
+                current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
+            },
+            Some((current_epoch, expected_slotid, current_prevhash)) => {
+                match date.clone() {
+                    blockchain::BlockDate::Genesis(_) => {
+                        return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
+                    },
+                    blockchain::BlockDate::Normal(slotid) => {
+                        if slotid.epoch != current_epoch {
+                            return Err(Error::EpochError(current_epoch, slotid.epoch));
+                        }
+                        if slotid.slotid < expected_slotid {
+                            return Err(Error::EpochSlotRewind(current_epoch, slotid.epoch));
+                        }
+                        if prevhash != current_prevhash {
+                            return Err(Error::EpochChainInvalid(date.clone(), prevhash, current_prevhash))
+                        }
+
+                        let mut current_slotid = expected_slotid;
+
+                        while current_slotid < slotid.slotid {
+                            current_slotid += 1;
+                        }
+                        current_state = Some((current_epoch, current_slotid, hash));
+                    },
+                }
+            },
         }
-
-        if hdr.get_previous_header() != prev {
-            error!("  invalid previous header ({}.{})", slotid.epoch, slotid.slotid);
-            error!("    - expected {}", prev);
-            error!("    - received {}", hdr.get_previous_header());
-            error = true;
+    }
+    match current_state {
+        None => { panic!("test") },
+        Some((_, _, prevhash)) => {
+            return Ok(prevhash)
         }
-
-        if current_slotid != slotid.slotid {
-            warn!("  missing slots {}.{} to {}.{}", epochid, current_slotid, epochid, slotid.slotid);
-        }
-        current_slotid = slotid.slotid + 1;
-        prev = hdr.compute_hash();
     }
-
-    const KNOWN_EPOCH_SIZE : u32 = 21600;
-    if current_slotid != KNOWN_EPOCH_SIZE {
-        warn!("  missing slots {}.{} to {}.{}", epochid, current_slotid, epochid, KNOWN_EPOCH_SIZE);
-    }
-
-    if error {
-       panic!("epoch {} seems corrupted, see log above", epochid);
-    }
-
-    prev
 }

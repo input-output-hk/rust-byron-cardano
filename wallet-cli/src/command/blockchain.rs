@@ -7,6 +7,7 @@ use storage::types::{PackHash};
 //use storage::tag::{HEAD};
 use std::time::{SystemTime, Duration};
 use blockchain;
+use blockchain::{BlockDate, SlotId};
 use config::{Config};
 
 use protocol::command::*;
