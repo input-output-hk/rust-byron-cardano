@@ -60,20 +60,6 @@ pub struct FanoutStart(u32);
 pub struct FanoutNb(pub u32);
 
 impl Fanout {
-    /*
-    pub fn get_class_nb_by_hash(&self, hash: &super::BlockHash) -> u32 {
-        match hash[0] as usize {
-            0 => self.0[0],
-            c => self.0[c] - self.0[c-1]
-        }
-    }
-    pub fn get_class_nb(&self, class: u8) -> u32 {
-        match class as usize {
-            0 => self.0[0],
-            c => self.0[c] - self.0[c-1]
-        }
-    }
-    */
     pub fn get_indexer_by_hash(&self, hash: &super::BlockHash) -> (FanoutStart, FanoutNb) {
         self.get_indexer_by_hier(hash[0])
     }
