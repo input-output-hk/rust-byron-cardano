@@ -14,7 +14,6 @@ use bip39;
 use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use tx::fee::Algorithm;
-use cbor;
 
 use std::{result, fmt};
 

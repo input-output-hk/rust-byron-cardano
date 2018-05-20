@@ -296,7 +296,7 @@ impl HasCommand for Block {
                 let storage = config.get_storage().unwrap();
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                storage::integrity_check(&storage, net_cfg.genesis, 20);
+                storage::integrity_check(&storage, net_cfg.genesis_prev, 20);
                 println!("integrity check succeed");
             },
             ("epoch-refpack", Some(opts)) => {
