@@ -124,10 +124,15 @@ impl fmt::Display for ChainDifficulty {
 
 pub type EpochId = u32;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlotId {
     pub epoch: EpochId,
     pub slotid: u32,
+}
+impl SlotId {
+    pub fn next(&self) -> Self {
+        SlotId { epoch: self.epoch, slotid: self.slotid + 1 }
+    }
 }
 impl fmt::Display for SlotId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
