@@ -31,6 +31,9 @@ fn network_get_head_header(storage: &Storage, net: &mut Network) -> blockchain::
     mbh
 }
 
+// Return the chain of block headers starting at from's next block
+// and terminating at to, unless this range represent a number
+// of blocks greater than the limit imposed by the node we're talking to.
 fn network_get_blocks_headers(net: &mut Network, from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> blockchain::RawBlockHeaderMultiple {
     let mbh = GetBlockHeader::range(&vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
     mbh
@@ -62,23 +65,24 @@ fn find_earliest_epoch(storage: &storage::Storage, minimum_epochid: blockchain::
 
 // download a complete epoch and create a new pack with all the blocks
 //
-// x_start_hash should reference an epoch genesis block, and latest_hash
+// x_start_hash should reference an epoch genesis block, and tip_hash
 // should gives the latest known hash of the chain.
 fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
                   epoch_id: blockchain::EpochId,
                   x_start_hash: &blockchain::HeaderHash,
-                  latest_hash: &blockchain::HeaderHash) -> blockchain::HeaderHash {
+                  x_previous_headerhash: &blockchain::HeaderHash,
+                  tip_hash: &blockchain::HeaderHash) -> (blockchain::HeaderHash, blockchain::HeaderHash) {
     let mut start_hash = x_start_hash.clone();
     let mut found_epoch_boundary = None;
     let mut writer = storage::pack::PackWriter::init(&storage.config);
-    let mut previous_headerhash = start_hash.clone();
+    let mut previous_headerhash = x_previous_headerhash.clone();
     let epoch_time_start = SystemTime::now();
-    let mut expected_slotid = 0;
+    let mut expected_slotid = blockchain::BlockDate::Genesis(epoch_id);
 
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
         let metrics = net.read_start();
-        let block_headers_raw = network_get_blocks_headers(&mut net, &start_hash, latest_hash);
+        let block_headers_raw = network_get_blocks_headers(&mut net, &start_hash, tip_hash);
         let hdr_metrics = net.read_elapsed(&metrics);
         let block_headers = block_headers_raw.decode().unwrap();
         println!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
@@ -90,16 +94,16 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         // less than the expected epoch, we just fast skip
         // this set of headers and restart the loop with the
         // latest known hash
-        if block_headers[start].get_slotid().epoch < epoch_id {
+        if block_headers[start].get_blockdate().get_epochid() < epoch_id {
             start_hash = block_headers[start].compute_hash();
             println!("headers are of previous epochs, fast skip to {}", start_hash);
             continue;
         }
 
-        while end >= start && block_headers[start].get_slotid().epoch > epoch_id {
+        while end >= start && block_headers[start].get_blockdate().get_epochid() > epoch_id {
             start += 1
         }
-        while end > start && block_headers[end].get_slotid().epoch < epoch_id {
+        while end > start && block_headers[end].get_blockdate().get_epochid() < epoch_id {
             end -= 1
         }
 
@@ -110,16 +114,16 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         let latest_block = &block_headers[start];
         let first_block = &block_headers[end];
 
-        if first_block.get_previous_header() != previous_headerhash {
-            panic!("previous header doesn't match: hash {} slotid {} got {} expected {}",
-                   first_block.compute_hash(),
-                   first_block.get_slotid(),
-                   first_block.get_previous_header(),
-                   previous_headerhash)
-        }
+        let download_start_hash = if first_block.get_blockdate() == expected_slotid {
+            first_block.compute_hash()
+        } else if first_block.get_blockdate() == expected_slotid.next() {
+            first_block.get_previous_header()
+        } else {
+            panic!("not matching. gap")
+        };
 
         let metrics = net.read_start();
-        let blocks_raw = GetBlock::from(&first_block.compute_hash(), &latest_block.compute_hash())
+        let blocks_raw = GetBlock::from(&download_start_hash, &latest_block.compute_hash())
                                 .execute(&mut net.0)
                                 .expect("to get one block at least");
         let blocks_metrics = net.read_elapsed(&metrics);
@@ -128,29 +132,30 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         for block_raw in blocks_raw.iter() {
             let block = block_raw.decode().unwrap();
             let hdr = block.get_header();
-            let slot = hdr.get_slotid();
+            let date = hdr.get_blockdate();
             let blockhash = hdr.compute_hash();
             let block_previous_header = hdr.get_previous_header();
 
-            if slot.epoch != epoch_id {
-                panic!("trying to append a block of different epoch id {}", slot.epoch)
+            if date.get_epochid() != epoch_id {
+                panic!("trying to append a block of different epoch id {}", date.get_epochid())
             }
 
             if previous_headerhash != block_previous_header {
-                panic!("previous header doesn't match: hash {} slotid {} got {} expected {}", blockhash, slot, block_previous_header, previous_headerhash)
+                panic!("previous header doesn't match: hash {} date {} got {} expected {}",
+                       blockhash, date, block_previous_header, previous_headerhash)
             }
 
-            /*
-            match last_packed {
-                None    => {},
-                Some(ref p) => { if p == &blockhash { continue; } else {} },
+            if &date != &expected_slotid {
+                println!("  WARNING: not contiguous. addr {} found, expected {} {}", date, expected_slotid, block_previous_header);
             }
-            */
-            if slot.slotid == expected_slotid {
-                expected_slotid += 1
-            } else {
-                println!("  WARNING: not contiguous. slot id {} found, expected {}", slot.slotid, expected_slotid);
-                expected_slotid = slot.slotid + 1
+
+            match date {
+                BlockDate::Genesis(epoch) => {
+                    expected_slotid = BlockDate::Normal(SlotId { epoch: epoch, slotid: 0 });
+                },
+                BlockDate::Normal(slotid) => {
+                    expected_slotid = BlockDate::Normal(slotid.next());
+                },
             }
 
             writer.append(&storage::types::header_to_blockhash(&blockhash), block_raw.as_ref());
@@ -158,12 +163,6 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         }
         // println!("packing {}", slot);
         start_hash = previous_headerhash.clone();
-        /*
-        match last_packed {
-            None    => {},
-            Some(ref p) => { start_hash = p.clone() },
-        }
-        */
 
         match found_epoch_boundary {
             None    => {},
@@ -176,7 +175,7 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
                 let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
                 println!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]), epoch_id, duration_print(epoch_time_elapsed));
                 tag::write(storage, &tag::get_epoch_tag(epoch_id), &packhash[..]);
-                return b
+                return (previous_headerhash, b)
             },
         }
     }
@@ -192,11 +191,12 @@ fn net_sync_fast(storage: Storage) {
     // recover and print the TIP of the network
     let mbh = network_get_head_header(&storage, &mut net);
     let network_tip = mbh.compute_hash();
-    let network_slotid = mbh.get_slotid();
+    let network_slotid = mbh.get_blockdate();
 
-    println!("Configured genesis : {}", net_cfg.genesis);
-    println!("Network TIP is     : {}", network_tip);
-    println!("Network TIP slotid : {}", network_slotid);
+    println!("Configured genesis   : {}", net_cfg.genesis);
+    println!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+    println!("Network TIP is       : {}", network_tip);
+    println!("Network TIP slotid   : {}", network_slotid);
 
     // start from our tip towards network tip
     /*
@@ -207,20 +207,23 @@ fn net_sync_fast(storage: Storage) {
     */
 
     // find the earliest epoch we know about starting from network_slotid
-    let (latest_known_epoch_id, start_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, network_slotid.epoch) {
-        None => { (net_cfg.epoch_start, net_cfg.genesis) },
-        Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, get_last_blockid(&storage.config, &packhash).unwrap()) }
+    let (latest_known_epoch_id, mstart_hash, prev_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, network_slotid.get_epochid()) {
+        None => { (net_cfg.epoch_start, Some(net_cfg.genesis), net_cfg.genesis_prev) },
+        Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, None, get_last_blockid(&storage.config, &packhash).unwrap()) }
     };
-    println!("latest known epoch {} hash={}", latest_known_epoch_id, start_hash);
+    println!("latest known epoch {} hash={:?}", latest_known_epoch_id, mstart_hash);
 
     let mut download_epoch_id = latest_known_epoch_id;
-    let mut download_start_hash = start_hash;
-    while download_epoch_id < network_slotid.epoch {
+    let mut download_prev_hash = prev_hash.clone();
+    let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
+
+    while download_epoch_id < network_slotid.get_epochid() {
         println!("downloading epoch {} {}", download_epoch_id, download_start_hash);
-        download_start_hash = download_epoch(&storage, &mut net, download_epoch_id, &download_start_hash, &network_tip);
+        let result = download_epoch(&storage, &mut net, download_epoch_id, &download_start_hash, &download_prev_hash, &network_tip);
+        download_prev_hash = result.0;
+        download_start_hash = result.1;
         download_epoch_id += 1;
     }
-
 }
 
 impl HasCommand for Network {
