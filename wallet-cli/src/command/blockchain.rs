@@ -79,6 +79,8 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
     let epoch_time_start = SystemTime::now();
     let mut expected_slotid = blockchain::BlockDate::Genesis(epoch_id);
 
+    let debug = false;
+
     loop {
         println!("  ### slotid={} from={}", expected_slotid, start_hash);
         let metrics = net.read_start();
@@ -89,6 +91,12 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
 
         let mut start = 0;
         let mut end = block_headers.len() - 1;
+
+        if debug {
+            println!("  asked {} to {}", start_hash, tip_hash);
+            println!("  start {} {} <- {}", block_headers[start].compute_hash(),  block_headers[start].get_blockdate(), block_headers[start].get_previous_header());
+            println!("  end   {} {} <- {}", block_headers[end].compute_hash(), block_headers[end].get_blockdate(), block_headers[end].get_previous_header());
+        }
 
         // if the earliest block headers we receive has an epoch
         // less than the expected epoch, we just fast skip
@@ -114,6 +122,11 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
         let latest_block = &block_headers[start];
         let first_block = &block_headers[end];
 
+        if debug {
+            println!("  hdr latest {} {}", latest_block.compute_hash(), latest_block.get_blockdate());
+            println!("  hdr first  {} {}", first_block.compute_hash(), first_block.get_blockdate());
+        }
+
         let download_start_hash = if first_block.get_blockdate() == expected_slotid {
             first_block.compute_hash()
         } else if first_block.get_blockdate() == expected_slotid.next() {
@@ -128,6 +141,12 @@ fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
                                 .expect("to get one block at least");
         let blocks_metrics = net.read_elapsed(&metrics);
         println!("  got {} blocks  ( {} )", blocks_raw.len(), blocks_metrics);
+
+        if debug {
+            let first_block = blocks_raw[0].decode().unwrap();
+            let first_block_hdr = first_block.get_header();
+            println!("first block {} {} prev {}", first_block_hdr.compute_hash(), first_block_hdr.get_blockdate(), first_block_hdr.get_previous_header());
+        }
 
         for block_raw in blocks_raw.iter() {
             let block = block_raw.decode().unwrap();
