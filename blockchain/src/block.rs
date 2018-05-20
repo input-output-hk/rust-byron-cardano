@@ -87,6 +87,10 @@ impl BlockHeader {
         match self {
             &BlockHeader::GenesisBlockHeader(ref blo) => SlotId { epoch: blo.consensus.epoch, slotid: 0 },
             &BlockHeader::MainBlockHeader(ref blo) => blo.consensus.slot_id.clone(),
+    pub fn is_genesis_block(&self) -> bool {
+        match self {
+            &BlockHeader::GenesisBlockHeader(_) => true,
+            &BlockHeader::MainBlockHeader(_) => false,
         }
     }
 
