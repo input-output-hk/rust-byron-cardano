@@ -17,7 +17,13 @@ use exe_common::{config::{net}, network::{Network}};
 use ansi_term::Colour::*;
 
 pub fn new_network(cfg: &net::Config) -> Network {
-    Network::new(cfg.protocol_magic, &cfg.domain.clone())
+    let natives = cfg.peers.natives();
+
+    for native in natives {
+        return Network::new(cfg.protocol_magic, native);
+    }
+
+    panic!("no native peer to connect to")
 }
 
 // TODO return BlockHeader not MainBlockHeader

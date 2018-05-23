@@ -56,7 +56,7 @@ pub struct MStream {
 }
 
 impl MStream {
-    pub fn init(dest: &String) -> Self {
+    pub fn init(dest: &str) -> Self {
         let stream = TcpStream::connect(dest).unwrap();
         stream.set_nodelay(true).unwrap();
         //let lock = RwLock::new(5);
