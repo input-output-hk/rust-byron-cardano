@@ -230,28 +230,28 @@ impl HasCommand for Network {
     type Output = ();
     type Config = ();
 
-    const COMMAND : &'static str = "network";
+    const COMMAND : &'static str = "blockchain";
 
     fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-        app.about("blockchain network operation")
+        app.about("blockchain operations")
             .subcommand(SubCommand::with_name("new")
-                .about("create a new network, networks can be shared between wallets and work independently.")
+                .about("create a new blockchain, blockchain that can be shared between wallets and work independently from the wallet.")
                 .arg(Arg::with_name("template")
-                        .long("template").help("the template for the new network").required(false)
+                        .long("template").help("the template for the new blockchain").required(false)
                         .possible_values(&["mainnet", "testnet"]).default_value("mainnet"))
-                .arg(Arg::with_name("name").help("the network name").index(1).required(true))
+                .arg(Arg::with_name("name").help("the blockchain name").index(1).required(true))
             )
             .subcommand(SubCommand::with_name("get-block-header")
                 .arg(Arg::with_name("name").help("the network name").index(1).required(true))
-                .about("get a given block header")
+                .about("get a given block header. (deprecated will be replaced soon).")
             )
             .subcommand(SubCommand::with_name("get-block")
-                .about("get a given block")
+                .about("get a given block (deprecated will be replaced soon).")
                 .arg(Arg::with_name("name").help("the network name").index(1).required(true))
                 .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(2).required(true))
             )
             .subcommand(SubCommand::with_name("sync")
-                .about("get the next block repeatedly")
+                .about("get the next block repeatedly (deprecated will be replaced soon).")
                 .arg(Arg::with_name("name").help("the network name").index(1).required(true))
             )
     }
