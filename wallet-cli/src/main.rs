@@ -42,7 +42,6 @@ fn main() {
         .subcommand(Config::mk_command())
         .subcommand(command::Wallet::mk_command())
         .subcommand(Network::mk_command())
-        .subcommand(command::Block::mk_command())
         .get_matches();
 
     let cfg_path = matches.value_of("config")
@@ -61,7 +60,6 @@ fn main() {
             };
         },
         (Network::COMMAND, Some(sub_matches)) => { Network::run((), sub_matches); },
-        (command::Block::COMMAND,   Some(sub_matches)) => { command::Block::run(cfg, sub_matches); },
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);

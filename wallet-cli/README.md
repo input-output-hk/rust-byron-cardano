@@ -8,9 +8,9 @@ compatible wallet.
 `ariadne` provides the following features:
 
 - [x] create a new address;
-- [ ] retrieve an address from BIP39 mnemonic words;
+- [x] retrieve an address from BIP39 mnemonic words;
 - [x] BIP44 addresses (and shorter addresses);
-- [ ] see transaction;
+- [x] see transaction;
 - [ ] retrieve wallet balance;
 
 # Usage
@@ -30,7 +30,7 @@ jYTLseJK1m2eYuy16w7tjPNqtVdAaQ5bnb4Cyya2YH9AqJoNPQ1VLgE4MaXL
 Make a network configuration (from a template).
 
 ```sh-session
-$ ariadne network new foo --template testnet
+$ ariadne blockchain new foo --template testnet
 # creates a few files under ~/.ariadne/networks/foo, using the testnet template
 # see `ariadne network new --help` for more info.
 ```
@@ -38,7 +38,7 @@ $ ariadne network new foo --template testnet
 Download the blockchain (takes awhile).
 
 ```sh-session
-$ ariadne network sync foo
+$ ariadne blockchain sync foo
 HANDSHAKE OK
 Configured genesis   : b36..
 Configured genesis-1 : c6a..
@@ -48,4 +48,16 @@ latest known epoch 0 hash=Some(HeaderHash(b36...))
 downloading epoch 0 b36...
 ...
  
+```
+
+cat a block in a given blockchain:
+
+```sh-sesssion
+$ ariadne blockchain cat foo "c9942ae..."
+# display the content of the block of hash "c9942ae.." from the blockchain foo
+### Header
+protocol magic : 633343913
+previous hash  : 59ccabad5a13660842c3633a99facfe4458e689acc5f830f32a3fde030b8c4e7
+body proof
+...
 ```
