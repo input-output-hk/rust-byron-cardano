@@ -140,12 +140,13 @@ pub mod net {
 
                 #[inline]
                 fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-                    where V: serde::de::MapAccess<'de>
+                    where V: serde::de::MapAccess<'de>,
+                          V::Error: serde::de::Error
                 {
                     if let Some((k, v)) = visitor.next_entry()? {
                         Ok(NamedPeer::new(k, v))
                     } else {
-                        Err(unimplemented!())
+                        Err(serde::de::Error::invalid_length(0, &"one and only one entry"))
                     }
                 }
             }
