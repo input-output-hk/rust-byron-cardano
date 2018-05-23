@@ -3,6 +3,7 @@ pub mod net {
     use wallet_crypto::config::{ProtocolMagic};
     use std::{path::{Path}, fs::{File}, fmt, collections::btree_map::{Iter, BTreeMap}, iter::{Filter, Map}};
     use serde_yaml;
+    use serde;
 
     /// A blockchain may have multiple Peer of different kind. Here we define the list
     /// of possible kind of peer we may connect to.
@@ -35,7 +36,7 @@ pub mod net {
     /// assert!(http_peer.is_native());
     /// ```
     ///
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub enum Peer {
         Native(String),
         Http(String)
@@ -88,6 +89,22 @@ pub mod net {
                 &Peer::Native(ref addr) => { write!(f, "native: {}", addr) }
                 &Peer::Http(  ref addr) => { write!(f, "http: {}", addr) }
             }
+        }
+    }
+    impl serde::Serialize for Peer {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where S: serde::Serializer
+        {
+            self.get_address().serialize(serializer)
+        }
+
+    }
+    impl<'de> serde::Deserialize<'de> for Peer {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+           where D: serde::Deserializer<'de>
+        {
+            let addr = String::deserialize(deserializer)?;
+            Ok(Self::new(addr))
         }
     }
 
