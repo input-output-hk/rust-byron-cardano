@@ -1,9 +1,10 @@
 pub mod net {
     use blockchain::{HeaderHash,EpochId};
     use wallet_crypto::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{File}, fmt, collections::btree_map::{Iter, BTreeMap}, iter::{Filter, Map}};
+    use std::{path::{Path}, fs::{File}, fmt, slice::{Iter}};
     use serde_yaml;
     use serde;
+
 
     /// A blockchain may have multiple Peer of different kind. Here we define the list
     /// of possible kind of peer we may connect to.
@@ -108,22 +109,67 @@ pub mod net {
         }
     }
 
+    #[derive(Debug, Clone)]
+    pub struct NamedPeer(String, Peer);
+    impl NamedPeer {
+        pub fn new(name: String, peer: Peer) -> Self { NamedPeer(name, peer) }
+        pub fn name(&self) -> &str { self.0.as_str() }
+        pub fn peer(&self) -> &Peer { &self.1 }
+    }
+    impl serde::Serialize for NamedPeer {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+          where S: serde::Serializer
+        {
+            use serde::ser::SerializeMap;
+            let mut map_serializer = serializer.serialize_map(Some(1))?;
+            map_serializer.serialize_entry(self.name(), self.peer())?;
+            map_serializer.end()
+        }
+    }
+    impl<'de> serde::Deserialize<'de> for NamedPeer {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where D: serde::Deserializer<'de>
+        {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = NamedPeer;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("a NamedPeer")
+                }
+
+                #[inline]
+                fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+                    where V: serde::de::MapAccess<'de>
+                {
+                    if let Some((k, v)) = visitor.next_entry()? {
+                        Ok(NamedPeer::new(k, v))
+                    } else {
+                        Err(unimplemented!())
+                    }
+                }
+            }
+
+            deserializer.deserialize_map(Visitor)
+        }
+    }
+
     /// collection of named `Peer`.
     /// 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Peers(BTreeMap<String, Peer>);
+    pub struct Peers(Vec<NamedPeer>);
     impl Peers {
         /// create an empty collection of peers
-        pub fn new() -> Self { Peers(BTreeMap::new()) }
+        pub fn new() -> Self { Peers(Vec::new()) }
 
         /// add a new peer in the `Peers` set
-        pub fn push(&mut self, name: String, peer: Peer) { self.0.insert(name, peer); }
+        pub fn push(&mut self, name: String, peer: Peer) { self.0.push(NamedPeer::new(name, peer)) }
 
         /// get an iterator over the peers
-        pub fn iter(&self) -> Iter<String, Peer> { self.0.iter() }
+        pub fn iter(&self) -> Iter<NamedPeer> { self.0.iter() }
 
         pub fn natives<'a>(&'a self) -> Vec<&'a str> {
-            self.iter().filter_map(|(_, v)| v.get_native()).collect()
+            self.iter().filter_map(|np| np.peer().get_native()).collect()
         }
     }
 
