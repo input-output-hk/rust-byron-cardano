@@ -8,9 +8,9 @@ compatible wallet.
 `ariadne` provides the following features:
 
 - [x] create a new address;
-- [ ] retrieve an address from BIP39 mnemonic words;
+- [x] retrieve an address from BIP39 mnemonic words;
 - [x] BIP44 addresses (and shorter addresses);
-- [ ] see transaction;
+- [x] see transaction;
 - [ ] retrieve wallet balance;
 
 # Usage
