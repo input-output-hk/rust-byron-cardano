@@ -168,7 +168,7 @@ impl Accounts {
 
         for entry in fs::read_dir(dir.clone())? {
             let entry = entry?;
-            if ! entry.file_type()?.is_dir() { continue; }
+            if entry.file_type()?.is_dir() { continue; }
             let name = entry.file_name();
             if let Some(name) = name.to_str() {
                 if name.starts_with("wallet-") && name.ends_with(".yml") {

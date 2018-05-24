@@ -24,7 +24,7 @@ impl HasCommand for Wallet {
         app.about("wallet management")
             .subcommand(new::CommandNewWallet::mk_command())
             .subcommand(recover::Recover::mk_command())
-            // .subcommand(address::Generate::mk_command())
+            .subcommand(address::Generate::mk_command())
             // TODO: move this command to the blockchain
             // .subcommand(FindAddress::mk_command())
     }
@@ -32,10 +32,8 @@ impl HasCommand for Wallet {
         match args.subcommand() {
             (new::CommandNewWallet::COMMAND, Some(opts)) => new::CommandNewWallet::run((), opts),
             (recover::Recover::COMMAND, Some(opts)) => recover::Recover::run((), opts),
+            (address::Generate::COMMAND, Some(opts)) => address::Generate::run((), opts),
             /*
-            (address::Generate::COMMAND, Some(opts)) => {
-                address::Generate::run(cfg, opts)
-            },
             (FindAddress::COMMAND, Some(opts)) => {
                 FindAddress::run((), opts);
                 None

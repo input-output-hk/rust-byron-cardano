@@ -1,9 +1,11 @@
-use wallet_crypto::{bip39, paperwallet};
+use wallet_crypto::{bip39, paperwallet, wallet};
 use rand;
 
 use termion::{style, color, clear, cursor};
 use termion::input::TermRead;
 use std::io::{Write, stdout, stdin};
+
+use super::config;
 
 pub fn get_password() -> String {
     let stdout = stdout();
@@ -229,4 +231,20 @@ pub fn recover_entropy(language: String, opt_pwd: Option<String>) -> bip39::Seed
     let mnemonics_str = mnemonics.to_string(dic);
 
     bip39::Seed::from_mnemonic_string(&mnemonics_str, pwd.as_bytes())
+}
+
+pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: Option<String>) -> wallet::Account {
+    let known_accounts : Vec<String> = accounts.iter().filter(|acc| acc.alias.is_some()).map(|acc| acc.alias.clone().unwrap()).collect();
+    println!("{}", style::Italic);
+    println!("We are about to create a new wallet account.");
+    println!("This will allow `{}' to cache some metadata and not require your private keys when", crate_name!());
+    println!("performing public operations (like creating addresses).");
+    println!("{}", style::NoItalic);
+    println!("");
+    println!("Here is the list of existing accounts: {:?}", known_accounts);
+
+    // 1. check if the proprosed alias is there and ask user to use this one
+    // 2. check if the user input does not clash existing ones
+
+    accounts.new_account(&wallet.wallet().unwrap(), alias).unwrap()
 }
