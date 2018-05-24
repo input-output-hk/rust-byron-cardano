@@ -30,10 +30,16 @@ impl RawBlockHeaderMultiple {
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
     pub fn decode(&self) -> cbor::Result<BlockHeader> { cbor::decode_from_cbor(&self.0[..]) }
+    pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0[..]) }
 }
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
     pub fn decode(&self) -> cbor::Result<Block> { cbor::decode_from_cbor(&self.0[..]) }
+    pub fn to_header(&self) -> RawBlockHeader {
+        // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
+        let blk = self.decode().unwrap();
+        blk.get_header().to_raw()
+    }
 }
 
 impl AsRef<[u8]> for RawBlockHeader { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
@@ -99,6 +105,10 @@ impl BlockHeader {
             &BlockHeader::GenesisBlockHeader(_) => true,
             &BlockHeader::MainBlockHeader(_) => false,
         }
+    }
+
+    pub fn to_raw(&self) -> RawBlockHeader {
+        RawBlockHeader(cbor::encode_to_cbor(self).unwrap())
     }
 
     pub fn compute_hash(&self) -> HeaderHash {

@@ -33,7 +33,9 @@ pub struct RefPack(VecDeque<BlockHash>);
 impl RefPack {
     pub fn new() -> Self { RefPack(VecDeque::new()) }
     pub fn push_back(&mut self, bh: BlockHash) { self.0.push_back(bh) }
+    pub fn push_back_missing(&mut self) { self.0.push_back([0u8; HASH_SIZE]) }
     pub fn push_front(&mut self, bh: BlockHash) { self.0.push_front(bh) }
+    pub fn push_front_missing(&mut self) { self.0.push_front([0u8; HASH_SIZE]) }
     pub fn iter<'a>(&'a self) -> Iter<'a, BlockHash> { self.0.iter() }
 
     pub fn read<R: io::Read>(reader: &mut R) -> Result<Self> {
@@ -57,6 +59,7 @@ pub fn read_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P) -> R
 }
 
 pub fn write_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P, rf: &RefPack) -> Result<()> {
-    let mut file = fs::File::create(storage_config.get_refpack_filepath(name))?;
+    let path = storage_config.get_refpack_filepath(name);
+    let mut file = fs::File::create(path).unwrap();
     rf.write(&mut file)
 }

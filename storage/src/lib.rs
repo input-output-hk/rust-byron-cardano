@@ -11,6 +11,7 @@ pub mod types;
 pub mod config;
 pub mod pack;
 pub mod tag;
+pub mod epoch;
 pub mod refpack;
 pub mod tmpfile;
 mod compression;
@@ -71,6 +72,7 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Pack))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Tag))?;
+        fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Epoch))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
 
         let packhashes = cfg.list_indexes();
@@ -313,7 +315,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                         let mut current_slotid = expected_slotid;
 
                         while current_slotid < slotid.slotid {
-                            rp.push_back([0;32]);
+                            rp.push_back_missing();
                             current_slotid += 1;
                         }
                         rp.push_back(hash.clone().into_bytes());

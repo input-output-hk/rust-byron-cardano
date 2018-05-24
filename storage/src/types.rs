@@ -13,5 +13,10 @@ pub fn header_to_blockhash(header_hash: &HeaderHash) -> BlockHash {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum StorageFileType {
-    Pack, Index, Blob, Tag, RefPack
+    Pack,
+    Index,
+    Blob,
+    Tag,
+    RefPack,
+    Epoch,
 }

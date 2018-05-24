@@ -1,5 +1,6 @@
 use std::path::{PathBuf};
 use std::{fs};
+use blockchain::EpochId;
 
 use wallet_crypto::util::hex;
 
@@ -25,6 +26,7 @@ impl StorageConfig {
             StorageFileType::Index => p.push("index/"),
             StorageFileType::Blob => p.push("blob/"),
             StorageFileType::Tag => p.push("tag/"),
+            StorageFileType::Epoch => p.push("epoch/"),
         }
         p
     }
@@ -56,6 +58,22 @@ impl StorageConfig {
     pub fn get_refpack_filepath<S: AsRef<str>>(&self, name: S) -> PathBuf {
         let mut p = self.get_filetype_dir(StorageFileType::RefPack);
         p.push(name.as_ref());
+        p
+    }
+    pub fn get_epoch_dir(&self, epoch: EpochId) -> PathBuf {
+        let mut p = self.get_filetype_dir(StorageFileType::Epoch);
+        p.push(epoch.to_string());
+        p
+    }
+
+    pub fn get_epoch_pack_filepath(&self, epoch: EpochId) -> PathBuf {
+        let mut p = self.get_epoch_dir(epoch);
+        p.push("pack");
+        p
+    }
+    pub fn get_epoch_refpack_filepath(&self, epoch: EpochId) -> PathBuf {
+        let mut p = self.get_epoch_dir(epoch);
+        p.push("refpack");
         p
     }
 

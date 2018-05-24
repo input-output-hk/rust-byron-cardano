@@ -327,6 +327,12 @@ impl HasCommand for Network {
                 .about("generate the refpack of a given epoch")
                 .arg(Arg::with_name("epoch").help("The epoch to generate the refpack").index(1).required(true))
             )
+            .subcommand(SubCommand::with_name("epoch-from-pack")
+                .about("enshrine a pack as a special epoch pack")
+                .arg(blockchain_name_arg(1))
+                .arg(Arg::with_name("epoch").help("The epoch to generate the refpack").index(2).required(true))
+                .arg(Arg::with_name("packhash").help("pack to query").index(3).required(true))
+            )
             .subcommand(SubCommand::with_name("unpack")
                 .about("internal unpack command")
                 .arg(Arg::with_name("preserve-packs").long("keep").help("keep what is being unpacked in its original state"))
@@ -503,6 +509,14 @@ impl HasCommand for Network {
                 let epoch = value_t!(opts.value_of("epoch"), String).unwrap();
                 storage::refpack_epoch_pack(&storage, &epoch).unwrap();
                 println!("refpack successfuly created");
+            },
+            ("epoch-from-pack", Some(opts)) => {
+                let config = resolv_network_by_name(&opts);
+                let storage = config.get_storage_config();
+                let epoch = value_t!(opts.value_of("epoch"), u32).unwrap();
+                let packrefhex = opts.value_of("packhash").and_then(|s| Some(s.to_string())).unwrap();
+                storage::epoch::epoch_create(&storage, &packref_fromhex(&packrefhex), epoch);
+                println!("epoch {} successfuly created", epoch);
             },
             ("tag", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
