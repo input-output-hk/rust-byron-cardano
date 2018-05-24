@@ -80,9 +80,12 @@ impl Config {
 
     /// retrieve the blockchain configuration associated to the wallet
     pub fn blockchain_config(&self) -> Result<net::Config> {
-        let path = ariadne_path()?.join("networks").join(&self.blockchain);
-        match net::Config::from_file(path) {
-            None => Err(Error::BlockchainConfigError("unable to parse wallet config file")),
+        let path = ariadne_path()?.join("networks").join(&self.blockchain).join("config.yml");
+        match net::Config::from_file(path.clone()) {
+            None => {
+                error!("error with blockchain config file {:?}", path);
+                Err(Error::BlockchainConfigError("unable to parse wallet config file"))
+            },
             Some(cfg) => Ok(cfg)
         }
     }
