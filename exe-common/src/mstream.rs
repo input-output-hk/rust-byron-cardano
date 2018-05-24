@@ -44,7 +44,7 @@ impl fmt::Display for MetricStats {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let x = self.duration.as_secs() * 1_000_000_000 + self.duration.subsec_nanos() as u64;
         let s = self.bytes_transfered * 1_000_000_000 / x;
-        write!(f, "{} bytes transfered in {}.{:03} seconds. {}/s", self.bytes_transfered, self.duration.as_secs(), self.duration.subsec_millis(), size_print(s))
+        write!(f, "{} bytes transfered in {}.{:03} seconds. {}/s", self.bytes_transfered, self.duration.as_secs(), self.duration.subsec_nanos() / 1_000_000, size_print(s))
     }
 }
 
@@ -56,7 +56,7 @@ pub struct MStream {
 }
 
 impl MStream {
-    pub fn init(dest: &String) -> Self {
+    pub fn init(dest: &str) -> Self {
         let stream = TcpStream::connect(dest).unwrap();
         stream.set_nodelay(true).unwrap();
         //let lock = RwLock::new(5);
