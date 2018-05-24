@@ -42,7 +42,7 @@ impl HasCommand for Generate {
         let account = match account {
             Ok(account) => account,
             Err(config::Error::AccountAliasNotFound(alias)) => {
-                let account = create_new_account(&mut known_accounts, &wallet, Some(alias));
+                let account = create_new_account(&mut known_accounts, &wallet, alias);
                 known_accounts.to_files(&name).unwrap();
                 account
             },

@@ -233,9 +233,10 @@ pub fn recover_entropy(language: String, opt_pwd: Option<String>) -> bip39::Seed
     bip39::Seed::from_mnemonic_string(&mnemonics_str, pwd.as_bytes())
 }
 
-pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: Option<String>) -> wallet::Account {
+pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: String) -> wallet::Account {
     let known_accounts : Vec<String> = accounts.iter().filter(|acc| acc.alias.is_some()).map(|acc| acc.alias.clone().unwrap()).collect();
     println!("{}", style::Italic);
+    println!("{}No account named or indexed {} in your wallet{}", color::Fg(color::Red), alias, color::Fg(color::Reset));
     println!("We are about to create a new wallet account.");
     println!("This will allow `{}' to cache some metadata and not require your private keys when", crate_name!());
     println!("performing public operations (like creating addresses).");
@@ -243,8 +244,23 @@ pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Conf
     println!("");
     println!("Here is the list of existing accounts: {:?}", known_accounts);
 
-    // 1. check if the proprosed alias is there and ask user to use this one
-    // 2. check if the user input does not clash existing ones
+    {
+        let stdout = stdout();
+        let mut stdout = stdout.lock();
+        let stdin = stdin();
+        let mut stdin = stdin.lock();
 
-    accounts.new_account(&wallet.wallet().unwrap(), alias).unwrap()
+        write!(stdout, "{}Do you want to create a new account named {:?}?{} (No|yes): ", color::Fg(color::Green), alias, color::Fg(color::Reset)).unwrap();
+        stdout.flush().unwrap();
+        let mchoice = stdin.read_line().unwrap();
+        match mchoice {
+            None => { error!("invalid input"); ::std::process::exit(1); },
+            Some(choice) => {
+                if choice.to_uppercase() == "YES" { ; }
+                else { ::std::process::exit(0); }
+            }
+        };
+    }
+
+    accounts.new_account(&wallet.wallet().unwrap(), Some(alias)).unwrap()
 }
