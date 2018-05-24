@@ -36,7 +36,6 @@ impl iron::Handler for Handler {
             return Ok(Response::with(status::BadRequest));
         }
 
-
         let ref blockid = req.extensions.get::<router::Router>().unwrap().find("blockid").unwrap();
         if ! blockid.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             error!("invalid blockid: {}", blockid);

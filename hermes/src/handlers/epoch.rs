@@ -32,19 +32,20 @@ impl Handler {
 impl iron::Handler for Handler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let ref network_name = req.extensions.get::<router::Router>().unwrap().find("network").unwrap();
+        let ref epochid_str = req.extensions.get::<router::Router>().unwrap().find("epochid").unwrap();
 
         if ! common::validate_network_name (network_name) {
             return Ok(Response::with(status::BadRequest));
         }
 
-        let ref epochid_str = req.extensions.get::<router::Router>().unwrap().find("epochid").unwrap();
+        let epochid = match common::validate_epochid (epochid_str) {
+                        None => {
+                            error!("invalid epochid: {}", epochid_str);
+                            return Ok(Response::with(status::BadRequest));
+                        },
+                        Some(e) => e,
+        };
 
-        if ! epochid_str.chars().all(|c| c.is_digit(10)) {
-            error!("invalid epochid: {}", epochid_str);
-            return Ok(Response::with(status::BadRequest));
-        }
-
-        let epochid = epochid_str.parse::<blockchain::EpochId>().unwrap();
         let opackref = storage::epoch::epoch_read_pack(&self.storage.config, epochid);
         match opackref {
             Err(_) => {
