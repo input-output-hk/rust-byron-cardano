@@ -53,16 +53,16 @@ pub type Result<T> = result::Result<T, Error>;
 /// the Wallet object
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
-    cached_root_key: hdwallet::XPrv,
+    pub cached_root_key: hdwallet::XPrv,
 
-    config: config::Config,
-    selection_policy: tx::fee::SelectionPolicy,
+    pub config: config::Config,
+    pub selection_policy: tx::fee::SelectionPolicy,
 }
 
 impl Wallet {
-    /// generate a new wallet
-    ///
-    pub fn new() -> Self { unimplemented!() }
+    pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: tx::fee::SelectionPolicy) -> Self {
+        Wallet { cached_root_key: cached_root_key, config: config, selection_policy: policy }
+    }
 
     /// create a new wallet from the given seed
     pub fn new_from_seed(seed: &hdwallet::Seed) -> Self {
@@ -168,13 +168,13 @@ impl Wallet {
 /// Account associated to a given wallet.
 ///
 /// Already contains the derived public key for the account of the wallet (see bip44).
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Account {
-    account: bip44::Account,
-    cached_account_key: hdwallet::XPub
+    pub account: bip44::Account,
+    pub cached_account_key: hdwallet::XPub
 }
 impl Account {
-    fn new(account: bip44::Account, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
+    pub fn new(account: bip44::Account, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
 
     /// create an extended address from the given addressing
     ///

@@ -1,35 +1,36 @@
 pub mod net {
     use blockchain::{HeaderHash,EpochId};
     use wallet_crypto::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{File}, fmt, slice::{Iter}};
+    use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}};
+    use storage::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
 
 
     /// A blockchain may have multiple Peer of different kind. Here we define the list
     /// of possible kind of peer we may connect to.
-    /// 
+    ///
     /// # Kinds
-    /// 
+    ///
     /// ## Native
-    /// 
+    ///
     /// The `Peer::Native` kinds are the peer implementing the native peer to peer
     /// protocol. While a native peer may be slower to sync the whole blockchain it
     /// provides more functionalities such as being able to send transactions and
     /// beeing able to keep a connection alive to keep new block as they are created.
-    /// 
+    ///
     /// ## Http
-    /// 
+    ///
     /// Here we expect to connect to [Hermes](https://github.com/input-output-hk/cardano-rust)
     /// server and to be able to fetch specific blocks or specific EPOCH(s) packed. This method
     /// to sync is blazing fast and allows a clean install to download within seconds the whole
     /// blockchain history. However, it is not possible to send transaction via Hermes.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use exe_common::config::net::{Peer};
-    /// 
+    ///
     /// let http_peer = Peer::new("http://hermes.iohk.io".to_string());
     /// assert!(http_peer.is_http());
     ///
@@ -156,7 +157,7 @@ pub mod net {
     }
 
     /// collection of named `Peer`.
-    /// 
+    ///
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Peers(Vec<NamedPeer>);
     impl Peers {
@@ -218,8 +219,11 @@ pub mod net {
             serde_yaml::from_reader(&mut file).unwrap()
         }
         pub fn to_file<P: AsRef<Path>>(&self, p: P) {
-            let mut file = File::create(p.as_ref()).unwrap();
+            let dir = p.as_ref().parent().unwrap().to_path_buf();
+            fs::DirBuilder::new().recursive(true).create(dir.clone()).unwrap();
+            let mut file = TmpFile::create(dir).unwrap();
             serde_yaml::to_writer(&mut file, &self).unwrap();
+            file.render_permanent(&p.as_ref().to_path_buf()).unwrap();
         }
     }
 }

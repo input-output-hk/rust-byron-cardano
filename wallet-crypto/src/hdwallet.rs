@@ -242,6 +242,9 @@ impl PartialEq for XPrv {
     fn eq(&self, rhs: &XPrv) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }
 }
 impl Eq for XPrv {}
+impl Clone for XPrv {
+    fn clone(&self) -> Self { Self::from_slice(self.as_ref()).expect("it is already a safely constructed XPrv") }
+}
 impl fmt::Debug for XPrv {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))

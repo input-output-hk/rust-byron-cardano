@@ -12,7 +12,7 @@ pub mod config;
 pub mod pack;
 pub mod tag;
 pub mod refpack;
-mod tmpfile;
+pub mod tmpfile;
 mod compression;
 mod bitmap;
 mod bloom;
