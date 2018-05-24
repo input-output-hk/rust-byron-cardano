@@ -89,9 +89,12 @@ impl Config {
     }
 
     pub fn get_network_config<P: AsRef<Path>>(&self, name: P) -> Result<net::Config> {
-        let path = self.get_networks_dir().join(name);
+        let path = self.get_networks_dir().join(name).join("config.yml");
         match net::Config::from_file(&path) {
-            None => Err(Error::BlockchainConfigError("error while parsing network config file")),
+            None => {
+                error!("error while parsing config file: {:?}", path);
+                Err(Error::BlockchainConfigError("error while parsing network config file"))
+            },
             Some(cfg) => Ok(cfg)
         }
     }

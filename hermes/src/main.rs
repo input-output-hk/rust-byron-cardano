@@ -15,7 +15,7 @@ extern crate wallet_crypto;
 extern crate blockchain;
 extern crate exe_common;
 
-use std::sync::{Arc};
+use std::{sync::{Arc}, path::{PathBuf}};
 
 use iron::Iron;
 
@@ -38,6 +38,22 @@ fn main() {
         .subcommand(
             SubCommand::with_name("init")
                 .about("init hermes environment")
+                .arg(Arg::with_name("PORT NUMBER")
+                    .long("port")
+                    .takes_value(true)
+                    .value_name("PORT NUMBER")
+                    .help("set the port number to listen to")
+                    .required(false)
+                    .default_value(r"80")
+                )
+                .arg(Arg::with_name("NETWORKS DIRECTORY")
+                    .long("networks-dir")
+                    .takes_value(true)
+                    .value_name("NETWORKS DIRECTORY")
+                    .help("the relative or absolute directory of the networks to server")
+                    .required(false)
+                    .default_value(r"networks")
+                )
         )
         .subcommand(
             SubCommand::with_name("start")
@@ -48,7 +64,13 @@ fn main() {
     let mut cfg = Config::open().unwrap_or(Config::default());
 
     match matches.subcommand() {
-        ("init", _) => { cfg.save().unwrap(); },
+        ("init", Some(args)) => {
+            let port = value_t!(args.value_of("PORT NUMBER"), u16).unwrap();
+            let dir  = value_t!(args.value_of("NETWORKS DIRECTORY"), String).unwrap();
+            cfg.port = port;
+            cfg.root_dir = PathBuf::from(&dir);
+            cfg.save().unwrap();
+        },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
             let mut router = router::Router::new();
