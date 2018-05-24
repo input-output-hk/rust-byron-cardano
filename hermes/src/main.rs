@@ -53,13 +53,13 @@ fn main() {
         ("init", _) => { cfg.save().unwrap(); },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
-            info!("listenting to port 3000");
             let mut router = router::Router::new();
             let storage = Arc::new(cfg.get_storage("mainnet").unwrap());
             handlers::block::Handler::new(storage.clone()).route(&mut router);
             handlers::pack::Handler::new(storage.clone()).route(&mut router);
             handlers::epoch::Handler::new(storage.clone()).route(&mut router);
-            Iron::new(router).http("localhost:3000").unwrap();
+            info!("listenting to port {}", cfg.port);
+            Iron::new(router).http(format!("localhost:{}", cfg.port)).unwrap();
         },
         _ => {
             println!("{}", matches.usage());
