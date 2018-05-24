@@ -99,6 +99,11 @@ impl Account {
         Change::new(*self, 0)
     }
 }
+impl fmt::Display for Account {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 impl serde::Serialize for Account
 {
     #[inline]
