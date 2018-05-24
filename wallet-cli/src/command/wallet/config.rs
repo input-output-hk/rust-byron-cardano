@@ -52,6 +52,8 @@ impl From<serde_yaml::Error> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
+static FILENAME : &'static str = "config.yml";
+
 /// config of a given Wallet
 ///
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,12 +104,12 @@ impl Config {
         fs::DirBuilder::new().recursive(true).create(path.clone())?;
         let mut tmpfile = TmpFile::create(path.clone())?;
         serde_yaml::to_writer(&mut tmpfile, self)?;
-        tmpfile.render_permanent(&path.join("config.yml"))?;
+        tmpfile.render_permanent(&path.join(FILENAME))?;
         Ok(())
     }
 
     pub fn from_file<P: AsRef<Path>>(name: &P) -> Result<Self> {
-        let path = ariadne_path()?.join("wallets").join(name).join("config.yml");
+        let path = ariadne_path()?.join("wallets").join(name).join(FILENAME);
         let mut file = fs::File::open(path)?;
         serde_yaml::from_reader(&mut file).map_err(Error::YamlError)
     }
@@ -154,7 +156,7 @@ impl Accounts {
 
             let mut tmpfile = TmpFile::create(dir.clone())?;
             serde_yaml::to_writer(&mut tmpfile, account_cfg)?;
-            tmpfile.render_permanent(&dir.join(format!("wallet-{}.yml", account)))?;
+            tmpfile.render_permanent(&dir.join(format!("{}{}.yml", account::PREFIX, account)))?;
         }
         Ok(())
     }
@@ -171,8 +173,8 @@ impl Accounts {
             if entry.file_type()?.is_dir() { continue; }
             let name = entry.file_name();
             if let Some(name) = name.to_str() {
-                if name.starts_with("wallet-") && name.ends_with(".yml") {
-                    let index = name.trim_left_matches("wallet-").trim_right_matches(".yml").parse::<u32>()?;
+                if name.starts_with(account::PREFIX) && name.ends_with(".yml") {
+                    let index = name.trim_left_matches(account::PREFIX).trim_right_matches(".yml").parse::<u32>()?;
                     to_read.insert(index, name.to_owned());
                     indices += 1;
                 }
@@ -195,6 +197,8 @@ impl Accounts {
 
 pub mod account {
     use wallet_crypto::{bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
+
+    pub static PREFIX : &'static str = "account-";
 
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Config {
