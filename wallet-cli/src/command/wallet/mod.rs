@@ -9,6 +9,8 @@ mod address;
 mod find_address;
 mod util;
 
+mod config;
+
 use self::find_address::{FindAddress};
 pub use self::definition::{Wallet};
 
