@@ -70,9 +70,9 @@ pub struct Config {
 impl Config {
     /// construct a wallet configuration from the given wallet and blockchain name
     ///
-    pub fn from_wallet(wallet: Wallet, blockchain: PathBuf) -> Self {
+    pub fn from_wallet<P: Into<PathBuf>>(wallet: Wallet, blockchain: P) -> Self {
         Config {
-            blockchain: blockchain,
+            blockchain: blockchain.into(),
             selection_fee_policy: wallet.selection_policy,
             cached_root_key: wallet.cached_root_key
         }
