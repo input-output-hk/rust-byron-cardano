@@ -59,6 +59,7 @@ pub fn read_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P) -> R
 }
 
 pub fn write_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P, rf: &RefPack) -> Result<()> {
-    let mut file = fs::File::create(storage_config.get_refpack_filepath(name))?;
+    let path = storage_config.get_refpack_filepath(name);
+    let mut file = fs::File::create(path).unwrap();
     rf.write(&mut file)
 }
