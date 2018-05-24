@@ -1,5 +1,6 @@
 use rand;
 use std::io;
+use std::io::Write;
 use std::fs;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
@@ -8,11 +9,17 @@ pub struct TmpFile {
     file: fs::File,
     path: PathBuf,
 }
+
+fn template_create_temp(prefix: &str, suffix: &str) -> String {
+    let v1 : u64 = rand::random();
+    let v2 : u64 = rand::random();
+    format!("{}{}{}{}", prefix, v1, v2, suffix)
+}
+
 impl TmpFile {
     pub fn create(mut path: PathBuf) -> io::Result<Self> {
-        let v1 : u64 = rand::random();
-        let v2 : u64 = rand::random();
-        path.push(format!(".tmp.{}{}", v1, v2));
+        let filename = template_create_temp(".tmp.", "");
+        path.push(filename);
 
         OpenOptions::new()
             .write(true)
@@ -43,4 +50,16 @@ impl io::Write for TmpFile {
         self.file.write(buf)
     }
     fn flush(&mut self) -> io::Result<()> { self.file.flush() }
+}
+
+// write the content buf atomically to the path.
+//
+// if an issue arise until the data is written, then
+// the expected file destination is not going to be
+// created
+pub fn atomic_write_simple(path: &PathBuf, buf: &[u8]) -> io::Result<()> {
+    let mut tmpfile = TmpFile::create(path.parent().unwrap().to_path_buf())?;
+    tmpfile.write(buf)?;
+    tmpfile.render_permanent(path)?;
+    Ok(())
 }
