@@ -1,15 +1,15 @@
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
-use config::{Config};
 
 use super::util::{recover_paperwallet, recover_entropy};
-use super::Wallet;
+use super::config;
+use wallet_crypto::wallet;
 
 pub struct Recover;
 
 impl HasCommand for Recover {
-    type Output = Option<Config>;
-    type Config = Config;
+    type Output = ();
+    type Config = ();
 
     const COMMAND : &'static str = "recover";
 
@@ -37,9 +37,12 @@ impl HasCommand for Recover {
                 .help("set the password from the CLI instead of prompting for it. It is quite unsafe as the password can be visible from your shell history.")
                 .required(false)
             )
+            .arg(Arg::with_name("WALLET NAME").help("the name of the new wallet").index(1).required(true))
+            .arg(Arg::with_name("BLOCKCHAIN").help("the name of the associated blockchain (see command `blockchain')").index(2).required(true))
     }
-    fn run(mut cfg: Config, args: &ArgMatches) -> Self::Output {
-        assert!(cfg.wallet.is_none());
+    fn run(_: Self::Config, args: &ArgMatches) -> Self::Output {
+        let name        = value_t!(args.value_of("WALLET NAME"), String).unwrap();
+        let blockchain  = value_t!(args.value_of("BLOCKCHAIN"), String).unwrap();
         let language    = value_t!(args.value_of("LANGUAGE"), String).unwrap(); // we have a default value
         let password    = value_t!(args.value_of("PASSWORD"), String).ok();
         let from_paper_wallet = args.is_present("FROM PAPER WALLET");
@@ -48,8 +51,10 @@ impl HasCommand for Recover {
         } else {
             recover_entropy(language, password)
         };
-        cfg.wallet = Some(Wallet::generate(seed));
-        let _storage = cfg.get_storage().unwrap();
-        Some(cfg) // we need to update the config's wallet
+        let wallet = wallet::Wallet::new_from_bip39(&seed);
+
+        let config = config::Config::from_wallet(wallet, blockchain);
+
+        config.to_file(&name).unwrap();
     }
 }
