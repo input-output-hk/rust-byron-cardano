@@ -55,6 +55,7 @@ fn main() {
             let storage = Arc::new(cfg.get_storage().unwrap());
             handlers::block::Handler::new(storage.clone()).route(&mut router);
             handlers::pack::Handler::new(storage.clone()).route(&mut router);
+            handlers::epoch::Handler::new(storage.clone()).route(&mut router);
             Iron::new(router).http("localhost:3000").unwrap();
         },
         _ => {
