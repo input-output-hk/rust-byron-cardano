@@ -71,6 +71,7 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Pack))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Tag))?;
+        fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Epoch))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
 
         let packhashes = cfg.list_indexes();
