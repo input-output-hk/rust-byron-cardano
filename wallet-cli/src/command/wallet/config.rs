@@ -103,7 +103,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn from_file<P: AsRef<Path>>(&self, name: &P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(name: &P) -> Result<Self> {
         let path = ariadne_path()?.join("wallets").join(name).join("config.yml");
         let mut file = fs::File::open(path)?;
         serde_yaml::from_reader(&mut file).map_err(Error::YamlError)
