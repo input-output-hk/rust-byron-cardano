@@ -12,6 +12,8 @@ use iron::status;
 use router;
 use router::{Router};
 
+use handlers::common;
+
 pub struct Handler {
     storage: Arc<Storage>
 }
@@ -22,12 +24,19 @@ impl Handler {
         }
     }
     pub fn route(self, router: &mut Router) -> &mut Router {
-        router.get("/block/:blockid", self, "block")
+        router.get(":network/block/:blockid", self, "block")
     }
 }
 
 impl iron::Handler for Handler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
+        let ref network_name = req.extensions.get::<router::Router>().unwrap().find("network").unwrap();
+
+        if ! common::validate_network_name (network_name) {
+            return Ok(Response::with(status::BadRequest));
+        }
+
+
         let ref blockid = req.extensions.get::<router::Router>().unwrap().find("blockid").unwrap();
         if ! blockid.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             error!("invalid blockid: {}", blockid);

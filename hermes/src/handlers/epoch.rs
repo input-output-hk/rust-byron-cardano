@@ -13,6 +13,8 @@ use iron::status;
 use router;
 use router::{Router};
 
+use handlers::common;
+
 pub struct Handler {
     storage: Arc<Storage>
 }
@@ -23,12 +25,18 @@ impl Handler {
         }
     }
     pub fn route(self, router: &mut Router) -> &mut Router {
-        router.get("/epoch/:epochid", self, "epochid")
+        router.get(":network/epoch/:epochid", self, "epochid")
     }
 }
 
 impl iron::Handler for Handler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
+        let ref network_name = req.extensions.get::<router::Router>().unwrap().find("network").unwrap();
+
+        if ! common::validate_network_name (network_name) {
+            return Ok(Response::with(status::BadRequest));
+        }
+
         let ref epochid_str = req.extensions.get::<router::Router>().unwrap().find("epochid").unwrap();
 
         if ! epochid_str.chars().all(|c| c.is_digit(10)) {
