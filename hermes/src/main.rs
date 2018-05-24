@@ -37,23 +37,25 @@ fn main() {
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
-        .arg(Arg::with_name("config").short("c").long("config").value_name("FILE").help("Sets a custom config file").takes_value(true))
+        .subcommand(
+            SubCommand::with_name("init")
+                .about("init hermes environment")
+        )
         .subcommand(
             SubCommand::with_name("start")
                 .about("start explorer server")
         )
         .get_matches();
 
-    let cfg_path = matches.value_of("config")
-        .map_or(get_default_config(), |s| PathBuf::from(s));
-    let cfg = Config::from_file(&cfg_path);
+    let mut cfg = Config::open().unwrap_or(Config::default());
 
     match matches.subcommand() {
+        ("init", _) => { cfg.save().unwrap(); },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
             info!("listenting to port 3000");
             let mut router = router::Router::new();
-            let storage = Arc::new(cfg.get_storage().unwrap());
+            let storage = Arc::new(cfg.get_storage("mainnet").unwrap());
             handlers::block::Handler::new(storage.clone()).route(&mut router);
             handlers::pack::Handler::new(storage.clone()).route(&mut router);
             handlers::epoch::Handler::new(storage.clone()).route(&mut router);
@@ -63,12 +65,5 @@ fn main() {
             println!("{}", matches.usage());
             ::std::process::exit(1);
         },
-    }
-}
-
-fn get_default_config() -> PathBuf {
-    match home_dir() {
-        None => panic!("Unable to retrieve your home directory, set the --config option"),
-        Some(mut d) => {d.push(".ariadne/explorer.yml"); d }
     }
 }
