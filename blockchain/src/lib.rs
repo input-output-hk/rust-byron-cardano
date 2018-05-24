@@ -16,5 +16,8 @@ pub mod genesis; /* genesis block related value */
 pub mod normal; /* normal block related value */
 mod block;
 
+pub mod pretty;
+extern crate ansi_term;
+
 pub use types::*;
 pub use block::*;
