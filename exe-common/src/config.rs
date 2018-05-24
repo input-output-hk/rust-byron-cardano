@@ -28,13 +28,13 @@ pub mod net {
     /// # Example
     /// 
     /// ```
-    /// use exe_common::config::{Peer};
+    /// use exe_common::config::net::{Peer};
     /// 
-    /// let http_peer = Peer::new("http://hermes.iohk.io");
+    /// let http_peer = Peer::new("http://hermes.iohk.io".to_string());
     /// assert!(http_peer.is_http());
-    /// 
-    /// let native_peer = Peer::new("mainnet.iohk.io");
-    /// assert!(http_peer.is_native());
+    ///
+    /// let native_peer = Peer::new("mainnet.iohk.io".to_string());
+    /// assert!(native_peer.is_native());
     /// ```
     ///
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
