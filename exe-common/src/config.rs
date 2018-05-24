@@ -1,7 +1,7 @@
 pub mod net {
     use blockchain::{HeaderHash,EpochId};
     use wallet_crypto::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{File}, fmt, slice::{Iter}};
+    use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}};
     use storage::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
@@ -219,7 +219,9 @@ pub mod net {
             serde_yaml::from_reader(&mut file).unwrap()
         }
         pub fn to_file<P: AsRef<Path>>(&self, p: P) {
-            let mut file = TmpFile::create(p.as_ref().parent().unwrap().to_path_buf()).unwrap();
+            let dir = p.as_ref().parent().unwrap().to_path_buf();
+            fs::DirBuilder::new().recursive(true).create(dir.clone()).unwrap();
+            let mut file = TmpFile::create(dir).unwrap();
             serde_yaml::to_writer(&mut file, &self).unwrap();
             file.render_permanent(&p.as_ref().to_path_buf()).unwrap();
         }
