@@ -96,6 +96,7 @@ impl Config {
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
         let path = ariadne_path()?.join("wallets").join(name);
+        fs::DirBuilder::new().recursive(true).create(path.clone())?;
         let mut tmpfile = TmpFile::create(path.clone())?;
         serde_yaml::to_writer(&mut tmpfile, self)?;
         tmpfile.render_permanent(&path.join("config.yml"))?;
@@ -143,6 +144,7 @@ impl Accounts {
 
     pub fn to_files<P: AsRef<Path>>(&self, name: P) -> Result<()> {
         let dir = ariadne_path()?.join("wallets").join(name);
+        fs::DirBuilder::new().recursive(true).create(dir.clone())?;
         for index in 0..self.0.len() {
             let account_cfg = &self.0[index];
             let account = bip44::Account::new(index as u32)?;
