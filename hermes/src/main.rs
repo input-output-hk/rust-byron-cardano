@@ -13,6 +13,7 @@ extern crate router;
 extern crate storage;
 extern crate wallet_crypto;
 extern crate blockchain;
+extern crate exe_common;
 
 use std::env::{home_dir};
 use std::path::{PathBuf};
