@@ -13,10 +13,9 @@ extern crate router;
 extern crate storage;
 extern crate wallet_crypto;
 extern crate blockchain;
+extern crate exe_common;
 
-use std::env::{home_dir};
-use std::path::{PathBuf};
-use std::sync::{Arc};
+use std::{sync::{Arc}, path::{PathBuf}};
 
 use iron::Iron;
 
@@ -36,38 +35,55 @@ fn main() {
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
-        .arg(Arg::with_name("config").short("c").long("config").value_name("FILE").help("Sets a custom config file").takes_value(true))
+        .subcommand(
+            SubCommand::with_name("init")
+                .about("init hermes environment")
+                .arg(Arg::with_name("PORT NUMBER")
+                    .long("port")
+                    .takes_value(true)
+                    .value_name("PORT NUMBER")
+                    .help("set the port number to listen to")
+                    .required(false)
+                    .default_value(r"80")
+                )
+                .arg(Arg::with_name("NETWORKS DIRECTORY")
+                    .long("networks-dir")
+                    .takes_value(true)
+                    .value_name("NETWORKS DIRECTORY")
+                    .help("the relative or absolute directory of the networks to server")
+                    .required(false)
+                    .default_value(r"networks")
+                )
+        )
         .subcommand(
             SubCommand::with_name("start")
                 .about("start explorer server")
         )
         .get_matches();
 
-    let cfg_path = matches.value_of("config")
-        .map_or(get_default_config(), |s| PathBuf::from(s));
-    let cfg = Config::from_file(&cfg_path);
+    let mut cfg = Config::open().unwrap_or(Config::default());
 
     match matches.subcommand() {
+        ("init", Some(args)) => {
+            let port = value_t!(args.value_of("PORT NUMBER"), u16).unwrap();
+            let dir  = value_t!(args.value_of("NETWORKS DIRECTORY"), String).unwrap();
+            cfg.port = port;
+            cfg.root_dir = PathBuf::from(&dir);
+            cfg.save().unwrap();
+        },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
-            info!("listenting to port 3000");
             let mut router = router::Router::new();
-            let storage = Arc::new(cfg.get_storage().unwrap());
-            handlers::block::Handler::new(storage.clone()).route(&mut router);
-            handlers::pack::Handler::new(storage.clone()).route(&mut router);
-            handlers::epoch::Handler::new(storage.clone()).route(&mut router);
-            Iron::new(router).http("localhost:3000").unwrap();
+            let networks = Arc::new(cfg.get_networks().unwrap());
+            handlers::block::Handler::new(networks.clone()).route(&mut router);
+            handlers::pack::Handler::new(networks.clone()).route(&mut router);
+            handlers::epoch::Handler::new(networks.clone()).route(&mut router);
+            info!("listenting to port {}", cfg.port);
+            Iron::new(router).http(format!("localhost:{}", cfg.port)).unwrap();
         },
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);
         },
-    }
-}
-
-fn get_default_config() -> PathBuf {
-    match home_dir() {
-        None => panic!("Unable to retrieve your home directory, set the --config option"),
-        Some(mut d) => {d.push(".ariadne/explorer.yml"); d }
     }
 }
