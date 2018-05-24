@@ -670,44 +670,8 @@ fn packref_fromhex(s: &String) -> PackHash {
 }
 
 fn display_block(blk: &blockchain::Block) {
-    match blk {
-        &blockchain::Block::GenesisBlock(ref mblock) => {
-            println!("genesis block display unimplemented");
-            println!("{:?}", mblock)
-        },
-        &blockchain::Block::MainBlock(ref mblock) => {
-            let hdr = &mblock.header;
-            let body = &mblock.body;
-            println!("### Header");
-            println!("{} : {}"  , Green.paint("protocol magic"), hdr.protocol_magic);
-            println!("{} : {}"  , Green.paint("previous hash "), hex::encode(hdr.previous_header.as_ref()));
-            println!("{}"       , Green.paint("body proof    "));
-            println!("  - {}"   , Cyan.paint("tx proof    "));
-            println!("       - {}: {}", Yellow.paint("number      "), hdr.body_proof.tx.number);
-            println!("       - {}: {}", Yellow.paint("root        "), hdr.body_proof.tx.root);
-            println!("       - {}: {}", Yellow.paint("witness hash"), hdr.body_proof.tx.witnesses_hash);
-            println!("  - {} : {:?}", Cyan.paint("mpc         "), hdr.body_proof.mpc);
-            println!("  - {} : {:?}", Cyan.paint("proxy sk    "), hdr.body_proof.proxy_sk);
-            println!("  - {} : {:?}", Cyan.paint("update      "), hdr.body_proof.update);
-            println!("{}"           , Green.paint("consensus     "));
-            println!("  - {} : {:?}", Cyan.paint("slot id         "), hdr.consensus.slot_id);
-            println!("  - {} : {}"  , Cyan.paint("leader key      "), hex::encode(hdr.consensus.leader_key.as_ref()));
-            println!("  - {} : {}"  , Cyan.paint("chain difficulty"), hdr.consensus.chain_difficulty);
-            println!("  - {} : {:?}", Cyan.paint("block signature "), hdr.consensus.block_signature);
-            println!("{} : {:?}", Green.paint("extra-data    "), hdr.extra_data);
-            println!("### Body");
-            println!("{}", Green.paint("tx-payload"));
-            for e in body.tx.iter() {
-                println!("  {}", e);
-            }
-            println!("{} : {:?}", Green.paint("scc           "), body.scc);
-            println!("{} : {:?}", Green.paint("delegation    "), body.delegation);
-            println!("{} : {:?}", Green.paint("update        "), body.update);
-            println!("### Extra");
-            println!("{} : {:?}", Green.paint("extra         "), mblock.extra);
-            //println!("{}: {}", Red.paint("protocol magic:"), mblock.protocol.magic);
-        },
-    }
+    println!("{}", blockchain::pretty::format(blk, 4));
+    
 }
 
 mod internal {

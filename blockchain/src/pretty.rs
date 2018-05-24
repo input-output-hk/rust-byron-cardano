@@ -4,6 +4,12 @@ use std::string::String;
 
 use ansi_term::Colour;
 
+use block;
+use genesis;
+use normal;
+use types;
+use wallet_crypto;
+
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
 static DISPLAY_USE_COLOR: bool = false; // no color for display implementations
@@ -148,6 +154,184 @@ pub fn format_val(p: &Val, indent_size: usize) -> String {
 
 pub fn format(p: &Pretty, indent_size: usize) -> String {
     format_val(&p.to_pretty(), indent_size)
+}
+
+// the rest of the file is `impl` and `test`
+
+impl Pretty for str {
+    fn to_pretty(&self) -> Val {
+        Val::Single(Box::new(self.to_string()))
+    }
+}
+
+impl Pretty for block::Block {
+    fn to_pretty(&self) -> Val {
+        match self {
+            block::Block::GenesisBlock(b) => {
+                Val::Pairs(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
+            }
+            block::Block::MainBlock(b) => {
+                Val::Pairs(None, vec![("MainBlock".to_string(), b.to_pretty())])
+            }
+        }
+    }
+}
+
+impl Pretty for normal::Block {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            None,
+            vec![
+                ("header".to_string(), self.header.to_pretty()),
+                ("body".to_string(), self.body.to_pretty()),
+                (
+                    "extra".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.extra))),
+                ),
+            ],
+        )
+    }
+}
+
+impl Pretty for normal::BlockHeader {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            Some(Colour::Green),
+            vec![
+                (
+                    "protocol magic".to_string(),
+                    Val::Single(Box::new(self.protocol_magic)),
+                ),
+                (
+                    "previous hash".to_string(),
+                    Val::Single(Box::new(wallet_crypto::util::hex::encode(
+                        self.previous_header.as_ref(),
+                    ))),
+                ),
+                ("body proof".to_string(), self.body_proof.to_pretty()),
+                ("consensus".to_string(), self.consensus.to_pretty()),
+                (
+                    "extra data".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.extra_data))),
+                ),
+            ],
+        )
+    }
+}
+
+impl Pretty for normal::BodyProof {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            Some(Colour::Cyan),
+            vec![
+                ("tx proof".to_string(), self.tx.to_pretty()),
+                ("mpc".to_string(), self.mpc.to_pretty()),
+                ("proxy sk".to_string(), self.proxy_sk.to_pretty()),
+                ("update".to_string(), self.update.to_pretty()),
+            ],
+        )
+    }
+}
+
+impl Pretty for wallet_crypto::tx::TxProof {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            Some(Colour::Yellow),
+            vec![
+                ("number".to_string(), Val::Single(Box::new(self.number))),
+                ("root".to_string(), self.root.to_pretty()),
+                ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
+            ],
+        )
+    }
+}
+
+impl Pretty for wallet_crypto::hash::Blake2b256 {
+    fn to_pretty(&self) -> Val {
+        Val::Single(Box::new(self.clone()))
+    }
+}
+
+impl Pretty for types::SscProof {
+    fn to_pretty(&self) -> Val {
+        Val::Single(Box::new(format!("{:?}", self)))
+    }
+}
+
+impl Pretty for normal::Consensus {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            Some(Colour::Cyan),
+            vec![
+                (
+                    "slot id".to_string(),
+                    Val::Single(Box::new(format!("{:?}", self.slot_id))),
+                ),
+                (
+                    "leader key".to_string(),
+                    Val::Single(Box::new(wallet_crypto::util::hex::encode(
+                        self.leader_key.as_ref(),
+                    ))),
+                ),
+                (
+                    "chain difficulty".to_string(),
+                    Val::Single(Box::new(self.chain_difficulty)),
+                ),
+                (
+                    "block signature".to_string(),
+                    Val::Single(Box::new(format!("{:?}", self.block_signature))),
+                ),
+            ],
+        )
+    }
+}
+
+impl Pretty for normal::Body {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            Some(Colour::Green),
+            vec![
+                (
+                    "tx-payload".to_string(),
+                    Val::Single(Box::new(format!("TODO {}", self.tx))),
+                ),
+                (
+                    "scc".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.scc))),
+                ),
+                (
+                    "delegation".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.delegation))),
+                ),
+                (
+                    "update".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.update))),
+                ),
+            ],
+        )
+    }
+}
+
+impl Pretty for genesis::Block {
+    fn to_pretty(&self) -> Val {
+        Val::Pairs(
+            None,
+            vec![
+                (
+                    "header".to_string(),
+                    Val::Single(Box::new(format!("TODO {}", self.header))),
+                ),
+                (
+                    "body".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.body))),
+                ),
+                (
+                    "extra".to_string(),
+                    Val::Single(Box::new(format!("TODO {:?}", self.extra))),
+                ),
+            ],
+        )
+    }
 }
 
 #[cfg(test)]
