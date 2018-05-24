@@ -1,9 +1,5 @@
 use storage;
-use storage::{Storage, tag};
 
-use blockchain;
-
-use wallet_crypto::util::{hex};
 use std::sync::{Arc};
 
 use iron;
@@ -13,15 +9,16 @@ use iron::status;
 use router;
 use router::{Router};
 
+use config::{Networks};
 use handlers::common;
 
 pub struct Handler {
-    storage: Arc<Storage>
+    networks: Arc<Networks>
 }
 impl Handler {
-    pub fn new(storage: Arc<Storage>) -> Self {
+    pub fn new(networks: Arc<Networks>) -> Self {
         Handler {
-            storage: storage
+            networks: networks
         }
     }
     pub fn route(self, router: &mut Router) -> &mut Router {
@@ -37,6 +34,10 @@ impl iron::Handler for Handler {
         if ! common::validate_network_name (network_name) {
             return Ok(Response::with(status::BadRequest));
         }
+        let net = match self.networks.get(network_name.to_owned()) {
+            None => return Ok(Response::with(status::BadRequest)),
+            Some(net) => net
+        };
 
         let epochid = match common::validate_epochid (epochid_str) {
                         None => {
@@ -46,13 +47,13 @@ impl iron::Handler for Handler {
                         Some(e) => e,
         };
 
-        let opackref = storage::epoch::epoch_read_pack(&self.storage.config, epochid);
+        let opackref = storage::epoch::epoch_read_pack(&net.storage.config, epochid);
         match opackref {
             Err(_) => {
                 return Ok(Response::with(status::NotFound));
             },
             Ok(packref) => {
-                let path = self.storage.config.get_pack_filepath(&packref);
+                let path = net.storage.config.get_pack_filepath(&packref);
                 Ok(Response::with((status::Ok, path)))
             },
         }

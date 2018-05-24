@@ -15,8 +15,6 @@ extern crate wallet_crypto;
 extern crate blockchain;
 extern crate exe_common;
 
-use std::env::{home_dir};
-use std::path::{PathBuf};
 use std::sync::{Arc};
 
 use iron::Iron;
@@ -54,10 +52,10 @@ fn main() {
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
             let mut router = router::Router::new();
-            let storage = Arc::new(cfg.get_storage("mainnet").unwrap());
-            handlers::block::Handler::new(storage.clone()).route(&mut router);
-            handlers::pack::Handler::new(storage.clone()).route(&mut router);
-            handlers::epoch::Handler::new(storage.clone()).route(&mut router);
+            let networks = Arc::new(cfg.get_networks().unwrap());
+            handlers::block::Handler::new(networks.clone()).route(&mut router);
+            handlers::pack::Handler::new(networks.clone()).route(&mut router);
+            handlers::epoch::Handler::new(networks.clone()).route(&mut router);
             info!("listenting to port {}", cfg.port);
             Iron::new(router).http(format!("localhost:{}", cfg.port)).unwrap();
         },

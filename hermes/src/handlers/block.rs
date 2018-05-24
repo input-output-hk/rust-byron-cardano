@@ -1,5 +1,5 @@
-use config::Config;
-use storage::{Storage, tag, block_location, block_read_location};
+use config::{Networks};
+use storage::{tag, block_location, block_read_location};
 use wallet_crypto::{cbor};
 use wallet_crypto::util::{hex};
 use blockchain;
@@ -15,12 +15,12 @@ use router::{Router};
 use handlers::common;
 
 pub struct Handler {
-    storage: Arc<Storage>
+    networks: Arc<Networks>
 }
 impl Handler {
-    pub fn new(storage: Arc<Storage>) -> Self {
+    pub fn new(networks: Arc<Networks>) -> Self {
         Handler {
-            storage: storage
+            networks: networks
         }
     }
     pub fn route(self, router: &mut Router) -> &mut Router {
@@ -36,26 +36,31 @@ impl iron::Handler for Handler {
             return Ok(Response::with(status::BadRequest));
         }
 
+        let net = match self.networks.get(network_name.to_owned()) {
+            None => return Ok(Response::with(status::BadRequest)),
+            Some(net) => net
+        };
+
         let ref blockid = req.extensions.get::<router::Router>().unwrap().find("blockid").unwrap();
         if ! blockid.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             error!("invalid blockid: {}", blockid);
             return Ok(Response::with(status::BadRequest));
         }
-        let hh_bytes = match tag::read(&self.storage, &blockid) {
+        let hh_bytes = match tag::read(&net.storage, &blockid) {
             None => hex::decode(&blockid).unwrap(),
             Some(t) => t
         };
         let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
         info!("querying block header: {}", hh);
 
-        match block_location(&self.storage, hh.bytes()) {
+        match block_location(&net.storage, hh.bytes()) {
             None => {
                 warn!("block `{}' does not exist", hh);
                 Ok(Response::with((status::NotFound, "Not Found")))
             },
             Some(loc) => {
                 debug!("blk location: {:?}", loc);
-                match block_read_location(&self.storage, &loc, hh.bytes()) {
+                match block_read_location(&net.storage, &loc, hh.bytes()) {
                     None        => {
                         error!("error while reading block at location: {:?}", loc);
                         Ok(Response::with(status::InternalServerError))

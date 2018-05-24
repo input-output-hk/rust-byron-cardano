@@ -4,7 +4,7 @@ use storage::{self, tmpfile::{TmpFile}};
 use storage::config::StorageConfig;
 use exe_common::config::{net};
 use std::{io, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
-use std::{num::{ParseIntError}};
+use std::{num::{ParseIntError}, collections::{BTreeMap}, sync::{Arc}};
 
 #[derive(Debug)]
 pub enum Error {
@@ -67,6 +67,27 @@ impl Config {
 
     pub fn get_networks_dir(&self) -> PathBuf { self.root_dir.clone() }
 
+    pub fn get_networks(&self) -> Result<Networks> {
+        let dir = self.get_networks_dir();
+        let mut networks = Networks::new();
+
+        for entry in fs::read_dir(dir.clone())? {
+            let entry = entry?;
+            if ! entry.file_type()?.is_dir() { continue; }
+            let name = entry.file_name();
+            if let Some(name) = name.to_str() {
+                let network = Network {
+                    path: entry.path().to_path_buf(),
+                    config: self.get_network_config(name)?,
+                    storage: Arc::new(self.get_storage(name)?)
+                };
+                networks.insert(name.to_owned(), network);
+            }
+        }
+
+        Ok(networks)
+    }
+
     pub fn get_network_config<P: AsRef<Path>>(&self, name: P) -> Result<net::Config> {
         let path = self.get_networks_dir().join(name);
         match net::Config::from_file(&path) {
@@ -106,6 +127,13 @@ impl Config {
         Ok(())
     }
 }
+
+pub struct Network {
+    pub path: PathBuf,
+    pub config: net::Config,
+    pub storage: Arc<storage::Storage>,
+}
+pub type Networks = BTreeMap<String, Network>;
 
 /// the environment variable to define where the Hermes files are stores
 ///
