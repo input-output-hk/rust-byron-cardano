@@ -28,7 +28,7 @@ pub trait Pretty {
     fn to_pretty(&self) -> Val;
 }
 
-fn longest_key_length(ast: &AST) -> usize {
+fn longest_key_length(ast: &[(Key, Val)]) -> usize {
     ast.iter()
         .fold(0, |longest, (key, _)| std::cmp::max(longest, key.len()))
 }
