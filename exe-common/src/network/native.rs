@@ -2,9 +2,13 @@ use protocol;
 use mstream::{MStream, MetricStart, MetricStats};
 use wallet_crypto::config::{ProtocolMagic};
 use rand;
-use std::{net::{SocketAddr, ToSocketAddrs}};
+use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
+use blockchain::{BlockHeader, Block, HeaderHash};
+use storage::{Storage, types::{PackHash}};
+use protocol::command::*;
 
 use network::{Error, Result};
+use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
 /// native peer
 pub struct Peer {
@@ -38,12 +42,46 @@ impl Peer {
     }
 }
 
+// TODO: this is not necessarily what we want to do here,
+//
+// in the case we have multiple connection on a peer, we might want to operate
+// paralellisation of the effort
+impl Api for Peer {
+    fn get_tip(&mut self) -> Result<BlockHeader> {
+        match self.connections.get_mut(0) {
+            None => panic!("We expect at lease one connection on any native peer"),
+            Some(conn) => conn.get_tip()
+        }
+    }
+
+    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+        match self.connections.get_mut(0) {
+            None => panic!("We expect at lease one connection on any native peer"),
+            Some(conn) => conn.get_block(hash)
+        }
+    }
+
+    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+        match self.connections.get_mut(0) {
+            None => panic!("We expect at lease one connection on any native peer"),
+            Some(conn) => conn.fetch_epoch(storage, fep)
+        }
+    }
+}
+
 pub struct Connection(pub SocketAddr, pub Network);
 impl Connection {
     pub fn new(sockaddr: SocketAddr, protocol_magic: ProtocolMagic) -> Result<Self> {
         let network = Network::new(protocol_magic, &sockaddr)?;
         Ok(Connection (sockaddr, network))
     }
+}
+impl Deref for Connection {
+    type Target = Network;
+    fn deref(&self) -> &Self::Target { &self.1 }
+}
+impl DerefMut for Connection {
+    fn deref_mut(&mut self) -> &mut Self::Target { & mut self.1 }
 }
 
 pub struct Network(pub protocol::Connection<MStream>);
@@ -70,4 +108,23 @@ impl Network {
         start.diff(self.0.get_backend().get_read_sz())
     }
 }
+impl Api for Network {
+    fn get_tip(&mut self) -> Result<BlockHeader> {
+        let block_headers_raw = GetBlockHeader::tip().execute(&mut self.0).expect("to get one header at least");
 
+        let block_headers = block_headers_raw.decode()?;
+
+        if block_headers.len() != 1 {
+            panic!("get head header return more than 1 header")
+        }
+        Ok(block_headers[0].clone())
+    }
+
+    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+        unimplemented!()
+    }
+
+    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+        unimplemented!()
+    }
+}
