@@ -4,10 +4,9 @@ use std::string::String;
 
 use ansi_term::Colour;
 
-use block;
-use genesis;
-use normal;
-use types;
+use blockchain::genesis;
+use blockchain::normal;
+use blockchain::{Block, SscProof};
 use wallet_crypto;
 
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
@@ -164,15 +163,13 @@ impl Pretty for str {
     }
 }
 
-impl Pretty for block::Block {
+impl Pretty for Block {
     fn to_pretty(&self) -> Val {
         match self {
-            block::Block::GenesisBlock(b) => {
+            Block::GenesisBlock(b) => {
                 Val::Pairs(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
             }
-            block::Block::MainBlock(b) => {
-                Val::Pairs(None, vec![("MainBlock".to_string(), b.to_pretty())])
-            }
+            Block::MainBlock(b) => Val::Pairs(None, vec![("MainBlock".to_string(), b.to_pretty())]),
         }
     }
 }
@@ -252,7 +249,7 @@ impl Pretty for wallet_crypto::hash::Blake2b256 {
     }
 }
 
-impl Pretty for types::SscProof {
+impl Pretty for SscProof {
     fn to_pretty(&self) -> Val {
         Val::Single(Box::new(format!("{:?}", self)))
     }

@@ -14,7 +14,8 @@ use std::io::{Write, stdout};
 
 use protocol::command::*;
 use exe_common::{config::{net}, network::{Network}};
-use ansi_term::Colour::*;
+
+use command::pretty;
 
 pub fn new_network(cfg: &net::Config) -> Network {
     Network::new(cfg.protocol_magic, &cfg.domain.clone())
@@ -262,6 +263,7 @@ fn resolv_network_by_name<'a>(opts: &ArgMatches<'a>) -> Config {
     config
 }
 
+// TODO: rename Network to Blockchain?
 impl HasCommand for Network {
     type Output = ();
     type Config = ();
@@ -670,8 +672,7 @@ fn packref_fromhex(s: &String) -> PackHash {
 }
 
 fn display_block(blk: &blockchain::Block) {
-    println!("{}", blockchain::pretty::format(blk, 4));
-    
+    println!("{}", pretty::format(blk, 4));
 }
 
 mod internal {

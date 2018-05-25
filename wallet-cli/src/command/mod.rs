@@ -1,4 +1,5 @@
 mod blockchain;
+mod pretty;
 mod wallet;
 
 pub use self::blockchain::{*};
