@@ -79,7 +79,7 @@ fn main() {
             handlers::pack::Handler::new(networks.clone()).route(&mut router);
             handlers::epoch::Handler::new(networks.clone()).route(&mut router);
             info!("listenting to port {}", cfg.port);
-            Iron::new(router).http(format!("localhost:{}", cfg.port)).unwrap();
+            Iron::new(router).http(format!("0.0.0.0:{}", cfg.port)).unwrap();
         },
         _ => {
             println!("{}", matches.usage());
