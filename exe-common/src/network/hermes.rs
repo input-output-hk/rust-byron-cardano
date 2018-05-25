@@ -60,6 +60,7 @@ impl Api for HermesEndPoint {
 
         let (_, tmpfile) = storage::pack::create_index(storage, &index);
         tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+        storage::epoch::epoch_create(&storage.config, &packhash, fep.epoch_id);
 
         let last = writer.last();
         let last_hdr = last.get_header();
