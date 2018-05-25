@@ -57,8 +57,8 @@ pub struct MStream {
     write_sz: u64,
 }
 
-static TIMEOUT_SECONDS      : u64 = 1;
-static TIMEOUT_NANO_SECONDS : u32 = 0;
+const TIMEOUT_SECONDS      : u64 = 30;
+const TIMEOUT_NANO_SECONDS : u32 = 0;
 
 impl MStream {
     pub fn init(dest: &SocketAddr) -> Result<Self> {
