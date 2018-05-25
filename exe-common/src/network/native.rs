@@ -7,6 +7,7 @@ use blockchain::{BlockHeader, Block, HeaderHash};
 use storage::{Storage};
 use protocol::command::*;
 
+use config::net;
 use network::{Error, Result};
 use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
@@ -61,10 +62,10 @@ impl Api for Peer {
         }
     }
 
-    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+    fn fetch_epoch(&mut self, config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
-            Some(conn) => conn.fetch_epoch(storage, fep)
+            Some(conn) => conn.fetch_epoch(config, storage, fep)
         }
     }
 }
@@ -124,7 +125,7 @@ impl Api for Network {
         unimplemented!()
     }
 
-    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+    fn fetch_epoch(&mut self, config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         unimplemented!()
     }
 }

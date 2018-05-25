@@ -34,9 +34,9 @@ impl Api for Peer {
         }
     }
 
-    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+    fn fetch_epoch(&mut self, config: &config::net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         match self {
-            Peer::Native(peer) => peer.fetch_epoch(storage, fep),
+            Peer::Native(peer) => peer.fetch_epoch(config, storage, fep),
         }
     }
 }
