@@ -1,6 +1,6 @@
 use protocol;
 use mstream::{MStream, MetricStart, MetricStats};
-use wallet_crypto::{config::{ProtocolMagic}, util::{hex}};
+use wallet_crypto::{config::{ProtocolMagic}, util::{hex}, cbor};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
 use blockchain::{self, BlockHeader, Block, HeaderHash, EpochId, BlockDate, SlotId};
@@ -123,7 +123,10 @@ impl Api for OpenPeer {
     }
 
     fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
-        unimplemented!()
+        let b = GetBlock::only(&hash).execute(&mut self.0)
+            .expect("to get one block at least");
+
+        Ok(cbor::decode_from_cbor(b[0].as_ref())?)
     }
 
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {

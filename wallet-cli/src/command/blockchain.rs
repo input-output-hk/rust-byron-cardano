@@ -229,7 +229,6 @@ impl HasCommand for Blockchain {
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
                 let mut net = get_native_peer(&net_cfg);
-                let storage = config.get_storage().unwrap();
                 let mbh = net.get_tip().unwrap();
                 println!("prv block header: {}", mbh.get_previous_header());
             },
