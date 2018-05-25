@@ -2,8 +2,6 @@ use std;
 use std::fmt;
 use std::string::String;
 
-use ansi_term::Colour;
-
 use blockchain::genesis;
 use blockchain::normal;
 use blockchain::{Block, SscProof};
@@ -12,7 +10,6 @@ use wallet_crypto;
 // Constants for the fmt::Display instance
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
-static DISPLAY_USE_COLOR: bool = false; // no color for display implementations
 
 type AST = Vec<(Key, Val)>;
 
@@ -21,7 +18,7 @@ type Key = String;
 // TODO: extend with blockchain-specific constructors with color
 pub enum Val {
     Raw(String),
-    Tree(Option<Colour>, AST),
+    Tree(AST),
 }
 
 pub trait Pretty {
@@ -38,20 +35,14 @@ fn fmt_key(
     f: &mut fmt::Formatter,
     indent_size: usize,
     indent_level: usize,
-    col: Option<Colour>,
     key_width: usize,
 ) -> fmt::Result {
-    // XXX: measuring width is broken for ansi strings, so do alignment before painting
-    let aligned_key = format!("{:<kw$}", key, kw = key_width,);
-    let painted_key = match col {
-        Some(color) => color.paint(aligned_key),
-        None => aligned_key.into(),
-    };
     write!(
         f,
-        "{:>iw$}- {}:",
+        "{:>iw$}- {:<kw$}:",
         "",
-        painted_key,
+        key,
+        kw = key_width,
         iw = indent_size * indent_level,
     )
 }
@@ -61,19 +52,18 @@ fn fmt_val(
     f: &mut fmt::Formatter,
     indent_size: usize,
     indent_level: usize,
-    use_color: bool,
 ) -> fmt::Result {
     match val {
         // write inline
         Val::Raw(_) => {
             write!(f, " ")?;
-            fmt_pretty(val, f, indent_size, indent_level, use_color)?;
+            fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
         }
         // write on the next line
-        Val::Tree(_, _) => {
+        Val::Tree(_) => {
             write!(f, "\n")?;
-            fmt_pretty(val, f, indent_size, indent_level, use_color)
+            fmt_pretty(val, f, indent_size, indent_level)
         }
     }
     // XXX: DRY up the duplicate calls to `fmt_pretty`?
@@ -84,35 +74,26 @@ fn fmt_pretty(
     f: &mut fmt::Formatter,
     indent_size: usize,
     indent_level: usize,
-    use_color: bool,
 ) -> fmt::Result {
     match p {
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
         // format pretty-val as a set of  key-vals
-        Val::Tree(color, ast) => {
+        Val::Tree(ast) => {
             let key_width = longest_key_length(ast);
             ast.iter().fold(Ok(()), |prev_result, (key, val)| {
                 prev_result.and_then(|()| {
-                    let col = color.and_then(|c| if use_color { Some(c) } else { None });
-                    fmt_key(key, f, indent_size, indent_level, col, key_width)?;
-                    fmt_val(val, f, indent_size, indent_level + 1, use_color)
+                    fmt_key(key, f, indent_size, indent_level, key_width)?;
+                    fmt_val(val, f, indent_size, indent_level + 1)
                 })
             })
         }
     }
 }
 
-// implement display for a Val without color
 impl fmt::Display for Val {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt_pretty(
-            self,
-            f,
-            DISPLAY_INDENT_SIZE,
-            DISPLAY_INDENT_LEVEL,
-            DISPLAY_USE_COLOR,
-        )
+        fmt_pretty(self, f, DISPLAY_INDENT_SIZE, DISPLAY_INDENT_LEVEL)
     }
 }
 
@@ -124,31 +105,8 @@ impl fmt::Display for Pretty {
             f,
             DISPLAY_INDENT_SIZE,
             DISPLAY_INDENT_LEVEL,
-            DISPLAY_USE_COLOR,
         )
     }
-}
-
-// format any Val to a string with color
-pub fn format_val(p: &Val, indent_size: usize) -> String {
-    // internal helper to get a formatter for calling `fmt_pretty`
-    struct Fmt<F>(F)
-    where
-        F: Fn(&mut fmt::Formatter) -> fmt::Result;
-
-    impl<F> fmt::Display for Fmt<F>
-    where
-        F: Fn(&mut fmt::Formatter) -> fmt::Result,
-    {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            self.0(f)
-        }
-    }
-    format!("{}", Fmt(|f| fmt_pretty(p, f, indent_size, 0, true)))
-}
-
-pub fn format(p: &Pretty, indent_size: usize) -> String {
-    format_val(&p.to_pretty(), indent_size)
 }
 
 // the rest of the file is `impl` and `test`
@@ -162,80 +120,66 @@ impl Pretty for str {
 impl Pretty for Block {
     fn to_pretty(&self) -> Val {
         match self {
-            Block::GenesisBlock(b) => {
-                Val::Tree(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
-            }
-            Block::MainBlock(b) => Val::Tree(None, vec![("MainBlock".to_string(), b.to_pretty())]),
+            Block::GenesisBlock(b) => Val::Tree(vec![("GenesisBlock".to_string(), b.to_pretty())]),
+            Block::MainBlock(b) => Val::Tree(vec![("MainBlock".to_string(), b.to_pretty())]),
         }
     }
 }
 
 impl Pretty for normal::Block {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            None,
-            vec![
-                ("header".to_string(), self.header.to_pretty()),
-                ("body".to_string(), self.body.to_pretty()),
-                (
-                    "extra".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.extra)),
-                ),
-            ],
-        )
+        Val::Tree(vec![
+            ("header".to_string(), self.header.to_pretty()),
+            ("body".to_string(), self.body.to_pretty()),
+            (
+                "extra".to_string(),
+                Val::Raw(format!("TODO {:?}", self.extra)),
+            ),
+        ])
     }
 }
 
 impl Pretty for normal::BlockHeader {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            Some(Colour::Green),
-            vec![
-                (
-                    "protocol magic".to_string(),
-                    Val::Raw(format!("{}", self.protocol_magic)),
-                ),
-                (
-                    "previous hash".to_string(),
-                    Val::Raw(wallet_crypto::util::hex::encode(
-                        self.previous_header.as_ref(),
-                    )),
-                ),
-                ("body proof".to_string(), self.body_proof.to_pretty()),
-                ("consensus".to_string(), self.consensus.to_pretty()),
-                (
-                    "extra data".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.extra_data)),
-                ),
-            ],
-        )
+        Val::Tree(vec![
+            (
+                "protocol magic".to_string(),
+                Val::Raw(format!("{}", self.protocol_magic)),
+            ),
+            (
+                "previous hash".to_string(),
+                Val::Raw(wallet_crypto::util::hex::encode(
+                    self.previous_header.as_ref(),
+                )),
+            ),
+            ("body proof".to_string(), self.body_proof.to_pretty()),
+            ("consensus".to_string(), self.consensus.to_pretty()),
+            (
+                "extra data".to_string(),
+                Val::Raw(format!("TODO {:?}", self.extra_data)),
+            ),
+        ])
     }
 }
 
 impl Pretty for normal::BodyProof {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            Some(Colour::Cyan),
-            vec![
-                ("tx proof".to_string(), self.tx.to_pretty()),
-                ("mpc".to_string(), self.mpc.to_pretty()),
-                ("proxy sk".to_string(), self.proxy_sk.to_pretty()),
-                ("update".to_string(), self.update.to_pretty()),
-            ],
-        )
+        Val::Tree(vec![
+            ("tx proof".to_string(), self.tx.to_pretty()),
+            ("mpc".to_string(), self.mpc.to_pretty()),
+            ("proxy sk".to_string(), self.proxy_sk.to_pretty()),
+            ("update".to_string(), self.update.to_pretty()),
+        ])
     }
 }
 
 impl Pretty for wallet_crypto::tx::TxProof {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            Some(Colour::Yellow),
-            vec![
-                ("number".to_string(), Val::Raw(format!("{}", self.number))),
-                ("root".to_string(), self.root.to_pretty()),
-                ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
-            ],
-        )
+        Val::Tree(vec![
+            ("number".to_string(), Val::Raw(format!("{}", self.number))),
+            ("root".to_string(), self.root.to_pretty()),
+            ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
+        ])
     }
 }
 
@@ -253,78 +197,68 @@ impl Pretty for SscProof {
 
 impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            Some(Colour::Cyan),
-            vec![
-                (
-                    "slot id".to_string(),
-                    Val::Raw(format!("{:?}", self.slot_id)),
-                ),
-                (
-                    "leader key".to_string(),
-                    Val::Raw(wallet_crypto::util::hex::encode(self.leader_key.as_ref())),
-                ),
-                (
-                    "chain difficulty".to_string(),
-                    Val::Raw(format!("{}", self.chain_difficulty)),
-                ),
-                (
-                    "block signature".to_string(),
-                    Val::Raw(format!("{:?}", self.block_signature)),
-                ),
-            ],
-        )
+        Val::Tree(vec![
+            (
+                "slot id".to_string(),
+                Val::Raw(format!("{:?}", self.slot_id)),
+            ),
+            (
+                "leader key".to_string(),
+                Val::Raw(wallet_crypto::util::hex::encode(self.leader_key.as_ref())),
+            ),
+            (
+                "chain difficulty".to_string(),
+                Val::Raw(format!("{}", self.chain_difficulty)),
+            ),
+            (
+                "block signature".to_string(),
+                Val::Raw(format!("{:?}", self.block_signature)),
+            ),
+        ])
     }
 }
 
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            Some(Colour::Green),
-            vec![
-                (
-                    "tx-payload".to_string(),
-                    Val::Raw(format!("TODO {}", self.tx)),
-                ),
-                ("scc".to_string(), Val::Raw(format!("TODO {:?}", self.scc))),
-                (
-                    "delegation".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.delegation)),
-                ),
-                (
-                    "update".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.update)),
-                ),
-            ],
-        )
+        Val::Tree(vec![
+            (
+                "tx-payload".to_string(),
+                Val::Raw(format!("TODO {}", self.tx)),
+            ),
+            ("scc".to_string(), Val::Raw(format!("TODO {:?}", self.scc))),
+            (
+                "delegation".to_string(),
+                Val::Raw(format!("TODO {:?}", self.delegation)),
+            ),
+            (
+                "update".to_string(),
+                Val::Raw(format!("TODO {:?}", self.update)),
+            ),
+        ])
     }
 }
 
 impl Pretty for genesis::Block {
     fn to_pretty(&self) -> Val {
-        Val::Tree(
-            None,
-            vec![
-                (
-                    "header".to_string(),
-                    Val::Raw(format!("TODO {}", self.header)),
-                ),
-                (
-                    "body".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.body)),
-                ),
-                (
-                    "extra".to_string(),
-                    Val::Raw(format!("TODO {:?}", self.extra)),
-                ),
-            ],
-        )
+        Val::Tree(vec![
+            (
+                "header".to_string(),
+                Val::Raw(format!("TODO {}", self.header)),
+            ),
+            (
+                "body".to_string(),
+                Val::Raw(format!("TODO {:?}", self.body)),
+            ),
+            (
+                "extra".to_string(),
+                Val::Raw(format!("TODO {:?}", self.extra)),
+            ),
+        ])
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ansi_term::Colour;
     use std::vec::Vec;
 
     use command::pretty::Val::*;
@@ -347,7 +281,7 @@ mod tests {
         input.push(("name".to_string(), Raw("zaphod".to_string())));
         input.push(("age".to_string(), Raw(format!("{}", 42))));
         assert_eq!(
-            format!("{}", Tree(Some(Colour::Red), input)),
+            format!("{}", Tree(input)),
             "\
 - name: zaphod
 - age : 42
@@ -360,33 +294,15 @@ mod tests {
         nested.push(("name".to_string(), Raw("zaphod".to_string())));
         nested.push(("age".to_string(), Raw(format!("{}", 42))));
         let mut input = Vec::new();
-        input.push(("character".to_string(), Tree(Some(Colour::Blue), nested)));
+        input.push(("character".to_string(), Tree(nested)));
         input.push(("crook".to_string(), Raw("yes".to_string())));
         assert_eq!(
-            format!("{}", Tree(Some(Colour::Red), input)),
+            format!("{}", Tree(input)),
             "\
 - character:
     - name: zaphod
     - age : 42
 - crook    : yes
-"
-        );
-    }
-    #[test]
-    fn test_format_no_color() {
-        let input = vec![("name".to_string(), Raw("zaphod".to_string()))];
-        assert_eq!(format_val(&Tree(None, input), 4), "- name: zaphod\n");
-    }
-    #[test]
-    fn test_format_color_flat_pairs() {
-        let mut input = Vec::new();
-        input.push(("name".to_string(), Raw("zaphod".to_string())));
-        input.push(("age".to_string(), Raw(format!("{}", 42))));
-        assert_eq!(
-            format_val(&Tree(Some(Colour::Red), input), 4),
-            "\
-- \u{1b}[31mname\u{1b}[0m: zaphod
-- \u{1b}[31mage \u{1b}[0m: 42
 "
         );
     }

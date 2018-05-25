@@ -15,7 +15,7 @@ use std::io::{Write, stdout};
 use protocol::command::*;
 use exe_common::{config::{net}, network::{Network}};
 
-use command::pretty;
+use command::pretty::Pretty;
 
 pub fn new_network(cfg: &net::Config) -> Network {
     Network::new(cfg.protocol_magic, &cfg.domain.clone())
@@ -672,7 +672,7 @@ fn packref_fromhex(s: &String) -> PackHash {
 }
 
 fn display_block(blk: &blockchain::Block) {
-    println!("{}", pretty::format(blk, 4));
+    println!("{}", blk.to_pretty());
 }
 
 mod internal {
