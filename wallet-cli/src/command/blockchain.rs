@@ -14,10 +14,20 @@ use exe_common::{config::{net}, network::{Peer, api::{*}}};
 
 use command::pretty::Pretty;
 
-pub fn get_native_peer(cfg: &net::Config) -> Peer {
+pub fn get_native_peer(blockchain: String, cfg: &net::Config) -> Peer {
     for peer in cfg.peers.iter() {
         if peer.is_native() {
-            return Peer::new(peer.name().to_owned(), peer.peer().clone(), cfg.protocol_magic).unwrap()
+            return Peer::new(blockchain, peer.name().to_owned(), peer.peer().clone(), cfg.protocol_magic).unwrap()
+        }
+    }
+
+    panic!("no native peer to connect to")
+}
+
+pub fn get_http_peer(blockchain: String, cfg: &net::Config) -> Peer {
+    for peer in cfg.peers.iter() {
+        if peer.is_http() {
+            return Peer::new(blockchain, peer.name().to_owned(), peer.peer().clone(), cfg.protocol_magic).unwrap()
         }
     }
 
@@ -47,10 +57,10 @@ fn find_earliest_epoch(storage: &storage::Storage, minimum_epochid: blockchain::
     }
 }
 
-fn net_sync_fast(mut storage: Storage) {
+fn net_sync_fast(network: String, mut storage: Storage) {
     let netcfg_file = storage.config.get_config_file();
     let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-    let mut net = get_native_peer(&net_cfg);
+    let mut net = get_native_peer(network, &net_cfg);
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 
@@ -90,6 +100,43 @@ fn net_sync_fast(mut storage: Storage) {
             start_header_hash: download_start_hash,
             previous_header_hash: download_prev_hash,
             upper_bound_hash: network_tip.clone()
+        };
+        let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
+        download_prev_hash = result.previous_last_header_hash;
+        download_start_hash = result.last_header_hash;
+        download_epoch_id += 1;
+    }
+}
+
+fn net_sync_faster(network: String, mut storage: Storage) {
+    let netcfg_file = storage.config.get_config_file();
+    let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+    let mut net = get_http_peer(network, &net_cfg);
+
+    //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
+
+    println!("Configured genesis   : {}", net_cfg.genesis);
+    println!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+
+    // find the earliest epoch we know about starting from network_slotid
+    let (latest_known_epoch_id, mstart_hash, prev_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, 40) {
+        None => { (net_cfg.epoch_start, Some(net_cfg.genesis.clone()), net_cfg.genesis_prev.clone()) },
+        Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, None, get_last_blockid(&storage.config, &packhash).unwrap()) }
+    };
+    let latest_known_epoch_id = 0;
+    println!("latest known epoch {} hash={:?}", latest_known_epoch_id, mstart_hash);
+
+    let mut download_epoch_id = latest_known_epoch_id;
+    let mut download_prev_hash = prev_hash.clone();
+    let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
+
+    while download_epoch_id < 40 {
+        println!("downloading epoch {} {}", download_epoch_id, download_start_hash);
+        let fep = FetchEpochParams {
+            epoch_id: download_epoch_id,
+            start_header_hash: download_start_hash,
+            previous_header_hash: download_prev_hash,
+            upper_bound_hash: net_cfg.genesis_prev.clone()
         };
         let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
         download_prev_hash = result.previous_last_header_hash;
@@ -228,7 +275,7 @@ impl HasCommand for Blockchain {
                 let config = resolv_network_by_name(&opts);
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = get_native_peer(&net_cfg);
+                let mut net = get_native_peer(config.network, &net_cfg);
                 let mbh = net.get_tip().unwrap();
                 println!("prv block header: {}", mbh.get_previous_header());
             },
@@ -239,14 +286,14 @@ impl HasCommand for Blockchain {
                 let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = get_native_peer(&net_cfg);
+                let mut net = get_native_peer(config.network.clone(), &net_cfg);
                 let b = net.get_block(hh.clone()).unwrap();
                 let storage = config.get_storage().unwrap();
                 blob::write(&storage, hh.bytes(), &cbor::encode_to_cbor(&b).unwrap()).unwrap();
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
-                net_sync_fast(config.get_storage().unwrap())
+                net_sync_fast(config.network.clone(), config.get_storage().unwrap())
             },
             ("debug-index", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);

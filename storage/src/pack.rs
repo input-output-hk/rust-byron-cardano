@@ -439,8 +439,9 @@ impl RawBufPackWriter {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
                     Ok(bytes) => {
-                        self.writer.append(super::HeaderHash::new(&bytes).bytes(), &bytes);
-                        bytes.len()
+                        self.last = bytes;
+                        self.writer.append(super::HeaderHash::new(&self.last).bytes(), &self.last);
+                        self.last.len()
                     },
                     Err(err) => {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {

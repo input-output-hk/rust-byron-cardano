@@ -1,34 +1,30 @@
-use wallet_crypto::config::{ProtocolMagic};
-use rand;
-use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
 use blockchain::{BlockHeader, Block, HeaderHash};
 use storage::{self, Storage, types::{PackHash}};
 
 use config::net;
 
-use network::{Error, Result};
-use network::api::{Api, FetchEpochParams, FetchEpochResult};
+use futures::{Future, Stream};
+use hyper::Client;
+use tokio_core::reactor::Core;
 
-use std::io::{Write};
-use curl::easy::Easy;
+use network::{Result};
+use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
 
 /// hermes end point
 pub struct HermesEndPoint {
     pub url: String,
     pub blockchain: String,
+    core: Core
 }
 
 impl HermesEndPoint {
     pub fn new(url: String, blockchain: String) -> Self {
-        HermesEndPoint { url, blockchain }
+        HermesEndPoint { url, blockchain, core: Core::new().unwrap() }
     }
 
-    pub fn handle(&mut self, path: &str) -> Result<Easy> {
-        let mut handle = Easy::new();
-
-        handle.url(&format!("{}/{}/{}", self.url, self.blockchain, path))?;
-        Ok(handle)
+    pub fn uri(& mut self, path: &str) -> String {
+        format!("{}/{}/{}", self.url, self.blockchain, path)
     }
 }
 
@@ -37,22 +33,28 @@ impl Api for HermesEndPoint {
         unimplemented!()
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, _hash: HeaderHash) -> Result<Block> {
         unimplemented!()
     }
 
-    fn fetch_epoch(&mut self, config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+    fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         let path = format!("epoch/{}", fep.epoch_id);
 
-        let mut handle = self.handle(&path)?;
         let mut writer = storage::pack::RawBufPackWriter::init(&storage.config);
         {
-            let mut transfer = handle.transfer();
-            transfer.write_function(|data| {
-                writer.append(data);
-                Ok(data.len())
-            })?;
-            transfer.perform()?;
+            let uri = self.uri(&path).as_str().parse().unwrap();
+            let client = Client::new(&self.core.handle());
+            let work = client.get(uri).and_then(|res| {
+                debug!("Response: {}", res.status());
+
+                res.body().for_each(|chunk| {
+                    info!("received: {} bytes", chunk.len());
+                    writer.append(&chunk);
+                    Ok(())
+                })
+            });
+            self.core.run(work)?;
+
         }
         let (packhash, index) = writer.finalize();
 

@@ -9,3 +9,4 @@ pub use self::error::{Error};
 pub use self::result::{Result};
 pub use self::api::{*};
 pub use self::peer::{Peer};
+pub use self::hermes::{HermesEndPoint};
