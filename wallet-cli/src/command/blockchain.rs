@@ -13,7 +13,7 @@ use config::{Config};
 use std::io::{Write, stdout};
 
 use protocol::command::*;
-use exe_common::{config::{net}, network::{Network}};
+use exe_common::{config::{net}, network::native::{Network}};
 
 use command::pretty::Pretty;
 

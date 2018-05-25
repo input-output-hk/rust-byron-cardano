@@ -22,7 +22,7 @@ mod account;
 mod command;
 
 use command::{HasCommand};
-use exe_common::network::{Network};
+use exe_common::network::native::{Network};
 
 fn main() {
     use clap::{App};
