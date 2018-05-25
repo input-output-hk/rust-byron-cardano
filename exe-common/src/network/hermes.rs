@@ -62,7 +62,10 @@ impl Api for HermesEndPoint {
         tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
         storage::epoch::epoch_create(&storage.config, &packhash, fep.epoch_id);
 
-        let last = writer.last();
+        let last = match writer.last() {
+            None => { panic!("no last block found, error.") },
+            Some(blk) => blk
+        };
         let last_hdr = last.get_header();
 
         Ok(FetchEpochResult {

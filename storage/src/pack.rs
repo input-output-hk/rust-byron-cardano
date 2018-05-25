@@ -419,7 +419,7 @@ impl PackWriter {
 pub struct RawBufPackWriter {
     writer: PackWriter,
     buffer: Vec<u8>,
-    last: Vec<u8>
+    last: Option<blockchain::Block>
 }
 impl RawBufPackWriter {
     pub fn init(cfg: &super::StorageConfig) -> Self {
@@ -427,11 +427,12 @@ impl RawBufPackWriter {
         RawBufPackWriter {
             writer: writer,
             buffer: Vec::new(),
-            last: Vec::new()
+            last: None
         }
     }
 
     pub fn append(&mut self, bytes: &[u8]) {
+        use wallet_crypto::{cbor};
         self.buffer.extend_from_slice(bytes);
 
         while ! self.buffer.is_empty() {
@@ -439,9 +440,10 @@ impl RawBufPackWriter {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
                     Ok(bytes) => {
-                        self.last = bytes;
-                        self.writer.append(super::HeaderHash::new(&self.last).bytes(), &self.last);
-                        self.last.len()
+                        let block : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
+                        self.writer.append(block.get_header().compute_hash().bytes(), &bytes);
+                        self.last = Some(block);
+                        bytes.len()
                     },
                     Err(err) => {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
@@ -455,10 +457,8 @@ impl RawBufPackWriter {
             self.buffer = Vec::from(&self.buffer[read..]);
         }
     }
-    pub fn last(&self) -> blockchain::Block {
-        use wallet_crypto::{cbor};
-        cbor::decode_from_cbor(&self.last).unwrap()
-    }
+    pub fn last<'a>(&'a self) -> &'a Option<blockchain::Block> { &self.last }
+
     pub fn finalize(&mut self) -> (super::PackHash, Index) {
         self.writer.finalize()
     }
