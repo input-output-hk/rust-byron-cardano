@@ -1,6 +1,5 @@
 use std::net::{TcpStream, SocketAddr};
 use std::time::{SystemTime, Duration};
-use std::sync::{Arc, RwLock};
 use std::io::{Read,Write};
 use std::io;
 use std::fmt;

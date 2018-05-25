@@ -11,9 +11,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_yaml;
 
-extern crate futures;
-extern crate tokio_core;
-extern crate hyper;
+extern crate curl;
 
 mod mstream;
 pub mod network;

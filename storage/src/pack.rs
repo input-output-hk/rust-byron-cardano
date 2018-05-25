@@ -334,7 +334,7 @@ impl Index {
     }
 }
 
-pub fn read_block_raw_next(mut file: &fs::File) -> io::Result<Vec<u8>> {
+pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
     let mut sz_buf = [0u8;SIZE_SIZE];
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
@@ -412,6 +412,47 @@ impl PackWriter {
         let path = self.storage_config.get_pack_filepath(&packhash);
         self.tmpfile.render_permanent(&path).unwrap();
         (packhash, self.index.clone())
+    }
+}
+
+pub struct RawBufPackWriter {
+    writer: PackWriter,
+    buffer: Vec<u8>,
+}
+impl RawBufPackWriter {
+    pub fn init(cfg: &super::StorageConfig) -> Self {
+        let writer = PackWriter::init(cfg);
+        RawBufPackWriter {
+            writer: writer,
+            buffer: Vec::new(),
+        }
+    }
+
+    pub fn append(&mut self, bytes: &[u8]) {
+        self.buffer.extend_from_slice(bytes);
+
+        while ! self.buffer.is_empty() {
+            let read = {
+                let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
+                match read_block_raw_next(&mut reader) {
+                    Ok(bytes) => {
+                        self.writer.append(super::HeaderHash::new(&bytes).bytes(), &bytes);
+                        bytes.len()
+                    },
+                    Err(err) => {
+                        if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
+                            return; // not enough bytes
+                        }
+                        error!("error whlie reading block: {:?}", err);
+                        panic!();
+                    }
+                }
+            };
+            self.buffer = Vec::from(&self.buffer[read..]);
+        }
+    }
+    pub fn finalize(&mut self) -> (super::PackHash, Index) {
+        self.writer.finalize()
     }
 }
 

@@ -2,24 +2,33 @@ use wallet_crypto::config::{ProtocolMagic};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
 use blockchain::{BlockHeader, Block, HeaderHash};
-use storage::{Storage, types::{PackHash}};
+use storage::{self, Storage, types::{PackHash}};
 
-use hyper::Client;
-use tokio_core::reactor::Core;
 use config::net;
 
 use network::{Error, Result};
 use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
+use std::io::{Write};
+use curl::easy::Easy;
+
+
 /// hermes end point
 pub struct HermesEndPoint {
     pub url: String,
-    pub core: Core,
+    pub blockchain: String,
 }
 
 impl HermesEndPoint {
-    pub fn new(url: &String) -> Self {
-        HermesEndPoint { url: url, core = Core::new()?; }
+    pub fn new(url: String, blockchain: String) -> Self {
+        HermesEndPoint { url, blockchain }
+    }
+
+    pub fn handle(&mut self, path: &str) -> Result<Easy> {
+        let mut handle = Easy::new();
+
+        handle.url(&format!("{}/{}/{}", self.url, self.blockchain, path))?;
+        Ok(handle)
     }
 }
 
@@ -33,14 +42,24 @@ impl Api for HermesEndPoint {
     }
 
     fn fetch_epoch(&mut self, config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
-        let uri_str = format!("{}/epoch/{}", self.url, fep.epoch_id);
-        let uri = uri_str.parse()?;
-        let client = Client::new(&self.core.handle());
-        let work = client.get(uri);
-        work.and_then(|res| {
-            println!("Response: {}", res.status());
+        let path = format!("epoch/{}", fep.epoch_id);
 
-            //res.body()
+        let mut handle = self.handle(&path)?;
+        let mut writer = storage::pack::RawBufPackWriter::init(&storage.config);
+        handle.write_function(|data| {
+            writer.append(&data);
+            Ok(data.len())
         });
+        handle.perform()?;
+        let (packhash, index) = writer.finalize();
+
+        let (_, tmpfile) = storage::pack::create_index(storage, &index);
+        tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+
+        Ok(FetchEpochResult {
+            previous_last_header_hash: result.0, // TODO
+            last_header_hash: result.1, // TODO
+            packhash: packhash
+        })
     }
 }
