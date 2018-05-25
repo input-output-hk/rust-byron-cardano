@@ -14,14 +14,15 @@ pub trait Api {
 
 #[derive(Debug)]
 pub struct FetchEpochParams {
-    epoch_id: EpochId,
-    start_header_hash: HeaderHash,
-    previous_header_hash: HeaderHash,
-    upper_bounder_hash: HeaderHash
+    pub epoch_id: EpochId,
+    pub start_header_hash: HeaderHash,
+    pub previous_header_hash: HeaderHash,
+    pub upper_bound_hash: HeaderHash
 }
 #[derive(Debug)]
 pub struct FetchEpochResult {
-    last_header_hash: HeaderHash,
+    pub last_header_hash: HeaderHash,
+    pub previous_last_header_hash: HeaderHash,
 
-    packhash: PackHash
+    pub packhash: PackHash
 }

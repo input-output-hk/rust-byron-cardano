@@ -22,7 +22,6 @@ mod account;
 mod command;
 
 use command::{HasCommand};
-use exe_common::network::native::{Network};
 
 fn main() {
     use clap::{App};
@@ -35,12 +34,12 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
         .subcommand(command::Wallet::mk_command())
-        .subcommand(Network::mk_command())
+        .subcommand(command::Blockchain::mk_command())
         .get_matches();
 
     match matches.subcommand() {
-        (command::Wallet::COMMAND, Some(sub_matches)) => command::Wallet::run((), sub_matches),
-        (Network::COMMAND,         Some(sub_matches)) => Network::run((), sub_matches),
+        (command::Wallet::COMMAND,     Some(sub_matches)) => command::Wallet::run((), sub_matches),
+        (command::Blockchain::COMMAND, Some(sub_matches)) => command::Blockchain::run((), sub_matches),
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);

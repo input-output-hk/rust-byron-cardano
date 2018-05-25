@@ -1,5 +1,6 @@
 use config;
-use network::{native, Result, api::{*}};
+use network::{native, Result};
+use network::api::{*};
 use wallet_crypto::config::{ProtocolMagic};
 use blockchain::{BlockHeader, Block, HeaderHash};
 use storage::{Storage};

@@ -6,53 +6,27 @@ use storage::{blob, tag, Storage};
 use storage::types::{PackHash};
 use storage::{pack_blobs, block_location, block_read_location, pack, PackParameters};
 //use storage::tag::{HEAD};
-use std::time::{SystemTime, Duration};
 use blockchain;
-use blockchain::{BlockDate, SlotId};
 use config::{Config};
 use std::io::{Write, stdout};
 
-use protocol::command::*;
-use exe_common::{config::{net}, network::native::{Network}};
+use exe_common::{config::{net}, network::{Peer, api::{*}}};
 
 use command::pretty::Pretty;
 
-pub fn new_network(cfg: &net::Config) -> Network {
-    let natives = cfg.peers.natives();
-
-    for native in natives {
-        return Network::new(cfg.protocol_magic, native);
+pub fn get_native_peer(cfg: &net::Config) -> Peer {
+    for peer in cfg.peers.iter() {
+        if peer.is_native() {
+            return Peer::new(peer.name().to_owned(), peer.peer().clone(), cfg.protocol_magic).unwrap()
+        }
     }
 
     panic!("no native peer to connect to")
 }
 
-// TODO return BlockHeader not MainBlockHeader
-fn network_get_head_header(_storage: &Storage, net: &mut Network) -> blockchain::BlockHeader {
-    let block_headers_raw = GetBlockHeader::tip().execute(&mut net.0).expect("to get one header at least");
-
-    let block_headers = block_headers_raw.decode().unwrap();
-
-    if block_headers.len() != 1 {
-        panic!("get head header return more than 1 header")
-    }
-    let mbh = block_headers[0].clone();
-    //tag::write(&storage, &HEAD.to_string(), mbh.get_previous_header().as_ref());
-    mbh
-}
-
 // Return the chain of block headers starting at from's next block
 // and terminating at to, unless this range represent a number
 // of blocks greater than the limit imposed by the node we're talking to.
-fn network_get_blocks_headers(net: &mut Network, from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> blockchain::RawBlockHeaderMultiple {
-    let mbh = GetBlockHeader::range(&vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
-    mbh
-}
-
-fn duration_print(d: Duration) -> String {
-    format!("{}.{:03} seconds", d.as_secs(), d.subsec_nanos() / 1_000_000)
-}
-
 fn find_earliest_epoch(storage: &storage::Storage, minimum_epochid: blockchain::EpochId, start_epochid: blockchain::EpochId)
         -> Option<(blockchain::EpochId, PackHash)> {
     let mut epoch_id = start_epochid;
@@ -73,152 +47,15 @@ fn find_earliest_epoch(storage: &storage::Storage, minimum_epochid: blockchain::
     }
 }
 
-// download a complete epoch and create a new pack with all the blocks
-//
-// x_start_hash should reference an epoch genesis block, and tip_hash
-// should gives the latest known hash of the chain.
-fn download_epoch(storage: &storage::Storage, mut net: &mut Network,
-                  epoch_id: blockchain::EpochId,
-                  x_start_hash: &blockchain::HeaderHash,
-                  x_previous_headerhash: &blockchain::HeaderHash,
-                  tip_hash: &blockchain::HeaderHash) -> (blockchain::HeaderHash, blockchain::HeaderHash) {
-    let mut start_hash = x_start_hash.clone();
-    let mut found_epoch_boundary = None;
-    let mut writer = storage::pack::PackWriter::init(&storage.config);
-    let mut previous_headerhash = x_previous_headerhash.clone();
-    let epoch_time_start = SystemTime::now();
-    let mut expected_slotid = blockchain::BlockDate::Genesis(epoch_id);
-
-    let debug = false;
-
-    loop {
-        println!("  ### slotid={} from={}", expected_slotid, start_hash);
-        let metrics = net.read_start();
-        let block_headers_raw = network_get_blocks_headers(&mut net, &start_hash, tip_hash);
-        let hdr_metrics = net.read_elapsed(&metrics);
-        let block_headers = block_headers_raw.decode().unwrap();
-        println!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
-
-        let mut start = 0;
-        let mut end = block_headers.len() - 1;
-
-        if debug {
-            println!("  asked {} to {}", start_hash, tip_hash);
-            println!("  start {} {} <- {}", block_headers[start].compute_hash(),  block_headers[start].get_blockdate(), block_headers[start].get_previous_header());
-            println!("  end   {} {} <- {}", block_headers[end].compute_hash(), block_headers[end].get_blockdate(), block_headers[end].get_previous_header());
-        }
-
-        // if the earliest block headers we receive has an epoch
-        // less than the expected epoch, we just fast skip
-        // this set of headers and restart the loop with the
-        // latest known hash
-        if block_headers[start].get_blockdate().get_epochid() < epoch_id {
-            start_hash = block_headers[start].compute_hash();
-            println!("headers are of previous epochs, fast skip to {}", start_hash);
-            continue;
-        }
-
-        while end >= start && block_headers[start].get_blockdate().get_epochid() > epoch_id {
-            start += 1
-        }
-        while end > start && block_headers[end].get_blockdate().get_epochid() < epoch_id {
-            end -= 1
-        }
-
-        if start > 0 {
-            println!("  found next epoch");
-            found_epoch_boundary = Some(block_headers[start-1].compute_hash());
-        }
-        let latest_block = &block_headers[start];
-        let first_block = &block_headers[end];
-
-        if debug {
-            println!("  hdr latest {} {}", latest_block.compute_hash(), latest_block.get_blockdate());
-            println!("  hdr first  {} {}", first_block.compute_hash(), first_block.get_blockdate());
-        }
-
-        let download_start_hash = if first_block.get_blockdate() == expected_slotid {
-            first_block.compute_hash()
-        } else if first_block.get_blockdate() == expected_slotid.next() {
-            first_block.get_previous_header()
-        } else {
-            panic!("not matching. gap")
-        };
-
-        let metrics = net.read_start();
-        let blocks_raw = GetBlock::from(&download_start_hash, &latest_block.compute_hash())
-                                .execute(&mut net.0)
-                                .expect("to get one block at least");
-        let blocks_metrics = net.read_elapsed(&metrics);
-        println!("  got {} blocks  ( {} )", blocks_raw.len(), blocks_metrics);
-
-        if debug {
-            let first_block = blocks_raw[0].decode().unwrap();
-            let first_block_hdr = first_block.get_header();
-            println!("first block {} {} prev {}", first_block_hdr.compute_hash(), first_block_hdr.get_blockdate(), first_block_hdr.get_previous_header());
-        }
-
-        for block_raw in blocks_raw.iter() {
-            let block = block_raw.decode().unwrap();
-            let hdr = block.get_header();
-            let date = hdr.get_blockdate();
-            let blockhash = hdr.compute_hash();
-            let block_previous_header = hdr.get_previous_header();
-
-            if date.get_epochid() != epoch_id {
-                panic!("trying to append a block of different epoch id {}", date.get_epochid())
-            }
-
-            if previous_headerhash != block_previous_header {
-                panic!("previous header doesn't match: hash {} date {} got {} expected {}",
-                       blockhash, date, block_previous_header, previous_headerhash)
-            }
-
-            if &date != &expected_slotid {
-                println!("  WARNING: not contiguous. addr {} found, expected {} {}", date, expected_slotid, block_previous_header);
-            }
-
-            match date {
-                BlockDate::Genesis(epoch) => {
-                    expected_slotid = BlockDate::Normal(SlotId { epoch: epoch, slotid: 0 });
-                },
-                BlockDate::Normal(slotid) => {
-                    expected_slotid = BlockDate::Normal(slotid.next());
-                },
-            }
-
-            writer.append(&storage::types::header_to_blockhash(&blockhash), block_raw.as_ref());
-            previous_headerhash = blockhash.clone();
-        }
-        // println!("packing {}", slot);
-        start_hash = previous_headerhash.clone();
-
-        match found_epoch_boundary {
-            None    => {},
-            Some(b) => {
-                println!("=> packing finished {} slotids", expected_slotid);
-                // write packfile
-                let (packhash, index) = writer.finalize();
-                let (_, tmpfile) = storage::pack::create_index(storage, &index);
-                tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
-                let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
-                println!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]), epoch_id, duration_print(epoch_time_elapsed));
-                tag::write(storage, &tag::get_epoch_tag(epoch_id), &packhash[..]);
-                return (previous_headerhash, b)
-            },
-        }
-    }
-}
-
-fn net_sync_fast(storage: Storage) {
+fn net_sync_fast(mut storage: Storage) {
     let netcfg_file = storage.config.get_config_file();
     let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-    let mut net = new_network(&net_cfg);
+    let mut net = get_native_peer(&net_cfg);
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 
     // recover and print the TIP of the network
-    let mbh = network_get_head_header(&storage, &mut net);
+    let mbh = net.get_tip().unwrap();
     let network_tip = mbh.compute_hash();
     let network_slotid = mbh.get_blockdate();
 
@@ -237,7 +74,7 @@ fn net_sync_fast(storage: Storage) {
 
     // find the earliest epoch we know about starting from network_slotid
     let (latest_known_epoch_id, mstart_hash, prev_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, network_slotid.get_epochid()) {
-        None => { (net_cfg.epoch_start, Some(net_cfg.genesis), net_cfg.genesis_prev) },
+        None => { (net_cfg.epoch_start, Some(net_cfg.genesis.clone()), net_cfg.genesis_prev.clone()) },
         Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, None, get_last_blockid(&storage.config, &packhash).unwrap()) }
     };
     println!("latest known epoch {} hash={:?}", latest_known_epoch_id, mstart_hash);
@@ -248,9 +85,15 @@ fn net_sync_fast(storage: Storage) {
 
     while download_epoch_id < network_slotid.get_epochid() {
         println!("downloading epoch {} {}", download_epoch_id, download_start_hash);
-        let result = download_epoch(&storage, &mut net, download_epoch_id, &download_start_hash, &download_prev_hash, &network_tip);
-        download_prev_hash = result.0;
-        download_start_hash = result.1;
+        let fep = FetchEpochParams {
+            epoch_id: download_epoch_id,
+            start_header_hash: download_start_hash,
+            previous_header_hash: download_prev_hash,
+            upper_bound_hash: network_tip.clone()
+        };
+        let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
+        download_prev_hash = result.previous_last_header_hash;
+        download_start_hash = result.last_header_hash;
         download_epoch_id += 1;
     }
 }
@@ -269,8 +112,10 @@ fn resolv_network_by_name<'a>(opts: &ArgMatches<'a>) -> Config {
     config
 }
 
+pub struct Blockchain;
+
 // TODO: rename Network to Blockchain?
-impl HasCommand for Network {
+impl HasCommand for Blockchain {
     type Output = ();
     type Config = ();
 
@@ -383,9 +228,9 @@ impl HasCommand for Network {
                 let config = resolv_network_by_name(&opts);
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = new_network(&net_cfg);
+                let mut net = get_native_peer(&net_cfg);
                 let storage = config.get_storage().unwrap();
-                let mbh = network_get_head_header(&storage, &mut net);
+                let mbh = net.get_tip().unwrap();
                 println!("prv block header: {}", mbh.get_previous_header());
             },
             ("get-block", Some(opts)) => {
@@ -395,12 +240,10 @@ impl HasCommand for Network {
                 let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = new_network(&net_cfg);
-                let mut b = GetBlock::only(&hh).execute(&mut net.0)
-                    .expect("to get one block at least");
-
+                let mut net = get_native_peer(&net_cfg);
+                let b = net.get_block(hh.clone()).unwrap();
                 let storage = config.get_storage().unwrap();
-                blob::write(&storage, hh.bytes(), b[0].as_ref()).unwrap();
+                blob::write(&storage, hh.bytes(), &cbor::encode_to_cbor(&b).unwrap()).unwrap();
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);

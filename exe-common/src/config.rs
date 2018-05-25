@@ -1,7 +1,7 @@
 pub mod net {
     use blockchain::{HeaderHash,EpochId};
     use wallet_crypto::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}};
+    use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}, ops::{Deref, DerefMut}};
     use storage::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
@@ -116,6 +116,13 @@ pub mod net {
         pub fn new(name: String, peer: Peer) -> Self { NamedPeer(name, peer) }
         pub fn name(&self) -> &str { self.0.as_str() }
         pub fn peer(&self) -> &Peer { &self.1 }
+    }
+    impl Deref for NamedPeer {
+        type Target = Peer;
+        fn deref(&self) -> &Self::Target { &self.1 }
+    }
+    impl DerefMut for NamedPeer {
+        fn deref_mut(&mut self) -> &mut Self::Target { &mut self.1 }
     }
     impl serde::Serialize for NamedPeer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
