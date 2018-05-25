@@ -4,11 +4,11 @@ use storage::{Storage, types::{PackHash}};
 use network::{Result};
 
 pub trait Api {
-    fn get_tip(&self) -> Result<BlockHeader>;
+    fn get_tip(&mut self) -> Result<BlockHeader>;
 
-    fn get_block(&self) -> Result<Block>;
+    fn get_block(&mut self) -> Result<Block>;
 
-    fn fetch_epoch(&self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult>;
+    fn fetch_epoch(&mut self, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult>;
 }
 
 #[derive(Debug)]
