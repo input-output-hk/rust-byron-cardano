@@ -12,7 +12,7 @@ use network::{Error, Result};
 use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
 /// native peer
-pub struct Peer {
+pub struct PeerPool {
     pub name: String,
 
     /// the domain or the IP address of the peer
@@ -24,7 +24,7 @@ pub struct Peer {
     /// when contacting the DNS resolver
     pub connections: Vec<Connection>
 }
-impl Peer {
+impl PeerPool {
     pub fn new(name: String, address: String, protocol_magic: ProtocolMagic) -> Result<Self> {
         let mut connections = Vec::new();
         for sockaddr in address.to_socket_addrs()? {
@@ -39,7 +39,7 @@ impl Peer {
                 },
             }
         }
-        Ok(Peer { name, address, connections })
+        Ok(PeerPool { name, address, connections })
     }
 }
 
@@ -47,7 +47,7 @@ impl Peer {
 //
 // in the case we have multiple connection on a peer, we might want to operate
 // paralellisation of the effort
-impl Api for Peer {
+impl Api for PeerPool {
     fn get_tip(&mut self) -> Result<BlockHeader> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
