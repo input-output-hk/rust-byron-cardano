@@ -97,18 +97,6 @@ impl fmt::Display for Val {
     }
 }
 
-// implement display for anything which implements Pretty
-impl fmt::Display for Pretty {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt_pretty(
-            &self.to_pretty(),
-            f,
-            DISPLAY_INDENT_SIZE,
-            DISPLAY_INDENT_LEVEL,
-        )
-    }
-}
-
 // the rest of the file is `impl` and `test`
 
 impl Pretty for str {
