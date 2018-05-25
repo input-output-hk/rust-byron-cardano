@@ -4,7 +4,7 @@ use wallet_crypto::config::{ProtocolMagic};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
 use blockchain::{BlockHeader, Block, HeaderHash};
-use storage::{Storage, types::{PackHash}};
+use storage::{Storage};
 use protocol::command::*;
 
 use network::{Error, Result};
