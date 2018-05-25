@@ -9,31 +9,32 @@ use blockchain::normal;
 use blockchain::{Block, SscProof};
 use wallet_crypto;
 
+// Constants for the fmt::Display instance
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
 static DISPLAY_USE_COLOR: bool = false; // no color for display implementations
 
-type Assoc = (String, Val);
+type AST = Vec<(Key, Val)>;
 
-// core pretty-printer type which facilitates homogenous ordered key-value pairs
+type Key = String;
+
+// TODO: extend with blockchain-specific constructors with color
 pub enum Val {
-    Single(Box<fmt::Display>),
-    Pairs(Option<Colour>, Vec<Assoc>),
+    Raw(Box<fmt::Display>),
+    Tree(Option<Colour>, AST),
 }
 
-// XXX: this class is related to "into" somehow
 pub trait Pretty {
     fn to_pretty(&self) -> Val;
 }
 
-fn longest_key_length(pairs: &Vec<Assoc>) -> usize {
-    pairs
-        .iter()
+fn longest_key_length(ast: &AST) -> usize {
+    ast.iter()
         .fold(0, |longest, (key, _)| std::cmp::max(longest, key.len()))
 }
 
 fn fmt_key(
-    key: &String,
+    key: &Key,
     f: &mut fmt::Formatter,
     indent_size: usize,
     indent_level: usize,
@@ -64,13 +65,13 @@ fn fmt_val(
 ) -> fmt::Result {
     match val {
         // write inline
-        Val::Single(_) => {
+        Val::Raw(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level, use_color)?;
             write!(f, "\n")
         }
         // write on the next line
-        Val::Pairs(_, _) => {
+        Val::Tree(_, _) => {
             write!(f, "\n")?;
             fmt_pretty(val, f, indent_size, indent_level, use_color)
         }
@@ -87,12 +88,11 @@ fn fmt_pretty(
 ) -> fmt::Result {
     match p {
         // format pretty-val as a terminal
-        Val::Single(display) => write!(f, "{}", display),
+        Val::Raw(display) => write!(f, "{}", display),
         // format pretty-val as a set of  key-vals
-        Val::Pairs(color, pairs) => {
-            let key_width = longest_key_length(pairs);
-            pairs
-                .iter()
+        Val::Tree(color, ast) => {
+            let key_width = longest_key_length(ast);
+            ast.iter()
                 .fold(Ok(()), |prev_result, (key, val)| match prev_result {
                     // return an error
                     err @ Err(_) => err,
@@ -159,7 +159,7 @@ pub fn format(p: &Pretty, indent_size: usize) -> String {
 
 impl Pretty for str {
     fn to_pretty(&self) -> Val {
-        Val::Single(Box::new(self.to_string()))
+        Val::Raw(Box::new(self.to_string()))
     }
 }
 
@@ -167,23 +167,23 @@ impl Pretty for Block {
     fn to_pretty(&self) -> Val {
         match self {
             Block::GenesisBlock(b) => {
-                Val::Pairs(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
+                Val::Tree(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
             }
-            Block::MainBlock(b) => Val::Pairs(None, vec![("MainBlock".to_string(), b.to_pretty())]),
+            Block::MainBlock(b) => Val::Tree(None, vec![("MainBlock".to_string(), b.to_pretty())]),
         }
     }
 }
 
 impl Pretty for normal::Block {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             None,
             vec![
                 ("header".to_string(), self.header.to_pretty()),
                 ("body".to_string(), self.body.to_pretty()),
                 (
                     "extra".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.extra))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.extra))),
                 ),
             ],
         )
@@ -192,16 +192,16 @@ impl Pretty for normal::Block {
 
 impl Pretty for normal::BlockHeader {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             Some(Colour::Green),
             vec![
                 (
                     "protocol magic".to_string(),
-                    Val::Single(Box::new(self.protocol_magic)),
+                    Val::Raw(Box::new(self.protocol_magic)),
                 ),
                 (
                     "previous hash".to_string(),
-                    Val::Single(Box::new(wallet_crypto::util::hex::encode(
+                    Val::Raw(Box::new(wallet_crypto::util::hex::encode(
                         self.previous_header.as_ref(),
                     ))),
                 ),
@@ -209,7 +209,7 @@ impl Pretty for normal::BlockHeader {
                 ("consensus".to_string(), self.consensus.to_pretty()),
                 (
                     "extra data".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.extra_data))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.extra_data))),
                 ),
             ],
         )
@@ -218,7 +218,7 @@ impl Pretty for normal::BlockHeader {
 
 impl Pretty for normal::BodyProof {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             Some(Colour::Cyan),
             vec![
                 ("tx proof".to_string(), self.tx.to_pretty()),
@@ -232,10 +232,10 @@ impl Pretty for normal::BodyProof {
 
 impl Pretty for wallet_crypto::tx::TxProof {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             Some(Colour::Yellow),
             vec![
-                ("number".to_string(), Val::Single(Box::new(self.number))),
+                ("number".to_string(), Val::Raw(Box::new(self.number))),
                 ("root".to_string(), self.root.to_pretty()),
                 ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
             ],
@@ -245,38 +245,38 @@ impl Pretty for wallet_crypto::tx::TxProof {
 
 impl Pretty for wallet_crypto::hash::Blake2b256 {
     fn to_pretty(&self) -> Val {
-        Val::Single(Box::new(self.clone()))
+        Val::Raw(Box::new(self.clone()))
     }
 }
 
 impl Pretty for SscProof {
     fn to_pretty(&self) -> Val {
-        Val::Single(Box::new(format!("{:?}", self)))
+        Val::Raw(Box::new(format!("{:?}", self)))
     }
 }
 
 impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             Some(Colour::Cyan),
             vec![
                 (
                     "slot id".to_string(),
-                    Val::Single(Box::new(format!("{:?}", self.slot_id))),
+                    Val::Raw(Box::new(format!("{:?}", self.slot_id))),
                 ),
                 (
                     "leader key".to_string(),
-                    Val::Single(Box::new(wallet_crypto::util::hex::encode(
+                    Val::Raw(Box::new(wallet_crypto::util::hex::encode(
                         self.leader_key.as_ref(),
                     ))),
                 ),
                 (
                     "chain difficulty".to_string(),
-                    Val::Single(Box::new(self.chain_difficulty)),
+                    Val::Raw(Box::new(self.chain_difficulty)),
                 ),
                 (
                     "block signature".to_string(),
-                    Val::Single(Box::new(format!("{:?}", self.block_signature))),
+                    Val::Raw(Box::new(format!("{:?}", self.block_signature))),
                 ),
             ],
         )
@@ -285,24 +285,24 @@ impl Pretty for normal::Consensus {
 
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             Some(Colour::Green),
             vec![
                 (
                     "tx-payload".to_string(),
-                    Val::Single(Box::new(format!("TODO {}", self.tx))),
+                    Val::Raw(Box::new(format!("TODO {}", self.tx))),
                 ),
                 (
                     "scc".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.scc))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.scc))),
                 ),
                 (
                     "delegation".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.delegation))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.delegation))),
                 ),
                 (
                     "update".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.update))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.update))),
                 ),
             ],
         )
@@ -311,20 +311,20 @@ impl Pretty for normal::Body {
 
 impl Pretty for genesis::Block {
     fn to_pretty(&self) -> Val {
-        Val::Pairs(
+        Val::Tree(
             None,
             vec![
                 (
                     "header".to_string(),
-                    Val::Single(Box::new(format!("TODO {}", self.header))),
+                    Val::Raw(Box::new(format!("TODO {}", self.header))),
                 ),
                 (
                     "body".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.body))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.body))),
                 ),
                 (
                     "extra".to_string(),
-                    Val::Single(Box::new(format!("TODO {:?}", self.extra))),
+                    Val::Raw(Box::new(format!("TODO {:?}", self.extra))),
                 ),
             ],
         )
@@ -336,27 +336,27 @@ mod tests {
     use ansi_term::Colour;
     use std::vec::Vec;
 
-    use pretty::Val::*;
-    use pretty::*;
+    use command::pretty::Val::*;
+    use command::pretty::*;
 
     #[test]
     fn test_display_single() {
-        assert_eq!(format!("{}", Single(Box::new(123))), "123");
+        assert_eq!(format!("{}", Raw(Box::new(123))), "123");
     }
     #[test]
     fn longest_key_length_works() {
         let mut input = Vec::new();
-        input.push(("name".to_string(), Single(Box::new("zaphod"))));
-        input.push(("age".to_string(), Single(Box::new(42))));
+        input.push(("name".to_string(), Raw(Box::new("zaphod"))));
+        input.push(("age".to_string(), Raw(Box::new(42))));
         assert_eq!(longest_key_length(&input), 4);
     }
     #[test]
     fn test_display_flat_pairs() {
         let mut input = Vec::new();
-        input.push(("name".to_string(), Single(Box::new("zaphod"))));
-        input.push(("age".to_string(), Single(Box::new(42))));
+        input.push(("name".to_string(), Raw(Box::new("zaphod"))));
+        input.push(("age".to_string(), Raw(Box::new(42))));
         assert_eq!(
-            format!("{}", Pairs(Some(Colour::Red), input)),
+            format!("{}", Tree(Some(Colour::Red), input)),
             "\
 - name: zaphod
 - age : 42
@@ -366,13 +366,13 @@ mod tests {
     #[test]
     fn test_display_nested_pairs() {
         let mut nested = Vec::new();
-        nested.push(("name".to_string(), Single(Box::new("zaphod"))));
-        nested.push(("age".to_string(), Single(Box::new(42))));
+        nested.push(("name".to_string(), Raw(Box::new("zaphod"))));
+        nested.push(("age".to_string(), Raw(Box::new(42))));
         let mut input = Vec::new();
-        input.push(("character".to_string(), Pairs(Some(Colour::Blue), nested)));
-        input.push(("crook".to_string(), Single(Box::new("yes"))));
+        input.push(("character".to_string(), Tree(Some(Colour::Blue), nested)));
+        input.push(("crook".to_string(), Raw(Box::new("yes"))));
         assert_eq!(
-            format!("{}", Pairs(Some(Colour::Red), input)),
+            format!("{}", Tree(Some(Colour::Red), input)),
             "\
 - character:
     - name: zaphod
@@ -383,16 +383,16 @@ mod tests {
     }
     #[test]
     fn test_format_no_color() {
-        let input = vec![("name".to_string(), Single(Box::new("zaphod")))];
-        assert_eq!(format_val(&Pairs(None, input), 4), "- name: zaphod\n");
+        let input = vec![("name".to_string(), Raw(Box::new("zaphod")))];
+        assert_eq!(format_val(&Tree(None, input), 4), "- name: zaphod\n");
     }
     #[test]
     fn test_format_color_flat_pairs() {
         let mut input = Vec::new();
-        input.push(("name".to_string(), Single(Box::new("zaphod"))));
-        input.push(("age".to_string(), Single(Box::new(42))));
+        input.push(("name".to_string(), Raw(Box::new("zaphod"))));
+        input.push(("age".to_string(), Raw(Box::new(42))));
         assert_eq!(
-            format_val(&Pairs(Some(Colour::Red), input), 4),
+            format_val(&Tree(Some(Colour::Red), input), 4),
             "\
 - \u{1b}[31mname\u{1b}[0m: zaphod
 - \u{1b}[31mage \u{1b}[0m: 42
