@@ -92,17 +92,13 @@ fn fmt_pretty(
         // format pretty-val as a set of  key-vals
         Val::Tree(color, ast) => {
             let key_width = longest_key_length(ast);
-            ast.iter()
-                .fold(Ok(()), |prev_result, (key, val)| match prev_result {
-                    // return an error
-                    err @ Err(_) => err,
-                    // continue writing
-                    Ok(()) => {
-                        let col = color.and_then(|c| if use_color { Some(c) } else { None });
-                        fmt_key(key, f, indent_size, indent_level, col, key_width)?;
-                        fmt_val(val, f, indent_size, indent_level + 1, use_color)
-                    }
+            ast.iter().fold(Ok(()), |prev_result, (key, val)| {
+                prev_result.and_then(|()| {
+                    let col = color.and_then(|c| if use_color { Some(c) } else { None });
+                    fmt_key(key, f, indent_size, indent_level, col, key_width)?;
+                    fmt_val(val, f, indent_size, indent_level + 1, use_color)
                 })
+            })
         }
     }
 }
