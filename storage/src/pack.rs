@@ -22,6 +22,7 @@ use types::HASH_SIZE;
 use bloom;
 use types::BlockHash;
 use compression;
+use blockchain;
 
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;
@@ -418,6 +419,7 @@ impl PackWriter {
 pub struct RawBufPackWriter {
     writer: PackWriter,
     buffer: Vec<u8>,
+    last: Vec<u8>
 }
 impl RawBufPackWriter {
     pub fn init(cfg: &super::StorageConfig) -> Self {
@@ -425,6 +427,7 @@ impl RawBufPackWriter {
         RawBufPackWriter {
             writer: writer,
             buffer: Vec::new(),
+            last: Vec::new()
         }
     }
 
@@ -450,6 +453,10 @@ impl RawBufPackWriter {
             };
             self.buffer = Vec::from(&self.buffer[read..]);
         }
+    }
+    pub fn last(&self) -> blockchain::Block {
+        use wallet_crypto::{cbor};
+        cbor::decode_from_cbor(&self.last).unwrap()
     }
     pub fn finalize(&mut self) -> (super::PackHash, Index) {
         self.writer.finalize()

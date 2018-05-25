@@ -46,19 +46,25 @@ impl Api for HermesEndPoint {
 
         let mut handle = self.handle(&path)?;
         let mut writer = storage::pack::RawBufPackWriter::init(&storage.config);
-        handle.write_function(|data| {
-            writer.append(&data);
-            Ok(data.len())
-        });
-        handle.perform()?;
+        {
+            let mut transfer = handle.transfer();
+            transfer.write_function(|data| {
+                writer.append(data);
+                Ok(data.len())
+            })?;
+            transfer.perform()?;
+        }
         let (packhash, index) = writer.finalize();
 
         let (_, tmpfile) = storage::pack::create_index(storage, &index);
         tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
 
+        let last = writer.last();
+        let last_hdr = last.get_header();
+
         Ok(FetchEpochResult {
-            previous_last_header_hash: result.0, // TODO
-            last_header_hash: result.1, // TODO
+            previous_last_header_hash: last_hdr.get_previous_header(),
+            last_header_hash: last_hdr.compute_hash(),
             packhash: packhash
         })
     }
