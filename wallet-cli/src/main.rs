@@ -26,7 +26,9 @@ use command::{HasCommand};
 fn main() {
     use clap::{App};
 
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     trace!("Starting application, {}-{}", crate_name!(), crate_version!());
 
     let matches = App::new(crate_name!())
