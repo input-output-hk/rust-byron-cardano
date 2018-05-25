@@ -1,9 +1,11 @@
-use std::net::TcpStream;
+use std::net::{TcpStream, SocketAddr};
 use std::time::{SystemTime, Duration};
 use std::sync::{Arc, RwLock};
 use std::io::{Read,Write};
 use std::io;
 use std::fmt;
+
+use network::{Result, Error};
 
 pub struct MetricStart {
     bytes_start: u64,
@@ -55,17 +57,30 @@ pub struct MStream {
     write_sz: u64,
 }
 
+static TIMEOUT_SECONDS      : u64 = 1;
+static TIMEOUT_NANO_SECONDS : u32 = 0;
+
 impl MStream {
-    pub fn init(dest: &str) -> Self {
-        let stream = TcpStream::connect(dest).unwrap();
-        stream.set_nodelay(true).unwrap();
+    pub fn init(dest: &SocketAddr) -> Result<Self> {
+        let timeout = Duration::new(TIMEOUT_SECONDS, TIMEOUT_NANO_SECONDS);
+        let stream = match TcpStream::connect_timeout(dest, timeout) {
+            Ok(stream) => stream,
+            Err(ioerr) => {
+                return if ioerr.kind() == io::ErrorKind::TimedOut {
+                    Err(Error::ConnectionTimedOut)
+                } else {
+                    Err(Error::from(ioerr))
+                }
+            }
+        };
+        stream.set_nodelay(true)?;
         //let lock = RwLock::new(5);
-        MStream {
+        Ok(MStream {
             //lock: lock,
             stream: stream,
             read_sz: 0,
             write_sz: 0,
-        }
+        })
     }
 
     pub fn get_read_sz(&self) -> u64 {
