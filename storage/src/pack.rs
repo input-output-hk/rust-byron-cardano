@@ -440,9 +440,11 @@ impl RawBufPackWriter {
                 match read_block_raw_next(&mut reader) {
                     Ok(rblock) => {
                         let block = blockchain::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
-                        self.writer.append(block.to_header().compute_hash().bytes(), rblock.as_ref());
+                        let blk = block.decode().unwrap();
+                        info!("  - block {}", blk.get_header().get_slotid());
+                        self.writer.append(blk.get_header().compute_hash().bytes(), rblock.as_ref());
                         self.last = Some(block);
-                        bytes.len()
+                        rblock.as_ref().len()
                     },
                     Err(err) => {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
