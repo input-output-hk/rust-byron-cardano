@@ -438,8 +438,9 @@ impl RawBufPackWriter {
             let read = {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
-                    Ok(block) => {
-                        self.writer.append(block.to_header().compute_hash().bytes(), block.as_ref());
+                    Ok(rblock) => {
+                        let block = blockchain::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
+                        self.writer.append(block.to_header().compute_hash().bytes(), rblock.as_ref());
                         self.last = Some(block);
                         bytes.len()
                     },
@@ -447,7 +448,7 @@ impl RawBufPackWriter {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
                             return; // not enough bytes
                         }
-                        error!("error whlie reading block: {:?}", err);
+                        error!("error while reading block: {:?}", err);
                         panic!();
                     }
                 }

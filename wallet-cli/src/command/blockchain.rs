@@ -123,7 +123,6 @@ fn net_sync_faster(network: String, mut storage: Storage) {
         None => { (net_cfg.epoch_start, Some(net_cfg.genesis.clone()), net_cfg.genesis_prev.clone()) },
         Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, None, get_last_blockid(&storage.config, &packhash).unwrap()) }
     };
-    let latest_known_epoch_id = 0;
     println!("latest known epoch {} hash={:?}", latest_known_epoch_id, mstart_hash);
 
     let mut download_epoch_id = latest_known_epoch_id;
@@ -293,7 +292,7 @@ impl HasCommand for Blockchain {
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
-                net_sync_fast(config.network.clone(), config.get_storage().unwrap())
+                net_sync_faster(config.network.clone(), config.get_storage().unwrap())
             },
             ("debug-index", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);

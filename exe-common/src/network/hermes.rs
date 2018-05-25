@@ -43,6 +43,7 @@ impl Api for HermesEndPoint {
         let mut writer = storage::pack::RawBufPackWriter::init(&storage.config);
         {
             let uri = self.uri(&path).as_str().parse().unwrap();
+            info!("querying uri: {}", uri);
             let client = Client::new(&self.core.handle());
             let work = client.get(uri).and_then(|res| {
                 debug!("Response: {}", res.status());
