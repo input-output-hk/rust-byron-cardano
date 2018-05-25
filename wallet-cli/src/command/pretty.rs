@@ -162,24 +162,10 @@ impl Pretty for str {
 impl Pretty for Block {
     fn to_pretty(&self) -> Val {
         match self {
-            Block::GenesisBlock(b) => Val::Tree(
-                None,
-                vec![
-                    (
-                        "GenesisBlock".to_string(),
-                        Val::Raw("not implemented".to_string()),
-                    ),
-                ],
-            ),
-            Block::MainBlock(b) => Val::Tree(
-                None,
-                vec![
-                    (
-                        "MainBlock".to_string(),
-                        Val::Raw("not implemented".to_string()),
-                    ),
-                ],
-            ),
+            Block::GenesisBlock(b) => {
+                Val::Tree(None, vec![("GenesisBlock".to_string(), b.to_pretty())])
+            }
+            Block::MainBlock(b) => Val::Tree(None, vec![("MainBlock".to_string(), b.to_pretty())]),
         }
     }
 }
