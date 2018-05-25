@@ -443,12 +443,12 @@ impl HasCommand for Blockchain {
                     Some(loc) => {
                         match block_read_location(&storage, &loc, hh.bytes()) {
                             None        => println!("error while reading"),
-                            Some(bytes) => {
+                            Some(rblk) => {
                                 if opts.is_present("noparse") {
-                                    stdout().write(&bytes).unwrap();
+                                    stdout().write(rblk.as_ref()).unwrap();
                                     stdout().flush().unwrap();
                                 } else {
-                                    let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
+                                    let blk = rblk.decode().unwrap();
                                     let hdr = blk.get_header();
                                     let hash = hdr.compute_hash();
                                     println!("blk location: {:?}", loc);
@@ -479,7 +479,7 @@ fn get_last_blockid(storage_config: &storage::config::StorageConfig, packref: &P
         last_blk_raw = Some(blk_raw);
     }
     if let Some(blk_raw) = last_blk_raw {
-        let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+        let blk = blk_raw.decode().unwrap();
         let hdr = blk.get_header();
         println!("last_blockid: {} {}", hdr.compute_hash(), hdr.get_slotid());
         Some(hdr.compute_hash())
@@ -497,13 +497,13 @@ fn block_unpack(config: &Config, packref: &PackHash, _preserve_pack: bool) {
         match reader.get_next() {
             None => { break; },
             Some(blk_raw) => {
-                let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+                let blk = blk_raw.decode().unwrap();
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 println!("unpacking {}", hash);
                 let mut hash_repack = [0u8;32];
                 hash_repack.clone_from_slice(hash.as_ref());
-                storage::blob::write(&storage, &hash_repack, &blk_raw[..]).unwrap()
+                storage::blob::write(&storage, &hash_repack, blk_raw.as_ref()).unwrap()
             }
         }
     }
@@ -520,7 +520,7 @@ fn pack_reindex(config: &Config, packref: &PackHash) {
         match reader.get_next() {
             None    => { break; },
             Some(b) => {
-                let blk : blockchain::Block = cbor::decode_from_cbor(&b[..]).unwrap();
+                let blk = b.decode().unwrap();
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 let mut packref = [0u8;32];
@@ -540,7 +540,7 @@ fn pack_debug(config: &Config,
     let storage_config = config.get_storage_config();
     let mut reader = storage::pack::PackReader::init(&storage_config, packref);
     while let Some(blk_raw) = reader.get_next() {
-        let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+        let blk = blk_raw.decode().unwrap();
         let hdr = blk.get_header();
         let hash = hdr.compute_hash();
         let prev_hdr = hdr.get_previous_header();
@@ -559,7 +559,7 @@ fn pack_is_epoch(config: &Config,
         match reader.get_next() {
             None      => { return (true, known_prev_header.clone()); },
             Some(blk_raw) => {
-                let blk : blockchain::Block = cbor::decode_from_cbor(&blk_raw[..]).unwrap();
+                let blk : blockchain::Block = cbor::decode_from_cbor(blk_raw.as_ref()).unwrap();
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 let prev_hdr = hdr.get_previous_header();

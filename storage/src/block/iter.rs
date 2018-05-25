@@ -1,10 +1,9 @@
 //! objects to iterate through the blocks depending on the backend used
-//! 
+//!
 
 use super::super::{Storage, block_location, block_read_location};
 use super::super::tag;
 use blockchain::{HeaderHash, Block};
-use wallet_crypto::{cbor};
 
 use std::{iter};
 
@@ -44,16 +43,15 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
             &None => return None,
             &Some(ref hh) => hh.clone(),
         };
-        
+
         let loc = block_location(&self.storage, hh.bytes()).expect("block location");
         match block_read_location(&self.storage, &loc, hh.bytes()) {
             None        => panic!("error while reading block {}", hh),
-            Some(bytes) => {
-                let blk : Block = cbor::decode_from_cbor(&bytes).unwrap();
-                // TODO, we might have a special case for when we see the first GenesisBlock
-                let hdr = blk.get_header();
+            Some(blk) => {
+                let block = blk.decode().unwrap();
+                let hdr = block.get_header();
                 self.current_block = Some(hdr.get_previous_header());
-                Some(blk)
+                Some(block)
             }
         }
     }

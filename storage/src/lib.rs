@@ -22,7 +22,7 @@ use std::{fs, io, result};
 use std::collections::BTreeMap;
 use refpack::{RefPack};
 use wallet_crypto::{cbor};
-use blockchain::{HeaderHash, BlockDate};
+use blockchain::{HeaderHash, BlockDate, RawBlock};
 
 use types::*;
 use config::*;
@@ -112,6 +112,7 @@ pub mod blob {
     use std::io::{Read};
     use super::{Result, Error};
     use compression;
+    use blockchain::RawBlock;
 
     pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
@@ -129,14 +130,14 @@ pub mod blob {
         Ok(content)
     }
 
-    pub fn read(storage: &super::Storage, hash: &super::BlockHash) -> Result<Vec<u8>> {
+    pub fn read(storage: &super::Storage, hash: &super::BlockHash) -> Result<RawBlock> {
         let mut content = Vec::new();
         let path = storage.config.get_blob_filepath(&hash);
 
         let mut file = fs::File::open(path)?;
         file.read_to_end(&mut content)?;
 
-        Ok(compression::decompress_conditional(content))
+        Ok(RawBlock::from_dat(compression::decompress_conditional(content.as_ref())))
     }
 
     pub fn exist(storage: &super::Storage, hash: &super::BlockHash) -> bool {
@@ -182,7 +183,7 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
     None
 }
 
-pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockHash) -> Option<Vec<u8>> {
+pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockHash) -> Option<RawBlock> {
     match loc {
         &BlockLocation::Loose                 => blob::read(storage, hash).ok(),
         &BlockLocation::Packed(ref packref, ref iofs) => {
@@ -194,14 +195,14 @@ pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockH
                     let pack_offset = pack::resolve_index_offset(&mut idx_file, lookup, *iofs);
                     let pack_filepath = storage.config.get_pack_filepath(packref);
                     let mut pack_file = fs::File::open(pack_filepath).unwrap();
-                    Some(pack::read_block_at(&mut pack_file, pack_offset))
+                    pack::read_block_at(&mut pack_file, pack_offset).ok()
                 }
             }
         }
     }
 }
 
-pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<Vec<u8>> {
+pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<RawBlock> {
     match block_location(storage, hash) {
         None      => None,
         Some(loc) => block_read_location(storage, &loc, hash),
@@ -281,8 +282,8 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
 
     let mut current_state = None;
 
-    while let Some(block_bytes) = pack.get_next() {
-        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes)?;
+    while let Some(raw_block) = pack.get_next() {
+        let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();
         let date = hdr.get_blockdate();
@@ -345,8 +346,8 @@ fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: Heade
 
     let mut current_state = None;
 
-    while let Some(block_bytes) = pack.get_next() {
-        let block : blockchain::Block = cbor::decode_from_cbor(&block_bytes)?;
+    while let Some(raw_block) = pack.get_next() {
+        let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();
         let prevhash = hdr.get_previous_header();
