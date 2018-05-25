@@ -1,6 +1,7 @@
 pub mod error;
 pub mod result;
 pub mod native;
+pub mod hermes;
 pub mod peer;
 pub mod api;
 
