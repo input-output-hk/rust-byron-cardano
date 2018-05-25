@@ -70,24 +70,24 @@ impl Api for PeerPool {
     }
 }
 
-pub struct Connection(pub SocketAddr, pub Network);
+pub struct Connection(pub SocketAddr, pub OpenPeer);
 impl Connection {
     pub fn new(sockaddr: SocketAddr, protocol_magic: ProtocolMagic) -> Result<Self> {
-        let network = Network::new(protocol_magic, &sockaddr)?;
+        let network = OpenPeer::new(protocol_magic, &sockaddr)?;
         Ok(Connection (sockaddr, network))
     }
 }
 impl Deref for Connection {
-    type Target = Network;
+    type Target = OpenPeer;
     fn deref(&self) -> &Self::Target { &self.1 }
 }
 impl DerefMut for Connection {
     fn deref_mut(&mut self) -> &mut Self::Target { & mut self.1 }
 }
 
-pub struct Network(pub protocol::Connection<MStream>);
+pub struct OpenPeer(pub protocol::Connection<MStream>);
 
-impl Network {
+impl OpenPeer {
     pub fn new(protocol_magic: ProtocolMagic, host: &SocketAddr) -> Result<Self> {
         let drg_seed = rand::random();
         let mut hs = protocol::packet::Handshake::default();
@@ -98,7 +98,7 @@ impl Network {
         let conn = protocol::ntt::Connection::handshake(drg_seed, stream)?;
         let mut conne = protocol::Connection::new(conn);
         conne.handshake(&hs)?;
-        Ok(Network(conne))
+        Ok(OpenPeer(conne))
     }
 
     pub fn read_start(&self) -> MetricStart {
@@ -109,7 +109,7 @@ impl Network {
         start.diff(self.0.get_backend().get_read_sz())
     }
 }
-impl Api for Network {
+impl Api for OpenPeer {
     fn get_tip(&mut self) -> Result<BlockHeader> {
         let block_headers_raw = GetBlockHeader::tip().execute(&mut self.0).expect("to get one header at least");
 
