@@ -42,7 +42,14 @@ fn find_earliest_epoch(storage: &storage::Storage, minimum_epochid: blockchain::
     let mut epoch_id = start_epochid;
     loop {
         match tag::read_hash(storage, &tag::get_epoch_tag(epoch_id)) {
-            None => {},
+            None => {
+                match storage::epoch::epoch_read_pack(&storage.config, epoch_id).ok() {
+                    None => {}
+                    Some(h) => {
+                        return Some((epoch_id, h));
+                    }
+                }
+            },
             Some(h) => {
                 println!("latest known epoch found is {}", epoch_id);
                 return Some((epoch_id, h.into_bytes()))
@@ -119,7 +126,7 @@ fn net_sync_faster(network: String, mut storage: Storage) {
     println!("Configured genesis-1 : {}", net_cfg.genesis_prev);
 
     // find the earliest epoch we know about starting from network_slotid
-    let (latest_known_epoch_id, mstart_hash, prev_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, 40) {
+    let (latest_known_epoch_id, mstart_hash, prev_hash) = match find_earliest_epoch(&storage, net_cfg.epoch_start, 100) { // TODO
         None => { (net_cfg.epoch_start, Some(net_cfg.genesis.clone()), net_cfg.genesis_prev.clone()) },
         Some((found_epoch_id, packhash)) => { (found_epoch_id + 1, None, get_last_blockid(&storage.config, &packhash).unwrap()) }
     };
