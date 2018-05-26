@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::io::{Write,Read};
+use std::io::{Read};
 use wallet_crypto::util::{hex};
 
 use blockchain;
@@ -25,8 +25,7 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: blockch
     let mut reader = PackReader::init(config, packref);
 
     let mut current_slotid = blockchain::BlockDate::Genesis(epochid);
-    while let Some(blk_raw) = reader.get_next() {
-        let rblk = blockchain::RawBlock::from_dat(blk_raw);
+    while let Some(rblk) = reader.get_next() {
         let blk = rblk.decode().unwrap();
         let hdr = blk.get_header();
         let hash = hdr.compute_hash();
@@ -77,7 +76,7 @@ pub fn epoch_read(config: &StorageConfig, epochid: blockchain::EpochId) -> io::R
         Ok(ph) => {
             let mut file = fs::File::open(config.get_epoch_refpack_filepath(epochid))?;
             let rp = RefPack::read(&mut file).unwrap();
-            
+
             Ok((ph, rp))
         }
     }

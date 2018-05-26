@@ -335,7 +335,7 @@ impl Index {
     }
 }
 
-pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
+pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<blockchain::RawBlock> {
     let mut sz_buf = [0u8;SIZE_SIZE];
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
@@ -346,13 +346,13 @@ pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
         let mut align = [0u8;4];
         file.read_exact(&mut align[0..to_align])?;
     }
-    Ok(v)
+    Ok(blockchain::RawBlock::from_dat(v))
 }
 
-pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> Vec<u8> {
-    file.seek(SeekFrom::Start(ofs)).unwrap();
-    let v = read_block_raw_next(file).unwrap();
-    compression::decompress_conditional(v)
+pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> io::Result<blockchain::RawBlock> {
+    file.seek(SeekFrom::Start(ofs))?;
+    let v = read_block_raw_next(file)?;
+    Ok(blockchain::RawBlock::from_dat(compression::decompress_conditional(v.as_ref())))
 }
 
 // A Writer for a specific pack that accumulate some numbers for reportings,
@@ -419,9 +419,10 @@ impl PackWriter {
 pub struct RawBufPackWriter {
     writer: PackWriter,
     buffer: Vec<u8>,
-    last: Option<blockchain::Block>
+    last: Option<blockchain::RawBlock>
 }
 impl RawBufPackWriter {
+    #[deprecated]
     pub fn init(cfg: &super::StorageConfig) -> Self {
         let writer = PackWriter::init(cfg);
         RawBufPackWriter {
@@ -431,42 +432,56 @@ impl RawBufPackWriter {
         }
     }
 
+    #[deprecated]
     pub fn append(&mut self, bytes: &[u8]) {
-        use wallet_crypto::{cbor};
         self.buffer.extend_from_slice(bytes);
+        debug!("recieved {} bytes", bytes.len());
 
         while ! self.buffer.is_empty() {
+            debug!("reading buffer of length {}", self.buffer.len());
             let read = {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
-                    Ok(bytes) => {
-                        let block : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
-                        self.writer.append(block.get_header().compute_hash().bytes(), &bytes);
+                    Ok(rblock) => {
+                        let block = blockchain::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
+                        let blk = block.decode().unwrap();
+                        info!("  - block {}", blk.get_header().get_slotid());
+                        self.writer.append(blk.get_header().compute_hash().bytes(), rblock.as_ref());
                         self.last = Some(block);
-                        bytes.len()
+                        let len = rblock.as_ref().len();
+                        let pad_sz = if len % 4 != 0 { 4 - len % 4 } else { 0 };
+                        len + pad_sz + SIZE_SIZE
                     },
                     Err(err) => {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
                             return; // not enough bytes
                         }
-                        error!("error whlie reading block: {:?}", err);
+                        error!("while reading block: {:?}", err);
                         panic!();
                     }
                 }
             };
+            debug!("updating buffer, removing {} bytes,", read);
             self.buffer = Vec::from(&self.buffer[read..]);
         }
     }
-    pub fn last<'a>(&'a self) -> &'a Option<blockchain::Block> { &self.last }
+    #[deprecated]
+    pub fn last(& self) -> Option<blockchain::Block> {
+        match &self.last {
+            Some(rb) => rb.decode().ok(),
+            None => None
+        }
+    }
 
+    #[deprecated]
     pub fn finalize(&mut self) -> (super::PackHash, Index) {
         self.writer.finalize()
     }
 }
 
 // A Reader
-pub struct PackReader {
-    file: fs::File,
+pub struct PackReader<R> {
+    reader: R,
     pub pos: Offset,
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
@@ -479,15 +494,21 @@ fn align4(p: Offset) -> Offset {
     }
 }
 
-impl PackReader {
+impl PackReader<fs::File> {
     pub fn init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> Self {
         let file = fs::File::open(cfg.get_pack_filepath(packhash)).unwrap();
-        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
-        PackReader { file: file, pos: 0, hash_context: ctxt }
+        PackReader::from(file)
     }
-
-    pub fn get_next(&mut self) -> Option<Vec<u8>> {
-        match read_block_raw_next(&mut self.file) {
+}
+impl<R: Read> From<R> for PackReader<R> {
+    fn from(reader: R) -> Self {
+        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
+        PackReader { reader, pos: 0,  hash_context: ctxt }
+    }
+}
+impl<R: Read> PackReader<R> {
+    pub fn get_next(&mut self) -> Option<blockchain::RawBlock> {
+        match read_block_raw_next(&mut self.reader) {
             Err(err) => {
                 if err.kind() == ErrorKind::UnexpectedEof {
                     None
@@ -496,9 +517,9 @@ impl PackReader {
                 }
             }
             Ok(block_raw) => {
-                self.hash_context.input(&block_raw[..]);
-                self.pos += 4 + align4(block_raw.len() as u64);
-                Some(compression::decompress_conditional(block_raw))
+                self.hash_context.input(block_raw.as_ref());
+                self.pos += 4 + align4(block_raw.as_ref().len() as u64);
+                Some(blockchain::RawBlock::from_dat(compression::decompress_conditional(block_raw.as_ref())))
             },
         }
     }

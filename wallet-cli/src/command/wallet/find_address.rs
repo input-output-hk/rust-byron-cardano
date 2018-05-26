@@ -35,7 +35,7 @@ impl HasCommand for FindAddress {
             info!("looking in epoch {}", epoch_id);
             let mut reader = pack::PackReader::init(&storage.config, &h.into_bytes());
             while let Some(blk_bytes) = reader.get_next() {
-                let blk : Block = cbor::decode_from_cbor(&blk_bytes).unwrap();
+                let blk = blk_bytes.decode().unwrap();
                 let hdr = blk.get_header();
                 let blk_hash = hdr.compute_hash();
                 debug!("  looking at date {}", hdr.get_blockdate());

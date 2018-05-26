@@ -194,6 +194,7 @@ pub mod net {
         pub fn mainnet() -> Self {
             let mut peers = Peers::new();
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-mainnet.iohk.io:3000".to_string()));
+            peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io".to_string()));
             Config {
                 genesis: HeaderHash::from_hex(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
                 genesis_prev: HeaderHash::from_hex(&"5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb").unwrap(),

@@ -23,6 +23,7 @@ impl TmpFile {
 
         OpenOptions::new()
             .write(true)
+            .read(true)
             .create_new(true)
             .open(&path)
             .map(|file| TmpFile { file: file, path: path })
@@ -38,6 +39,11 @@ impl TmpFile {
             _ => {},
         };
         Ok(())
+    }
+}
+impl io::Seek for TmpFile {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.file.seek(pos)
     }
 }
 impl io::Read for TmpFile {

@@ -65,10 +65,10 @@ impl iron::Handler for Handler {
                         error!("error while reading block at location: {:?}", loc);
                         Ok(Response::with(status::InternalServerError))
                     },
-                    Some(bytes) => {
-                        let blk : blockchain::Block = cbor::decode_from_cbor(&bytes).unwrap();
+                    Some(rblk) => {
+                        let blk = rblk.decode().unwrap();
                         let hdr = blk.get_header();
-                        Ok(Response::with((status::Ok, bytes)))
+                        Ok(Response::with((status::Ok, rblk.as_ref())))
                     }
                 }
             }

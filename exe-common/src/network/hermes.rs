@@ -1,5 +1,7 @@
 use blockchain::{BlockHeader, Block, HeaderHash};
-use storage::{self, Storage, types::{PackHash}};
+use storage::{self, Storage, types::{PackHash}, tmpfile::{TmpFile}};
+use std::io::{Write, Seek, SeekFrom};
+use std::time::{SystemTime, Duration};
 
 use config::net;
 
@@ -40,33 +42,45 @@ impl Api for HermesEndPoint {
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         let path = format!("epoch/{}", fep.epoch_id);
 
-        let mut writer = storage::pack::RawBufPackWriter::init(&storage.config);
+        let mut tmppack = TmpFile::create(storage.config.get_filetype_dir(storage::types::StorageFileType::Pack))?;
         {
             let uri = self.uri(&path).as_str().parse().unwrap();
+            info!("querying uri: {}", uri);
             let client = Client::new(&self.core.handle());
             let work = client.get(uri).and_then(|res| {
-                debug!("Response: {}", res.status());
-
                 res.body().for_each(|chunk| {
-                    info!("received: {} bytes", chunk.len());
-                    writer.append(&chunk);
-                    Ok(())
+                    tmppack.write_all(&chunk).map_err(From::from)
                 })
             });
+            let now = SystemTime::now();
             self.core.run(work)?;
+            let time_elapsed = now.elapsed().unwrap();
+            info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
 
         }
-        let (packhash, index) = writer.finalize();
+        let now = SystemTime::now();
+        tmppack.seek(SeekFrom::Start(0))?;
+        let mut packfile = storage::pack::PackReader::from(tmppack);
+        let mut packwriter = storage::pack::PackWriter::init(&storage.config);
+        let mut last = None;
+        while let Some(rblock) = packfile.get_next() {
+            let rhdr = rblock.to_header();
+            // TODO: do some checks: let block = rblock.decode()?;
+            last = Some(rhdr.decode()?);
+            packwriter.append(rhdr.compute_hash().bytes(), rblock.as_ref());
+        }
 
+        let (packhash, index) = packwriter.finalize();
         let (_, tmpfile) = storage::pack::create_index(storage, &index);
-        tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+        tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash))?;
         storage::epoch::epoch_create(&storage.config, &packhash, fep.epoch_id);
 
-        let last = match writer.last() {
+        let last_hdr = match last {
             None => { panic!("no last block found, error.") },
             Some(blk) => blk
         };
-        let last_hdr = last.get_header();
+        let time_elapsed = now.elapsed().unwrap();
+        info!("Processing EPOCH in {}sec", time_elapsed.as_secs());
 
         Ok(FetchEpochResult {
             previous_last_header_hash: last_hdr.get_previous_header(),

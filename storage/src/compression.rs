@@ -3,7 +3,7 @@ use flate2::write::DeflateEncoder;
 use flate2::write::DeflateDecoder;
 use std::io::{Error, Write};
 
-pub fn decompress_conditional(input: Vec<u8>) -> Vec<u8> {
+pub fn decompress_conditional(input: &[u8]) -> Vec<u8> {
     if super::USE_COMPRESSION {
         let mut writer = Vec::new();
         let mut deflater = DeflateDecoder::new(writer);
@@ -11,7 +11,7 @@ pub fn decompress_conditional(input: Vec<u8>) -> Vec<u8> {
         writer = deflater.finish().unwrap();
         writer
     } else {
-        input
+        Vec::from(input)
     }
 }
 
