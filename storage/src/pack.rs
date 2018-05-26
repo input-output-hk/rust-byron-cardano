@@ -422,6 +422,7 @@ pub struct RawBufPackWriter {
     last: Option<blockchain::RawBlock>
 }
 impl RawBufPackWriter {
+    #[deprecated]
     pub fn init(cfg: &super::StorageConfig) -> Self {
         let writer = PackWriter::init(cfg);
         RawBufPackWriter {
@@ -431,6 +432,7 @@ impl RawBufPackWriter {
         }
     }
 
+    #[deprecated]
     pub fn append(&mut self, bytes: &[u8]) {
         self.buffer.extend_from_slice(bytes);
         debug!("recieved {} bytes", bytes.len());
@@ -463,6 +465,7 @@ impl RawBufPackWriter {
             self.buffer = Vec::from(&self.buffer[read..]);
         }
     }
+    #[deprecated]
     pub fn last(& self) -> Option<blockchain::Block> {
         match &self.last {
             Some(rb) => rb.decode().ok(),
@@ -470,14 +473,15 @@ impl RawBufPackWriter {
         }
     }
 
+    #[deprecated]
     pub fn finalize(&mut self) -> (super::PackHash, Index) {
         self.writer.finalize()
     }
 }
 
 // A Reader
-pub struct PackReader {
-    file: fs::File,
+pub struct PackReader<R> {
+    reader: R,
     pub pos: Offset,
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
@@ -490,15 +494,21 @@ fn align4(p: Offset) -> Offset {
     }
 }
 
-impl PackReader {
+impl PackReader<fs::File> {
     pub fn init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> Self {
         let file = fs::File::open(cfg.get_pack_filepath(packhash)).unwrap();
-        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
-        PackReader { file: file, pos: 0, hash_context: ctxt }
+        PackReader::from(file)
     }
-
+}
+impl<R: Read> From<R> for PackReader<R> {
+    fn from(reader: R) -> Self {
+        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
+        PackReader { reader, pos: 0,  hash_context: ctxt }
+    }
+}
+impl<R: Read> PackReader<R> {
     pub fn get_next(&mut self) -> Option<blockchain::RawBlock> {
-        match read_block_raw_next(&mut self.file) {
+        match read_block_raw_next(&mut self.reader) {
             Err(err) => {
                 if err.kind() == ErrorKind::UnexpectedEof {
                     None
