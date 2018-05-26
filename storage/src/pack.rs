@@ -433,8 +433,10 @@ impl RawBufPackWriter {
 
     pub fn append(&mut self, bytes: &[u8]) {
         self.buffer.extend_from_slice(bytes);
+        debug!("recieved {} bytes", bytes.len());
 
         while ! self.buffer.is_empty() {
+            debug!("reading buffer of length {}", self.buffer.len());
             let read = {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
@@ -444,17 +446,20 @@ impl RawBufPackWriter {
                         info!("  - block {}", blk.get_header().get_slotid());
                         self.writer.append(blk.get_header().compute_hash().bytes(), rblock.as_ref());
                         self.last = Some(block);
-                        rblock.as_ref().len()
+                        let len = rblock.as_ref().len();
+                        let pad_sz = if len % 4 != 0 { 4 - len % 4 } else { 0 };
+                        len + pad_sz + SIZE_SIZE
                     },
                     Err(err) => {
                         if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
                             return; // not enough bytes
                         }
-                        error!("error while reading block: {:?}", err);
+                        error!("while reading block: {:?}", err);
                         panic!();
                     }
                 }
             };
+            debug!("updating buffer, removing {} bytes,", read);
             self.buffer = Vec::from(&self.buffer[read..]);
         }
     }
