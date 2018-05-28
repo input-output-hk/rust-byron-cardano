@@ -1,5 +1,6 @@
 use std::{fmt};
 use std::collections::LinkedList;
+use std::cmp::{Ord, Ordering};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor};
 
@@ -55,6 +56,31 @@ pub enum BlockHeader {
 pub enum BlockDate {
     Genesis(EpochId),
     Normal(SlotId),
+}
+
+impl PartialOrd for BlockDate {
+    fn partial_cmp(&self, other: &BlockDate) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BlockDate {
+    fn cmp(&self, other: &BlockDate) -> Ordering {
+        match self {
+            BlockDate::Genesis(e1) => {
+                match other {
+                    BlockDate::Genesis(e2) => e1.cmp(e2),
+                    BlockDate::Normal(slot2) => e1.cmp(&slot2.epoch).then(Ordering::Less),
+                }
+            },
+            BlockDate::Normal(slot1) => {
+                match other {
+                    BlockDate::Genesis(e2) => slot1.epoch.cmp(e2).then(Ordering::Greater),
+                    BlockDate::Normal(slot2) => slot1.epoch.cmp(&slot2.epoch).then(slot1.slotid.cmp(&slot2.slotid)),
+                }
+            },
+        }
+    }
 }
 
 impl BlockDate {
@@ -140,6 +166,20 @@ impl Block {
         match self {
             &Block::GenesisBlock(ref blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
             &Block::MainBlock(ref blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
+        }
+    }
+
+    pub fn has_transactions(&self) -> bool {
+        match self {
+            &Block::GenesisBlock(ref blk) => false,
+            &Block::MainBlock(ref blk) => blk.header.body_proof.tx.number > 0,
+        }
+    }
+
+    pub fn get_transactions(&self) -> Option<normal::TxPayload> {
+        match self {
+            &Block::GenesisBlock(ref blk) => None,
+            &Block::MainBlock(ref blk) => Some(blk.body.tx.clone()),
         }
     }
 }
