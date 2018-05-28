@@ -260,18 +260,20 @@ mod tests {
     }
     #[test]
     fn longest_key_length_works() {
-        let mut input = Vec::new();
-        input.push(("name".to_string(), Raw("zaphod".to_string())));
-        input.push(("age".to_string(), Raw(format!("{}", 42))));
+        let input = vec![
+            ("name".to_string(), Raw("zaphod".to_string())),
+            ("age".to_string(), Raw(format!("{}", 42))),
+        ];
         assert_eq!(longest_key_length(&input), 4);
     }
     #[test]
     fn test_display_flat_pairs() {
-        let mut input = Vec::new();
-        input.push(("name".to_string(), Raw("zaphod".to_string())));
-        input.push(("age".to_string(), Raw(format!("{}", 42))));
+        let input = Tree(vec![
+            ("name".to_string(), Raw("zaphod".to_string())),
+            ("age".to_string(), Raw(format!("{}", 42))),
+        ]);
         assert_eq!(
-            format!("{}", Tree(input)),
+            format!("{}", input),
             "\
 - name: zaphod
 - age : 42
@@ -280,14 +282,18 @@ mod tests {
     }
     #[test]
     fn test_display_nested_pairs() {
-        let mut nested = Vec::new();
-        nested.push(("name".to_string(), Raw("zaphod".to_string())));
-        nested.push(("age".to_string(), Raw(format!("{}", 42))));
-        let mut input = Vec::new();
-        input.push(("character".to_string(), Tree(nested)));
-        input.push(("crook".to_string(), Raw("yes".to_string())));
+        let input = Tree(vec![
+            (
+                "character".to_string(),
+                Tree(vec![
+                    ("name".to_string(), Raw("zaphod".to_string())),
+                    ("age".to_string(), Raw(format!("{}", 42))),
+                ]),
+            ),
+            ("crook".to_string(), Raw("yes".to_string())),
+        ]);
         assert_eq!(
-            format!("{}", Tree(input)),
+            format!("{}", input),
             "\
 - character:
     - name: zaphod
