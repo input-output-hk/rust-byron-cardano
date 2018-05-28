@@ -157,6 +157,36 @@ impl Pretty for normal::BlockHeader {
     }
 }
 
+impl Pretty for genesis::BlockHeader {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            (
+                "protocol magic".to_string(),
+                Val::Raw(format!("{}", self.protocol_magic)),
+            ),
+            (
+                "previous hash".to_string(),
+                Val::Raw(
+                    Colour::Green
+                        .paint(wallet_crypto::util::hex::encode(
+                            self.previous_header.as_ref(),
+                        ))
+                        .to_string(),
+                ),
+            ),
+            (
+                "body proof".to_string(),
+                Val::Raw(format!("{:?}", self.body_proof)),
+            ),
+            ("consensus".to_string(), self.consensus.to_pretty()),
+            (
+                "extra data".to_string(),
+                Val::Raw(format!("TODO {:?}", self.extra_data)),
+            ),
+        ])
+    }
+}
+
 impl Pretty for normal::BodyProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
@@ -217,6 +247,18 @@ impl Pretty for normal::Consensus {
     }
 }
 
+impl Pretty for genesis::Consensus {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("epoch".to_string(), Val::Raw(format!("{}", self.epoch))),
+            (
+                "chain difficulty".to_string(),
+                Val::Raw(format!("{}", self.chain_difficulty)),
+            ),
+        ])
+    }
+}
+
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
@@ -231,6 +273,17 @@ impl Pretty for normal::Body {
                 Val::Raw(format!("TODO {:?}", self.update)),
             ),
         ])
+    }
+}
+
+impl Pretty for genesis::Body {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.slot_leaders
+                .iter()
+                .map(|cbor| Val::Raw(format!("{:?}", cbor)))
+                .collect(),
+        )
     }
 }
 
@@ -292,13 +345,10 @@ impl Pretty for wallet_crypto::tx::Tx {
 impl Pretty for genesis::Block {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "header".to_string(),
-                Val::Raw(format!("TODO {}", self.header)),
-            ),
+            ("header".to_string(), self.header.to_pretty()),
             (
                 "body".to_string(),
-                Val::Raw(format!("TODO {:?}", self.body)),
+                self.body.to_pretty(),
             ),
             (
                 "extra".to_string(),
