@@ -10,7 +10,7 @@
 ///
 /// let addr = Account::new(0).unwrap()
 ///     .external().unwrap()
-///     .index(0).unwrap();
+///     .get_scheme_value(0).unwrap();
 ///
 /// assert!(addr.index == 0);
 /// ```
@@ -57,7 +57,7 @@ pub enum Error {
     /// this means the given `Path` has an incompatible index
     /// for bip44 derivation. That it is out of bound. Indeed
     /// the index derivation is expected to be a soft derivation.
-    IndexOutOfBound(u32)
+    IndexOutOfBound(u32),
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -82,7 +82,7 @@ impl Account {
         Ok(Account(account))
     }
 
-    pub fn index(&self) -> u32 { self.0 | 0x80000000 }
+    pub fn get_scheme_value(&self) -> u32 { self.0 | 0x80000000 }
 
 
     pub fn change(&self, typ: AddrType) -> Result<Change> {
@@ -250,7 +250,7 @@ impl Change {
 pub struct Addressing {
     pub account: Account,
     pub change: u32,
-    pub index: u32,
+    pub index: Index,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -277,17 +277,16 @@ impl Addressing {
                         AddrType::Internal => 1,
                         AddrType::External => 0,
                     };
-        Ok(Addressing { account: Account::new(account)?, change: change, index: 0 })
+        Ok(Addressing { account: Account::new(account)?, change: change, index: Index::new(0)? })
     }
 
     fn new_from_change(change: Change, index: u32) -> Result<Self> {
-        if index  >= 0x80000000 { return Err(Error::IndexOutOfBound(index)); }
-        Ok(Addressing{account: change.account, change: change.change, index: index})
+        Ok(Addressing{account: change.account, change: change.change, index: Index::new(index)? })
     }
 
     /// return a path ready for derivation
     pub fn to_path(&self) -> Path {
-        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.index(), self.change, self.index])
+        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.get_scheme_value(), self.change, self.index.get_scheme_value() ])
     }
 
     pub fn address_type(&self) -> AddrType {
@@ -334,9 +333,8 @@ impl Addressing {
     /// assert!(next.incr(0x80000000).is_err());
     /// ```
     pub fn incr(&self, incr: u32) -> Result<Self> {
-        if incr >= 0x80000000 { return Err(Error::IndexOutOfBound(incr)); }
         let mut addr = self.clone();
-        addr.index += incr;
+        addr.index = addr.index.incr(incr)?;
         Ok(addr)
     }
 

@@ -84,7 +84,7 @@ impl Wallet {
 
     pub fn account(&self, account_index: u32) -> Result<Account> {
         let account = bip44::Account::new(account_index)?;
-        let account_key = self.get_root_key().derive(account.index()).public();
+        let account_key = self.get_root_key().derive(account.get_scheme_value()).public();
 
         Ok(Account::new(account, account_key))
     }
@@ -159,9 +159,9 @@ impl Wallet {
     /// TODO: this function is not meant to be public
     fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
         self.get_root_key()
-            .derive(addressing.account.index())
+            .derive(addressing.account.get_scheme_value())
             .derive(addressing.change)
-            .derive(addressing.index)
+            .derive(addressing.index.get_scheme_value())
     }
 }
 
