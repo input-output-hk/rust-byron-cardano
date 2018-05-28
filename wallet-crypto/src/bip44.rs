@@ -155,6 +155,79 @@ impl<'de> serde::Deserialize<'de> for Account
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Index(u32);
+impl Index {
+    pub fn new(index: u32) -> Result<Self> {
+        if index >= 0x80000000 { return Err(Error::IndexOutOfBound(index)); }
+        Ok(Index(index))
+    }
+    pub fn get_scheme_value(&self) -> u32 { self.0 }
+    pub fn incr(&self, i: u32) -> Result<Self> {
+        if i >= 0x80000000 { return Err(Error::IndexOutOfBound(i)); }
+        let r = self.0 + i;
+        if r >= 0x80000000 { return Err(Error::IndexOutOfBound(r)); }
+        Ok(Index(r))
+    }
+
+    pub fn decr(&self, i: u32) -> Result<Self> {
+        if self.0 < i { return Err(Error::IndexOutOfBound(0)); }
+        let r = self.0 - i;
+        Ok(Index(r))
+    }
+}
+
+impl serde::Serialize for Index
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        serializer.serialize_u32(self.0)
+    }
+}
+struct IndexVisitor();
+impl IndexVisitor { fn new() -> Self { IndexVisitor {} } }
+impl<'de> serde::de::Visitor<'de> for IndexVisitor {
+    type Value = Index;
+
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Expecting a valid Index derivation index.")
+    }
+
+    fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        self.visit_u32(v as u32)
+    }
+    fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        match Index::new(v) {
+            Err(Error::IndexOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
+            Err(err) => panic!("unexpected error: {}", err),
+            Ok(h) => Ok(h)
+        }
+    }
+
+    fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
+        where E: serde::de::Error
+    {
+        if v > 0xFFFFFFFF {
+            return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+        }
+        self.visit_u32(v as u32)
+    }
+}
+impl<'de> serde::Deserialize<'de> for Index
+{
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        deserializer.deserialize_u32(IndexVisitor::new())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Change {
     account: Account,
