@@ -68,15 +68,20 @@ pub struct Config {
 
     /// TODO, this needs to be encrypted in the very near future
     pub cached_root_key: XPrv,
+
+    /// epoch when the wallet was created. this affect recovery
+    /// and the safe default is 0, where we don't skip any epoch
+    pub epoch_start: u32,
 }
 impl Config {
     /// construct a wallet configuration from the given wallet and blockchain name
     ///
-    pub fn from_wallet<P: Into<PathBuf>>(wallet: Wallet, blockchain: P) -> Self {
+    pub fn from_wallet<P: Into<PathBuf>>(wallet: Wallet, blockchain: P, epoch_start: Option<u32>) -> Self {
         Config {
             blockchain: blockchain.into(),
             selection_fee_policy: wallet.selection_policy,
-            cached_root_key: wallet.cached_root_key
+            cached_root_key: wallet.cached_root_key,
+            epoch_start: epoch_start.unwrap_or(0),
         }
     }
 

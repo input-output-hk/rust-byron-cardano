@@ -37,6 +37,13 @@ impl HasCommand for Recover {
                 .help("set the password from the CLI instead of prompting for it. It is quite unsafe as the password can be visible from your shell history.")
                 .required(false)
             )
+            .arg(Arg::with_name("EPOCH START")
+                .long("--epoch-start")
+                .takes_value(true)
+                .value_name("EPOCH")
+                .help("set the epoch where this wallet was created. if this is not set, the default epoch of 0 is assumed")
+                .required(false)
+            )
             .arg(Arg::with_name("WALLET NAME").help("the name of the new wallet").index(1).required(true))
             .arg(Arg::with_name("BLOCKCHAIN").help("the name of the associated blockchain (see command `blockchain')").index(2).required(true))
     }
@@ -45,6 +52,7 @@ impl HasCommand for Recover {
         let blockchain  = value_t!(args.value_of("BLOCKCHAIN"), String).unwrap();
         let language    = value_t!(args.value_of("LANGUAGE"), String).unwrap(); // we have a default value
         let password    = value_t!(args.value_of("PASSWORD"), String).ok();
+        let epoch_start = value_t!(args.value_of("EPOCH START"), u32).ok();
         let from_paper_wallet = args.is_present("FROM PAPER WALLET");
         let seed = if from_paper_wallet {
             recover_paperwallet(language, password)
@@ -53,7 +61,7 @@ impl HasCommand for Recover {
         };
         let wallet = wallet::Wallet::new_from_bip39(&seed);
 
-        let config = config::Config::from_wallet(wallet, blockchain);
+        let config = config::Config::from_wallet(wallet, blockchain, epoch_start);
 
         config.to_file(&name).unwrap();
     }

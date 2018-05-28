@@ -46,6 +46,13 @@ impl HasCommand for CommandNewWallet {
                 .help("set the password from the CLI instead of prompting for it. It is quite unsafe as the password can be visible from your shell history.")
                 .required(false)
             )
+            .arg(Arg::with_name("EPOCH START")
+                .long("--epoch-start")
+                .takes_value(true)
+                .value_name("EPOCH")
+                .help("set the epoch where this wallet was created. if the option is not set then, the network associated with the blockchain is queries and the current stable epoch is set as the start")
+                .required(false)
+            )
             .arg(Arg::with_name("WALLET NAME").help("the name of the new wallet").index(1).required(true))
             .arg(Arg::with_name("BLOCKCHAIN").help("the name of the associated blockchain (see command `blockchain')").index(2).required(true))
     }
@@ -55,11 +62,12 @@ impl HasCommand for CommandNewWallet {
         let language    = value_t!(args.value_of("LANGUAGE"), String).unwrap(); // we have a default value
         let mnemonic_sz = value_t!(args.value_of("MNEMONIC SIZE"), bip39::Type).unwrap();
         let password    = value_t!(args.value_of("PASSWORD"), String).ok();
+        let epoch_start = value_t!(args.value_of("EPOCH START"), u32).ok();
         let without_paper_wallet = args.is_present("NO PAPER WALLET");
         let seed = generate_entropy(language, password, mnemonic_sz, without_paper_wallet);
         let wallet = wallet::Wallet::new_from_bip39(&seed);
 
-        let config = config::Config::from_wallet(wallet, blockchain);
+        let config = config::Config::from_wallet(wallet, blockchain, epoch_start);
 
         config.to_file(&name).unwrap();
     }
