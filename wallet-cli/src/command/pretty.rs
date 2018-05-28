@@ -20,6 +20,7 @@ type Key = String;
 // TODO: extend with blockchain-specific constructors with color
 pub enum Val {
     Raw(String),
+    List(Vec<Val>),
     Tree(AST),
 }
 
@@ -54,7 +55,7 @@ fn fmt_val(
             write!(f, "\n")
         }
         // write on the next line
-        Val::Tree(_) => {
+        _ => {
             write!(f, "\n")?;
             fmt_pretty(val, f, indent_size, indent_level)
         }
@@ -82,6 +83,14 @@ fn fmt_pretty(
                 })
             })
         }
+        // format pretty-val as a sequence of vals
+        Val::List(vals) => vals.iter().fold(Ok(()), |prev_result, val| {
+            prev_result.and_then(|()| {
+                fmt_indent(f, indent_size, indent_level)?;
+                write!(f, "*")?;
+                fmt_val(val, f, indent_size, indent_level + 1)
+            })
+        }),
     }
 }
 
@@ -299,6 +308,52 @@ mod tests {
     - name: zaphod
     - age : 42
 - crook    : yes
+"
+        );
+    }
+    #[test]
+    fn test_display_tested_list() {
+        let input = Tree(vec![
+            (
+                "character".to_string(),
+                Tree(vec![
+                    ("name".to_string(), Raw("zaphod".to_string())),
+                    ("age".to_string(), Raw(format!("{}", 42))),
+                ]),
+            ),
+            ("crook".to_string(), Raw("yes".to_string())),
+            (
+                "facts".to_string(),
+                List(vec![
+                    Raw("invented pan-galactic gargle blaster".to_string()),
+                    Raw("elected president".to_string()),
+                    Tree(vec![
+                        ("heads".to_string(), Raw(format!("{}", 2))),
+                        ("arms".to_string(), Raw(format!("{}", 3))),
+                    ]),
+                    List(vec![
+                        Raw("stole the heart of gold".to_string()),
+                        Raw("one hoopy frood".to_string()),
+                    ]),
+                ]),
+            ),
+        ]);
+        assert_eq!(
+            format!("{}", input),
+            "\
+- character:
+    - name: zaphod
+    - age : 42
+- crook    : yes
+- facts    :
+    * invented pan-galactic gargle blaster
+    * elected president
+    *
+        - heads: 2
+        - arms : 3
+    *
+        * stole the heart of gold
+        * one hoopy frood
 "
         );
     }
