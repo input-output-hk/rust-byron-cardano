@@ -220,10 +220,7 @@ impl Pretty for normal::Consensus {
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "tx-payload".to_string(),
-                Val::Raw(format!("TODO {}", self.tx)),
-            ),
+            ("tx payload".to_string(), self.tx.to_pretty()),
             ("scc".to_string(), Val::Raw(format!("TODO {:?}", self.scc))),
             (
                 "delegation".to_string(),
@@ -232,6 +229,61 @@ impl Pretty for normal::Body {
             (
                 "update".to_string(),
                 Val::Raw(format!("TODO {:?}", self.update)),
+            ),
+        ])
+    }
+}
+
+impl Pretty for normal::TxPayload {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.iter()
+                .map(|txaux| {
+                    Val::Tree(vec![
+                        ("tx".to_string(), txaux.tx.to_pretty()),
+                        (
+                            "witnesses".to_string(),
+                            txaux.witnesses.to_pretty()
+                            //Val::Raw(format!("{:?}", txaux.witnesses)),
+                        ),
+                    ])
+                })
+                .collect(),
+        )
+    }
+}
+
+// XXX: impl for a parameterized generic type, Vec.. not sure if idiomatic
+impl Pretty for Vec<wallet_crypto::tx::TxInWitness> {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.iter()
+                .map(|witness| Val::Raw(format!("TODO {}", witness)))
+                .collect(),
+        )
+    }
+}
+
+impl Pretty for wallet_crypto::tx::Tx {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            (
+                "inputs".to_string(),
+                Val::List(
+                    self.inputs
+                        .iter()
+                        .map(|input| Val::Raw(format!("{}", input)))
+                        .collect(),
+                ),
+            ),
+            (
+                "outputs".to_string(),
+                Val::List(
+                    self.outputs
+                        .iter()
+                        .map(|input| Val::Raw(format!("{}", input)))
+                        .collect(),
+                ),
             ),
         ])
     }
