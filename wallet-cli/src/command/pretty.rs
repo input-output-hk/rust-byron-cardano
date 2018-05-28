@@ -32,21 +32,12 @@ fn longest_key_length(ast: &[(Key, Val)]) -> usize {
         .fold(0, |longest, (key, _)| std::cmp::max(longest, key.len()))
 }
 
-fn fmt_key(
-    key: &Key,
-    f: &mut fmt::Formatter,
-    indent_size: usize,
-    indent_level: usize,
-    key_width: usize,
-) -> fmt::Result {
-    write!(
-        f,
-        "{:>iw$}- {:<kw$}:",
-        "",
-        key,
-        kw = key_width,
-        iw = indent_size * indent_level,
-    )
+fn fmt_indent(f: &mut fmt::Formatter, indent_size: usize, indent_level: usize) -> fmt::Result {
+    write!(f, "{:>iw$}", "", iw = indent_size * indent_level,)
+}
+
+fn fmt_key(key: &Key, f: &mut fmt::Formatter, key_width: usize) -> fmt::Result {
+    write!(f, "- {:<kw$}:", key, kw = key_width,)
 }
 
 fn fmt_val(
@@ -80,12 +71,13 @@ fn fmt_pretty(
     match p {
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
-        // format pretty-val as a set of  key-vals
+        // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
             let key_width = longest_key_length(ast);
             ast.iter().fold(Ok(()), |prev_result, (key, val)| {
                 prev_result.and_then(|()| {
-                    fmt_key(key, f, indent_size, indent_level, key_width)?;
+                    fmt_indent(f, indent_size, indent_level)?;
+                    fmt_key(key, f, key_width)?;
                     fmt_val(val, f, indent_size, indent_level + 1)
                 })
             })
