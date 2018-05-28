@@ -109,8 +109,8 @@ fn net_sync_fast(network: String, mut storage: Storage) {
             upper_bound_hash: network_tip.clone()
         };
         let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
-        download_prev_hash = result.previous_last_header_hash;
-        download_start_hash = result.last_header_hash;
+        download_prev_hash = result.last_header_hash.clone();
+        download_start_hash = result.next_epoch_hash.unwrap_or(result.last_header_hash);
         download_epoch_id += 1;
     }
 }
@@ -145,8 +145,8 @@ fn net_sync_faster(network: String, mut storage: Storage) {
             upper_bound_hash: net_cfg.genesis_prev.clone()
         };
         let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
-        download_prev_hash = result.previous_last_header_hash;
-        download_start_hash = result.last_header_hash;
+        download_prev_hash = result.last_header_hash.clone();
+        download_start_hash = result.next_epoch_hash.unwrap_or(result.last_header_hash);
         download_epoch_id += 1;
     }
 }

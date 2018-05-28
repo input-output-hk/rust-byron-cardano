@@ -83,8 +83,8 @@ impl Api for HermesEndPoint {
         info!("Processing EPOCH in {}sec", time_elapsed.as_secs());
 
         Ok(FetchEpochResult {
-            previous_last_header_hash: last_hdr.get_previous_header(),
             last_header_hash: last_hdr.compute_hash(),
+            next_epoch_hash: None,
             packhash: packhash
         })
     }

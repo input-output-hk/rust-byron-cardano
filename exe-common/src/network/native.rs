@@ -132,8 +132,8 @@ impl Api for OpenPeer {
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         let result = download_epoch(storage, self, fep.epoch_id, &fep.start_header_hash, &fep.previous_header_hash, &fep.upper_bound_hash);
         Ok(FetchEpochResult {
-            previous_last_header_hash: result.0,
-            last_header_hash: result.1,
+            last_header_hash: result.0,
+            next_epoch_hash: Some(result.1),
             packhash: result.2
         })
     }
