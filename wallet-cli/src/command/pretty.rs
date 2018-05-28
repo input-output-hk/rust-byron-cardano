@@ -7,6 +7,8 @@ use blockchain::normal;
 use blockchain::{Block, SscProof};
 use wallet_crypto;
 
+use ansi_term::Colour;
+
 // Constants for the fmt::Display instance
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
@@ -136,9 +138,13 @@ impl Pretty for normal::BlockHeader {
             ),
             (
                 "previous hash".to_string(),
-                Val::Raw(wallet_crypto::util::hex::encode(
-                    self.previous_header.as_ref(),
-                )),
+                Val::Raw(
+                    Colour::Green
+                        .paint(wallet_crypto::util::hex::encode(
+                            self.previous_header.as_ref(),
+                        ))
+                        .to_string(),
+                ),
             ),
             ("body proof".to_string(), self.body_proof.to_pretty()),
             ("consensus".to_string(), self.consensus.to_pretty()),
