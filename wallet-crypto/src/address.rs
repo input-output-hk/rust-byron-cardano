@@ -294,6 +294,11 @@ impl ExtendedAddr {
         }
     }
 
+    // bootstrap era + no hdpayload address
+    pub fn new_simple(xpub: XPub) -> Self {
+        ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
+    }
+
     /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
