@@ -206,7 +206,11 @@ impl Pretty for normal::Consensus {
             ),
             (
                 "block signature".to_string(),
-                Val::Raw(format!("{:?}", self.block_signature)),
+                Val::Raw(
+                    Colour::Cyan
+                        .paint(format!("{:?}", self.block_signature))
+                        .to_string(),
+                ),
             ),
         ])
     }
