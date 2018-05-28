@@ -269,7 +269,7 @@ impl cbor::CborValue for Addr {
     }
 }
 impl Addr {
-    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Addr {
+    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
         let d : (AddrType, SpendingData, Attributes) = (addr_type, spending_data.clone(), attrs.clone());
         let v = cbor::encode_to_cbor(&d).unwrap();
         Addr(DigestBlake2b224::new(v.as_slice()))
