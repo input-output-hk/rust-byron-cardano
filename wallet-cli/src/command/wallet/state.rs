@@ -93,7 +93,7 @@ impl AddrLookup for SequentialBip44Lookup {
                         self.gen_next()?;
                         threshold = self.latest_to_generate.decr(self.gap_limit)?
                     }
-                    found.push(*o.clone())
+                    found.push(o.clone().clone())
                 },
             }
         }
@@ -184,7 +184,7 @@ impl <T: AddrLookup> State<T> {
                         let found_outputs = a.lookup_struct.lookup(&all_outputs[..]);
                         println!("found_outputs: {:?}", found_outputs)
 
-                        // TODO process
+                        // utxo
                     }
                 },
             }
@@ -195,7 +195,3 @@ impl <T: AddrLookup> State<T> {
         Ok(())
     }
 }
-
-/*
-fn tx_get_addresses() ->
-*/
