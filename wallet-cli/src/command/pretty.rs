@@ -82,11 +82,7 @@ fn fmt_pretty(
         Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
-        Val::BlockSig(block_signature) => write!(
-            f,
-            "{}",
-            Colour::Cyan.paint(format!("{:?}", block_signature))
-        ),
+        Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
 
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
