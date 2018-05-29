@@ -4,6 +4,7 @@ use std::string::String;
 
 use blockchain::genesis;
 use blockchain::normal;
+use blockchain::types;
 use blockchain::{Block, SscProof};
 use wallet_crypto;
 
@@ -13,15 +14,20 @@ use ansi_term::Colour;
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
 
-type AST = Vec<(Key, Val)>;
+type AST<'a> = Vec<(Key, Val<'a>)>;
 
 type Key = String;
 
+// XXX: consider splitting into two mutually-recursive types (one with only terminals, one with only nonterminals)
 // TODO: extend with blockchain-specific constructors with color
-pub enum Val {
+pub enum Val<'a> {
+    // terminals
     Raw(String),
-    List(Vec<Val>),
-    Tree(AST),
+    Hash(&'a [u8]),
+
+    // recursive
+    List(Vec<Val<'a>>),
+    Tree(AST<'a>),
 }
 
 pub trait Pretty {
@@ -41,6 +47,7 @@ fn fmt_key(key: &Key, f: &mut fmt::Formatter, key_width: usize) -> fmt::Result {
     write!(f, "- {:<kw$}:", key, kw = key_width,)
 }
 
+// XXX: DRY up the duplicate calls to `fmt_pretty`?
 fn fmt_val(
     val: &Val,
     f: &mut fmt::Formatter,
@@ -48,19 +55,19 @@ fn fmt_val(
     indent_level: usize,
 ) -> fmt::Result {
     match val {
-        // write inline
-        Val::Raw(_) => {
+        // write terminals inline
+        Val::Raw(_) | Val::Hash(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
         }
-        // write on the next line
-        _ => {
+
+        // write nonterminals on the next line
+        Val::List(_) | Val::Tree(_) => {
             write!(f, "\n")?;
             fmt_pretty(val, f, indent_size, indent_level)
         }
     }
-    // XXX: DRY up the duplicate calls to `fmt_pretty`?
 }
 
 fn fmt_pretty(
@@ -72,6 +79,12 @@ fn fmt_pretty(
     match p {
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
+        Val::Hash(hash) => write!(
+            f,
+            "{}",
+            Colour::Green.paint(wallet_crypto::util::hex::encode(hash))
+        ),
+
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
             let key_width = longest_key_length(ast);
@@ -83,6 +96,7 @@ fn fmt_pretty(
                 })
             })
         }
+
         // format pretty-val as a sequence of vals
         Val::List(vals) => vals.iter().fold(Ok(()), |prev_result, val| {
             prev_result.and_then(|()| {
@@ -94,7 +108,7 @@ fn fmt_pretty(
     }
 }
 
-impl fmt::Display for Val {
+impl<'a> fmt::Display for Val<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt_pretty(self, f, DISPLAY_INDENT_SIZE, DISPLAY_INDENT_LEVEL)
     }
@@ -139,13 +153,7 @@ impl Pretty for normal::BlockHeader {
             ),
             (
                 "previous hash".to_string(),
-                Val::Raw(
-                    Colour::Green
-                        .paint(wallet_crypto::util::hex::encode(
-                            self.previous_header.as_ref(),
-                        ))
-                        .to_string(),
-                ),
+                self.previous_header.to_pretty(),
             ),
             ("body proof".to_string(), self.body_proof.to_pretty()),
             ("consensus".to_string(), self.consensus.to_pretty()),
@@ -154,6 +162,12 @@ impl Pretty for normal::BlockHeader {
                 Val::Raw(format!("TODO {:?}", self.extra_data)),
             ),
         ])
+    }
+}
+
+impl Pretty for types::HeaderHash {
+    fn to_pretty(&self) -> Val {
+        Val::Hash(self.as_ref())
     }
 }
 
@@ -166,13 +180,7 @@ impl Pretty for genesis::BlockHeader {
             ),
             (
                 "previous hash".to_string(),
-                Val::Raw(
-                    Colour::Green
-                        .paint(wallet_crypto::util::hex::encode(
-                            self.previous_header.as_ref(),
-                        ))
-                        .to_string(),
-                ),
+                self.previous_header.to_pretty(),
             ),
             (
                 "body proof".to_string(),
