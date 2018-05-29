@@ -24,6 +24,7 @@ pub enum Val<'a> {
     // terminals
     Raw(String),
     Hash(&'a [u8]),
+    Epoch(u32),
 
     // recursive
     List(Vec<Val<'a>>),
@@ -56,7 +57,7 @@ fn fmt_val(
 ) -> fmt::Result {
     match val {
         // write terminals inline
-        Val::Raw(_) | Val::Hash(_) => {
+        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
@@ -84,6 +85,7 @@ fn fmt_pretty(
             "{}",
             Colour::Green.paint(wallet_crypto::util::hex::encode(hash))
         ),
+        Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
 
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
@@ -258,7 +260,7 @@ impl Pretty for normal::Consensus {
 impl Pretty for genesis::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("epoch".to_string(), Val::Raw(format!("{}", self.epoch))),
+            ("epoch".to_string(), Val::Epoch(self.epoch)),
             (
                 "chain difficulty".to_string(),
                 Val::Raw(format!("{}", self.chain_difficulty)),
