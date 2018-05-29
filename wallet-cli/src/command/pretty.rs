@@ -2,11 +2,8 @@ use std;
 use std::fmt;
 use std::string::String;
 
-use blockchain::genesis;
-use blockchain::normal;
-use blockchain::types;
-use blockchain::{Block, SscProof};
-use wallet_crypto;
+use blockchain::{genesis, normal, types, Block, SscProof};
+use wallet_crypto::{hash, tx, util::hex};
 
 use ansi_term::Colour;
 
@@ -14,23 +11,23 @@ use ansi_term::Colour;
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
 
-type AST<'a> = Vec<(Key, Val<'a>)>;
+type AST = Vec<(Key, Val)>;
 
 type Key = String;
 
 // XXX: consider splitting into two mutually-recursive types (one with only terminals, one with only nonterminals)
 // TODO: extend with blockchain-specific constructors with color
-pub enum Val<'a> {
+pub enum Val {
     // terminals
     Raw(String),
-    Hash(&'a [u8]),
+    Hash(types::HeaderHash),
     Epoch(u32),
     SlotId(u32),
     BlockSig(normal::BlockSignature),
 
     // recursive
-    List(Vec<Val<'a>>),
-    Tree(AST<'a>),
+    List(Vec<Val>),
+    Tree(AST),
 }
 
 pub trait Pretty {
@@ -82,11 +79,7 @@ fn fmt_pretty(
     match p {
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
-        Val::Hash(hash) => write!(
-            f,
-            "{}",
-            Colour::Green.paint(wallet_crypto::util::hex::encode(hash))
-        ),
+        Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
         Val::BlockSig(block_signature) => write!(
@@ -118,7 +111,7 @@ fn fmt_pretty(
     }
 }
 
-impl<'a> fmt::Display for Val<'a> {
+impl fmt::Display for Val {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt_pretty(self, f, DISPLAY_INDENT_SIZE, DISPLAY_INDENT_LEVEL)
     }
@@ -177,7 +170,7 @@ impl Pretty for normal::BlockHeader {
 
 impl Pretty for types::HeaderHash {
     fn to_pretty(&self) -> Val {
-        Val::Hash(self.as_ref())
+        Val::Hash(self.clone())
     }
 }
 
@@ -216,7 +209,7 @@ impl Pretty for normal::BodyProof {
     }
 }
 
-impl Pretty for wallet_crypto::tx::TxProof {
+impl Pretty for tx::TxProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("number".to_string(), Val::Raw(format!("{}", self.number))),
@@ -226,7 +219,7 @@ impl Pretty for wallet_crypto::tx::TxProof {
     }
 }
 
-impl Pretty for wallet_crypto::hash::Blake2b256 {
+impl Pretty for hash::Blake2b256 {
     fn to_pretty(&self) -> Val {
         Val::Raw(format!("{}", self))
     }
@@ -244,7 +237,7 @@ impl Pretty for normal::Consensus {
             ("slot".to_string(), self.slot_id.to_pretty()),
             (
                 "leader key".to_string(),
-                Val::Raw(wallet_crypto::util::hex::encode(self.leader_key.as_ref())),
+                Val::Raw(hex::encode(self.leader_key.as_ref())),
             ),
             (
                 "chain difficulty".to_string(),
@@ -339,7 +332,7 @@ impl Pretty for normal::TxPayload {
 }
 
 // XXX: impl for a parameterized generic type, Vec.. not sure if idiomatic
-impl Pretty for Vec<wallet_crypto::tx::TxInWitness> {
+impl Pretty for Vec<tx::TxInWitness> {
     fn to_pretty(&self) -> Val {
         Val::List(
             self.iter()
@@ -349,7 +342,7 @@ impl Pretty for Vec<wallet_crypto::tx::TxInWitness> {
     }
 }
 
-impl Pretty for wallet_crypto::tx::Tx {
+impl Pretty for tx::Tx {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             (
