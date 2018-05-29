@@ -346,10 +346,7 @@ impl Pretty for genesis::Block {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("header".to_string(), self.header.to_pretty()),
-            (
-                "body".to_string(),
-                self.body.to_pretty(),
-            ),
+            ("body".to_string(), self.body.to_pretty()),
             (
                 "extra".to_string(),
                 Val::Raw(format!("TODO {:?}", self.extra)),
@@ -360,8 +357,6 @@ impl Pretty for genesis::Block {
 
 #[cfg(test)]
 mod tests {
-    use std::vec::Vec;
-
     use command::pretty::Val::*;
     use command::pretty::*;
 
