@@ -123,7 +123,7 @@ impl cbor::CborValue for Block {
 
 #[derive(Debug, Clone)]
 pub struct Consensus {
-    pub epoch: u32,
+    pub epoch: types::EpochId,
     pub chain_difficulty: ChainDifficulty,
 }
 impl cbor::CborValue for Consensus {

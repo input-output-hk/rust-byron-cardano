@@ -25,6 +25,7 @@ pub enum Val<'a> {
     Raw(String),
     Hash(&'a [u8]),
     Epoch(u32),
+    SlotId(u32),
 
     // recursive
     List(Vec<Val<'a>>),
@@ -57,7 +58,7 @@ fn fmt_val(
 ) -> fmt::Result {
     match val {
         // write terminals inline
-        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) => {
+        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) | Val::SlotId(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
@@ -86,6 +87,7 @@ fn fmt_pretty(
             Colour::Green.paint(wallet_crypto::util::hex::encode(hash))
         ),
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
+        Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
 
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
@@ -233,10 +235,7 @@ impl Pretty for SscProof {
 impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "slot id".to_string(),
-                Val::Raw(format!("{:?}", self.slot_id)),
-            ),
+            ("slot".to_string(), self.slot_id.to_pretty()),
             (
                 "leader key".to_string(),
                 Val::Raw(wallet_crypto::util::hex::encode(self.leader_key.as_ref())),
@@ -257,10 +256,25 @@ impl Pretty for normal::Consensus {
     }
 }
 
+impl Pretty for types::SlotId {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("epoch".to_string(), self.epoch.to_pretty()),
+            ("slot id".to_string(), Val::SlotId(self.slotid)),
+        ])
+    }
+}
+
+impl Pretty for types::EpochId {
+    fn to_pretty(&self) -> Val {
+        Val::Epoch(*self)
+    }
+}
+
 impl Pretty for genesis::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("epoch".to_string(), Val::Epoch(self.epoch)),
+            ("epoch".to_string(), self.epoch.to_pretty()),
             (
                 "chain difficulty".to_string(),
                 Val::Raw(format!("{}", self.chain_difficulty)),
