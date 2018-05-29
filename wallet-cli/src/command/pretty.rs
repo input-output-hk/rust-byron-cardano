@@ -26,6 +26,7 @@ pub enum Val<'a> {
     Hash(&'a [u8]),
     Epoch(u32),
     SlotId(u32),
+    BlockSig(normal::BlockSignature),
 
     // recursive
     List(Vec<Val<'a>>),
@@ -58,7 +59,7 @@ fn fmt_val(
 ) -> fmt::Result {
     match val {
         // write terminals inline
-        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) | Val::SlotId(_) => {
+        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) | Val::SlotId(_) | Val::BlockSig(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
@@ -88,6 +89,11 @@ fn fmt_pretty(
         ),
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
+        Val::BlockSig(block_signature) => write!(
+            f,
+            "{}",
+            Colour::Cyan.paint(format!("{:?}", block_signature))
+        ),
 
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
@@ -246,13 +252,15 @@ impl Pretty for normal::Consensus {
             ),
             (
                 "block signature".to_string(),
-                Val::Raw(
-                    Colour::Cyan
-                        .paint(format!("{:?}", self.block_signature))
-                        .to_string(),
-                ),
+                self.block_signature.to_pretty(),
             ),
         ])
+    }
+}
+
+impl Pretty for normal::BlockSignature {
+    fn to_pretty(&self) -> Val {
+        Val::BlockSig(self.clone())
     }
 }
 
