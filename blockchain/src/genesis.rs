@@ -1,8 +1,7 @@
-use wallet_crypto::{cbor, hash::{Blake2b256}};
+use wallet_crypto::{address, cbor, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
-use std::collections::{LinkedList};
 
 use types;
 use types::{HeaderHash, ChainDifficulty};
@@ -21,8 +20,7 @@ impl cbor::CborValue for BodyProof {
 
 #[derive(Debug, Clone)]
 pub struct Body {
-    //pub slot_leaders: Vec<tx::Hash>
-    pub slot_leaders: LinkedList<cbor::Value>,
+    pub slot_leaders: Vec<address::StakeholderId>,
 }
 /*
 impl fmt::Display for Body {
@@ -36,9 +34,19 @@ impl cbor::CborValue for Body {
         unimplemented!()
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.iarray().and_then(|array| {
-            Ok(Body { slot_leaders: array })
-        }).embed("While decoding genesis::Body")
+        Ok(Body {
+            slot_leaders: value
+                .iarray()
+                .and_then(|array| {
+                    array.iter().fold(Ok(vec![]), |acc, item| {
+                        acc.and_then(|mut vec| {
+                            vec.push(item.clone().decode::<address::StakeholderId>()?);
+                            Ok(vec)
+                        })
+                    })
+                })
+                .embed("While decoding genesis::Body")?,
+        })
     }
 }
 
