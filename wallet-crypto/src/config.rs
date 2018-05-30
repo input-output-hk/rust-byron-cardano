@@ -3,6 +3,7 @@
 //!
 
 use cbor;
+use raw_cbor::{self, de::RawCbor};
 use std::fmt;
 
 /// this is the protocol magic number
@@ -39,6 +40,12 @@ impl cbor::CborValue for ProtocolMagic {
 }
 impl Default for ProtocolMagic {
     fn default() -> Self { ProtocolMagic::new(764824073) }
+}
+impl raw_cbor::Deserialize for ProtocolMagic {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let v = *raw.unsigned_integer()? as u32;
+        Ok(ProtocolMagic::new(v))
+    }
 }
 
 /// Configuration for the wallet-crypto

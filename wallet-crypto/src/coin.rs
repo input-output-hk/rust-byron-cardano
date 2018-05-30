@@ -1,22 +1,23 @@
 //! Cardano's Lovelace value
-//! 
+//!
 //! This represents the type value and has some properties associated
 //! such as a min bound of 0 and a max bound of `MAX_COIN`.
-//! 
+//!
 
 use cbor;
 use cbor::ExtendedResult;
+use raw_cbor::{self, de::RawCbor};
 use std::{ops, fmt, result};
 
 /// maximum value of a Lovelace.
 pub const MAX_COIN: u64 = 45_000_000_000__000_000;
 
 /// error type relating to `Coin` operations
-/// 
+///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Error {
     /// means that the given value was out of bound
-    /// 
+    ///
     /// Max bound being: `MAX_COIN`.
     OutOfBound(u64)
 }
@@ -36,26 +37,26 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Coin(u64);
 impl Coin {
     /// create a coin of value `0`.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use wallet_crypto::coin::{Coin};
-    /// 
+    ///
     /// println!("{}", Coin::zero());
     /// ```
     pub fn zero() -> Self { Coin(0) }
 
     /// create a coin of the given value
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use wallet_crypto::coin::{Coin};
-    /// 
+    ///
     /// let coin = Coin::new(42);
     /// let invalid = Coin::new(45000000000000001);
-    /// 
+    ///
     /// assert!(coin.is_ok());
     /// assert!(invalid.is_err());
     /// ```
@@ -66,6 +67,15 @@ impl Coin {
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl raw_cbor::de::Deserialize for Coin {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        Coin::new(*raw.unsigned_integer()?).map_err(|err| {
+            match err {
+                Error::OutOfBound(v) => raw_cbor::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN))
+            }
+        })
     }
 }
 impl cbor::CborValue for Coin {

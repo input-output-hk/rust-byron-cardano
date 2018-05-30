@@ -6,6 +6,7 @@ use std::collections::linked_list::{Iter};
 use std::collections::{LinkedList, BTreeMap};
 use std::collections::btree_map;
 
+use raw_cbor::{self, de::RawCbor};
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
 
@@ -45,6 +46,20 @@ impl cbor::CborValue for BodyProof {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(BodyProof::new(tx, mpc, proxy_sk, update))
         }).embed("While decoding BodyProof")
+    }
+}
+impl raw_cbor::de::Deserialize for BodyProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BodyProof: recieved array of {:?} elements", len)));
+        }
+        let tx       = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let mpc      = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let proxy_sk = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let update   = raw_cbor::de::Deserialize::deserialize(raw)?;
+
+        Ok(BodyProof::new(tx, mpc, proxy_sk, update))
     }
 }
 
@@ -90,6 +105,26 @@ impl cbor::CborValue for TxPayload {
         }).embed("While decoding TxPayload")
     }
 }
+impl raw_cbor::de::Deserialize for TxPayload {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let num_inputs = raw.array()?;
+        assert_eq!(num_inputs, raw_cbor::Len::Indefinite);
+        let mut l = LinkedList::new();
+        while {
+            let t = raw.cbor_type()?;
+            if t == raw_cbor::Type::Special {
+                let special = raw.special()?;
+                assert_eq!(special, raw_cbor::de::Special::Break);
+                false
+            } else {
+                l.push_back(raw_cbor::de::Deserialize::deserialize(raw)?);
+                true
+            }
+        } {}
+
+        Ok(TxPayload::new(l))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Body {
@@ -121,6 +156,32 @@ impl cbor::CborValue for Body {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Body::new(tx, scc, dlg, upd))
         }).embed("While decoding main::Body")
+    }
+}
+impl raw_cbor::de::Deserialize for Body {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
+        }
+        let tx  = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let scc = {
+            let _ = raw.array()?;
+            let _ = raw.unsigned_integer()?;
+            let _ = raw.map()?;
+            let _ = raw.tag()?;
+            let _ = raw.array()?;
+            cbor::Value::Null
+        };
+        let dlg = { let _ = raw.array()?; cbor::Value::Null };
+        let upd = {
+            let _ = raw.array()?;
+            let _ = raw.array()?;
+            let _ = raw.array()?;
+            cbor::Value::Null
+        };
+
+        Ok(Body::new(tx, scc, dlg, upd))
     }
 }
 
@@ -470,6 +531,22 @@ impl cbor::CborValue for BlockHeader {
         }).embed("While decoding a main::BlockHeader")
     }
 }
+impl raw_cbor::de::Deserialize for BlockHeader {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(5) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
+        }
+
+        let p_magic    = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let prv_header = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let body_proof = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let consensus  = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let extra_data = raw_cbor::de::Deserialize::deserialize(raw)?;
+
+        Ok(BlockHeader::new(p_magic, prv_header, body_proof, consensus, extra_data))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -504,6 +581,22 @@ impl cbor::CborValue for Block {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Block::new(header, body, extra))
         }).embed("While decoding block::Block")
+    }
+}
+impl raw_cbor::de::Deserialize for Block {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
+        }
+        let header = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let body  = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let extra = {
+            let _ = raw.array()?;
+            let _ = raw.map()?;
+            cbor::Value::Null
+        };
+        Ok(Block::new(header, body, extra))
     }
 }
 
@@ -558,6 +651,40 @@ impl cbor::CborValue for BlockSignature {
         }).embed("While decoding main::BlockSignature")
     }
 }
+impl raw_cbor::de::Deserialize for BlockSignature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) && len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockSignature: recieved array of {:?} elements", len)));
+        }
+        let sum_type_idx = raw.unsigned_integer()?;
+        match *sum_type_idx {
+            0 => {
+                let signature = raw_cbor::de::Deserialize::deserialize(raw)?;
+                Ok(BlockSignature::Signature(signature))
+            },
+            1 => {
+                unimplemented!();
+                // Ok(BlockSignature::ProxyLight(vec![cbor::Value::Null])
+            },
+            2 => {
+                assert!(raw.array()? == raw_cbor::Len::Len(1));
+                {
+                    assert!(raw.array()? == raw_cbor::Len::Len(4));
+                    assert!(*raw.unsigned_integer()? == 0);
+                    let _ = raw.bytes()?;
+                    let _ = raw.bytes()?;
+                    let _ = raw.bytes()?;
+                }
+                let _ = raw.bytes()?;
+                Ok(BlockSignature::ProxyHeavy(vec![cbor::Value::Null]))
+            },
+            _ => {
+                Err(raw_cbor::Error::CustomError(format!("Unsupported BlockSignature: {}", *sum_type_idx)))
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Consensus {
@@ -590,5 +717,18 @@ impl cbor::CborValue for Consensus {
                 block_signature: block_signature,
             })
         }).embed("While decoding main::Consensus")
+    }
+}
+impl raw_cbor::de::Deserialize for Consensus {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
+        }
+        let slot_id = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let leader_key = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let chain_difficulty = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let block_signature = raw_cbor::de::Deserialize::deserialize(raw)?;
+        Ok(Consensus {slot_id, leader_key, chain_difficulty, block_signature })
     }
 }

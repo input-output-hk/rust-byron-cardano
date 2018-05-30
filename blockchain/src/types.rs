@@ -1,6 +1,7 @@
 use std::{fmt};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::{cbor, hash, hash::{HASH_SIZE, Blake2b256}};
+use raw_cbor::{self, de::RawCbor};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -165,6 +166,19 @@ impl cbor::CborValue for Version {
         }).embed("while decoding Version")
     }
 }
+impl raw_cbor::de::Deserialize for Version {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Version: recieved array of {:?} elements", len)));
+        }
+        let major = *raw.unsigned_integer()? as u32;
+        let minor = *raw.unsigned_integer()? as u32;
+        let revision = *raw.unsigned_integer()? as u32;
+
+        Ok(Version::new(major, minor, revision))
+    }
+}
 
 impl cbor::CborValue for BlockVersion {
     fn encode(&self) -> cbor::Value {
@@ -186,6 +200,19 @@ impl cbor::CborValue for BlockVersion {
         }).embed("While decoding a BlockVersion")
     }
 }
+impl raw_cbor::de::Deserialize for BlockVersion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockVersion: recieved array of {:?} elements", len)));
+        }
+        let major = *raw.unsigned_integer()? as u16;
+        let minor = *raw.unsigned_integer()? as u16;
+        let revision = *raw.unsigned_integer()? as u8;
+
+        Ok(BlockVersion::new(major, minor, revision))
+    }
+}
 
 impl cbor::CborValue for SoftwareVersion {
     fn encode(&self) -> cbor::Value {
@@ -205,11 +232,28 @@ impl cbor::CborValue for SoftwareVersion {
         }).embed("While decoding a SoftwareVersion")
     }
 }
+impl raw_cbor::de::Deserialize for SoftwareVersion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid SoftwareVersion: recieved array of {:?} elements", len)));
+        }
+        let name  = raw.text()?;
+        let version = *raw.unsigned_integer()? as u32;
+
+        Ok(SoftwareVersion::new(name.to_string(), version))
+    }
+}
 
 impl cbor::CborValue for HeaderHash {
     fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         cbor::CborValue::decode(value).map(|h| HeaderHash(h))
+    }
+}
+impl raw_cbor::de::Deserialize for HeaderHash {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        raw_cbor::de::Deserialize::deserialize(raw).map(|h| HeaderHash(h))
     }
 }
 
@@ -219,6 +263,15 @@ impl cbor::CborValue for BlockHeaderAttributes {
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         Ok(BlockHeaderAttributes(value))
+    }
+}
+impl raw_cbor::de::Deserialize for BlockHeaderAttributes {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.map()?;
+        if len != raw_cbor::Len::Len(0) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderAttributes: recieved array of {:?} elements", len)));
+        }
+        Ok(BlockHeaderAttributes(cbor::Value::Object(::std::collections::BTreeMap::new())))
     }
 }
 
@@ -242,6 +295,20 @@ impl cbor::CborValue for HeaderExtraData {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(HeaderExtraData::new(block_version, software_version, attributes, extra_data_proof))
         }).embed("While decoding a HeaderExtraData")
+    }
+}
+impl raw_cbor::de::Deserialize for HeaderExtraData {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid HeaderExtraData: recieved array of {:?} elements", len)));
+        }
+        let block_version    = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let software_version = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let attributes       = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let extra_data_proof = raw_cbor::de::Deserialize::deserialize(raw)?;
+
+        Ok(HeaderExtraData::new(block_version, software_version, attributes, extra_data_proof))
     }
 }
 
@@ -286,6 +353,39 @@ impl cbor::CborValue for SscProof {
         }).embed("While decoding SscProof")
     }
 }
+impl raw_cbor::de::Deserialize for SscProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) && len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid SscProof: recieved array of {:?} elements", len)));
+        }
+        let sum_type_idx = raw.unsigned_integer()?;
+        match *sum_type_idx {
+            0 => {
+                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                Ok(SscProof::Commitments(commhash, vss))
+            },
+            1 => {
+                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                Ok(SscProof::Openings(commhash, vss))
+            },
+            2 => {
+                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                Ok(SscProof::Shares(commhash, vss))
+            },
+            3 => {
+                let cert = raw_cbor::de::Deserialize::deserialize(raw)?;
+                Ok(SscProof::Certificate(cert))
+            },
+            _ => {
+                Err(raw_cbor::Error::CustomError(format!("Unsupported SccProof: {}", *sum_type_idx)))
+            }
+        }
+    }
+}
 
 impl cbor::CborValue for ChainDifficulty {
     fn encode(&self) -> cbor::Value {
@@ -297,6 +397,15 @@ impl cbor::CborValue for ChainDifficulty {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(ChainDifficulty(difficulty))
         }).embed("While decoding ChainDifficulty")
+    }
+}
+impl raw_cbor::de::Deserialize for ChainDifficulty {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(1) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid ChainDifficulty: recieved array of {:?} elements", len)));
+        }
+        Ok(ChainDifficulty(*raw.unsigned_integer()?))
     }
 }
 
@@ -311,5 +420,16 @@ impl cbor::CborValue for SlotId {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(SlotId { epoch: epoch, slotid: slotid })
         }).embed("While decoding Slotid")
+    }
+}
+impl raw_cbor::de::Deserialize for SlotId {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid SlotId: recieved array of {:?} elements", len)));
+        }
+        let epoch  = *raw.unsigned_integer()? as u32;
+        let slotid = *raw.unsigned_integer()? as u32;
+        Ok(SlotId { epoch: epoch, slotid: slotid })
     }
 }

@@ -17,6 +17,8 @@ use util::{hex};
 use cbor;
 use cbor::{ExtendedResult};
 
+use raw_cbor::{self, de::RawCbor};
+
 use serde;
 
 pub const SEED_SIZE: usize = 32;
@@ -419,6 +421,16 @@ impl fmt::Debug for XPub {
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
+impl raw_cbor::de::Deserialize for XPub {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match XPub::from_slice(&bytes) {
+            Ok(pk) => Ok(pk),
+            Err(Error::InvalidXPubSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, XPUB_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
+    }
+}
 impl cbor::CborValue for XPub {
     fn encode(&self) -> cbor::Value {
         cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref()))
@@ -537,6 +549,16 @@ impl<T> fmt::Debug for Signature<T> {
 }
 impl<T> AsRef<[u8]> for Signature<T> {
     fn as_ref(&self) -> &[u8] { &self.bytes }
+}
+impl<T> raw_cbor::de::Deserialize for Signature<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match Signature::from_slice(&bytes) {
+            Ok(signature) => Ok(signature),
+            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
+    }
 }
 impl<T> cbor::CborValue for Signature<T> {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }

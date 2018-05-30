@@ -11,6 +11,7 @@ use std::{iter::repeat, ops::{Deref}};
 use hdwallet::{XPub};
 use cbor;
 use cbor::{ExtendedResult};
+use raw_cbor::{self, Len, de::RawCbor};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -23,10 +24,24 @@ impl AsRef<[u32]> for Path {
 }
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
-    fn from_cbor(bytes: &[u8]) -> cbor::Result<Self> {
-        cbor::decode_from_cbor(bytes)
+    fn from_cbor(bytes: &[u8]) -> raw_cbor::Result<Self> {
+        let mut raw = RawCbor::from(bytes);
+        raw_cbor::de::Deserialize::deserialize(&mut raw)
     }
     fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
+}
+impl raw_cbor::Deserialize for Path {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        if let Len::Len(len) = raw.array()? {
+            let mut elements = Vec::new();
+            for _ in 0..len as usize {
+                elements.push(*raw.unsigned_integer()? as u32);
+            }
+            Ok(Path::new(elements))
+        } else {
+            Err(raw_cbor::Error::CustomError(format!("CBor derivation path does not support indefinite-length derivation path")))
+        }
+    }
 }
 impl cbor::CborValue for Path {
     fn encode(&self) -> cbor::Value { cbor::Value::IArray(self.0.iter().map(cbor::CborValue::encode).collect()) }
@@ -121,6 +136,12 @@ impl HDAddressPayload {
     }
     pub fn len(&self) -> usize { self.0.len() }
 }
+impl raw_cbor::de::Deserialize for HDAddressPayload {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let mut raw_encoded = RawCbor::from(&raw.bytes()?);
+        Ok(HDAddressPayload::from_bytes(&mut raw_encoded.bytes()?))
+    }
+}
 impl cbor::CborValue for HDAddressPayload {
     fn encode(&self) -> cbor::Value {
         let vec = cbor::encode_to_cbor(&cbor::Bytes::new(self.0.clone())).unwrap();
@@ -160,7 +181,7 @@ mod tests {
     fn path_cbor_encoding() {
         let path = Path::new(vec![0,1,2]);
         let cbor = path.cbor();
-        assert_eq!(Ok(path), Path::from_cbor(cbor.as_ref()));
+        assert_eq!(path, Path::from_cbor(cbor.as_ref()).unwrap());
     }
 
     #[test]

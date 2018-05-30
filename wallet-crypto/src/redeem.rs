@@ -11,6 +11,7 @@ use rcw::{ed25519};
 use util::{hex};
 use cbor;
 use cbor::{ExtendedResult};
+use raw_cbor::{self, de::RawCbor};
 use serde;
 
 use std::{fmt, result, cmp};
@@ -191,6 +192,15 @@ impl cbor::CborValue for PublicKey {
         }).embed("while decoding Reedem's PublicKey")
     }
 }
+impl raw_cbor::de::Deserialize for PublicKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match PublicKey::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidPublicKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PUBLICKEY_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
+    }
+}
 
 impl cbor::CborValue for PrivateKey {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
@@ -206,6 +216,15 @@ impl cbor::CborValue for PrivateKey {
         }).embed("while decoding Reedem's PrivateKey")
     }
 }
+impl raw_cbor::de::Deserialize for PrivateKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match PrivateKey::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidPrivateKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PRIVATEKEY_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
+    }
+}
 
 impl cbor::CborValue for Signature {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
@@ -219,6 +238,15 @@ impl cbor::CborValue for Signature {
                 Err(err) => panic!("unexpected error: {}", err)
             }
         }).embed("while decoding Reedem's Signature")
+    }
+}
+impl raw_cbor::de::Deserialize for Signature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match Signature::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 

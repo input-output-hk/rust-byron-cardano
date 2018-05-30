@@ -6,6 +6,7 @@ use rcw::blake2b::Blake2b;
 use util::hex;
 use cbor;
 use cbor::{ExtendedResult};
+use raw_cbor::{self, de::RawCbor};
 
 use serde;
 
@@ -74,6 +75,16 @@ impl fmt::Debug for Blake2b256 {
 impl fmt::Display for Blake2b256 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0[..]))
+    }
+}
+impl raw_cbor::de::Deserialize for Blake2b256 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match Blake2b256::from_slice(&bytes) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidHashSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, HASH_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 impl cbor::CborValue for Blake2b256 {
