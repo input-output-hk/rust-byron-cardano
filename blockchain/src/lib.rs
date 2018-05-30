@@ -11,7 +11,7 @@ extern crate test;
 extern crate serde_derive;
 extern crate serde;
 
-mod types;
+pub mod types;
 pub mod genesis; /* genesis block related value */
 pub mod normal; /* normal block related value */
 mod block;

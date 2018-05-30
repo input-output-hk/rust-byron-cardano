@@ -27,7 +27,7 @@ jYTLseJK1m2RmsXD44EZVe2EqGtBnQyFnPwjS2Q36c3iLwWCPGmAVWKR9ufE
 jYTLseJK1m2eYuy16w7tjPNqtVdAaQ5bnb4Cyya2YH9AqJoNPQ1VLgE4MaXL
 ```
 
-Make a network configuration (from a template).
+Make a blockchain network configuration (from a template).
 
 ```sh-session
 $ ariadne blockchain new foo --template testnet
@@ -35,7 +35,7 @@ $ ariadne blockchain new foo --template testnet
 # see `ariadne network new --help` for more info.
 ```
 
-Download the blockchain (takes awhile).
+Download a blockchain specified by network configuration name (takes awhile).
 
 ```sh-session
 $ ariadne blockchain sync foo
@@ -50,7 +50,7 @@ downloading epoch 0 b36...
  
 ```
 
-cat a block in a given blockchain:
+Show a block from a given blockchain:
 
 ```sh-sesssion
 $ ariadne blockchain cat foo "c9942ae..."

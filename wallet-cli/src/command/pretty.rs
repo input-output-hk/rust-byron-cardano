@@ -2,10 +2,10 @@ use std;
 use std::fmt;
 use std::string::String;
 
-use blockchain::genesis;
-use blockchain::normal;
-use blockchain::{Block, SscProof};
-use wallet_crypto;
+use blockchain::{genesis, normal, types, Block, SscProof};
+use wallet_crypto::{hash, tx, util::hex};
+
+use ansi_term::Colour;
 
 // Constants for the fmt::Display instance
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
@@ -15,9 +15,18 @@ type AST = Vec<(Key, Val)>;
 
 type Key = String;
 
+// XXX: consider splitting into two mutually-recursive types (one with only terminals, one with only nonterminals)
 // TODO: extend with blockchain-specific constructors with color
 pub enum Val {
+    // terminals
     Raw(String),
+    Hash(types::HeaderHash),
+    Epoch(u32),
+    SlotId(u32),
+    BlockSig(normal::BlockSignature),
+
+    // recursive
+    List(Vec<Val>),
     Tree(AST),
 }
 
@@ -30,23 +39,15 @@ fn longest_key_length(ast: &[(Key, Val)]) -> usize {
         .fold(0, |longest, (key, _)| std::cmp::max(longest, key.len()))
 }
 
-fn fmt_key(
-    key: &Key,
-    f: &mut fmt::Formatter,
-    indent_size: usize,
-    indent_level: usize,
-    key_width: usize,
-) -> fmt::Result {
-    write!(
-        f,
-        "{:>iw$}- {:<kw$}:",
-        "",
-        key,
-        kw = key_width,
-        iw = indent_size * indent_level,
-    )
+fn fmt_indent(f: &mut fmt::Formatter, indent_size: usize, indent_level: usize) -> fmt::Result {
+    write!(f, "{:>iw$}", "", iw = indent_size * indent_level,)
 }
 
+fn fmt_key(key: &Key, f: &mut fmt::Formatter, key_width: usize) -> fmt::Result {
+    write!(f, "- {:<kw$}:", key, kw = key_width,)
+}
+
+// XXX: DRY up the duplicate calls to `fmt_pretty`?
 fn fmt_val(
     val: &Val,
     f: &mut fmt::Formatter,
@@ -54,19 +55,19 @@ fn fmt_val(
     indent_level: usize,
 ) -> fmt::Result {
     match val {
-        // write inline
-        Val::Raw(_) => {
+        // write terminals inline
+        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) | Val::SlotId(_) | Val::BlockSig(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
         }
-        // write on the next line
-        Val::Tree(_) => {
+
+        // write nonterminals on the next line
+        Val::List(_) | Val::Tree(_) => {
             write!(f, "\n")?;
             fmt_pretty(val, f, indent_size, indent_level)
         }
     }
-    // XXX: DRY up the duplicate calls to `fmt_pretty`?
 }
 
 fn fmt_pretty(
@@ -78,16 +79,31 @@ fn fmt_pretty(
     match p {
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
-        // format pretty-val as a set of  key-vals
+        Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
+        Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
+        Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
+        Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
+
+        // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
             let key_width = longest_key_length(ast);
             ast.iter().fold(Ok(()), |prev_result, (key, val)| {
                 prev_result.and_then(|()| {
-                    fmt_key(key, f, indent_size, indent_level, key_width)?;
+                    fmt_indent(f, indent_size, indent_level)?;
+                    fmt_key(key, f, key_width)?;
                     fmt_val(val, f, indent_size, indent_level + 1)
                 })
             })
         }
+
+        // format pretty-val as a sequence of vals
+        Val::List(vals) => vals.iter().fold(Ok(()), |prev_result, val| {
+            prev_result.and_then(|()| {
+                fmt_indent(f, indent_size, indent_level)?;
+                write!(f, "*")?;
+                fmt_val(val, f, indent_size, indent_level + 1)
+            })
+        }),
     }
 }
 
@@ -136,11 +152,39 @@ impl Pretty for normal::BlockHeader {
             ),
             (
                 "previous hash".to_string(),
-                Val::Raw(wallet_crypto::util::hex::encode(
-                    self.previous_header.as_ref(),
-                )),
+                self.previous_header.to_pretty(),
             ),
             ("body proof".to_string(), self.body_proof.to_pretty()),
+            ("consensus".to_string(), self.consensus.to_pretty()),
+            (
+                "extra data".to_string(),
+                Val::Raw(format!("TODO {:?}", self.extra_data)),
+            ),
+        ])
+    }
+}
+
+impl Pretty for types::HeaderHash {
+    fn to_pretty(&self) -> Val {
+        Val::Hash(self.clone())
+    }
+}
+
+impl Pretty for genesis::BlockHeader {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            (
+                "protocol magic".to_string(),
+                Val::Raw(format!("{}", self.protocol_magic)),
+            ),
+            (
+                "previous hash".to_string(),
+                self.previous_header.to_pretty(),
+            ),
+            (
+                "body proof".to_string(),
+                Val::Raw(format!("{:?}", self.body_proof)),
+            ),
             ("consensus".to_string(), self.consensus.to_pretty()),
             (
                 "extra data".to_string(),
@@ -161,7 +205,7 @@ impl Pretty for normal::BodyProof {
     }
 }
 
-impl Pretty for wallet_crypto::tx::TxProof {
+impl Pretty for tx::TxProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("number".to_string(), Val::Raw(format!("{}", self.number))),
@@ -171,7 +215,7 @@ impl Pretty for wallet_crypto::tx::TxProof {
     }
 }
 
-impl Pretty for wallet_crypto::hash::Blake2b256 {
+impl Pretty for hash::Blake2b256 {
     fn to_pretty(&self) -> Val {
         Val::Raw(format!("{}", self))
     }
@@ -186,13 +230,10 @@ impl Pretty for SscProof {
 impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "slot id".to_string(),
-                Val::Raw(format!("{:?}", self.slot_id)),
-            ),
+            ("slot".to_string(), self.slot_id.to_pretty()),
             (
                 "leader key".to_string(),
-                Val::Raw(wallet_crypto::util::hex::encode(self.leader_key.as_ref())),
+                Val::Raw(hex::encode(self.leader_key.as_ref())),
             ),
             (
                 "chain difficulty".to_string(),
@@ -200,7 +241,40 @@ impl Pretty for normal::Consensus {
             ),
             (
                 "block signature".to_string(),
-                Val::Raw(format!("{:?}", self.block_signature)),
+                self.block_signature.to_pretty(),
+            ),
+        ])
+    }
+}
+
+impl Pretty for normal::BlockSignature {
+    fn to_pretty(&self) -> Val {
+        Val::BlockSig(self.clone())
+    }
+}
+
+impl Pretty for types::SlotId {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("epoch".to_string(), self.epoch.to_pretty()),
+            ("slot id".to_string(), Val::SlotId(self.slotid)),
+        ])
+    }
+}
+
+impl Pretty for types::EpochId {
+    fn to_pretty(&self) -> Val {
+        Val::Epoch(*self)
+    }
+}
+
+impl Pretty for genesis::Consensus {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("epoch".to_string(), self.epoch.to_pretty()),
+            (
+                "chain difficulty".to_string(),
+                Val::Raw(format!("{}", self.chain_difficulty)),
             ),
         ])
     }
@@ -209,10 +283,7 @@ impl Pretty for normal::Consensus {
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "tx-payload".to_string(),
-                Val::Raw(format!("TODO {}", self.tx)),
-            ),
+            ("tx payload".to_string(), self.tx.to_pretty()),
             ("scc".to_string(), Val::Raw(format!("TODO {:?}", self.scc))),
             (
                 "delegation".to_string(),
@@ -226,17 +297,77 @@ impl Pretty for normal::Body {
     }
 }
 
-impl Pretty for genesis::Block {
+impl Pretty for genesis::Body {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.slot_leaders
+                .iter()
+                .map(|cbor| Val::Raw(format!("{:?}", cbor)))
+                .collect(),
+        )
+    }
+}
+
+impl Pretty for normal::TxPayload {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.iter()
+                .map(|txaux| {
+                    Val::Tree(vec![
+                        ("tx".to_string(), txaux.tx.to_pretty()),
+                        (
+                            "witnesses".to_string(),
+                            txaux.witnesses.to_pretty()
+                            //Val::Raw(format!("{:?}", txaux.witnesses)),
+                        ),
+                    ])
+                })
+                .collect(),
+        )
+    }
+}
+
+// XXX: impl for a parameterized generic type, Vec.. not sure if idiomatic
+impl Pretty for Vec<tx::TxInWitness> {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.iter()
+                .map(|witness| Val::Raw(format!("TODO {}", witness)))
+                .collect(),
+        )
+    }
+}
+
+impl Pretty for tx::Tx {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             (
-                "header".to_string(),
-                Val::Raw(format!("TODO {}", self.header)),
+                "inputs".to_string(),
+                Val::List(
+                    self.inputs
+                        .iter()
+                        .map(|input| Val::Raw(format!("{}", input)))
+                        .collect(),
+                ),
             ),
             (
-                "body".to_string(),
-                Val::Raw(format!("TODO {:?}", self.body)),
+                "outputs".to_string(),
+                Val::List(
+                    self.outputs
+                        .iter()
+                        .map(|input| Val::Raw(format!("{}", input)))
+                        .collect(),
+                ),
             ),
+        ])
+    }
+}
+
+impl Pretty for genesis::Block {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("header".to_string(), self.header.to_pretty()),
+            ("body".to_string(), self.body.to_pretty()),
             (
                 "extra".to_string(),
                 Val::Raw(format!("TODO {:?}", self.extra)),
@@ -247,8 +378,6 @@ impl Pretty for genesis::Block {
 
 #[cfg(test)]
 mod tests {
-    use std::vec::Vec;
-
     use command::pretty::Val::*;
     use command::pretty::*;
 
@@ -258,18 +387,20 @@ mod tests {
     }
     #[test]
     fn longest_key_length_works() {
-        let mut input = Vec::new();
-        input.push(("name".to_string(), Raw("zaphod".to_string())));
-        input.push(("age".to_string(), Raw(format!("{}", 42))));
+        let input = vec![
+            ("name".to_string(), Raw("zaphod".to_string())),
+            ("age".to_string(), Raw(format!("{}", 42))),
+        ];
         assert_eq!(longest_key_length(&input), 4);
     }
     #[test]
     fn test_display_flat_pairs() {
-        let mut input = Vec::new();
-        input.push(("name".to_string(), Raw("zaphod".to_string())));
-        input.push(("age".to_string(), Raw(format!("{}", 42))));
+        let input = Tree(vec![
+            ("name".to_string(), Raw("zaphod".to_string())),
+            ("age".to_string(), Raw(format!("{}", 42))),
+        ]);
         assert_eq!(
-            format!("{}", Tree(input)),
+            format!("{}", input),
             "\
 - name: zaphod
 - age : 42
@@ -278,19 +409,69 @@ mod tests {
     }
     #[test]
     fn test_display_nested_pairs() {
-        let mut nested = Vec::new();
-        nested.push(("name".to_string(), Raw("zaphod".to_string())));
-        nested.push(("age".to_string(), Raw(format!("{}", 42))));
-        let mut input = Vec::new();
-        input.push(("character".to_string(), Tree(nested)));
-        input.push(("crook".to_string(), Raw("yes".to_string())));
+        let input = Tree(vec![
+            (
+                "character".to_string(),
+                Tree(vec![
+                    ("name".to_string(), Raw("zaphod".to_string())),
+                    ("age".to_string(), Raw(format!("{}", 42))),
+                ]),
+            ),
+            ("crook".to_string(), Raw("yes".to_string())),
+        ]);
         assert_eq!(
-            format!("{}", Tree(input)),
+            format!("{}", input),
             "\
 - character:
     - name: zaphod
     - age : 42
 - crook    : yes
+"
+        );
+    }
+    #[test]
+    fn test_display_tested_list() {
+        let input = Tree(vec![
+            (
+                "character".to_string(),
+                Tree(vec![
+                    ("name".to_string(), Raw("zaphod".to_string())),
+                    ("age".to_string(), Raw(format!("{}", 42))),
+                ]),
+            ),
+            ("crook".to_string(), Raw("yes".to_string())),
+            (
+                "facts".to_string(),
+                List(vec![
+                    Raw("invented pan-galactic gargle blaster".to_string()),
+                    Raw("elected president".to_string()),
+                    Tree(vec![
+                        ("heads".to_string(), Raw(format!("{}", 2))),
+                        ("arms".to_string(), Raw(format!("{}", 3))),
+                    ]),
+                    List(vec![
+                        Raw("stole the heart of gold".to_string()),
+                        Raw("one hoopy frood".to_string()),
+                    ]),
+                ]),
+            ),
+        ]);
+        assert_eq!(
+            format!("{}", input),
+            "\
+- character:
+    - name: zaphod
+    - age : 42
+- crook    : yes
+- facts    :
+    * invented pan-galactic gargle blaster
+    * elected president
+    *
+        - heads: 2
+        - arms : 3
+    *
+        * stole the heart of gold
+        * one hoopy frood
 "
         );
     }
