@@ -200,6 +200,7 @@ impl <T: AddrLookup> State<T> {
             }
 
             // update the state
+            self.ptr.latest_known_hash = hdr.compute_hash();
             self.ptr.latest_addr = date;
         }
         Ok(())
