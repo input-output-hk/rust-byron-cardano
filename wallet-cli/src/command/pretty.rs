@@ -3,7 +3,7 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof};
-use wallet_crypto::{hash, tx, util::hex};
+use wallet_crypto::{address, hash, tx, util::hex};
 
 use ansi_term::Colour;
 
@@ -24,6 +24,7 @@ pub enum Val {
     Epoch(u32),
     SlotId(u32),
     BlockSig(normal::BlockSignature),
+    Stakeholder(address::StakeholderId),
 
     // recursive
     List(Vec<Val>),
@@ -56,7 +57,12 @@ fn fmt_val(
 ) -> fmt::Result {
     match val {
         // write terminals inline
-        Val::Raw(_) | Val::Hash(_) | Val::Epoch(_) | Val::SlotId(_) | Val::BlockSig(_) => {
+        Val::Raw(_)
+        | Val::Hash(_)
+        | Val::Epoch(_)
+        | Val::SlotId(_)
+        | Val::BlockSig(_)
+        | Val::Stakeholder(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
             write!(f, "\n")
@@ -83,6 +89,7 @@ fn fmt_pretty(
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
         Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
+        Val::Stakeholder(stkhodl) => write!(f, "{}", Colour::Yellow.paint(format!("{}", stkhodl))),
 
         // format pretty-val as a set of key-vals
         Val::Tree(ast) => {
@@ -302,9 +309,15 @@ impl Pretty for genesis::Body {
         Val::List(
             self.slot_leaders
                 .iter()
-                .map(|cbor| Val::Raw(format!("{:?}", cbor)))
+                .map(|stakeholder| stakeholder.to_pretty())
                 .collect(),
         )
+    }
+}
+
+impl Pretty for address::StakeholderId {
+    fn to_pretty(&self) -> Val {
+        Val::Stakeholder(*self)
     }
 }
 
