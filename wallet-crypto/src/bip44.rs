@@ -8,11 +8,11 @@
 /// ```
 /// use wallet_crypto::bip44::{Account, Change, Addressing};
 ///
-/// let addr = Account::new(0).unwrap()
+/// let scheme_value = Account::new(0).unwrap()
 ///     .external().unwrap()
-///     .get_scheme_value(0).unwrap();
+///     .get_scheme_value();
 ///
-/// assert!(addr.index == 0);
+/// assert!(scheme_value == 0);
 /// ```
 
 use hdpayload::{Path};
@@ -239,6 +239,7 @@ impl Change {
         if change  >= 0x80000000 { return Err(Error::ChangeOutOfBound(change)); }
         Ok(Change{ account: account, change: change })
     }
+    pub fn get_scheme_value(&self) -> u32 { self.change }
 
     pub fn index(&self, index: u32) -> Result<Addressing> {
         Addressing::new_from_change(*self, index)
@@ -324,13 +325,13 @@ impl Addressing {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::bip44::{Addressing, AddrType};
+    /// use wallet_crypto::bip44::{Addressing, AddrType, Index};
     ///
     /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///
     /// let next = addr.incr(32).unwrap().incr(10).unwrap();
     ///
-    /// assert!(next.index == 42);
+    /// assert!(next.index == Index::new(42).unwrap());
     /// assert!(next.incr(0x80000000).is_err());
     /// ```
     pub fn incr(&self, incr: u32) -> Result<Self> {
