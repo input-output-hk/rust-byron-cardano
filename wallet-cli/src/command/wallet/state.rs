@@ -1,11 +1,12 @@
 use std::result;
 use std::collections::{BTreeMap, VecDeque};
-use blockchain::{Block, BlockDate, HeaderHash};
+use blockchain::{Block, BlockDate, HeaderHash, SlotId};
 use wallet_crypto::bip44;
 use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
 use wallet_crypto::address::ExtendedAddr;
-use wallet_crypto::tx::TxOut;
+use wallet_crypto::tx::{TxId, TxOut};
+use wallet_crypto::coin::Coin;
 
 #[derive(Debug)]
 pub enum Error {
@@ -140,6 +141,16 @@ fn is_our_ri_address(key: &hdpayload::HDKey, addr: &ExtendedAddr) -> bool {
         },
     }
 }
+
+#[derive(Clone,Debug)]
+pub struct Utxo {
+    block_addr: SlotId,
+    wallet_addr: bip44::Addressing,
+    txid: TxId,
+    coin: Coin,
+}
+
+type Utxos = Vec<Utxo>;
 
 #[derive(Clone,Debug)]
 pub struct StateAccount<T: AddrLookup> {
