@@ -94,7 +94,7 @@ impl AddrLookup for SequentialBip44Lookup {
                         self.gen_next()?;
                         threshold = self.latest_to_generate.decr(self.gap_limit)?
                     }
-                    found.push(o.clone().clone())
+                    found.push((*o).clone())
                 },
             }
         }
@@ -134,7 +134,7 @@ impl AddrLookup for RandomIndexLookup {
         let mut found = Vec::new();
         for o in outs {
             if self.one_of_mine(&o.address) {
-                found.push(o.clone().clone())
+                found.push((*o).clone())
             }
         }
         Ok(found)
