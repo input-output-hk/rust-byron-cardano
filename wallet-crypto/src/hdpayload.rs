@@ -6,7 +6,7 @@ use self::rcw::hmac::{Hmac};
 use self::rcw::sha2::{Sha512};
 use self::rcw::pbkdf2::{pbkdf2};
 
-use std::iter::repeat;
+use std::{iter::repeat, ops::{Deref}};
 
 use hdwallet::{XPub};
 use cbor;
@@ -134,6 +134,10 @@ impl cbor::CborValue for HDAddressPayload {
         .embed("while decoding HDAddressPayload")
     }
 }
+impl Deref for HDAddressPayload {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target { self.0.as_ref() }
+}
 
 #[cfg(test)]
 mod tests {
@@ -169,5 +173,62 @@ mod tests {
         let key = HDKey::new(&pk);
         let payload = key.encrypt_path(&path);
         assert_eq!(Some(path), key.decrypt_path(&payload))
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "with-bench")]
+mod bench {
+    use hdwallet;
+    use hdpayload::{self, *};
+    use test;
+
+    #[bench]
+    fn decrypt_fail(b: &mut test::Bencher) {
+        let path = Path::new(vec![0,1]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        let key = HDKey::new(&pk);
+        let payload = key.encrypt_path(&path);
+
+        let seed = hdwallet::Seed::from_bytes([1;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+        let key = HDKey::new(&pk);
+        b.iter(|| {
+            let _ = key.decrypt(&payload);
+        })
+    }
+
+    #[bench]
+    fn decrypt_ok(b: &mut test::Bencher) {
+        let path = Path::new(vec![0,1]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        let key = HDKey::new(&pk);
+        let payload = key.encrypt_path(&path);
+
+        b.iter(|| {
+            let _ = key.decrypt(&payload);
+        })
+    }
+
+    #[bench]
+    fn decrypt_with_cbor(b: &mut test::Bencher) {
+        let path = Path::new(vec![0,1]);
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        let key = HDKey::new(&pk);
+        let payload = key.encrypt_path(&path);
+
+        b.iter(|| {
+            let _ = key.decrypt_path(&payload);
+        })
     }
 }

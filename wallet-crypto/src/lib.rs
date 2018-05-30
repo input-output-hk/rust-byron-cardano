@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "with-bench", feature(test))]
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
@@ -6,6 +8,10 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate log;
+
+#[cfg(test)]
+#[cfg(feature = "with-bench")]
+extern crate test;
 
 extern crate bit_vec;
 extern crate bitreader;
