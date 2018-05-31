@@ -14,6 +14,7 @@ pub mod tag;
 pub mod epoch;
 pub mod refpack;
 pub mod tmpfile;
+pub mod lock;
 mod compression;
 mod bitmap;
 mod bloom;
