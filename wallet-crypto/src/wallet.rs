@@ -51,7 +51,7 @@ impl fmt::Display for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 /// the Wallet object
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
     pub cached_root_key: hdwallet::XPrv,
 
@@ -157,7 +157,7 @@ impl Wallet {
     /// retrieve the key from the wallet and the given path
     ///
     /// TODO: this function is not meant to be public
-    fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
+    pub fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
         self.get_root_key()
             .derive(addressing.account.get_scheme_value())
             .derive(addressing.change)
