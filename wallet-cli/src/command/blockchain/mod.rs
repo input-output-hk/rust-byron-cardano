@@ -15,6 +15,7 @@ use exe_common::{config::{net}, network::{api::{*}}};
 use command::pretty::Pretty;
 
 mod util;
+mod find_address;
 
 use self::util::{*, range::RangeOption};
 
@@ -225,6 +226,7 @@ impl HasCommand for Blockchain {
                 .arg(Arg::with_name("tag-name").help("name of the tag").index(2).required(true))
                 .arg(Arg::with_name("tag-value").help("value to set to the given tag").index(3).required(false))
             )
+            .subcommand(find_address::FindAddress::mk_command())
     }
 
     fn run(_: Self::Config, args: &ArgMatches) -> Self::Output {
@@ -438,6 +440,7 @@ impl HasCommand for Blockchain {
 
 
             },
+            (find_address::FindAddress::COMMAND, Some(opts)) => find_address::FindAddress::run((), opts),
             _ => {
                 println!("{}", args.usage());
                 ::std::process::exit(1);

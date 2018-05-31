@@ -2,9 +2,9 @@ use wallet_crypto::{cbor, address::{ExtendedAddr}};
 use wallet_crypto::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
-use config::{Config};
-use storage::{tag, pack};
 use blockchain::{Block};
+
+use super::util;
 
 pub struct FindAddress;
 
@@ -16,13 +16,11 @@ impl HasCommand for FindAddress {
 
     fn clap_options<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
         app.about("retrieve addresses in what have been synced from the network")
-            .arg(Arg::with_name("name").help("the network name").index(1).required(true))
+            .arg(util::blockchain_name_arg(1))
             .arg(Arg::with_name("addresses").help("list of addresses to retrieve").multiple(true).required(true).index(2))
     }
     fn run(_: Self::Config, args: &ArgMatches) -> Self::Output {
-        let name = value_t!(args.value_of("name"), String).unwrap();
-        let mut config = Config::default();
-        config.network = name;
+        let config = util::resolv_network_by_name(&args);
         let storage = config.get_storage().unwrap();
         let addresses_bytes : Vec<_> = values_t!(args.values_of("addresses"), String)
             .unwrap().iter().map(|s| base58::decode(s).unwrap()).collect();
