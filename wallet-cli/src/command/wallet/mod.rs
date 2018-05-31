@@ -8,6 +8,7 @@ mod recover;
 mod address;
 mod find_address;
 mod util;
+mod log;
 mod state;
 
 mod config;

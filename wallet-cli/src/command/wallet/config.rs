@@ -105,7 +105,7 @@ impl Config {
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
-        let path = ariadne_path()?.join("wallets").join(name);
+        let path = wallet_path(name)?.join(name);
         fs::DirBuilder::new().recursive(true).create(path.clone())?;
         let mut tmpfile = TmpFile::create(path.clone())?;
         serde_yaml::to_writer(&mut tmpfile, self)?;
@@ -114,7 +114,7 @@ impl Config {
     }
 
     pub fn from_file<P: AsRef<Path>>(name: &P) -> Result<Self> {
-        let path = ariadne_path()?.join("wallets").join(name).join(FILENAME);
+        let path = wallet_path(name)?.join(FILENAME);
         let mut file = fs::File::open(path)?;
         serde_yaml::from_reader(&mut file).map_err(Error::YamlError)
     }
@@ -153,7 +153,7 @@ impl Accounts {
     }
 
     pub fn to_files<P: AsRef<Path>>(&self, name: P) -> Result<()> {
-        let dir = ariadne_path()?.join("wallets").join(name);
+        let dir = wallet_path(name)?;
         fs::DirBuilder::new().recursive(true).create(dir.clone())?;
         for index in 0..self.0.len() {
             let account_cfg = &self.0[index];
@@ -167,7 +167,7 @@ impl Accounts {
     }
 
     pub fn from_files<P: AsRef<Path>>(name: &P) -> Result<Self> {
-        let dir = ariadne_path()?.join("wallets").join(name);
+        let dir = wallet_path(name)?;
         let mut accounts = Self::new();
 
         let mut to_read = BTreeMap::new();
@@ -257,4 +257,9 @@ pub fn ariadne_path() -> Result<PathBuf> {
         },
         Err(err) => Err(Error::VarError(err))
     }
+}
+
+/// retrieve the root path of the given wallet by its name
+pub fn wallet_path<P: AsRef<Path>>(wallet_name: P) -> Result<PathBuf> {
+    ariadne_path().map(|p| p.join("wallets").join(wallet_name))
 }
