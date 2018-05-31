@@ -1,4 +1,4 @@
-use std::{fmt, result, num, io::{self, Write}, process::{self}, fs::{self, OpenOptions}, path::{PathBuf}};
+use std::{fmt, result, num, io::{self, Write}, process::{self}, fs::{self, OpenOptions}, path::{Path, PathBuf}};
 
 /// the extension that will be added to the file, this will allow us to
 /// lock a specific file.
@@ -116,4 +116,8 @@ impl fmt::Display for Lock {
             write!(f, "file {:?} locked by {}", self.path, self.id)
         }
     }
+}
+
+impl AsRef<Path> for Lock {
+    fn as_ref(&self) -> &Path { self.path.as_ref() }
 }
