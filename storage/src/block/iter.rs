@@ -38,7 +38,16 @@ impl<'a> Iter<'a> {
                 self.end = true;
                 let next_epoch = self.from + 1;
                 self.current = {
-                    let epochref = epoch_read_pack(self.storage, next_epoch)?;
+                    let epochref = match epoch_read_pack(self.storage, next_epoch) {
+                        Err(err) => {
+                            if err.kind() == ::std::io::ErrorKind::NotFound {
+                                return Ok(None);
+                            } else {
+                                return Err(Error::IoError(err));
+                            }
+                        },
+                        Ok(c) => c
+                    };
                     PackReader::init(self.storage, &epochref)
                 };
                 self.from = next_epoch;
