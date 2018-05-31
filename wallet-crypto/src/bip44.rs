@@ -83,8 +83,8 @@ impl Account {
         Ok(Account(account))
     }
 
+    pub fn get_account_number(&self) -> u32 { self.0 }
     pub fn get_scheme_value(&self) -> u32 { self.0 | 0x80000000 }
-
 
     pub fn change(&self, typ: AddrType) -> Result<Change> {
         match typ {
