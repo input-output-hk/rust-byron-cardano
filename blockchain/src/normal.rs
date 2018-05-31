@@ -166,18 +166,22 @@ impl raw_cbor::de::Deserialize for Body {
         }
         let tx  = raw_cbor::de::Deserialize::deserialize(raw)?;
         let scc = {
+            /*
             let _ = raw.array()?;
             let _ = raw.unsigned_integer()?;
             let _ = raw.map()?;
             let _ = raw.tag()?;
             let _ = raw.array()?;
+            */
             cbor::Value::Null
         };
-        let dlg = { let _ = raw.array()?; cbor::Value::Null };
+        let dlg = { /* let _ = raw.array()?; */ cbor::Value::Null };
         let upd = {
+            /*
             let _ = raw.array()?;
             let _ = raw.array()?;
             let _ = raw.array()?;
+            */
             cbor::Value::Null
         };
 
@@ -591,9 +595,9 @@ impl raw_cbor::de::Deserialize for Block {
         }
         let header = raw_cbor::de::Deserialize::deserialize(raw)?;
         let body  = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let extra = {
+        let extra = {/*
             let _ = raw.array()?;
-            let _ = raw.map()?;
+            let _ = raw.map()?; */
             cbor::Value::Null
         };
         Ok(Block::new(header, body, extra))
@@ -668,7 +672,7 @@ impl raw_cbor::de::Deserialize for BlockSignature {
                 // Ok(BlockSignature::ProxyLight(vec![cbor::Value::Null])
             },
             2 => {
-                assert!(raw.array()? == raw_cbor::Len::Len(1));
+                assert_eq!(raw.array()?, raw_cbor::Len::Len(2));
                 {
                     assert!(raw.array()? == raw_cbor::Len::Len(4));
                     assert!(*raw.unsigned_integer()? == 0);

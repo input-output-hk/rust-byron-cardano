@@ -1,5 +1,6 @@
 use blockchain::{BlockHeader, Block, HeaderHash};
 use storage::{self, Storage, types::{PackHash}, tmpfile::{TmpFile}};
+use raw_cbor::{self, de::RawCbor};
 use std::io::{Write, Seek, SeekFrom};
 use std::time::{SystemTime, Duration};
 

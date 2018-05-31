@@ -9,6 +9,7 @@ wallet-crypto = { path = "../wallet-crypto" }
 blockchain = { path = "../blockchain" }
 storage = { path = "../storage" }
 protocol = { path = "../protocol" }
+raw_cbor = { path = "../cbor" }
 log = "*"
 rand = "0.4"
 serde = "1.0"

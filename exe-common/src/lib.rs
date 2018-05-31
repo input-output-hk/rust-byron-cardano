@@ -1,6 +1,7 @@
 extern crate wallet_crypto;
 extern crate protocol;
 extern crate blockchain;
+extern crate raw_cbor;
 extern crate storage;
 extern crate rand;
 #[macro_use]

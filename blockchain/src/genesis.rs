@@ -4,6 +4,7 @@ use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
 
+use raw_cbor::{self, de::RawCbor};
 use types;
 use types::{HeaderHash, ChainDifficulty};
 
@@ -16,6 +17,11 @@ impl cbor::CborValue for BodyProof {
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         value.decode().and_then(|hash| Ok(BodyProof(hash))).embed("While decoding BodyProof")
+    }
+}
+impl raw_cbor::de::Deserialize for BodyProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        raw_cbor::de::Deserialize::deserialize(raw).map(|h| BodyProof(h))
     }
 }
 
@@ -36,6 +42,25 @@ impl cbor::CborValue for Body {
     }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
         let slot_leaders = cbor::CborValue::decode(value).embed("While decoding genesis::Body")?;
+        Ok(Body { slot_leaders })
+    }
+}
+impl raw_cbor::de::Deserialize for Body {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        assert_eq!(len, raw_cbor::Len::Indefinite);
+        let mut slot_leaders = LinkedList::new();
+        while {
+            let t = raw.cbor_type()?;
+            if t == raw_cbor::Type::Special {
+                let special = raw.special()?;
+                assert_eq!(special, raw_cbor::de::Special::Break);
+                false
+            } else {
+                slot_leaders.push_back(raw_cbor::de::Deserialize::deserialize(raw)?);
+                true
+            }
+        } {}
         Ok(Body { slot_leaders })
     }
 }
@@ -90,6 +115,21 @@ impl cbor::CborValue for BlockHeader {
         }).embed("While decoding a genesis::BlockHeader")
     }
 }
+impl raw_cbor::de::Deserialize for BlockHeader {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BodyProof: recieved array of {:?} elements", len)));
+        }
+        let p_magic    = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let prv_header = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let body_proof = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let consensus  = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let extra_data = raw_cbor::de::Deserialize::deserialize(raw)?;
+
+        Ok(BlockHeader::new(p_magic, prv_header, body_proof, consensus, extra_data))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -118,6 +158,22 @@ impl cbor::CborValue for Block {
         }).embed("While decoding genesis::Block")
     }
 }
+impl raw_cbor::de::Deserialize for Block {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(3) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
+        }
+        let header = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let body  = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let extra = {
+            let _ = raw.array()?;
+            let _ = raw.map()?;
+            cbor::Value::Null
+        };
+        Ok(Block { header, body, extra })
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Consensus {
@@ -138,5 +194,16 @@ impl cbor::CborValue for Consensus {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Consensus { epoch: epoch, chain_difficulty: chain_difficulty })
         }).embed("While decoding genesis::Consensus")
+    }
+}
+impl raw_cbor::de::Deserialize for Consensus {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
+        }
+        let epoch = *raw.unsigned_integer()? as u32;
+        let chain_difficulty = raw_cbor::de::Deserialize::deserialize(raw)?;
+        Ok(Consensus { epoch, chain_difficulty })
     }
 }
