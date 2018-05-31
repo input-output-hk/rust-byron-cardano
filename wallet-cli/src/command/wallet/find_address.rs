@@ -30,35 +30,28 @@ impl HasCommand for FindAddress {
         for address in addresses_bytes {
             addresses.push(cbor::decode_from_cbor(&address).unwrap());
         }
-        let mut epoch_id = 0;
-        while let Some(h) = tag::read_hash(&storage, &tag::get_epoch_tag(epoch_id)) {
-            info!("looking in epoch {}", epoch_id);
-            let mut reader = pack::PackReader::init(&storage.config, &h.into_bytes());
-            while let Some(blk_bytes) = reader.get_next() {
-                let blk = blk_bytes.decode().unwrap();
-                let hdr = blk.get_header();
-                let blk_hash = hdr.compute_hash();
-                debug!("  looking at date {}", hdr.get_blockdate());
-                match blk {
-                    Block::GenesisBlock(_) => {
-                        debug!("    ignoring genesis block")
-                    },
-                    Block::MainBlock(mblk) => {
-                        for txaux in mblk.body.tx.iter() {
-                            for txout in &txaux.tx.outputs {
-                                if let Some(_) = addresses.iter().find(|a| *a == &txout.address) {
-                                    println!("found address: {} in block {} at {}",
-                                        base58::encode(&cbor::encode_to_cbor(&txout.address).unwrap()),
-                                        blk_hash,
-                                        hdr.get_blockdate()
-                                    );
-                                }
+        let mut iter = storage.iterate_from_epoch(0).unwrap();
+        while let Some(blk) = iter.next_block().unwrap() {
+            let hdr = blk.get_header();
+            let blk_hash = hdr.compute_hash();
+            match blk {
+                Block::GenesisBlock(_) => {
+                    println!("    ignoring {} block", hdr.get_blockdate());
+                },
+                Block::MainBlock(mblk) => {
+                    for txaux in mblk.body.tx.iter() {
+                        for txout in &txaux.tx.outputs {
+                            if let Some(_) = addresses.iter().find(|a| *a == &txout.address) {
+                                println!("found address: {} in block {} at {}",
+                                    base58::encode(&cbor::encode_to_cbor(&txout.address).unwrap()),
+                                    blk_hash,
+                                    hdr.get_blockdate()
+                                );
                             }
                         }
                     }
                 }
             }
-            epoch_id += 1;
         }
     }
 }

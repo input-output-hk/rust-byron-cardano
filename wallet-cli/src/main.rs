@@ -17,9 +17,8 @@ extern crate ansi_term;
 extern crate termion;
 extern crate flate2;
 
-mod config;
-mod account;
 mod command;
+mod config;
 
 use command::{HasCommand};
 
