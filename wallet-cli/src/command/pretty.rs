@@ -291,7 +291,7 @@ impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("tx payload".to_string(), self.tx.to_pretty()),
-            ("scc".to_string(), Val::Raw(format!("TODO {:?}", self.scc))),
+            ("ssc".to_string(), Val::Raw(format!("TODO {:?}", self.ssc))),
             (
                 "delegation".to_string(),
                 Val::Raw(format!("TODO {:?}", self.delegation)),

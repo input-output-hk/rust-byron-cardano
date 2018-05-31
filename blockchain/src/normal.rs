@@ -93,13 +93,13 @@ impl cbor::CborValue for TxPayload {
 #[derive(Debug, Clone)]
 pub struct Body {
     pub tx: TxPayload,
-    pub scc: cbor::Value,
+    pub ssc: cbor::Value,
     pub delegation: cbor::Value,
     pub update: cbor::Value
 }
 impl Body {
-    pub fn new(tx: TxPayload, scc: cbor::Value, dlg: cbor::Value, upd: cbor::Value) -> Self {
-        Body { tx: tx, scc: scc, delegation: dlg, update: upd }
+    pub fn new(tx: TxPayload, ssc: cbor::Value, dlg: cbor::Value, upd: cbor::Value) -> Self {
+        Body { tx: tx, ssc: ssc, delegation: dlg, update: upd }
     }
 }
 impl fmt::Display for Body {
