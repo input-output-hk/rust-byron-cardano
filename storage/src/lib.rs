@@ -99,6 +99,11 @@ impl Storage {
         block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
     }
 
+    /// create a block iterator starting from the given EpochId
+    pub fn iterate_from_epoch<'a>(&'a self, from: blockchain::EpochId) -> Result<block::Iter<'a>> {
+        Ok(block::Iter::new(&self.config, from)?)
+    }
+
     /// construct a range between the given hash
     pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
         block::Range::new(self, from, to).map_err(|err| Error::BlockError(err))

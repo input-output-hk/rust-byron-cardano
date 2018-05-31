@@ -15,7 +15,6 @@ pub struct Iter<'a> {
     storage: &'a StorageConfig,
     from:    EpochId,
     current: PackReader<fs::File>,
-    end:     bool
 }
 
 impl<'a> Iter<'a> {
@@ -26,16 +25,15 @@ impl<'a> Iter<'a> {
             let epochref = epoch_read_pack(storage, from)?;
             PackReader::init(&storage, &epochref)
         };
-        Ok(Iter { storage, from, current, end: false })
+        Ok(Iter { storage, from, current })
     }
 
     /// get the next raw block, don't attempt to decode the raw block
-    pub fn next_raw(&mut self) -> Result<Option<RawBlock>> {
+    pub fn next_raw(&mut self, retry: bool) -> Result<Option<RawBlock>> {
         match self.current.get_next() {
             Some(expr) => Ok(Some(expr)),
             None => {
-                if self.end { return Ok(None); }
-                self.end = true;
+                if ! retry { return Ok(None); }
                 let next_epoch = self.from + 1;
                 self.current = {
                     let epochref = match epoch_read_pack(self.storage, next_epoch) {
@@ -51,14 +49,14 @@ impl<'a> Iter<'a> {
                     PackReader::init(self.storage, &epochref)
                 };
                 self.from = next_epoch;
-                self.next_raw()
+                self.next_raw(false)
             },
         }
     }
 
     /// just like `next_raw` but perform the cbor decoding into block
     pub fn next_block(&mut self) -> Result<Option<Block>> {
-        match self.next_raw()? {
+        match self.next_raw(true)? {
             None => Ok(None),
             Some(raw) => Ok(Some(raw.decode()?))
         }
