@@ -35,6 +35,7 @@ pub type Result<T> = result::Result<T, Error>;
 pub enum Log {
     Checkpoint(StatePtr),
     ReceivedFund(Utxo),
+    SpentFund(Utxo),
 }
 impl Log {
     fn serialise(&self) -> Vec<u8> {
@@ -51,7 +52,8 @@ impl fmt::Display for Log {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr),
-            Log::ReceivedFund(utxo) => write!(f, "Received funds: {}", utxo)
+            Log::ReceivedFund(utxo) => write!(f, "Received funds: {}", utxo),
+            Log::SpentFund(utxo) => write!(f, "Spent funds: {}", utxo),
         }
     }
 }

@@ -23,7 +23,7 @@ impl RandomIndexLookup {
 }
 
 impl AddrLookup for RandomIndexLookup {
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Vec<Utxo>> {
         let mut found = Vec::new();
         for o in outs {
             if let Some(path) = self.try_get_addressing(&o.2.address) {

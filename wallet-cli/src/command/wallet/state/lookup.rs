@@ -1,4 +1,5 @@
 use std::{result, fmt, path::{Path, PathBuf}};
+use std::collections::BTreeMap;
 use blockchain::{Block, BlockDate, HeaderHash};
 use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
@@ -57,13 +58,13 @@ impl fmt::Display for Utxo {
     }
 }
 
-pub type Utxos = Vec<Utxo>;
+pub type Utxos = BTreeMap<TxId, Utxo>;
 
 pub trait AddrLookup {
     /// given the lookup structure, return the list
     /// of matching addresses. note that for some
     /// algorithms, self mutates to optimise the next lookup query
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos>;
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Vec<Utxo>>;
 
     /// when in the recovery phase of the implementor object, we will use this
     /// function to allow the tool to update its internal state with knowing
@@ -129,8 +130,11 @@ impl <T: AddrLookup> State<T> {
                         Log::Checkpoint(known_ptr) => ptr = known_ptr,
                         Log::ReceivedFund(utxo) => {
                             ptr = utxo.block_addr.clone();
-                            utxos.push(utxo);
-                        }
+                            utxos.insert(utxo.txid, utxo);
+                        },
+                        Log::SpentFund(utxo) => {
+                            utxos.remove(&utxo.txid);
+                        },
                     }
                 }
             }
@@ -163,25 +167,36 @@ impl <T: AddrLookup> State<T> {
             match block.get_transactions() {
                 None => {},
                 Some(txs) => {
-                    //for (_,a) in self.accounts.iter_mut() {
-                    //}
-                    // TODO gather all inputs and compared with known UTXO for spending confirmation
-                    // TODO compare utxo for spending
+                    // cache if we have local utxos.
+                    // note: that it might be expensive to call len() on btreemaps, could keep local value instead
+                    let has_local_utxo = self.utxos.len() > 0;
 
                     // gather all the outputs for reception
                     let mut all_outputs = Vec::new();
                     let mut index = 0;
                     for txaux in txs.iter() {
                         let txid = txaux.tx.id();
+                        // only do the input loop if we have local utxos
+                        if has_local_utxo {
+                            for txin in txaux.tx.inputs.iter() {
+                                match self.utxos.remove(&txin.id) {
+                                    None => {},
+                                    Some(utxo) => {
+                                        log_writer.push(Log::SpentFund(utxo))
+                                    },
+                                }
+                            }
+                        }
                         for o in txaux.tx.outputs.iter() {
                             all_outputs.push((txid, index, o))
                         }
                         index += 1;
                     }
 
-                    let utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
-                    for utxo in utxos {
-                        log_writer.push(Log::ReceivedFund(utxo));
+                    let found_utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
+                    for utxo in found_utxos {
+                        log_writer.push(Log::ReceivedFund(utxo.clone()));
+                        self.utxos.insert(utxo.txid, utxo);
                     }
 
                     // utxo

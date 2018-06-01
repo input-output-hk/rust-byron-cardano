@@ -89,7 +89,7 @@ impl SequentialBip44Lookup {
 }
 
 impl AddrLookup for SequentialBip44Lookup {
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Vec<Utxo>> {
         let mut found = Vec::new();
         for o in outs {
             let addressing = self.expected.get(&o.2.address).and_then(|a| Some(a.clone()));
