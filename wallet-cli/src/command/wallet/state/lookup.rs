@@ -58,8 +58,11 @@ pub struct State<T: AddrLookup> {
 }
 
 impl <T: AddrLookup> State<T> {
+    pub fn new(ptr: StatePtr, lookup_struct: T, utxos: Utxos) -> Self {
+        State { ptr, lookup_struct, utxos }
+    }
     /// update a given state with a set of blocks.
-    /// 
+    ///
     /// The blocks need to be in blockchain order,
     /// and correctly refer to each other, otherwise
     /// an error is emitted
