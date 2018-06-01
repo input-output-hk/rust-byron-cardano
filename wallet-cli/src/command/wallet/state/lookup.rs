@@ -58,7 +58,7 @@ impl fmt::Display for Utxo {
     }
 }
 
-pub type Utxos = BTreeMap<TxId, Utxo>;
+pub type Utxos = BTreeMap<(TxId, u32), Utxo>;
 
 pub trait AddrLookup {
     /// given the lookup structure, return the list
@@ -130,10 +130,10 @@ impl <T: AddrLookup> State<T> {
                         Log::Checkpoint(known_ptr) => ptr = known_ptr,
                         Log::ReceivedFund(utxo) => {
                             ptr = utxo.block_addr.clone();
-                            utxos.insert(utxo.txid, utxo);
+                            utxos.insert((utxo.txid, utxo.offset), utxo);
                         },
                         Log::SpentFund(utxo) => {
-                            utxos.remove(&utxo.txid);
+                            utxos.remove(&(utxo.txid, utxo.offset));
                         },
                     }
                 }
@@ -178,7 +178,7 @@ impl <T: AddrLookup> State<T> {
                         // only do the input loop if we have local utxos
                         if has_local_utxo {
                             for txin in txaux.tx.inputs.iter() {
-                                match self.utxos.remove(&txin.id) {
+                                match self.utxos.remove(&(txin.id,txin.index)) {
                                     None => {},
                                     Some(utxo) => {
                                         // TODO verify signature
@@ -196,7 +196,7 @@ impl <T: AddrLookup> State<T> {
                     let found_utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
                     for utxo in found_utxos {
                         events.push(Log::ReceivedFund(utxo.clone()));
-                        self.utxos.insert(utxo.txid, utxo);
+                        self.utxos.insert((utxo.txid, utxo.offset), utxo);
                     }
 
                     // utxo
