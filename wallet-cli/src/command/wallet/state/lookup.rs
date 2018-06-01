@@ -35,7 +35,8 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Clone,Debug, Deserialize, Serialize)]
 pub enum WalletAddr {
     Bip44(bip44::Addressing),
-    Random(hdpayload::Path)
+    Random(hdpayload::Path),
+    Accum,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

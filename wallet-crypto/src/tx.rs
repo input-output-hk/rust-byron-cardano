@@ -196,6 +196,9 @@ impl cbor::CborValue for TxInWitness {
     }
 }
 
+/// Structure used for addressing a specific output of a transaction
+/// built from a TxId (hash of the tx) and the offset in the outputs of this
+/// transaction.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct TxIn {
     pub id: TxId,
