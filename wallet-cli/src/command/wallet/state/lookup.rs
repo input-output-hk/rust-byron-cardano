@@ -129,10 +129,12 @@ impl <T: AddrLookup> State<T> {
                     match log {
                         Log::Checkpoint(known_ptr) => ptr = known_ptr,
                         Log::ReceivedFund(utxo) => {
+                            lookup_struct.acknowledge_address(&utxo.wallet_addr)?;
                             ptr = utxo.block_addr.clone();
                             utxos.insert(utxo.txin.clone(), utxo);
                         },
                         Log::SpentFund(utxo) => {
+                            lookup_struct.acknowledge_address(&utxo.wallet_addr)?;
                             utxos.remove(&utxo.txin);
                         },
                     }
