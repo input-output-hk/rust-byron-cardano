@@ -3,6 +3,7 @@ pub mod lookup;
 pub mod randomindex;
 pub mod sequentialindex;
 
+use blockchain::{Block, BlockDate, HeaderHash, SlotId};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 
@@ -46,6 +47,10 @@ impl HasCommand for Update {
         //    or actually, the last known state_ptr (BlockDate and Hash);
         //
         // let current_ptr = wallet_state.state_prt()
+        let current_ptr = lookup::StatePtr::new(
+            BlockDate::Genesis(0),
+            blockchain_cfg.genesis
+        );
 
         // 4. wallet current utxos
         //    we need to be able to retrieve them from the wallet
@@ -60,7 +65,7 @@ impl HasCommand for Update {
         let lookup_structure = sequentialindex::SequentialBip44Lookup::new(wallet_cfg.wallet().unwrap());
 
         // 6. construct the lookup state from the current_ptr
-        // let mut state = lookup::State::new(current_ptr, current_utxos, lookup_structure);
+        let mut state = lookup::State::new(current_ptr, lookup_structure, current_utxos);
 
         // 7. perform the lookup now. We may want to save wallet logs as we find them:
         //    - so we know when to start from again (so we need checkpoint or something similar)
@@ -71,7 +76,7 @@ impl HasCommand for Update {
 
         let mut iter = storage.iterate_from_epoch(0).unwrap();
         while let Some(blk) = iter.next_block().unwrap() {
-            // state.forward(&[blk]).unwrap();
+            state.forward(&[blk]).unwrap();
         }
 
         unimplemented!()
