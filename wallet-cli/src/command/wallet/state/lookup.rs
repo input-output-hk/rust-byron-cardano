@@ -15,6 +15,7 @@ pub enum Error {
     BlocksInvalidHash,
     HdWalletError(hdwallet::Error),
     Bip44Error(bip44::Error),
+    // TODO remove from here
     WalletLogError(log::Error),
 }
 
@@ -143,9 +144,8 @@ impl <T: AddrLookup> State<T> {
     /// The blocks need to be in blockchain order,
     /// and correctly refer to each other, otherwise
     /// an error is emitted
-    pub fn forward(&mut self, blocks: &[Block]) -> Result<()> {
-        let lock = LogLock::acquire_wallet_log_lock(&self.wallet_name)?;
-        let mut log_writter = log::LogWriter::open(lock)?;
+    pub fn forward(&mut self, blocks: &[Block]) -> Result<Vec<Log>> {
+        let mut log_writer = Vec::new();
         for block in blocks {
             let hdr = block.get_header();
             let date = hdr.get_blockdate();
@@ -181,7 +181,7 @@ impl <T: AddrLookup> State<T> {
 
                     let utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
                     for utxo in utxos {
-                        log_writter.append(&Log::ReceivedFund(utxo))?;
+                        log_writer.push(Log::ReceivedFund(utxo));
                     }
 
                     // utxo
@@ -191,8 +191,18 @@ impl <T: AddrLookup> State<T> {
             self.ptr = current_ptr;
 
             if date.is_genesis() {
-                log_writter.append(&Log::Checkpoint(self.ptr.clone()))?;
+                log_writer.push(Log::Checkpoint(self.ptr.clone()));
             }
+        }
+        Ok(log_writer)
+    }
+
+    pub fn forward_temp(&mut self, blocks: &[Block]) -> Result<()> {
+        let lock = LogLock::acquire_wallet_log_lock(&self.wallet_name)?;
+        let mut log_writer = log::LogWriter::open(lock)?;
+        let events = self.forward(blocks)?;
+        for ev in events {
+            log_writer.append(&ev)?;
         }
         Ok(())
     }

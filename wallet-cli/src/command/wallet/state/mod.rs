@@ -82,7 +82,7 @@ impl HasCommand for Update {
             }
         }
         while let Some(blk) = iter.next_block().unwrap() {
-            state.forward(&[blk]).unwrap();
+            state.forward_temp(&[blk]).unwrap();
         }
 
         unimplemented!()
