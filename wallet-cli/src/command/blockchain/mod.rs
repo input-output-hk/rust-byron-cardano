@@ -121,7 +121,7 @@ fn net_sync_faster(network: String, mut storage: Storage) {
     let mut download_prev_hash = prev_hash.clone();
     let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
 
-    while download_epoch_id < 40 {
+    while download_epoch_id < 46 {
         println!("downloading epoch {} {}", download_epoch_id, download_start_hash);
         let fep = FetchEpochParams {
             epoch_id: download_epoch_id,
