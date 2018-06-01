@@ -96,6 +96,13 @@ impl BlockDate {
             &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()),
         }
     }
+
+    pub fn is_genesis(&self) -> bool {
+        match self {
+            BlockDate::Genesis(_) => true,
+            _                     => false
+        }
+    }
 }
 
 impl fmt::Display for BlockDate {
