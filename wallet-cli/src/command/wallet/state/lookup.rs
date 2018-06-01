@@ -211,14 +211,4 @@ impl <T: AddrLookup> State<T> {
         }
         Ok(events)
     }
-
-    pub fn forward_temp(&mut self, blocks: &[Block]) -> Result<()> {
-        let lock = LogLock::acquire_wallet_log_lock(&self.wallet_name)?;
-        let mut log_writer = log::LogWriter::open(lock)?;
-        let events = self.forward(blocks)?;
-        for ev in events {
-            log_writer.append(&ev)?;
-        }
-        Ok(())
-    }
 }

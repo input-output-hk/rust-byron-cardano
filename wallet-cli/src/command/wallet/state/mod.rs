@@ -9,6 +9,7 @@ use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 
 use super::config;
+use self::log::{LogLock, LogWriter};
 
 pub struct Update;
 
@@ -81,8 +82,13 @@ impl HasCommand for Update {
                 }
             }
         }
+        let lock = LogLock::acquire_wallet_log_lock(&wallet_name).unwrap();
+        let mut log_writer = log::LogWriter::open(lock).unwrap();
         while let Some(blk) = iter.next_block().unwrap() {
-            state.forward_temp(&[blk]).unwrap();
+            let events = state.forward(&[blk]).unwrap();
+            for ev in events {
+                log_writer.append(&ev).unwrap();
+            }
         }
 
         unimplemented!()
