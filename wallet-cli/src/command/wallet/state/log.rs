@@ -6,6 +6,7 @@ use super::lookup::StatePtr;
 
 #[derive(Debug)]
 pub enum Error {
+    LogNotFound,
     ConfigError(config::Error),
     LogFormatError(String),
     LockError(lock::Error),
@@ -15,7 +16,12 @@ impl From<lock::Error> for Error {
     fn from(e: lock::Error) -> Self { Error::LockError(e) }
 }
 impl From<append::Error> for Error {
-    fn from(e: append::Error) -> Self { Error::AppendError(e) }
+    fn from(e: append::Error) -> Self {
+        match e {
+            append::Error::NotFound => Error::LogNotFound,
+            _ => Error::AppendError(e)
+        }
+    }
 }
 impl From<config::Error> for Error {
     fn from(e: config::Error) -> Self { Error::ConfigError(e) }

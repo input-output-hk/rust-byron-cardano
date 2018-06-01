@@ -83,12 +83,17 @@ impl <T: AddrLookup> State<T> {
 
     pub fn load(wallet_name: &str, mut ptr: StatePtr, mut lookup_struct: T) -> Result<Self> {
         let lock = LogLock::acquire_wallet_log_lock(wallet_name)?;
-        let mut logs = LogReader::open(lock)?;
-
         let utxos = Utxos::new();
-        while let Some(log) = logs.next()? {
-            match log {
-                Log::Checkpoint(known_ptr) => ptr = known_ptr,
+
+        match LogReader::open(lock) {
+            Err(log::Error::LogNotFound) => {},
+            Err(err) => return Err(Error::from(err)),
+            Ok(mut logs) => {
+                while let Some(log) = logs.next()? {
+                    match log {
+                        Log::Checkpoint(known_ptr) => ptr = known_ptr,
+                    }
+                }
             }
         }
 

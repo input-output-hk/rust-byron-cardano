@@ -5,12 +5,15 @@ use lock::{self, Lock};
 pub enum Error {
     IoError(io::Error),
     EOF,
+    NotFound,
     LockError(lock::Error)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
         if e.kind() == io::ErrorKind::UnexpectedEof {
             Error::EOF
+        } else if e.kind() == io::ErrorKind::NotFound {
+            Error::NotFound
         } else {
             Error::IoError(e)
         }
