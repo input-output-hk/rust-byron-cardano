@@ -4,6 +4,8 @@ use super::super::config;
 
 use super::lookup::StatePtr;
 
+use serde_yaml;
+
 #[derive(Debug)]
 pub enum Error {
     LogNotFound,
@@ -29,21 +31,19 @@ impl From<config::Error> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Log {
     Checkpoint(StatePtr)
 }
 impl Log {
     fn serialise(&self) -> Vec<u8> {
-        let mut buffer = Vec::new();
-        match self {
-            Log::Checkpoint(ptr) => {},
-        };
-        buffer
+        serde_yaml::to_vec(self).unwrap()
     }
 
     fn deserisalise(bytes: &[u8]) -> Result<Self> {
-        unimplemented!()
+        serde_yaml::from_slice(bytes).map_err(|e|
+            Error::LogFormatError(format!("log format error: {:?}", e))
+        )
     }
 }
 impl fmt::Display for Log {

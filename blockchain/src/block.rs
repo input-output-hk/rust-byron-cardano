@@ -52,7 +52,7 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
     Genesis(EpochId),
     Normal(SlotId),

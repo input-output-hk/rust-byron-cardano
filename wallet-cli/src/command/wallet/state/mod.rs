@@ -50,7 +50,8 @@ impl HasCommand for Update {
         //
         // i.e. we need to know if it is a bip44 or a random address method
         //      for now we assume a bip44 sequential indexing
-        let lookup_structure = sequentialindex::SequentialBip44Lookup::new(wallet_cfg.wallet().unwrap());
+        let mut lookup_structure = sequentialindex::SequentialBip44Lookup::new(wallet_cfg.wallet().unwrap());
+        lookup_structure.prepare_next_account().unwrap();
 
         // 4. try to load the wallet state from the wallet log
         let mut state = lookup::State::load(&wallet_name, current_ptr, lookup_structure).unwrap();
@@ -61,7 +62,23 @@ impl HasCommand for Update {
         //    we also need to update the wallet state on the fly so
         //    we can display something to the user too
 
-        let mut iter = storage.iterate_from_epoch(0).unwrap();
+        let latest_block_date = state.ptr.latest_block_date();
+        let (epoch_start, slot_start) = match &latest_block_date {
+            BlockDate::Genesis(epoch) => (*epoch, None),
+            BlockDate::Normal(slot)   => (slot.epoch, Some(slot.slotid)),
+        };
+        let mut iter = storage.iterate_from_epoch(epoch_start).unwrap();
+        info!("starting update wallet from: {}", latest_block_date);
+        debug!("epoch_start: {:?}, slot_start: {:?}", epoch_start, slot_start);
+        if slot_start.is_some() || epoch_start > 0 {
+            while let Some(blk) = iter.next_block().unwrap() {
+                let hdr = blk.get_header();
+                debug!("skipping: {}", hdr.get_blockdate());
+                if hdr.get_blockdate() >= latest_block_date {
+                    break;
+                }
+            }
+        }
         while let Some(blk) = iter.next_block().unwrap() {
             state.forward(&[blk]).unwrap();
         }

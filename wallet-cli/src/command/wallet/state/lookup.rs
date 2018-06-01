@@ -46,7 +46,7 @@ pub trait AddrLookup {
     fn lookup(&mut self, addrs: &[&TxOut]) -> Result<Vec<TxOut>>;
 }
 
-#[derive(Clone,Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatePtr {
     latest_addr: Option<BlockDate>,
     latest_known_hash: HeaderHash,
@@ -67,14 +67,22 @@ impl StatePtr {
     pub fn new(latest_addr: BlockDate, latest_known_hash: HeaderHash) -> Self {
         StatePtr { latest_addr: Some(latest_addr), latest_known_hash }
     }
+
+    pub fn latest_block_date(&self) -> BlockDate {
+        if let Some(ref date) = self.latest_addr {
+            date.clone()
+        } else {
+            BlockDate::Genesis(0)
+        }
+    }
 }
 
 #[derive(Clone,Debug)]
 pub struct State<T: AddrLookup> {
-    ptr: StatePtr,
-    lookup_struct: T,
-    utxos: Utxos,
-    wallet_name: PathBuf
+    pub ptr: StatePtr,
+    pub lookup_struct: T,
+    pub utxos: Utxos,
+    pub wallet_name: PathBuf
 }
 
 impl <T: AddrLookup> State<T> {
