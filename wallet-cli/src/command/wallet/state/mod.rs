@@ -27,6 +27,7 @@ impl HasCommand for Update {
         // retrieve user's wallet
         let wallet_name = value_t!(args.value_of("WALLET NAME"), String).unwrap();
         let wallet_cfg  = config::Config::from_file(&wallet_name).unwrap();
+        let accounts    = config::Accounts::from_files(&wallet_name).unwrap();
 
         // retrieve the associated blockchain and its storage
         let blockchain_cfg = wallet_cfg.blockchain_config().unwrap();
@@ -52,7 +53,9 @@ impl HasCommand for Update {
         // i.e. we need to know if it is a bip44 or a random address method
         //      for now we assume a bip44 sequential indexing
         let mut lookup_structure = sequentialindex::SequentialBip44Lookup::new(wallet_cfg.wallet().unwrap());
-        lookup_structure.prepare_next_account().unwrap();
+        for account in accounts.iter() {
+           lookup_structure.prepare_next_account().unwrap();
+        }
 
         // 4. try to load the wallet state from the wallet log
         let mut state = lookup::State::load(&wallet_name, current_ptr, lookup_structure).unwrap();
