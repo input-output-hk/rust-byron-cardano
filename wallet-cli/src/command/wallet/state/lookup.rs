@@ -1,4 +1,4 @@
-use std::{result, fmt};
+use std::{result, fmt, path::{Path, PathBuf}};
 use blockchain::{Block, BlockDate, HeaderHash, SlotId};
 use wallet_crypto::hdwallet;
 use wallet_crypto::bip44;
@@ -74,15 +74,16 @@ pub struct State<T: AddrLookup> {
     ptr: StatePtr,
     lookup_struct: T,
     utxos: Utxos,
+    wallet_name: PathBuf
 }
 
 impl <T: AddrLookup> State<T> {
-    pub fn new(ptr: StatePtr, lookup_struct: T, utxos: Utxos) -> Self {
-        State { ptr, lookup_struct, utxos }
+    pub fn new(ptr: StatePtr, lookup_struct: T, utxos: Utxos, wallet_name: PathBuf) -> Self {
+        State { ptr, lookup_struct, utxos, wallet_name }
     }
 
-    pub fn load(wallet_name: &str, mut ptr: StatePtr, mut lookup_struct: T) -> Result<Self> {
-        let lock = LogLock::acquire_wallet_log_lock(wallet_name)?;
+    pub fn load<P: AsRef<Path>>(wallet_name: P, mut ptr: StatePtr, mut lookup_struct: T) -> Result<Self> {
+        let lock = LogLock::acquire_wallet_log_lock(wallet_name.as_ref())?;
         let utxos = Utxos::new();
 
         match LogReader::open(lock) {
@@ -97,7 +98,7 @@ impl <T: AddrLookup> State<T> {
             }
         }
 
-        Ok(Self::new(ptr, lookup_struct, utxos))
+        Ok(Self::new(ptr, lookup_struct, utxos, wallet_name.as_ref().to_path_buf()))
     }
 
     /// update a given state with a set of blocks.
@@ -106,6 +107,8 @@ impl <T: AddrLookup> State<T> {
     /// and correctly refer to each other, otherwise
     /// an error is emitted
     pub fn forward(&mut self, blocks: &[Block]) -> Result<()> {
+        let lock = LogLock::acquire_wallet_log_lock(&self.wallet_name)?;
+        let mut log_writter = log::LogWriter::open(lock)?;
         for block in blocks {
             let hdr = block.get_header();
             let date = hdr.get_blockdate();
@@ -113,10 +116,6 @@ impl <T: AddrLookup> State<T> {
                 if latest_addr >= &date {
                     return Err(Error::BlocksInvalidDate)
                 }
-            }
-
-            if date.is_genesis() {
-                info!("starting new epoch: {}", date);
             }
             // TODO verify the chain also
 
@@ -146,7 +145,11 @@ impl <T: AddrLookup> State<T> {
             }
             // update the state
             self.ptr.latest_known_hash = hdr.compute_hash();
-            self.ptr.latest_addr = Some(date);
+            self.ptr.latest_addr = Some(date.clone());
+
+            if date.is_genesis() {
+                log_writter.append(&Log::Checkpoint(self.ptr.clone()))?;
+            }
         }
         Ok(())
     }
