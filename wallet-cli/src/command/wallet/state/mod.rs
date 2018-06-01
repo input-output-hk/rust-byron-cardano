@@ -2,6 +2,7 @@
 pub mod lookup;
 pub mod randomindex;
 pub mod sequentialindex;
+pub mod accum;
 pub mod log;
 
 use blockchain::{Block, BlockDate, HeaderHash, SlotId};
