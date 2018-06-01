@@ -30,7 +30,7 @@ pub struct Utxo {
     coin: Coin,
 }
 
-type Utxos = Vec<Utxo>;
+pub type Utxos = Vec<Utxo>;
 
 pub trait AddrLookup {
     /// given the lookup structure, return the list
