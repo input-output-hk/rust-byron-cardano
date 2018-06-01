@@ -23,15 +23,16 @@ impl RandomIndexLookup {
 }
 
 impl AddrLookup for RandomIndexLookup {
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos> {
         let mut found = Vec::new();
         for o in outs {
-            if let Some(path) = self.try_get_addressing(&o.1.address) {
+            if let Some(path) = self.try_get_addressing(&o.2.address) {
                 let utxo = Utxo {
                     block_addr: ptr.clone(),
                     wallet_addr: WalletAddr::Random(path),
                     txid: o.0.clone(),
-                    coin: o.1.value,
+                    offset: o.1,
+                    coin: o.2.value,
                 };
                 found.push(utxo)
             }

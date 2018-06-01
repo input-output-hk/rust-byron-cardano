@@ -1,5 +1,5 @@
 use std::{result, fmt, path::{Path, PathBuf}};
-use blockchain::{Block, BlockDate, HeaderHash, SlotId};
+use blockchain::{Block, BlockDate, HeaderHash};
 use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
 use wallet_crypto::bip44;
@@ -41,14 +41,16 @@ pub struct Utxo {
     pub block_addr: StatePtr,
     pub wallet_addr: WalletAddr,
     pub txid: TxId,
+    pub offset: u32,
     pub coin: Coin,
 }
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?} received {}Ada-Lovelace in transaction id `{}' ({})",
+        write!(f, "{:?} received {}Ada-Lovelace in transaction id `{}.{}' ({})",
             self.wallet_addr,
             self.coin,
             self.txid,
+            self.offset,
             self.block_addr
         )
     }
@@ -60,7 +62,7 @@ pub trait AddrLookup {
     /// given the lookup structure, return the list
     /// of matching addresses. note that for some
     /// algorithms, self mutates to optimise the next lookup query
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos>;
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos>;
 
     /// when in the recovery phase of the implementor object, we will use this
     /// function to allow the tool to update its internal state with knowing
@@ -168,11 +170,13 @@ impl <T: AddrLookup> State<T> {
 
                     // gather all the outputs for reception
                     let mut all_outputs = Vec::new();
+                    let mut index = 0;
                     for txaux in txs.iter() {
                         let txid = txaux.tx.id();
                         for o in txaux.tx.outputs.iter() {
-                            all_outputs.push((txid, o))
+                            all_outputs.push((txid, index, o))
                         }
+                        index += 1;
                     }
 
                     let utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;

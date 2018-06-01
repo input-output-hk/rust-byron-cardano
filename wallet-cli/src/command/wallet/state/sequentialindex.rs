@@ -89,10 +89,10 @@ impl SequentialBip44Lookup {
 }
 
 impl AddrLookup for SequentialBip44Lookup {
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Utxos> {
         let mut found = Vec::new();
         for o in outs {
-            let addressing = self.expected.get(&o.1.address).and_then(|a| Some(a.clone()));
+            let addressing = self.expected.get(&o.2.address).and_then(|a| Some(a.clone()));
             match addressing {
                 None => {},
                 Some(addressing) => {
@@ -103,7 +103,8 @@ impl AddrLookup for SequentialBip44Lookup {
                         block_addr: ptr.clone(),
                         wallet_addr: WalletAddr::Bip44(addressing),
                         txid: o.0.clone(),
-                        coin: o.1.value,
+                        offset: o.1,
+                        coin: o.2.value,
                     };
                     found.push(utxo)
                 },
