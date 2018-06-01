@@ -1,6 +1,6 @@
 use storage::{Storage, append, lock::{self, Lock}};
 use std::{fmt, result, path::{Path}};
-use super::config;
+use super::super::config;
 
 pub enum Error {
     ConfigError(config::Error),
