@@ -168,8 +168,7 @@ impl <T: AddrLookup> State<T> {
                 None => {},
                 Some(txs) => {
                     // cache if we have local utxos.
-                    // note: that it might be expensive to call len() on btreemaps, could keep local value instead
-                    let has_local_utxo = self.utxos.len() > 0;
+                    let has_local_utxo = ! self.utxos.is_empty();
 
                     // gather all the outputs for reception
                     let mut all_outputs = Vec::new();
