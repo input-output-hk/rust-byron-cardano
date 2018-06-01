@@ -44,6 +44,11 @@ pub struct StatePtr {
     latest_addr: BlockDate,
     latest_known_hash: HeaderHash,
 }
+impl StatePtr {
+    pub fn new(latest_addr: BlockDate, latest_known_hash: HeaderHash) -> Self {
+        StatePtr { latest_addr, latest_known_hash }
+    }
+}
 
 #[derive(Clone,Debug)]
 pub struct State<T: AddrLookup> {
