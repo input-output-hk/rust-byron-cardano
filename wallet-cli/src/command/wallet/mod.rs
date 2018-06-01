@@ -5,7 +5,6 @@ mod new;
 mod recover;
 mod address;
 mod util;
-mod log;
 mod state;
 
 mod config;
