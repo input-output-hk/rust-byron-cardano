@@ -23,12 +23,14 @@ impl HasCommand for Wallet {
             .subcommand(new::CommandNewWallet::mk_command())
             .subcommand(recover::Recover::mk_command())
             .subcommand(address::Generate::mk_command())
+            .subcommand(state::Update::mk_command())
     }
     fn run(_: Self::Config, args: &ArgMatches) -> Self::Output {
         match args.subcommand() {
             (new::CommandNewWallet::COMMAND, Some(opts)) => new::CommandNewWallet::run((), opts),
             (recover::Recover::COMMAND, Some(opts)) => recover::Recover::run((), opts),
             (address::Generate::COMMAND, Some(opts)) => address::Generate::run((), opts),
+            (state::Update::COMMAND, Some(opts)) => state::Update::run((), opts),
             _ => {
                 println!("{}", args.usage());
                 ::std::process::exit(1);
