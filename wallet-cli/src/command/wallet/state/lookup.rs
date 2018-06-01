@@ -178,8 +178,8 @@ impl <T: AddrLookup> State<T> {
                         let txid = txaux.tx.id();
                         // only do the input loop if we have local utxos
                         if has_local_utxo {
-                            for (txin, txofs) in txaux.tx.inputs.iter().zip(0..) {
-                                match self.utxos.remove(&(txin.id, txofs)) {
+                            for txin in txaux.tx.inputs.iter() {
+                                match self.utxos.remove(&(txin.id,txin.index)) {
                                     None => {},
                                     Some(utxo) => {
                                         // TODO verify signature
