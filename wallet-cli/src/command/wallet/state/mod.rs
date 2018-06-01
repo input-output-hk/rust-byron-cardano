@@ -68,7 +68,9 @@ impl HasCommand for Update {
             BlockDate::Normal(slot)   => (slot.epoch, Some(slot.slotid)),
         };
         let mut iter = storage.iterate_from_epoch(epoch_start).unwrap();
-        info!("starting update wallet from: {}", latest_block_date);
+        info!("starting to update wallet state:");
+        info!("  from block- {}", latest_block_date);
+        info!("  known utxos {:?}", state.utxos);
         debug!("epoch_start: {:?}, slot_start: {:?}", epoch_start, slot_start);
         if slot_start.is_some() || epoch_start > 0 {
             while let Some(blk) = iter.next_block().unwrap() {

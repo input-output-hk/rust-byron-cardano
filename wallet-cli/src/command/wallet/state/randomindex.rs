@@ -2,7 +2,7 @@ use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
 use wallet_crypto::address::ExtendedAddr;
 use wallet_crypto::tx::{TxId, TxOut};
-use super::lookup::{AddrLookup, Result};
+use super::lookup::{AddrLookup, Result, StatePtr, Utxo, Utxos, WalletAddr};
 
 #[derive(Clone,Debug)]
 pub struct RandomIndexLookup {
@@ -14,31 +14,32 @@ impl RandomIndexLookup {
         Ok(RandomIndexLookup { key: hdpayload::HDKey::new(root_pk) })
     }
 
-    fn one_of_mine(&self, addr: &ExtendedAddr) -> bool {
+    fn try_get_addressing(&self, addr: &ExtendedAddr) -> Option<hdpayload::Path> {
         match addr.attributes.derivation_path {
-            None => false,
-            Some(ref epath) => {
-                match self.key.decrypt_path(epath) {
-                    None => false,
-                    Some(ref _path) => {
-                        // TODO verify that the address really belongs to us
-                        // by deriving the private key using the path
-                        true
-                    },
-                }
-            },
+            None => None,
+            Some(ref epath) => self.key.decrypt_path(epath)
         }
     }
 }
 
 impl AddrLookup for RandomIndexLookup {
-    fn lookup(&mut self, outs: &[&TxOut]) -> Result<Vec<TxOut>> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos> {
         let mut found = Vec::new();
         for o in outs {
-            if self.one_of_mine(&o.address) {
-                found.push((*o).clone())
+            if let Some(path) = self.try_get_addressing(&o.1.address) {
+                let utxo = Utxo {
+                    block_addr: ptr.clone(),
+                    wallet_addr: WalletAddr::Random(path),
+                    txid: o.0.clone(),
+                    coin: o.1.value,
+                };
+                found.push(utxo)
             }
         }
         Ok(found)
+    }
+
+    fn acknowledge_address(&mut self, _: &WalletAddr) -> Result<()> {
+        Ok(())
     }
 }

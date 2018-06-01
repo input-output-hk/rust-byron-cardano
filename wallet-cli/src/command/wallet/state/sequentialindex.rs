@@ -4,7 +4,7 @@ use wallet_crypto::wallet::Wallet;
 use std::collections::BTreeMap;
 use wallet_crypto::address::ExtendedAddr;
 use wallet_crypto::tx::{TxId, TxOut};
-use super::lookup::{AddrLookup, Result};
+use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo, Utxos};
 
 #[derive(Clone,Debug)]
 pub struct SequentialBip44Lookup {
@@ -89,20 +89,33 @@ impl SequentialBip44Lookup {
 }
 
 impl AddrLookup for SequentialBip44Lookup {
-    fn lookup(&mut self, outs: &[&TxOut]) -> Result<Vec<TxOut>> {
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos> {
         let mut found = Vec::new();
         for o in outs {
-            let addressing = self.expected.get(&o.address).and_then(|a| Some(a.clone()));
+            let addressing = self.expected.get(&o.1.address).and_then(|a| Some(a.clone()));
             match addressing {
                 None => {},
                 Some(addressing) => {
                     // check if we need to generate next window of addresses
                     self.threshold_generate(addressing)?;
                     // found an address from our expected set, so append the txout as ours
-                    found.push((*o).clone().clone())
+                    let utxo = Utxo {
+                        block_addr: ptr.clone(),
+                        wallet_addr: WalletAddr::Bip44(addressing),
+                        txid: o.0.clone(),
+                        coin: o.1.value,
+                    };
+                    found.push(utxo)
                 },
             }
         }
         Ok(found)
+    }
+
+    fn acknowledge_address(&mut self, addr: &WalletAddr) -> Result<()> {
+        match addr {
+            WalletAddr::Bip44(ref addressing) => self.threshold_generate(addressing.clone()),
+            _ => Ok(())
+        }
     }
 }

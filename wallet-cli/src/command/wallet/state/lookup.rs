@@ -1,6 +1,7 @@
 use std::{result, fmt, path::{Path, PathBuf}};
 use blockchain::{Block, BlockDate, HeaderHash, SlotId};
 use wallet_crypto::hdwallet;
+use wallet_crypto::hdpayload;
 use wallet_crypto::bip44;
 use wallet_crypto::util::hex;
 use wallet_crypto::tx::{TxId, TxOut};
@@ -30,11 +31,17 @@ impl From<log::Error> for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Clone,Debug, Deserialize, Serialize)]
+pub enum WalletAddr {
+    Bip44(bip44::Addressing),
+    Random(hdpayload::Path)
+}
+
+#[derive(Clone,Debug, Deserialize, Serialize)]
 pub struct Utxo {
-    block_addr: StatePtr,
-    wallet_addr: bip44::Addressing,
-    txid: TxId,
-    coin: Coin,
+    pub block_addr: StatePtr,
+    pub wallet_addr: WalletAddr,
+    pub txid: TxId,
+    pub coin: Coin,
 }
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -53,7 +60,13 @@ pub trait AddrLookup {
     /// given the lookup structure, return the list
     /// of matching addresses. note that for some
     /// algorithms, self mutates to optimise the next lookup query
-    fn lookup(&mut self, addrs: &[&TxOut]) -> Result<Vec<TxOut>>;
+    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, &TxOut)]) -> Result<Utxos>;
+
+    /// when in the recovery phase of the implementor object, we will use this
+    /// function to allow the tool to update its internal state with knowing
+    /// an address is known of this wallet.
+    ///
+    fn acknowledge_address(&mut self, addr: &WalletAddr) -> Result<()>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,6 +152,10 @@ impl <T: AddrLookup> State<T> {
                     return Err(Error::BlocksInvalidDate)
                 }
             }
+            let current_ptr = StatePtr {
+                latest_known_hash: hdr.compute_hash(),
+                latest_addr:       Some(hdr.get_blockdate())
+            };
             // TODO verify the chain also
 
             match block.get_transactions() {
@@ -152,14 +169,14 @@ impl <T: AddrLookup> State<T> {
                     // gather all the outputs for reception
                     let mut all_outputs = Vec::new();
                     for txaux in txs.iter() {
+                        let txid = txaux.tx.id();
                         for o in txaux.tx.outputs.iter() {
-                            all_outputs.push(o)
+                            all_outputs.push((txid, o))
                         }
                     }
 
-                    let found_outputs = self.lookup_struct.lookup(&all_outputs[..])?;
-                    for txout in found_outputs {
-                        let utxo = unimplemented!();
+                    let utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
+                    for utxo in utxos {
                         log_writter.append(&Log::ReceivedFund(utxo))?;
                     }
 
@@ -167,8 +184,7 @@ impl <T: AddrLookup> State<T> {
                 },
             }
             // update the state
-            self.ptr.latest_known_hash = hdr.compute_hash();
-            self.ptr.latest_addr = Some(date.clone());
+            self.ptr = current_ptr;
 
             if date.is_genesis() {
                 log_writter.append(&Log::Checkpoint(self.ptr.clone()))?;
