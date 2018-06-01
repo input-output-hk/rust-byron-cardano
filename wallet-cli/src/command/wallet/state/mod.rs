@@ -54,7 +54,7 @@ impl HasCommand for Update {
         //      for now we assume a bip44 sequential indexing
         let mut lookup_structure = sequentialindex::SequentialBip44Lookup::new(wallet_cfg.wallet().unwrap());
         for account in accounts.iter() {
-           lookup_structure.prepare_next_account().unwrap();
+           lookup_structure.prepare_known_account(&account).unwrap();
         }
 
         // 4. try to load the wallet state from the wallet log

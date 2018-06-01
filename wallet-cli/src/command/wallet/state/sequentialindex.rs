@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use wallet_crypto::address::ExtendedAddr;
 use wallet_crypto::tx::{TxId, TxOut};
 use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo, Utxos};
+use super::super::config::account;
 
 #[derive(Clone,Debug)]
 pub struct SequentialBip44Lookup {
@@ -49,6 +50,22 @@ impl SequentialBip44Lookup {
             self.expected.insert(addr, addressing);
             r = r.incr(1)?;
         }
+        Ok(())
+    }
+
+    pub fn prepare_known_account(&mut self, account_cfg: &account::Config) -> Result<()> {
+        // generate gap limit number of internal and external addresses in the account
+        let account_nb = self.accounts.len() as u32;
+        let account = bip44::Account::new(account_nb)?;
+        let start = bip44::Index::new(0)?;
+        let mut end = start;
+        for addressing in account_cfg.addresses.iter() {
+            end = addressing.index;
+        }
+        let n = self.gap_limit;
+        self.mut_generate_from(&account, 0, &start, end.get_scheme_value() + n)?;
+        self.mut_generate_from(&account, 1, &start, end.get_scheme_value() + n)?;
+        self.accounts.push([start, start]);
         Ok(())
     }
 
