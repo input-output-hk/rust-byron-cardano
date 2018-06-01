@@ -29,12 +29,22 @@ impl From<log::Error> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug, Deserialize, Serialize)]
 pub struct Utxo {
-    block_addr: SlotId,
+    block_addr: StatePtr,
     wallet_addr: bip44::Addressing,
     txid: TxId,
     coin: Coin,
+}
+impl fmt::Display for Utxo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} received {}Ada-Lovelace in transaction id `{}' ({})",
+            self.wallet_addr,
+            self.coin,
+            self.txid,
+            self.block_addr
+        )
+    }
 }
 
 pub type Utxos = Vec<Utxo>;
@@ -92,7 +102,7 @@ impl <T: AddrLookup> State<T> {
 
     pub fn load<P: AsRef<Path>>(wallet_name: P, mut ptr: StatePtr, mut lookup_struct: T) -> Result<Self> {
         let lock = LogLock::acquire_wallet_log_lock(wallet_name.as_ref())?;
-        let utxos = Utxos::new();
+        let mut utxos = Utxos::new();
 
         match LogReader::open(lock) {
             Err(log::Error::LogNotFound) => {},
@@ -101,6 +111,10 @@ impl <T: AddrLookup> State<T> {
                 while let Some(log) = logs.next()? {
                     match log {
                         Log::Checkpoint(known_ptr) => ptr = known_ptr,
+                        Log::ReceivedFund(utxo) => {
+                            ptr = utxo.block_addr.clone();
+                            utxos.push(utxo);
+                        }
                     }
                 }
             }
@@ -144,8 +158,9 @@ impl <T: AddrLookup> State<T> {
                     }
 
                     let found_outputs = self.lookup_struct.lookup(&all_outputs[..])?;
-                    if ! found_outputs.is_empty() {
-                        info!("found_outputs: {:?}", found_outputs)
+                    for txout in found_outputs {
+                        let utxo = unimplemented!();
+                        log_writter.append(&Log::ReceivedFund(utxo))?;
                     }
 
                     // utxo

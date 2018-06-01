@@ -1,8 +1,8 @@
-use storage::{Storage, append, lock::{self, Lock}};
-use std::{fmt, result, path::{Path}, io::{Write}};
+use storage::{append, lock::{self, Lock}};
+use std::{fmt, result, path::{Path}};
 use super::super::config;
 
-use super::lookup::StatePtr;
+use super::lookup::{StatePtr, Utxo};
 
 use serde_yaml;
 
@@ -33,7 +33,8 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Log {
-    Checkpoint(StatePtr)
+    Checkpoint(StatePtr),
+    ReceivedFund(Utxo),
 }
 impl Log {
     fn serialise(&self) -> Vec<u8> {
@@ -49,7 +50,8 @@ impl Log {
 impl fmt::Display for Log {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr)
+            Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr),
+            Log::ReceivedFund(utxo) => write!(f, "Received funds: {}", utxo)
         }
     }
 }
