@@ -47,9 +47,8 @@ impl HasCommand for Update {
         //    or actually, the last known state_ptr (BlockDate and Hash);
         //
         // let current_ptr = wallet_state.state_prt()
-        let current_ptr = lookup::StatePtr::new(
-            BlockDate::Genesis(0),
-            blockchain_cfg.genesis
+        let current_ptr = lookup::StatePtr::new_before_genesis(
+            blockchain_cfg.genesis_prev
         );
 
         // 4. wallet current utxos

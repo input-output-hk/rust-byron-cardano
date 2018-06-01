@@ -41,12 +41,15 @@ pub trait AddrLookup {
 
 #[derive(Clone,Debug)]
 pub struct StatePtr {
-    latest_addr: BlockDate,
+    latest_addr: Option<BlockDate>,
     latest_known_hash: HeaderHash,
 }
 impl StatePtr {
+    pub fn new_before_genesis(before_genesis: HeaderHash) -> Self {
+        StatePtr { latest_addr: None, latest_known_hash: before_genesis }
+    }
     pub fn new(latest_addr: BlockDate, latest_known_hash: HeaderHash) -> Self {
-        StatePtr { latest_addr, latest_known_hash }
+        StatePtr { latest_addr: Some(latest_addr), latest_known_hash }
     }
 }
 
@@ -70,42 +73,44 @@ impl <T: AddrLookup> State<T> {
         for block in blocks {
             let hdr = block.get_header();
             let date = hdr.get_blockdate();
-            if date.is_genesis() {
-                info!("skipping genesis block: {}", date);
-            } else {
-                if self.ptr.latest_addr >= date {
+            if let Some(ref latest_addr) = self.ptr.latest_addr {
+                if latest_addr >= &date {
                     return Err(Error::BlocksInvalidDate)
                 }
-                // TODO verify the chain also
+            }
 
-                match block.get_transactions() {
-                    None => {},
-                    Some(txs) => {
-                        //for (_,a) in self.accounts.iter_mut() {
-                        //}
-                        // TODO gather all inputs and compared with known UTXO for spending confirmation
-                        // TODO compare utxo for spending
+            if date.is_genesis() {
+                info!("starting new epoch: {}", date);
+            }
+            // TODO verify the chain also
 
-                        // gather all the outputs for reception
-                        let mut all_outputs = Vec::new();
-                        for txaux in txs.iter() {
-                            for o in txaux.tx.outputs.iter() {
-                                all_outputs.push(o)
-                            }
+            match block.get_transactions() {
+                None => {},
+                Some(txs) => {
+                    //for (_,a) in self.accounts.iter_mut() {
+                    //}
+                    // TODO gather all inputs and compared with known UTXO for spending confirmation
+                    // TODO compare utxo for spending
+
+                    // gather all the outputs for reception
+                    let mut all_outputs = Vec::new();
+                    for txaux in txs.iter() {
+                        for o in txaux.tx.outputs.iter() {
+                            all_outputs.push(o)
                         }
+                    }
 
-                        let found_outputs = self.lookup_struct.lookup(&all_outputs[..])?;
-                        if ! found_outputs.is_empty() {
-                           info!("found_outputs: {:?}", found_outputs)
-                        }
+                    let found_outputs = self.lookup_struct.lookup(&all_outputs[..])?;
+                    if ! found_outputs.is_empty() {
+                        info!("found_outputs: {:?}", found_outputs)
+                    }
 
-                        // utxo
-                    },
-                }
+                    // utxo
+                },
             }
             // update the state
             self.ptr.latest_known_hash = hdr.compute_hash();
-            self.ptr.latest_addr = date;
+            self.ptr.latest_addr = Some(date);
         }
         Ok(())
     }
