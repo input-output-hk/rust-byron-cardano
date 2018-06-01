@@ -3,7 +3,7 @@ use wallet_crypto::hdwallet;
 use wallet_crypto::wallet::Wallet;
 use std::collections::BTreeMap;
 use wallet_crypto::address::ExtendedAddr;
-use wallet_crypto::tx::{TxId, TxOut};
+use wallet_crypto::tx::{TxIn, TxId, TxOut};
 use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo, Utxos};
 use super::super::config::account;
 
@@ -119,8 +119,7 @@ impl AddrLookup for SequentialBip44Lookup {
                     let utxo = Utxo {
                         block_addr: ptr.clone(),
                         wallet_addr: WalletAddr::Bip44(addressing),
-                        txid: o.0.clone(),
-                        offset: o.1,
+                        txin: TxIn { id: o.0.clone(), index: o.1 },
                         coin: o.2.value,
                     };
                     found.push(utxo)
