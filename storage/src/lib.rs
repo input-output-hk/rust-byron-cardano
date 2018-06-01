@@ -21,6 +21,8 @@ mod bitmap;
 mod bloom;
 use std::{fs, io, result};
 
+pub use config::StorageConfig;
+
 use std::collections::BTreeMap;
 use refpack::{RefPack};
 use wallet_crypto::{cbor};
