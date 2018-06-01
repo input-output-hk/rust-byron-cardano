@@ -1,7 +1,7 @@
 use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
 use wallet_crypto::address::ExtendedAddr;
-use wallet_crypto::tx::{TxId, TxOut};
+use wallet_crypto::tx::{TxIn, TxId, TxOut};
 use super::lookup::{AddrLookup, Result, StatePtr, Utxo, Utxos, WalletAddr};
 
 #[derive(Clone,Debug)]
@@ -30,8 +30,7 @@ impl AddrLookup for RandomIndexLookup {
                 let utxo = Utxo {
                     block_addr: ptr.clone(),
                     wallet_addr: WalletAddr::Random(path),
-                    txid: o.0.clone(),
-                    offset: o.1,
+                    txin: TxIn { id: o.0.clone(), index: o.1},
                     coin: o.2.value,
                 };
                 found.push(utxo)

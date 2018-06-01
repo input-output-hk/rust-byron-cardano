@@ -196,7 +196,7 @@ impl cbor::CborValue for TxInWitness {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct TxIn {
     pub id: TxId,
     pub index: u32,

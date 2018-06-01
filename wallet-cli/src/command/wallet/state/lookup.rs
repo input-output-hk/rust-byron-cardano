@@ -5,7 +5,7 @@ use wallet_crypto::hdwallet;
 use wallet_crypto::hdpayload;
 use wallet_crypto::bip44;
 use wallet_crypto::util::hex;
-use wallet_crypto::tx::{TxId, TxOut};
+use wallet_crypto::tx::{TxIn, TxId, TxOut};
 use wallet_crypto::coin::Coin;
 
 use super::log::{self, Log, LogReader, LogLock};
@@ -38,28 +38,27 @@ pub enum WalletAddr {
     Random(hdpayload::Path)
 }
 
-#[derive(Clone,Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Utxo {
+    pub txin: TxIn,
     pub block_addr: StatePtr,
     pub wallet_addr: WalletAddr,
-    pub txid: TxId,
-    pub offset: u32,
     pub coin: Coin,
 }
+
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} received {}Ada-Lovelace in transaction id `{}.{}' ({})",
             self.wallet_addr,
             self.coin,
-            self.txid,
-            self.offset,
+            self.txin.id,
+            self.txin.index,
             self.block_addr
         )
     }
 }
 
-pub type UtxoAddr = (TxId, u32);
-pub type Utxos = BTreeMap<UtxoAddr, Utxo>;
+pub type Utxos = BTreeMap<TxIn, Utxo>;
 
 pub trait AddrLookup {
     /// given the lookup structure, return the list
@@ -131,10 +130,10 @@ impl <T: AddrLookup> State<T> {
                         Log::Checkpoint(known_ptr) => ptr = known_ptr,
                         Log::ReceivedFund(utxo) => {
                             ptr = utxo.block_addr.clone();
-                            utxos.insert((utxo.txid, utxo.offset), utxo);
+                            utxos.insert(utxo.txin.clone(), utxo);
                         },
                         Log::SpentFund(utxo) => {
-                            utxos.remove(&(utxo.txid, utxo.offset));
+                            utxos.remove(&utxo.txin);
                         },
                     }
                 }
@@ -179,7 +178,7 @@ impl <T: AddrLookup> State<T> {
                         // only do the input loop if we have local utxos
                         if has_local_utxo {
                             for txin in txaux.tx.inputs.iter() {
-                                match self.utxos.remove(&(txin.id,txin.index)) {
+                                match self.utxos.remove(&txin) {
                                     None => {},
                                     Some(utxo) => {
                                         // TODO verify signature
@@ -197,7 +196,7 @@ impl <T: AddrLookup> State<T> {
                     let found_utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
                     for utxo in found_utxos {
                         events.push(Log::ReceivedFund(utxo.clone()));
-                        self.utxos.insert((utxo.txid, utxo.offset), utxo);
+                        self.utxos.insert(utxo.txin.clone(), utxo);
                     }
 
                     // utxo
