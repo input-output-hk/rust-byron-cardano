@@ -1,7 +1,10 @@
 use storage::{Storage, append, lock::{self, Lock}};
-use std::{fmt, result, path::{Path}};
+use std::{fmt, result, path::{Path}, io::{Write}};
 use super::super::config;
 
+use super::lookup::StatePtr;
+
+#[derive(Debug)]
 pub enum Error {
     ConfigError(config::Error),
     LogFormatError(String),
@@ -22,31 +25,25 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Log {
-    /* Todo */
-    #[deprecated]
-    Nothing
+    Checkpoint(StatePtr)
 }
 impl Log {
     fn serialise(&self) -> Vec<u8> {
-        let buffer = Vec::new();
+        let mut buffer = Vec::new();
         match self {
-            Log::Nothing => {},
+            Log::Checkpoint(ptr) => {},
         };
         buffer
     }
 
     fn deserisalise(bytes: &[u8]) -> Result<Self> {
-        if bytes.is_empty() {
-            Ok(Log::Nothing)
-        } else {
-            Err(Error::LogFormatError(format!("Nothing to parse yet")))
-        }
+        unimplemented!()
     }
 }
 impl fmt::Display for Log {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Log::Nothing => write!(f, "<nothing yet>")
+            Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr)
         }
     }
 }

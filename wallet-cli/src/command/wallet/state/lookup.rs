@@ -1,9 +1,12 @@
-use std::result;
+use std::{result, fmt};
 use blockchain::{Block, BlockDate, HeaderHash, SlotId};
 use wallet_crypto::hdwallet;
 use wallet_crypto::bip44;
+use wallet_crypto::util::hex;
 use wallet_crypto::tx::{TxId, TxOut};
 use wallet_crypto::coin::Coin;
+
+use super::log::{self, Log, LogReader, LogLock};
 
 #[derive(Debug)]
 pub enum Error {
@@ -11,6 +14,7 @@ pub enum Error {
     BlocksInvalidHash,
     HdWalletError(hdwallet::Error),
     Bip44Error(bip44::Error),
+    WalletLogError(log::Error),
 }
 
 impl From<hdwallet::Error> for Error {
@@ -18,6 +22,9 @@ impl From<hdwallet::Error> for Error {
 }
 impl From<bip44::Error> for Error {
     fn from(e: bip44::Error) -> Self { Error::Bip44Error(e) }
+}
+impl From<log::Error> for Error {
+    fn from(e: log::Error) -> Self { Error::WalletLogError(e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -44,6 +51,15 @@ pub struct StatePtr {
     latest_addr: Option<BlockDate>,
     latest_known_hash: HeaderHash,
 }
+impl fmt::Display for StatePtr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(ref bd) = self.latest_addr {
+            write!(f, "{}: {}", hex::encode(self.latest_known_hash.as_ref()), bd)
+        } else {
+            write!(f, "{}: Blockchain's genesis (The BigBang)", hex::encode(self.latest_known_hash.as_ref()))
+        }
+    }
+}
 impl StatePtr {
     pub fn new_before_genesis(before_genesis: HeaderHash) -> Self {
         StatePtr { latest_addr: None, latest_known_hash: before_genesis }
@@ -64,6 +80,21 @@ impl <T: AddrLookup> State<T> {
     pub fn new(ptr: StatePtr, lookup_struct: T, utxos: Utxos) -> Self {
         State { ptr, lookup_struct, utxos }
     }
+
+    pub fn load(wallet_name: &str, mut ptr: StatePtr, mut lookup_struct: T) -> Result<Self> {
+        let lock = LogLock::acquire_wallet_log_lock(wallet_name)?;
+        let mut logs = LogReader::open(lock)?;
+
+        let utxos = Utxos::new();
+        while let Some(log) = logs.next()? {
+            match log {
+                Log::Checkpoint(known_ptr) => ptr = known_ptr,
+            }
+        }
+
+        Ok(Self::new(ptr, lookup_struct, utxos))
+    }
+
     /// update a given state with a set of blocks.
     ///
     /// The blocks need to be in blockchain order,
