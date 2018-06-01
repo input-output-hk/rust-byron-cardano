@@ -149,7 +149,7 @@ impl <T: AddrLookup> State<T> {
     /// and correctly refer to each other, otherwise
     /// an error is emitted
     pub fn forward(&mut self, blocks: &[Block]) -> Result<Vec<Log>> {
-        let mut log_writer = Vec::new();
+        let mut events = Vec::new();
         for block in blocks {
             let hdr = block.get_header();
             let date = hdr.get_blockdate();
@@ -182,7 +182,7 @@ impl <T: AddrLookup> State<T> {
                                 match self.utxos.remove(&txin.id) {
                                     None => {},
                                     Some(utxo) => {
-                                        log_writer.push(Log::SpentFund(utxo))
+                                        events.push(Log::SpentFund(utxo))
                                     },
                                 }
                             }
@@ -195,7 +195,7 @@ impl <T: AddrLookup> State<T> {
 
                     let found_utxos = self.lookup_struct.lookup(&current_ptr, &all_outputs[..])?;
                     for utxo in found_utxos {
-                        log_writer.push(Log::ReceivedFund(utxo.clone()));
+                        events.push(Log::ReceivedFund(utxo.clone()));
                         self.utxos.insert(utxo.txid, utxo);
                     }
 
@@ -206,10 +206,10 @@ impl <T: AddrLookup> State<T> {
             self.ptr = current_ptr;
 
             if date.is_genesis() {
-                log_writer.push(Log::Checkpoint(self.ptr.clone()));
+                events.push(Log::Checkpoint(self.ptr.clone()));
             }
         }
-        Ok(log_writer)
+        Ok(events)
     }
 
     pub fn forward_temp(&mut self, blocks: &[Block]) -> Result<()> {
