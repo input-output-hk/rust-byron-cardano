@@ -182,6 +182,7 @@ impl <T: AddrLookup> State<T> {
                                 match self.utxos.remove(&txin.id) {
                                     None => {},
                                     Some(utxo) => {
+                                        // TODO verify signature
                                         events.push(Log::SpentFund(utxo))
                                     },
                                 }
