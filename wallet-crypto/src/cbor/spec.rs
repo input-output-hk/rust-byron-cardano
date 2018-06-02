@@ -1,7 +1,7 @@
 //! CBor as specified by the RFC
 
 use std::collections::{BTreeMap, LinkedList};
-use std::cmp::{min};
+use std::cmp::{Ord, min};
 use std::{io, result, fmt};
 use util::hex;
 
@@ -276,6 +276,15 @@ pub enum ObjectKey {
     Text(String),
     // Bool(bool)
 }
+impl ObjectKey {
+    pub fn value(self) -> Value {
+        match self {
+            ObjectKey::Integer(v) => Value::U64(v),
+            ObjectKey::Bytes(v) => Value::Bytes(v),
+            ObjectKey::Text(v) => Value::Text(v),
+        }
+    }
+}
 
 pub trait CborValue: Sized {
     fn encode(&self) -> Value;
@@ -372,10 +381,27 @@ impl<T> CborValue for LinkedList<T> where T: CborValue {
         value.iarray().and_then(|list| {
             let mut r = LinkedList::new();
             for i in list.iter() {
-                let v = CborValue::decode(i.clone())?;
-                r.push_back(v);
+                r.push_back(i.clone().decode()?);
             }
             Ok(r)
+        })
+    }
+}
+impl<K, V> CborValue for BTreeMap<K, V>
+where
+    K: Ord,
+    K: CborValue,
+    V: CborValue,
+{
+    fn encode(&self) -> Value {
+        unimplemented!()
+    }
+    fn decode(value: Value) -> Result<Self> {
+        value.object().and_then(|mapping| {
+            mapping
+                .iter()
+                .map(|(k, v)| Ok((k.clone().value().decode()?, v.clone().decode()?)))
+                .collect()
         })
     }
 }
