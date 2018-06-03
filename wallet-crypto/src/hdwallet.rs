@@ -38,6 +38,13 @@ pub enum Error {
     InvalidDerivation
 }
 
+/// Ed25519-bip32 Scheme Derivation version
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DerivationScheme {
+    V1,
+    V2,
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -709,12 +716,6 @@ fn add_28_mul8(x: &[u8], y: &[u8], scheme: DerivationScheme) -> [u8; 32] {
         DerivationScheme::V1 => add_28_mul8_v1(x, y),
         DerivationScheme::V2 => add_28_mul8_v2(x, y),
     }
-}
-
-#[derive(Clone, Copy)]
-pub enum DerivationScheme {
-    V1,
-    V2,
 }
 
 fn derive_private(xprv: &XPrv, index: DerivationIndex, scheme: DerivationScheme) -> XPrv {
