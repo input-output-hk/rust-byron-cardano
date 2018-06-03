@@ -57,11 +57,17 @@ pub struct Wallet {
 
     pub config: config::Config,
     pub selection_policy: tx::fee::SelectionPolicy,
+    pub derivation_scheme: hdwallet::DerivationScheme,
 }
 
 impl Wallet {
     pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: tx::fee::SelectionPolicy) -> Self {
-        Wallet { cached_root_key: cached_root_key, config: config, selection_policy: policy }
+        Wallet {
+            cached_root_key: cached_root_key,
+            config: config,
+            selection_policy: policy,
+            derivation_scheme: hdwallet::DerivationScheme::V2,
+        }
     }
 
     /// create a new wallet from the given seed
@@ -73,7 +79,8 @@ impl Wallet {
         Wallet {
             cached_root_key: key.derive(BIP44_PURPOSE).derive(BIP44_COIN_TYPE),
             config: config::Config::default(),
-            selection_policy: tx::fee::SelectionPolicy::default()
+            selection_policy: tx::fee::SelectionPolicy::default(),
+            derivation_scheme: hdwallet::DerivationScheme::V2
         }
     }
 
@@ -212,7 +219,8 @@ mod test {
   \"config\": {
     \"protocol_magic\": 633343913
   },
-  \"selection_policy\": \"FirstMatchFirst\"
+  \"selection_policy\": \"FirstMatchFirst\",
+  \"derivation_scheme\": \"V2\"
 }
     ";
 
