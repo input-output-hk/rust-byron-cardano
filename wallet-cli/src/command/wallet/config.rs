@@ -119,7 +119,7 @@ impl Config {
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
-        let path = wallet_path(name)?.join(name);
+        let path = wallet_path(name)?;
         fs::DirBuilder::new().recursive(true).create(path.clone())?;
         let mut tmpfile = TmpFile::create(path.clone())?;
         serde_yaml::to_writer(&mut tmpfile, self)?;
