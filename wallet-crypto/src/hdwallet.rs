@@ -923,11 +923,22 @@ mod tests {
     }
 
     #[test]
-    fn xpub_derive_v1()  {
+    fn xpub_derive_v1_hardened()  {
         let derivation_index = 0x1;
         let seed = Seed::from_bytes([0;32]);
         let prv = XPrv::generate_from_seed(&seed);
         let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+    }
+
+    #[test]
+    fn xpub_derive_v1_soft()  {
+        let derivation_index = 0x10000000;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let xpub = prv.public();
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V1, derivation_index).unwrap();
+        assert_eq!(child_prv.public(), child_xpub);
     }
 
     #[test]
