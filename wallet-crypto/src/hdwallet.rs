@@ -244,8 +244,8 @@ impl XPrv {
         xpub.verify(message, signature)
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Self {
-        derive_private(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Self {
+        derive_private(self, index, scheme)
     }
 }
 impl PartialEq for XPrv {
@@ -373,8 +373,8 @@ impl XPub {
         ed25519::verify(message, &self.as_ref()[0..32], signature.as_ref())
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Result<Self> {
-        derive_public(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Result<Self> {
+        derive_public(self, index, scheme)
     }
 }
 impl PartialEq for XPub {
@@ -927,8 +927,8 @@ mod tests {
         let derivation_index = 0x10000000;
         let prv = XPrv::from_bytes(D1);
         let xpub = prv.public();
-        let child_prv = prv.derive(derivation_index);
-        let child_xpub = xpub.derive(derivation_index).unwrap();
+        let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
         assert_eq!(child_prv.public(), child_xpub);
     }
 
