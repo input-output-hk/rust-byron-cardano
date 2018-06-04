@@ -24,7 +24,6 @@ use rcw::sha2::{Sha512};
 use rcw::pbkdf2::{pbkdf2};
 use std::{fmt, result, str};
 use util::{hex};
-use bit_vec::{BitVec};
 
 pub enum Error {
     WrongNumberOfWords(usize),
@@ -153,22 +152,12 @@ impl Entropy {
     }
 
     pub fn from_mnemonics(mnemonics: &Mnemonics) -> Result<Self> {
+        use util::bits::BitWriterBy11;
         let t = mnemonics.get_type();
 
-        fn bit_from_u16_as_u11(input: u16, position: u16) -> bool {
-            if position < 11 {
-                input & (1 << (10 - position)) != 0
-            } else {
-                false
-            }
-        }
-
-        let mut to_validate: BitVec = BitVec::new();
+        let mut to_validate = BitWriterBy11::new();
         for mnemonic in mnemonics.0.iter() {
-            let n = mnemonic.0;
-            for i in 0..11 {
-                to_validate.push(bit_from_u16_as_u11(n, i));
-            }
+            to_validate.write(mnemonic.0);
         }
 
         let mut r = to_validate.to_bytes();

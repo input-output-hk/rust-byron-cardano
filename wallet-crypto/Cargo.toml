@@ -12,7 +12,6 @@ keywords = [ "Cardano", "Wallet" ]
 serde = "1.0"
 serde_derive = "1.0"
 log = "0.4"
-bit-vec = "0.5"
 rcw = { path = "../rcw" }
 
 [dev-dependencies]
