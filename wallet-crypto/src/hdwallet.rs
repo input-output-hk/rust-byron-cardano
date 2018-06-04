@@ -38,13 +38,6 @@ pub enum Error {
     InvalidDerivation
 }
 
-/// Ed25519-bip32 Scheme Derivation version
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum DerivationScheme {
-    V1,
-    V2,
-}
-
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -77,6 +70,13 @@ impl From<hex::Error> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// Ed25519-bip32 Scheme Derivation version
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DerivationScheme {
+    V1,
+    V2,
+}
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
