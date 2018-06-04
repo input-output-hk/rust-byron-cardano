@@ -647,7 +647,7 @@ fn add_256bits_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
 
     let mut out = [0u8; 32];
     for i in 0..32 {
-        let r = x[i] + y[i];
+        let r = x[i] as u16 + y[i] as u16;
         out[i] = r as u8;
     }
     out
@@ -682,7 +682,7 @@ fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
         let mut acc = 0;
         let mut out = [0u8; 32];
         for i in 0..32 {
-            out[i] = y[i] << 3 + acc & 0x8;
+            out[i] = (y[i] << 3) + acc & 0x8;
             acc = y[i] >> 5;
         }
         Fe::from_bytes(&out)
@@ -923,7 +923,15 @@ mod tests {
     }
 
     #[test]
-    fn xpub_derive()  {
+    fn xpub_derive_v1()  {
+        let derivation_index = 0x1;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+    }
+
+    #[test]
+    fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
         let prv = XPrv::from_bytes(D1);
         let xpub = prv.public();
