@@ -14,7 +14,6 @@ extern crate log;
 extern crate test;
 
 extern crate bit_vec;
-extern crate bitreader;
 
 extern crate rcw;
 

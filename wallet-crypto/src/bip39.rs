@@ -25,7 +25,6 @@ use rcw::pbkdf2::{pbkdf2};
 use std::{fmt, result, str};
 use util::{hex};
 use bit_vec::{BitVec};
-use bitreader::{BitReader};
 
 pub enum Error {
     WrongNumberOfWords(usize),
@@ -188,17 +187,19 @@ impl Entropy {
     }
 
     pub fn to_mnemonics(&self) -> Mnemonics {
+        use util::bits::BitReaderBy11;
+
         let t = self.get_type();
         let mut combined = Vec::from(self.as_ref());
         combined.extend(&self.hash()[..]);
 
-        let mut reader = BitReader::new(&combined);
+        let mut reader = BitReaderBy11::new(&combined);
 
         let mut words: Vec<Mnemonic> = Vec::new();
         for _ in 0..t.mnemonic_count() {
             // here we are confident the entropy has already
             // enough bytes to read all the bits we need.
-            let n = reader.read_u16(11).unwrap();
+            let n = reader.read();
             // here we can unwrap safely as 11bits can
             // only store up to the value 2047
             words.push(Mnemonic::new(n).unwrap());
@@ -427,6 +428,7 @@ impl Mnemonic {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mnemonics(Vec<Mnemonic>);
 impl Mnemonics {
     pub fn get_type(&self) -> Type { Type::from_word_count(self.0.len()).unwrap() }
@@ -572,6 +574,7 @@ mod test {
 
         assert!(mnemonics_ref.get_type() == entropy_ref.get_type());
 
+        assert!(entropy_ref.to_mnemonics() == mnemonics_ref);
         assert!(entropy_ref == Entropy::from_mnemonics(&mnemonics_ref).expect("retrieve entropy from mnemonics"));
 
         assert!(seed_ref == Seed::from_mnemonic_string(&mnemonics_str, b"TREZOR"));
