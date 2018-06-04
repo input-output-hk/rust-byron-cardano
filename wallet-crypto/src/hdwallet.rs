@@ -38,13 +38,6 @@ pub enum Error {
     InvalidDerivation
 }
 
-/// Ed25519-bip32 Scheme Derivation version
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum DerivationScheme {
-    V1,
-    V2,
-}
-
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -77,6 +70,16 @@ impl From<hex::Error> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// Ed25519-bip32 Scheme Derivation version
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DerivationScheme {
+    V1,
+    V2,
+}
+impl Default for DerivationScheme {
+    fn default() -> Self { DerivationScheme::V2 }
+}
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
@@ -241,8 +244,8 @@ impl XPrv {
         xpub.verify(message, signature)
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Self {
-        derive_private(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Self {
+        derive_private(self, index, scheme)
     }
 }
 impl PartialEq for XPrv {
@@ -370,8 +373,8 @@ impl XPub {
         ed25519::verify(message, &self.as_ref()[0..32], signature.as_ref())
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Result<Self> {
-        derive_public(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Result<Self> {
+        derive_public(self, index, scheme)
     }
 }
 impl PartialEq for XPub {
@@ -644,7 +647,7 @@ fn add_256bits_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
 
     let mut out = [0u8; 32];
     for i in 0..32 {
-        let r = x[i] + y[i];
+        let r = x[i] as u16 + y[i] as u16;
         out[i] = r as u8;
     }
     out
@@ -679,7 +682,7 @@ fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
         let mut acc = 0;
         let mut out = [0u8; 32];
         for i in 0..32 {
-            out[i] = y[i] << 3 + acc & 0x8;
+            out[i] = (y[i] << 3) + acc & 0x8;
             acc = y[i] >> 5;
         }
         Fe::from_bytes(&out)
@@ -920,12 +923,31 @@ mod tests {
     }
 
     #[test]
-    fn xpub_derive()  {
+    fn xpub_derive_v1_hardened()  {
+        let derivation_index = 0x1;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+    }
+
+    #[test]
+    fn xpub_derive_v1_soft()  {
+        let derivation_index = 0x10000000;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let xpub = prv.public();
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V1, derivation_index).unwrap();
+        assert_eq!(child_prv.public(), child_xpub);
+    }
+
+    #[test]
+    fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
         let prv = XPrv::from_bytes(D1);
         let xpub = prv.public();
-        let child_prv = prv.derive(derivation_index);
-        let child_xpub = xpub.derive(derivation_index).unwrap();
+        let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
         assert_eq!(child_prv.public(), child_xpub);
     }
 

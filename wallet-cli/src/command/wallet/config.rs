@@ -8,7 +8,7 @@
 
 use wallet_crypto::{
     self,
-    hdwallet::{XPrv},
+    hdwallet::{XPrv, DerivationScheme},
     tx::fee::{SelectionPolicy},
     wallet::{self, Wallet, Account},
     bip44
@@ -154,7 +154,7 @@ impl Accounts {
 
         match self.0.get(account_index as usize) {
             None => Err(Error::AccountIndexNotFound(account)),
-            Some(cfg) => Ok(Account::new(account, cfg.cached_root_key.clone()))
+            Some(cfg) => Ok(Account::new(account, cfg.cached_root_key.clone(), DerivationScheme::V2)),
         }
     }
 
