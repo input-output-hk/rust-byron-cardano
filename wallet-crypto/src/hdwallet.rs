@@ -77,6 +77,9 @@ pub enum DerivationScheme {
     V1,
     V2,
 }
+impl Default for DerivationScheme {
+    fn default() -> Self { DerivationScheme::V2 }
+}
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
