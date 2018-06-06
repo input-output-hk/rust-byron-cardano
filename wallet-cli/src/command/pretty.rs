@@ -3,7 +3,7 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof};
-use wallet_crypto::{address, hash, tx, util::hex};
+use wallet_crypto::{address, hash, hdwallet, redeem, tx, util::hex};
 
 use ansi_term::Colour;
 
@@ -20,10 +20,12 @@ type Key = String;
 pub enum Val {
     // terminals
     Raw(String),
-    Hash(types::HeaderHash),
+    Hash(types::HeaderHash), // XXX: consider naming this with a more specific meaning, as we'll probably have other hashes?
     Epoch(u32),
     SlotId(u32),
     BlockSig(normal::BlockSignature),
+    Signature(redeem::Signature),
+    XPub(hdwallet::XPub),
     Stakeholder(address::StakeholderId),
 
     // recursive
@@ -62,6 +64,8 @@ fn fmt_val(
         | Val::Epoch(_)
         | Val::SlotId(_)
         | Val::BlockSig(_)
+        | Val::Signature(_)
+        | Val::XPub(_)
         | Val::Stakeholder(_) => {
             write!(f, " ")?;
             fmt_pretty(val, f, indent_size, indent_level)?;
@@ -88,7 +92,11 @@ fn fmt_pretty(
         Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
+        // // signatures are cyan
         Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
+        Val::Signature(sig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", sig))),
+        // // actor ids are yellow
+        Val::XPub(pubkey) => write!(f, "{}", Colour::Yellow.paint(format!("{}", pubkey))),
         Val::Stakeholder(stkhodl) => write!(f, "{}", Colour::Yellow.paint(format!("{}", stkhodl))),
 
         // format pretty-val as a set of key-vals
@@ -291,7 +299,7 @@ impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("tx payload".to_string(), self.tx.to_pretty()),
-            ("ssc".to_string(), Val::Raw(format!("TODO {:?}", self.ssc))),
+            ("ssc".to_string(), self.ssc.to_pretty()),
             (
                 "delegation".to_string(),
                 Val::Raw(format!("TODO {:?}", self.delegation)),
@@ -301,6 +309,65 @@ impl Pretty for normal::Body {
                 Val::Raw(format!("TODO {:?}", self.update)),
             ),
         ])
+    }
+}
+
+impl Pretty for normal::SscPayload {
+    fn to_pretty(&self) -> Val {
+        match self {
+            normal::SscPayload::CommitmentsPayload(m, vss) => Val::Tree(vec![
+                ("commitments".to_string(), m.to_pretty()),
+                ("vss certificatates".to_string(), vss.to_pretty()),
+            ]),
+            normal::SscPayload::OpeningsPayload(m, vss) => Val::Tree(vec![
+                ("openings".to_string(), m.to_pretty()),
+                ("vss certificatates".to_string(), vss.to_pretty()),
+            ]),
+            normal::SscPayload::SharesPayload(m, vss) => Val::Tree(vec![
+                ("shares".to_string(), m.to_pretty()),
+                ("vss certificatates".to_string(), vss.to_pretty()),
+            ]),
+            normal::SscPayload::CertificatesPayload(vss) => {
+                Val::Tree(vec![("vss certificatates".to_string(), vss.to_pretty())])
+            }
+        }
+    }
+}
+
+impl Pretty for normal::VssCertificates {
+    fn to_pretty(&self) -> Val {
+        Val::List(
+            self.clone()
+                .into_iter()
+                .map(|cert| cert.to_pretty())
+                .collect(),
+        )
+    }
+}
+
+impl Pretty for normal::VssCertificate {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            (
+                "vss key".to_string(),
+                Val::Raw(format!("TODO {:?}", self.vss_key)),
+            ),
+            ("expiry epoch".to_string(), self.expiry_epoch.to_pretty()),
+            ("signature".to_string(), self.signature.to_pretty()),
+            ("signing key".to_string(), self.signing_key.to_pretty()),
+        ])
+    }
+}
+
+impl Pretty for redeem::Signature {
+    fn to_pretty(&self) -> Val {
+        Val::Signature(self.clone())
+    }
+}
+
+impl Pretty for hdwallet::XPub {
+    fn to_pretty(&self) -> Val {
+        Val::XPub(self.clone())
     }
 }
 
@@ -328,11 +395,7 @@ impl Pretty for normal::TxPayload {
                 .map(|txaux| {
                     Val::Tree(vec![
                         ("tx".to_string(), txaux.tx.to_pretty()),
-                        (
-                            "witnesses".to_string(),
-                            txaux.witnesses.to_pretty()
-                            //Val::Raw(format!("{:?}", txaux.witnesses)),
-                        ),
+                        ("witnesses".to_string(), txaux.witnesses.to_pretty()),
                     ])
                 })
                 .collect(),

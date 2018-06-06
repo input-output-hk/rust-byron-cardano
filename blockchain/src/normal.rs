@@ -1,4 +1,4 @@
-use wallet_crypto::{address, tx, hdwallet, cbor, hash::{Blake2b256}};
+use wallet_crypto::{address, tx, hdwallet, cbor, redeem, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
@@ -255,6 +255,7 @@ impl cbor::CborValue for SharesMap {
     }
 }
 
+// TODO: change to a BTreeMap<StakeholderId, VssCertificate> see https://github.com/input-output-hk/cardano-sl/blob/005076eb3434444a505c0fb150ea98e56e8bb3d9/core/src/Pos/Core/Ssc/VssCertificatesMap.hs#L36-L44
 #[derive(Debug, Clone)]
 pub struct VssCertificates(Vec<VssCertificate>);
 impl cbor::CborValue for VssCertificates {
@@ -272,12 +273,21 @@ impl cbor::CborValue for VssCertificates {
     }
 }
 
+impl IntoIterator for VssCertificates {
+    type Item = VssCertificate;
+    type IntoIter = ::std::vec::IntoIter<VssCertificate>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct VssCertificate {
-    vss_key: cbor::Value, // TODO more than just cbor
-    expiry_epoch: types::EpochId,
-    signature: cbor::Value,   // TODO more than just cbor
-    signing_key: cbor::Value, // TODO more than just cbor
+    pub vss_key: cbor::Value, // 35 bytes public-key from http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
+    pub expiry_epoch: types::EpochId,
+    pub signature: redeem::Signature,
+    pub signing_key: hdwallet::XPub,
 }
 impl cbor::CborValue for VssCertificate {
     fn encode(&self) -> cbor::Value {
