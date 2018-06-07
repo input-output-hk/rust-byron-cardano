@@ -272,12 +272,9 @@ impl cbor::CborValue for VssCertificates {
             .embed("while decoding VssCertificates")
     }
 }
-
-impl IntoIterator for VssCertificates {
-    type Item = VssCertificate;
-    type IntoIter = ::std::vec::IntoIter<VssCertificate>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+impl VssCertificates {
+    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
+        self.0.iter()
     }
 }
 

@@ -11,13 +11,13 @@ use ansi_term::Colour;
 static DISPLAY_INDENT_SIZE: usize = 4; // spaces
 static DISPLAY_INDENT_LEVEL: usize = 0; // beginning starts at zero
 
-type AST = Vec<(Key, Val)>;
+type AST<'a> = Vec<(Key<'a>, Val<'a>)>;
 
-type Key = String;
+type Key<'a> = &'a str;
 
 // XXX: consider splitting into two mutually-recursive types (one with only terminals, one with only nonterminals)
 // TODO: extend with blockchain-specific constructors with color
-pub enum Val {
+pub enum Val<'a> {
     // terminals
     Raw(String),
     Hash(types::HeaderHash), // XXX: consider naming this with a more specific meaning, as we'll probably have other hashes?
@@ -32,15 +32,15 @@ pub enum Val {
     Stakeholder(address::StakeholderId),
 
     // recursive
-    List(Vec<Val>),
-    Tree(AST),
+    List(Vec<Val<'a>>),
+    Tree(AST<'a>),
 }
 
-fn from_debug(d: impl fmt::Debug) -> Val {
+fn from_debug<'a>(d: impl fmt::Debug) -> Val<'a> {
     Val::Raw(format!("TODO {:?}", d))
 }
 
-fn from_display(d: impl fmt::Display) -> Val {
+fn from_display<'a>(d: impl fmt::Display) -> Val<'a> {
     Val::Raw(format!("{}", d))
 }
 
@@ -134,7 +134,7 @@ fn fmt_pretty(
     }
 }
 
-impl fmt::Display for Val {
+impl<'a> fmt::Display for Val<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt_pretty(self, f, DISPLAY_INDENT_SIZE, DISPLAY_INDENT_LEVEL)
     }
@@ -152,8 +152,8 @@ impl Pretty for cbor::Value {
 impl Pretty for Block {
     fn to_pretty(&self) -> Val {
         match self {
-            Block::GenesisBlock(b) => Val::Tree(vec![("GenesisBlock".to_string(), b.to_pretty())]),
-            Block::MainBlock(b) => Val::Tree(vec![("MainBlock".to_string(), b.to_pretty())]),
+            Block::GenesisBlock(b) => Val::Tree(vec![("GenesisBlock", b.to_pretty())]),
+            Block::MainBlock(b) => Val::Tree(vec![("MainBlock", b.to_pretty())]),
         }
     }
 }
@@ -161,9 +161,9 @@ impl Pretty for Block {
 impl Pretty for normal::Block {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("header".to_string(), self.header.to_pretty()),
-            ("body".to_string(), self.body.to_pretty()),
-            ("extra".to_string(), self.extra.to_pretty()),
+            ("header", self.header.to_pretty()),
+            ("body", self.body.to_pretty()),
+            ("extra", self.extra.to_pretty()),
         ])
     }
 }
@@ -171,17 +171,11 @@ impl Pretty for normal::Block {
 impl Pretty for normal::BlockHeader {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "protocol magic".to_string(),
-                self.protocol_magic.to_pretty(),
-            ),
-            (
-                "previous hash".to_string(),
-                self.previous_header.to_pretty(),
-            ),
-            ("body proof".to_string(), self.body_proof.to_pretty()),
-            ("consensus".to_string(), self.consensus.to_pretty()),
-            ("extra data".to_string(), self.extra_data.to_pretty()),
+            ("protocol magic", self.protocol_magic.to_pretty()),
+            ("previous hash", self.previous_header.to_pretty()),
+            ("body proof", self.body_proof.to_pretty()),
+            ("consensus", self.consensus.to_pretty()),
+            ("extra data", self.extra_data.to_pretty()),
         ])
     }
 }
@@ -209,17 +203,11 @@ impl Pretty for types::HeaderHash {
 impl Pretty for genesis::BlockHeader {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "protocol magic".to_string(),
-                self.protocol_magic.to_pretty(),
-            ),
-            (
-                "previous hash".to_string(),
-                self.previous_header.to_pretty(),
-            ),
-            ("body proof".to_string(), self.body_proof.to_pretty()),
-            ("consensus".to_string(), self.consensus.to_pretty()),
-            ("extra data".to_string(), self.extra_data.to_pretty()),
+            ("protocol magic", self.protocol_magic.to_pretty()),
+            ("previous hash", self.previous_header.to_pretty()),
+            ("body proof", self.body_proof.to_pretty()),
+            ("consensus", self.consensus.to_pretty()),
+            ("extra data", self.extra_data.to_pretty()),
         ])
     }
 }
@@ -241,10 +229,10 @@ impl Pretty for genesis::BodyProof {
 impl Pretty for normal::BodyProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("tx proof".to_string(), self.tx.to_pretty()),
-            ("mpc".to_string(), self.mpc.to_pretty()),
-            ("proxy sk".to_string(), self.proxy_sk.to_pretty()),
-            ("update".to_string(), self.update.to_pretty()),
+            ("tx proof", self.tx.to_pretty()),
+            ("mpc", self.mpc.to_pretty()),
+            ("proxy sk", self.proxy_sk.to_pretty()),
+            ("update", self.update.to_pretty()),
         ])
     }
 }
@@ -253,12 +241,12 @@ impl Pretty for tx::TxProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             (
-                "number".to_string(),
+                "number",
                 from_display(self.number),
                 // TODO: add a Val::U32 constructor for this and other bare u32
             ),
-            ("root".to_string(), self.root.to_pretty()),
-            ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
+            ("root", self.root.to_pretty()),
+            ("witness hash", self.witnesses_hash.to_pretty()),
         ])
     }
 }
@@ -280,16 +268,10 @@ impl Pretty for SscProof {
 impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("slot".to_string(), self.slot_id.to_pretty()),
-            ("leader key".to_string(), self.leader_key.to_pretty()),
-            (
-                "chain difficulty".to_string(),
-                self.chain_difficulty.to_pretty(),
-            ),
-            (
-                "block signature".to_string(),
-                self.block_signature.to_pretty(),
-            ),
+            ("slot", self.slot_id.to_pretty()),
+            ("leader key", self.leader_key.to_pretty()),
+            ("chain difficulty", self.chain_difficulty.to_pretty()),
+            ("block signature", self.block_signature.to_pretty()),
         ])
     }
 }
@@ -310,8 +292,8 @@ impl Pretty for normal::BlockSignature {
 impl Pretty for types::SlotId {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("epoch".to_string(), self.epoch.to_pretty()),
-            ("slot id".to_string(), Val::SlotId(self.slotid)),
+            ("epoch", self.epoch.to_pretty()),
+            ("slot id", Val::SlotId(self.slotid)),
         ])
     }
 }
@@ -325,11 +307,8 @@ impl Pretty for types::EpochId {
 impl Pretty for genesis::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("epoch".to_string(), self.epoch.to_pretty()),
-            (
-                "chain difficulty".to_string(),
-                self.chain_difficulty.to_pretty(),
-            ),
+            ("epoch", self.epoch.to_pretty()),
+            ("chain difficulty", self.chain_difficulty.to_pretty()),
         ])
     }
 }
@@ -337,10 +316,10 @@ impl Pretty for genesis::Consensus {
 impl Pretty for normal::Body {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("tx payload".to_string(), self.tx.to_pretty()),
-            ("ssc".to_string(), self.ssc.to_pretty()),
-            ("delegation".to_string(), self.delegation.to_pretty()),
-            ("update".to_string(), self.update.to_pretty()),
+            ("tx payload", self.tx.to_pretty()),
+            ("ssc", self.ssc.to_pretty()),
+            ("delegation", self.delegation.to_pretty()),
+            ("update", self.update.to_pretty()),
         ])
     }
 }
@@ -349,19 +328,19 @@ impl Pretty for normal::SscPayload {
     fn to_pretty(&self) -> Val {
         match self {
             normal::SscPayload::CommitmentsPayload(m, vss) => Val::Tree(vec![
-                ("commitments".to_string(), m.to_pretty()),
-                ("vss certificatates".to_string(), vss.to_pretty()),
+                ("commitments", m.to_pretty()),
+                ("vss certificatates", vss.to_pretty()),
             ]),
             normal::SscPayload::OpeningsPayload(m, vss) => Val::Tree(vec![
-                ("openings".to_string(), m.to_pretty()),
-                ("vss certificatates".to_string(), vss.to_pretty()),
+                ("openings", m.to_pretty()),
+                ("vss certificatates", vss.to_pretty()),
             ]),
             normal::SscPayload::SharesPayload(m, vss) => Val::Tree(vec![
-                ("shares".to_string(), m.to_pretty()),
-                ("vss certificatates".to_string(), vss.to_pretty()),
+                ("shares", m.to_pretty()),
+                ("vss certificatates", vss.to_pretty()),
             ]),
             normal::SscPayload::CertificatesPayload(vss) => {
-                Val::Tree(vec![("vss certificatates".to_string(), vss.to_pretty())])
+                Val::Tree(vec![("vss certificatates", vss.to_pretty())])
             }
         }
     }
@@ -369,22 +348,17 @@ impl Pretty for normal::SscPayload {
 
 impl Pretty for normal::VssCertificates {
     fn to_pretty(&self) -> Val {
-        Val::List(
-            self.clone()
-                .into_iter()
-                .map(|cert| cert.to_pretty())
-                .collect(),
-        )
+        Val::List(self.iter().map(|cert| cert.to_pretty()).collect())
     }
 }
 
 impl Pretty for normal::VssCertificate {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("vss key".to_string(), self.vss_key.to_pretty()),
-            ("expiry epoch".to_string(), self.expiry_epoch.to_pretty()),
-            ("signature".to_string(), self.signature.to_pretty()),
-            ("signing key".to_string(), self.signing_key.to_pretty()),
+            ("vss key", self.vss_key.to_pretty()),
+            ("expiry epoch", self.expiry_epoch.to_pretty()),
+            ("signature", self.signature.to_pretty()),
+            ("signing key", self.signing_key.to_pretty()),
         ])
     }
 }
@@ -424,8 +398,8 @@ impl Pretty for normal::TxPayload {
             self.iter()
                 .map(|txaux| {
                     Val::Tree(vec![
-                        ("tx".to_string(), txaux.tx.to_pretty()),
-                        ("witnesses".to_string(), txaux.witnesses.to_pretty()),
+                        ("tx", txaux.tx.to_pretty()),
+                        ("witnesses", txaux.witnesses.to_pretty()),
                     ])
                 })
                 .collect(),
@@ -444,11 +418,11 @@ impl Pretty for tx::Tx {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             (
-                "inputs".to_string(),
+                "inputs",
                 Val::List(self.inputs.iter().map(from_display).collect()),
             ),
             (
-                "outputs".to_string(),
+                "outputs",
                 Val::List(self.outputs.iter().map(from_display).collect()),
             ),
         ])
@@ -458,9 +432,9 @@ impl Pretty for tx::Tx {
 impl Pretty for genesis::Block {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("header".to_string(), self.header.to_pretty()),
-            ("body".to_string(), self.body.to_pretty()),
-            ("extra".to_string(), self.extra.to_pretty()),
+            ("header", self.header.to_pretty()),
+            ("body", self.body.to_pretty()),
+            ("extra", self.extra.to_pretty()),
         ])
     }
 }
@@ -476,17 +450,14 @@ mod tests {
     }
     #[test]
     fn longest_key_length_works() {
-        let input = vec![
-            ("name".to_string(), Raw("zaphod".to_string())),
-            ("age".to_string(), Raw(format!("{}", 42))),
-        ];
+        let input = vec![("name", Raw("zaphod")), ("age", Raw(format!("{}", 42)))];
         assert_eq!(longest_key_length(&input), 4);
     }
     #[test]
     fn test_display_flat_pairs() {
         let input = Tree(vec![
-            ("name".to_string(), Raw("zaphod".to_string())),
-            ("age".to_string(), Raw(format!("{}", 42))),
+            ("name", Raw("zaphod")),
+            ("age", Raw(format!("{}", 42))),
         ]);
         assert_eq!(
             format!("{}", input),
@@ -500,13 +471,13 @@ mod tests {
     fn test_display_nested_pairs() {
         let input = Tree(vec![
             (
-                "character".to_string(),
+                "character",
                 Tree(vec![
-                    ("name".to_string(), Raw("zaphod".to_string())),
-                    ("age".to_string(), Raw(format!("{}", 42))),
+                    ("name", Raw("zaphod")),
+                    ("age", Raw(format!("{}", 42))),
                 ]),
             ),
-            ("crook".to_string(), Raw("yes".to_string())),
+            ("crook", Raw("yes")),
         ]);
         assert_eq!(
             format!("{}", input),
@@ -522,26 +493,23 @@ mod tests {
     fn test_display_tested_list() {
         let input = Tree(vec![
             (
-                "character".to_string(),
+                "character",
                 Tree(vec![
-                    ("name".to_string(), Raw("zaphod".to_string())),
-                    ("age".to_string(), Raw(format!("{}", 42))),
+                    ("name", Raw("zaphod")),
+                    ("age", Raw(format!("{}", 42))),
                 ]),
             ),
-            ("crook".to_string(), Raw("yes".to_string())),
+            ("crook", Raw("yes")),
             (
-                "facts".to_string(),
+                "facts",
                 List(vec![
-                    Raw("invented pan-galactic gargle blaster".to_string()),
-                    Raw("elected president".to_string()),
+                    Raw("invented pan-galactic gargle blaster"),
+                    Raw("elected president"),
                     Tree(vec![
-                        ("heads".to_string(), Raw(format!("{}", 2))),
-                        ("arms".to_string(), Raw(format!("{}", 3))),
+                        ("heads", Raw(format!("{}", 2))),
+                        ("arms", Raw(format!("{}", 3))),
                     ]),
-                    List(vec![
-                        Raw("stole the heart of gold".to_string()),
-                        Raw("one hoopy frood".to_string()),
-                    ]),
+                    List(vec![Raw("stole the heart of gold"), Raw("one hoopy frood")]),
                 ]),
             ),
         ]);
