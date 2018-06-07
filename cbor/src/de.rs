@@ -32,7 +32,7 @@ pub trait Deserialize : Sized {
 /// the way the user expects some specific type.
 ///
 /// ```
-/// use raw_cbor::de2::*;
+/// use raw_cbor::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -41,7 +41,7 @@ pub trait Deserialize : Sized {
 /// ```
 ///
 /// ```
-/// use raw_cbor::de2::*;
+/// use raw_cbor::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -55,14 +55,14 @@ pub trait Deserialize : Sized {
 /// a reference and binds its lifetime to the owner of that slice.
 ///
 /// ```
-/// use raw_cbor::de2::*;
+/// use raw_cbor::de::*;
 ///
 /// let vec = vec![0,1,2,3];
 /// let raw = RawCbor::from(&vec);
 /// ```
 ///
 /// ```
-/// use raw_cbor::de2::*;
+/// use raw_cbor::de::*;
 ///
 /// // here the integer takes ownership of its own data as this is a
 /// // simple enough type
@@ -80,7 +80,7 @@ pub trait Deserialize : Sized {
 /// of the `RawCbor` object.
 ///
 /// ```compile_fail
-/// use raw_cbor::de2::*;
+/// use raw_cbor::de::*;
 ///
 /// // here this won't compile because the bytes's lifetime is bound
 /// // to the parent RawCbor (variable `raw`, which is bound to `vec`).
@@ -149,10 +149,10 @@ impl<'a> RawCbor<'a> {
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de2::*, Type};
+    /// use raw_cbor::{de::*, Type};
     ///
     /// let vec = vec![0x18, 0x40];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     /// let cbor_type = raw.cbor_type().unwrap();
     ///
     /// assert!(cbor_type == Type::UnsignedInteger);
@@ -187,10 +187,10 @@ impl<'a> RawCbor<'a> {
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de2::*, Len};
+    /// use raw_cbor::{de::*, Len};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     /// let (len, len_sz) = raw.cbor_len().unwrap();
     ///
     /// assert_eq!(len, Len::Len(3));
@@ -225,7 +225,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de2::{*};
+    /// use raw_cbor::de::{*};
     ///
     /// let vec = vec![0x18, 0x40];
     /// let mut raw = RawCbor::from(&vec);
@@ -236,7 +236,7 @@ impl<'a> RawCbor<'a> {
     /// ```
     ///
     /// ```should_panic
-    /// use raw_cbor::de2::{*};
+    /// use raw_cbor::de::{*};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
     /// let mut raw = RawCbor::from(&vec);
@@ -263,7 +263,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de2::{*};
+    /// use raw_cbor::de::{*};
     ///
     /// let vec = vec![0x38, 0x29];
     /// let mut raw = RawCbor::from(&vec);
@@ -323,7 +323,7 @@ impl<'a> RawCbor<'a> {
     /// use raw_cbor::de::{*};
     ///
     /// let vec = vec![0x64, 0x74, 0x65, 0x78, 0x74];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     ///
     /// let text = raw.text().unwrap();
     ///
@@ -355,12 +355,12 @@ impl<'a> RawCbor<'a> {
     /// use raw_cbor::{de::{*}, Len};
     ///
     /// let vec = vec![0x86, 0,1,2,3,4,5];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     ///
-    /// let array = raw.array().unwrap();
+    /// let len = raw.array().unwrap();
     ///
-    /// assert_eq!(array.len, Len::Len(6));
-    /// assert_eq!(&*array.buffer, &[0,1,2,3,4,5][..]);
+    /// assert_eq!(len, Len::Len(6));
+    /// assert_eq!(raw.as_ref(), &[0,1,2,3,4,5][..]);
     /// ```
     ///
     pub fn array(&mut self) -> Result<Len> {
@@ -380,11 +380,11 @@ impl<'a> RawCbor<'a> {
     /// use raw_cbor::{de::{*}, Len};
     ///
     /// let vec = vec![0xA2, 0x00, 0x64, 0x74, 0x65, 0x78, 0x74, 0x01, 0x18, 0x2A];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     ///
-    /// let array = raw.map().unwrap();
+    /// let len = raw.map().unwrap();
     ///
-    /// assert_eq!(array.len, Len::Len(2));
+    /// assert_eq!(len, Len::Len(2));
     /// ```
     ///
     pub fn map(&mut self) -> Result<Len> {
@@ -404,12 +404,12 @@ impl<'a> RawCbor<'a> {
     /// use raw_cbor::{de::{*}, Len};
     ///
     /// let vec = vec![0xD8, 0x18, 0x64, 0x74, 0x65, 0x78, 0x74];
-    /// let raw = RawCbor::from(&vec);
+    /// let mut raw = RawCbor::from(&vec);
     ///
     /// let tag = raw.tag().unwrap();
     ///
-    /// assert_eq!(24, tag.tag);
-    /// assert_eq!("text", &*tag.tagged.text().unwrap());
+    /// assert_eq!(24, *tag);
+    /// assert_eq!("text", &*raw.text().unwrap());
     /// ```
     ///
     pub fn tag(&mut self) -> Result<Tag> {
@@ -471,7 +471,7 @@ impl<'a> Deref for RawCbor<'a> {
 /// use raw_cbor::de::{*};
 ///
 /// let bytes = vec![0x1A, 0x31, 0x6D, 0xD6, 0xE6];
-/// let raw = RawCbor::from(&bytes);
+/// let mut raw = RawCbor::from(&bytes);
 ///
 /// let integer = raw.unsigned_integer().unwrap();
 /// assert!(*integer <= u32::max_value() as u64);
@@ -496,7 +496,7 @@ impl Deref for UnsignedInteger {
 /// use raw_cbor::de::{*};
 ///
 /// let bytes = vec![0x3A, 0x31, 0x6C, 0xC5, 0x76];
-/// let raw = RawCbor::from(&bytes);
+/// let mut raw = RawCbor::from(&bytes);
 ///
 /// let integer = raw.negative_integer().unwrap();
 /// assert!(*integer >= i32::min_value() as i64);
