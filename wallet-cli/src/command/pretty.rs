@@ -3,7 +3,7 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof};
-use wallet_crypto::{address, hash, hdwallet, redeem, tx, util::hex};
+use wallet_crypto::{address, cbor, config, hash, hdwallet, redeem, tx, util::hex};
 
 use ansi_term::Colour;
 
@@ -21,16 +21,27 @@ pub enum Val {
     // terminals
     Raw(String),
     Hash(types::HeaderHash), // XXX: consider naming this with a more specific meaning, as we'll probably have other hashes?
+    //// numbers
     Epoch(u32),
     SlotId(u32),
+    //// signatures
     BlockSig(normal::BlockSignature),
     Signature(redeem::Signature),
+    //// actor ids
     XPub(hdwallet::XPub),
     Stakeholder(address::StakeholderId),
 
     // recursive
     List(Vec<Val>),
     Tree(AST),
+}
+
+fn from_debug(d: impl fmt::Debug) -> Val {
+    Val::Raw(format!("TODO {:?}", d))
+}
+
+fn from_display(d: impl fmt::Display) -> Val {
+    Val::Raw(format!("{}", d))
 }
 
 pub trait Pretty {
@@ -90,12 +101,13 @@ fn fmt_pretty(
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
         Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
+        //// numbers get colors for meanings
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
-        // // signatures are cyan
+        //// signatures are cyan
         Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
         Val::Signature(sig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", sig))),
-        // // actor ids are yellow
+        //// actor ids are yellow
         Val::XPub(pubkey) => write!(f, "{}", Colour::Yellow.paint(format!("{}", pubkey))),
         Val::Stakeholder(stkhodl) => write!(f, "{}", Colour::Yellow.paint(format!("{}", stkhodl))),
 
@@ -130,9 +142,10 @@ impl fmt::Display for Val {
 
 // the rest of the file is `impl` and `test`
 
-impl Pretty for str {
+// XXX: eventually there should be no uses of this
+impl Pretty for cbor::Value {
     fn to_pretty(&self) -> Val {
-        Val::Raw(self.to_string())
+        from_debug(self)
     }
 }
 
@@ -150,10 +163,7 @@ impl Pretty for normal::Block {
         Val::Tree(vec![
             ("header".to_string(), self.header.to_pretty()),
             ("body".to_string(), self.body.to_pretty()),
-            (
-                "extra".to_string(),
-                Val::Raw(format!("TODO {:?}", self.extra)),
-            ),
+            ("extra".to_string(), self.extra.to_pretty()),
         ])
     }
 }
@@ -163,7 +173,7 @@ impl Pretty for normal::BlockHeader {
         Val::Tree(vec![
             (
                 "protocol magic".to_string(),
-                Val::Raw(format!("{}", self.protocol_magic)),
+                self.protocol_magic.to_pretty(),
             ),
             (
                 "previous hash".to_string(),
@@ -171,11 +181,22 @@ impl Pretty for normal::BlockHeader {
             ),
             ("body proof".to_string(), self.body_proof.to_pretty()),
             ("consensus".to_string(), self.consensus.to_pretty()),
-            (
-                "extra data".to_string(),
-                Val::Raw(format!("TODO {:?}", self.extra_data)),
-            ),
+            ("extra data".to_string(), self.extra_data.to_pretty()),
         ])
+    }
+}
+
+// TODO: do Val::Tree because this is a struct w/fields
+impl Pretty for types::HeaderExtraData {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
+    }
+}
+
+// XXX: consider moving this instance into config.rs so it can use the number directly?
+impl Pretty for config::ProtocolMagic {
+    fn to_pretty(&self) -> Val {
+        from_display(self)
     }
 }
 
@@ -190,22 +211,30 @@ impl Pretty for genesis::BlockHeader {
         Val::Tree(vec![
             (
                 "protocol magic".to_string(),
-                Val::Raw(format!("{}", self.protocol_magic)),
+                self.protocol_magic.to_pretty(),
             ),
             (
                 "previous hash".to_string(),
                 self.previous_header.to_pretty(),
             ),
-            (
-                "body proof".to_string(),
-                Val::Raw(format!("{:?}", self.body_proof)),
-            ),
+            ("body proof".to_string(), self.body_proof.to_pretty()),
             ("consensus".to_string(), self.consensus.to_pretty()),
-            (
-                "extra data".to_string(),
-                Val::Raw(format!("TODO {:?}", self.extra_data)),
-            ),
+            ("extra data".to_string(), self.extra_data.to_pretty()),
         ])
+    }
+}
+
+// XXX: struct is still bare cbor
+impl Pretty for types::BlockHeaderAttributes {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
+    }
+}
+
+// XXX: consider moving this instance into genesis.rs so it can use the hash directly?
+impl Pretty for genesis::BodyProof {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
     }
 }
 
@@ -223,22 +252,28 @@ impl Pretty for normal::BodyProof {
 impl Pretty for tx::TxProof {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            ("number".to_string(), Val::Raw(format!("{}", self.number))),
+            (
+                "number".to_string(),
+                from_display(self.number),
+                // TODO: add a Val::U32 constructor for this and other bare u32
+            ),
             ("root".to_string(), self.root.to_pretty()),
             ("witness hash".to_string(), self.witnesses_hash.to_pretty()),
         ])
     }
 }
 
+// XXX: unify with the instance for HeaderHash?
 impl Pretty for hash::Blake2b256 {
     fn to_pretty(&self) -> Val {
-        Val::Raw(format!("{}", self))
+        from_display(self)
     }
 }
 
+// SscProof is an enum over hashes. This instance is fine.
 impl Pretty for SscProof {
     fn to_pretty(&self) -> Val {
-        Val::Raw(format!("{:?}", self))
+        from_debug(self)
     }
 }
 
@@ -246,19 +281,23 @@ impl Pretty for normal::Consensus {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
             ("slot".to_string(), self.slot_id.to_pretty()),
-            (
-                "leader key".to_string(),
-                Val::Raw(hex::encode(self.leader_key.as_ref())),
-            ),
+            ("leader key".to_string(), self.leader_key.to_pretty()),
             (
                 "chain difficulty".to_string(),
-                Val::Raw(format!("{}", self.chain_difficulty)),
+                self.chain_difficulty.to_pretty(),
             ),
             (
                 "block signature".to_string(),
                 self.block_signature.to_pretty(),
             ),
         ])
+    }
+}
+
+// XXX: consider moving this instance into types.rs so it can use the number directly?
+impl Pretty for types::ChainDifficulty {
+    fn to_pretty(&self) -> Val {
+        from_display(self)
     }
 }
 
@@ -289,7 +328,7 @@ impl Pretty for genesis::Consensus {
             ("epoch".to_string(), self.epoch.to_pretty()),
             (
                 "chain difficulty".to_string(),
-                Val::Raw(format!("{}", self.chain_difficulty)),
+                self.chain_difficulty.to_pretty(),
             ),
         ])
     }
@@ -300,14 +339,8 @@ impl Pretty for normal::Body {
         Val::Tree(vec![
             ("tx payload".to_string(), self.tx.to_pretty()),
             ("ssc".to_string(), self.ssc.to_pretty()),
-            (
-                "delegation".to_string(),
-                Val::Raw(format!("TODO {:?}", self.delegation)),
-            ),
-            (
-                "update".to_string(),
-                Val::Raw(format!("TODO {:?}", self.update)),
-            ),
+            ("delegation".to_string(), self.delegation.to_pretty()),
+            ("update".to_string(), self.update.to_pretty()),
         ])
     }
 }
@@ -348,10 +381,7 @@ impl Pretty for normal::VssCertificates {
 impl Pretty for normal::VssCertificate {
     fn to_pretty(&self) -> Val {
         Val::Tree(vec![
-            (
-                "vss key".to_string(),
-                Val::Raw(format!("TODO {:?}", self.vss_key)),
-            ),
+            ("vss key".to_string(), self.vss_key.to_pretty()),
             ("expiry epoch".to_string(), self.expiry_epoch.to_pretty()),
             ("signature".to_string(), self.signature.to_pretty()),
             ("signing key".to_string(), self.signing_key.to_pretty()),
@@ -403,14 +433,10 @@ impl Pretty for normal::TxPayload {
     }
 }
 
-// XXX: impl for a parameterized generic type, Vec.. not sure if idiomatic
+// XXX: impl for a parameterized generic type, Vec<..> not sure if idiomatic
 impl Pretty for Vec<tx::TxInWitness> {
     fn to_pretty(&self) -> Val {
-        Val::List(
-            self.iter()
-                .map(|witness| Val::Raw(format!("TODO {}", witness)))
-                .collect(),
-        )
+        Val::List(self.iter().map(from_display).collect())
     }
 }
 
@@ -419,21 +445,11 @@ impl Pretty for tx::Tx {
         Val::Tree(vec![
             (
                 "inputs".to_string(),
-                Val::List(
-                    self.inputs
-                        .iter()
-                        .map(|input| Val::Raw(format!("{}", input)))
-                        .collect(),
-                ),
+                Val::List(self.inputs.iter().map(from_display).collect()),
             ),
             (
                 "outputs".to_string(),
-                Val::List(
-                    self.outputs
-                        .iter()
-                        .map(|input| Val::Raw(format!("{}", input)))
-                        .collect(),
-                ),
+                Val::List(self.outputs.iter().map(from_display).collect()),
             ),
         ])
     }
@@ -444,10 +460,7 @@ impl Pretty for genesis::Block {
         Val::Tree(vec![
             ("header".to_string(), self.header.to_pretty()),
             ("body".to_string(), self.body.to_pretty()),
-            (
-                "extra".to_string(),
-                Val::Raw(format!("TODO {:?}", self.extra)),
-            ),
+            ("extra".to_string(), self.extra.to_pretty()),
         ])
     }
 }
