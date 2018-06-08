@@ -540,13 +540,16 @@ mod tests {
     }
     #[test]
     fn longest_key_length_works() {
-        let input = vec![("name", Raw("zaphod")), ("age", Raw(format!("{}", 42)))];
+        let input = vec![
+            ("name", Raw("zaphod".to_string())),
+            ("age", Raw(format!("{}", 42))),
+        ];
         assert_eq!(longest_key_length(&input), 4);
     }
     #[test]
     fn test_display_flat_pairs() {
         let input = Tree(vec![
-            ("name", Raw("zaphod")),
+            ("name", Raw("zaphod".to_string())),
             ("age", Raw(format!("{}", 42))),
         ]);
         assert_eq!(
@@ -563,11 +566,11 @@ mod tests {
             (
                 "character",
                 Tree(vec![
-                    ("name", Raw("zaphod")),
+                    ("name", Raw("zaphod".to_string())),
                     ("age", Raw(format!("{}", 42))),
                 ]),
             ),
-            ("crook", Raw("yes")),
+            ("crook", Raw("yes".to_string())),
         ]);
         assert_eq!(
             format!("{}", input),
@@ -585,21 +588,24 @@ mod tests {
             (
                 "character",
                 Tree(vec![
-                    ("name", Raw("zaphod")),
+                    ("name", Raw("zaphod".to_string())),
                     ("age", Raw(format!("{}", 42))),
                 ]),
             ),
-            ("crook", Raw("yes")),
+            ("crook", Raw("yes".to_string())),
             (
                 "facts",
                 List(vec![
-                    Raw("invented pan-galactic gargle blaster"),
-                    Raw("elected president"),
+                    Raw("invented pan-galactic gargle blaster".to_string()),
+                    Raw("elected president".to_string()),
                     Tree(vec![
                         ("heads", Raw(format!("{}", 2))),
                         ("arms", Raw(format!("{}", 3))),
                     ]),
-                    List(vec![Raw("stole the heart of gold"), Raw("one hoopy frood")]),
+                    List(vec![
+                        Raw("stole the heart of gold".to_string()),
+                        Raw("one hoopy frood".to_string()),
+                    ]),
                 ]),
             ),
         ]);
