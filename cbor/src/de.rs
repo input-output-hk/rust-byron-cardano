@@ -1,23 +1,13 @@
 use std::{fmt, ops::{Deref}};
 use error::Error;
 use result::Result;
-use types::Type;
+use types::{Type, Special, Tag, Text, Bytes, UnsignedInteger, NegativeInteger};
 use len::Len;
 
 pub trait Deserialize : Sized {
     /// method to implement to deserialise an object from the given
     /// `RawCbor`.
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
-
-    /// skip this object from the current CBor.
-    ///
-    /// The default implementation uses `deserialize` and then drop the
-    /// deserialized object. Ideally it is better to re-implement this
-    /// method in order to go faster.
-    ///
-    fn skip<'a>(raw: &mut RawCbor<'a>) -> Result<()> {
-        Self::deserialize(raw).map(|_| ())
-    }
 }
 
 /// Raw Cbor
@@ -199,23 +189,29 @@ impl<'a> RawCbor<'a> {
     ///
     #[inline]
     pub fn cbor_len(&self) -> Result<(Len, usize)> {
-        let b = self.get(0)? & 0b0001_1111;
+        let b : u8 = self.get(0)? & 0b0001_1111;
         match b {
-            0x00...0x17 => { Ok((Len::Len(b as u64), 0)) },
+            0x00..=0x17 => { Ok((Len::Len(b as u64), 0)) },
             0x18        => { self.u8(1).map(|v| (Len::Len(v), 1)) },
             0x19        => { self.u16(1).map(|v| (Len::Len(v), 2)) },
             0x1a        => { self.u32(1).map(|v| (Len::Len(v), 4)) },
             0x1b        => { self.u64(1).map(|v| (Len::Len(v), 8)) },
-            0x1c...0x1e => Err(Error::UnknownLenType(b)),
+            0x1c..=0x1e => Err(Error::UnknownLenType(b)),
             0x1f        => Ok((Len::Indefinite, 0)),
-            _           => unreachable!()
+
+            // since the value `b` has been masked to only consider the first 5 lowest bits
+            // all value above 0x1f are unreachable.
+            _ => unreachable!()
         }
     }
 
+    #[inline]
     fn advance(&mut self, len: usize) -> Result<()> {
-        // TODO check the len?
-        self.0 = &self.0[len..];
-        Ok(())
+        if self.0.len() < len {
+            Err(Error::NotEnough(self.len(), len))
+        } else {
+            Ok(self.0 = &self.0[len..])
+        }
     }
 
     /// Read an `UnsignedInteger` from the `RawCbor`
@@ -449,7 +445,7 @@ impl<'a> From<&'a Vec<u8>> for RawCbor<'a> {
     fn from(bytes: &'a Vec<u8>) -> RawCbor<'a> { RawCbor(bytes.as_slice()) }
 }
 impl<'a, 'b> From<&'b Bytes<'a>> for RawCbor<'a> {
-    fn from(bytes: &'b Bytes<'a>) -> RawCbor<'a> { RawCbor(bytes.0) }
+    fn from(bytes: &'b Bytes<'a>) -> RawCbor<'a> { RawCbor(bytes.bytes()) }
 }
 impl<'a> AsRef<[u8]> for RawCbor<'a> {
     fn as_ref(&self) -> &[u8] { self.0 }
@@ -457,100 +453,6 @@ impl<'a> AsRef<[u8]> for RawCbor<'a> {
 impl<'a> Deref for RawCbor<'a> {
     type Target = [u8];
     fn deref(& self) -> &Self::Target { self.0 }
-}
-
-/// CBOR Unsigned Integer
-///
-/// it can be any unsigned integer: u8, u16, u32 or u64. However
-/// the decode does not retrain the details of the encoding.
-/// It is the user's responsibility to check for integer overflow.
-///
-/// # Example
-///
-/// ```
-/// use raw_cbor::de::{*};
-///
-/// let bytes = vec![0x1A, 0x31, 0x6D, 0xD6, 0xE6];
-/// let mut raw = RawCbor::from(&bytes);
-///
-/// let integer = raw.unsigned_integer().unwrap();
-/// assert!(*integer <= u32::max_value() as u64);
-/// ```
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct UnsignedInteger(u64);
-impl From<u64> for UnsignedInteger { fn from(v: u64) -> Self { UnsignedInteger(v) } }
-impl Deref for UnsignedInteger {
-    type Target = u64;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-/// CBOR Unsigned Integer
-///
-/// it can be any signed integer: i8, i16, i32 or i64. However
-/// the decode does not retrain the details of the encoding.
-/// It is the user's responsibility to check for integer overflow.
-///
-/// # Example
-///
-/// ```
-/// use raw_cbor::de::{*};
-///
-/// let bytes = vec![0x3A, 0x31, 0x6C, 0xC5, 0x76];
-/// let mut raw = RawCbor::from(&bytes);
-///
-/// let integer = raw.negative_integer().unwrap();
-/// assert!(*integer >= i32::min_value() as i64);
-/// ```
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct NegativeInteger(i64);
-impl From<i64> for NegativeInteger { fn from(v: i64) -> Self { NegativeInteger(v) } }
-impl Deref for NegativeInteger {
-    type Target = i64;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-/// CBOR Raw bytes
-///
-/// Simply a slice of a given length of the original buffer.
-///
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct Bytes<'a>(&'a [u8]);
-impl<'a> Bytes<'a> {
-    pub fn bytes<'b>(&'b self) -> &'a [u8] { self.0 }
-}
-impl<'a> From<&'a [u8]> for Bytes<'a> { fn from(v: &'a[u8]) -> Self { Bytes(v) } }
-impl<'a> Deref for Bytes<'a> {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target { self.0 }
-}
-
-/// CBOR UTF8 String
-///
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Text(String);
-impl From<String> for Text { fn from(v: String) -> Self { Text(v) } }
-impl Deref for Text {
-    type Target = str;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-pub struct Tag(u64);
-impl From<u64> for Tag { fn from(v: u64) -> Self { Tag(v) } }
-impl Deref for Tag {
-    type Target = u64;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Special {
-    Bool(bool),
-    Null,
-    Undefined,
-    /// Free to use values within: `[0..=19]` and `[24..=31]`
-    Unassigned(u8),
-    Float(f64),
-    /// mark the stop of a given indefinite-length item
-    Break
 }
 
 #[cfg(test)]

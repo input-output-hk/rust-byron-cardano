@@ -16,9 +16,13 @@ pub enum Error {
     IndefiniteLenNotSupported(Type),
     InvalidTextError(::std::string::FromUtf8Error),
     CannotParse(Type, Vec<u8>),
+    IoError(::std::io::Error),
 
     CustomError(String)
 }
 impl From<::std::string::FromUtf8Error> for Error {
     fn from(e: ::std::string::FromUtf8Error) -> Self { Error::InvalidTextError(e) }
+}
+impl From<::std::io::Error> for Error {
+    fn from(e: ::std::io::Error) -> Self { Error::IoError(e) }
 }
