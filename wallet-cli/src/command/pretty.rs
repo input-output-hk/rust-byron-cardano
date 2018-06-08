@@ -21,13 +21,11 @@ type Key<'a> = &'a str;
 pub enum Val<'a> {
     // terminals
     Raw(String),
-    Hash(types::HeaderHash), // XXX: consider naming this with a more specific meaning, as we'll probably have other hashes?
+    Hash(Vec<u8>),
+    Signature(Vec<u8>),
     //// numbers
     Epoch(u32),
     SlotId(u32),
-    //// signatures
-    BlockSig(normal::BlockSignature),
-    Signature(redeem::Signature),
     //// actor ids
     XPub(hdwallet::XPub),
     Stakeholder(address::StakeholderId),
@@ -84,10 +82,9 @@ fn fmt_val(
         // write terminals inline
         Val::Raw(_)
         | Val::Hash(_)
+        | Val::Signature(_)
         | Val::Epoch(_)
         | Val::SlotId(_)
-        | Val::BlockSig(_)
-        | Val::Signature(_)
         | Val::XPub(_)
         | Val::Stakeholder(_) => {
             write!(f, " ")?;
@@ -113,12 +110,10 @@ fn fmt_pretty(
         // format pretty-val as a terminal
         Val::Raw(display) => write!(f, "{}", display),
         Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
+        Val::Signature(sig) => write!(f, "{}", Colour::Cyan.paint(hex::encode(sig))),
         //// numbers get colors for meanings
         Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
         Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
-        //// signatures are cyan
-        Val::BlockSig(blksig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", blksig))),
-        Val::Signature(sig) => write!(f, "{}", Colour::Cyan.paint(format!("{:?}", sig))),
         //// actor ids are yellow
         Val::XPub(pubkey) => write!(f, "{}", Colour::Yellow.paint(format!("{}", pubkey))),
         Val::Stakeholder(stkhodl) => write!(f, "{}", Colour::Yellow.paint(format!("{}", stkhodl))),
@@ -208,7 +203,7 @@ impl Pretty for config::ProtocolMagic {
 
 impl Pretty for types::HeaderHash {
     fn to_pretty(&self) -> Val {
-        Val::Hash(self.clone())
+        Val::Hash(self.bytes().to_vec())
     }
 }
 
@@ -297,7 +292,10 @@ impl Pretty for types::ChainDifficulty {
 
 impl Pretty for normal::BlockSignature {
     fn to_pretty(&self) -> Val {
-        Val::BlockSig(self.clone())
+        match self.to_bytes() {
+            Some(bs) => Val::Signature(bs.to_vec()),
+            None => from_debug(self)
+        }
     }
 }
 
@@ -454,7 +452,7 @@ impl Pretty for normal::VssPublicKey {
 
 impl Pretty for redeem::Signature {
     fn to_pretty(&self) -> Val {
-        Val::Signature(self.clone())
+        Val::Signature(self.to_bytes().to_vec())
     }
 }
 

@@ -540,6 +540,14 @@ pub enum BlockSignature {
     ProxyLight(Vec<cbor::Value>),
     ProxyHeavy(Vec<cbor::Value>),
 }
+impl BlockSignature {
+    pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8;hdwallet::SIGNATURE_SIZE]> {
+        match self {
+            BlockSignature::Signature(s) => Some(s.to_bytes()),
+            _ => None,
+        }
+    }
+}
 impl cbor::CborValue for BlockSignature {
     fn encode(&self) -> cbor::Value {
         match self {

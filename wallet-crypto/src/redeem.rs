@@ -141,6 +141,8 @@ impl Signature {
         let bytes = hex::decode(hex)?;
         Self::from_slice(&bytes)
     }
+
+    pub fn to_bytes<'a>(&'a self) -> &'a [u8;SIGNATURE_SIZE] { &self.0 }
 }
 impl Clone for Signature {
     fn clone(&self) -> Self { Self::from_slice(self.as_ref()).unwrap() }
