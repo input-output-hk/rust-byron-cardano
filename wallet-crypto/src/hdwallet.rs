@@ -164,6 +164,31 @@ impl XPrv {
         Self::from_bytes(out)
     }
 
+    pub fn generate_from_daedalus_seed(seed: &Seed) -> Self {
+        let bytes = cbor::encode_to_cbor(&cbor::Value::Bytes(cbor::Bytes::from_slice(seed.as_ref()))).unwrap();
+        let mut mac = Hmac::new(Sha512::new(), &bytes);
+
+        let mut iter = 1;
+        let mut out = [0u8; XPRV_SIZE];
+
+        loop {
+            let s = format!("Root Seed Chain {}", iter);
+            mac.reset();
+            mac.input(s.as_bytes());
+            let mut block = [0u8; 64];
+            mac.raw_result(&mut block);
+            mk_ed25519_extended(&mut out[0..64], &block[0..32]);
+
+            if (out[31] & 0x20) == 0 {
+                out[64..96].clone_from_slice(&block[32..64]);
+                break;
+            }
+            iter = iter + 1;
+        }
+
+        Self::from_bytes(out)
+    }
+
     pub fn generate_from_bip39(bytes: &bip39::Seed) -> Self {
         let mut out = [0u8; XPRV_SIZE];
 
