@@ -4,6 +4,7 @@ use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
 use std::collections::linked_list::{Iter};
 use std::collections::{LinkedList, BTreeMap};
+use std::collections::btree_map;
 
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
@@ -183,6 +184,11 @@ impl cbor::CborValue for SscPayload {
 
 #[derive(Debug, Clone)]
 pub struct Commitments(Vec<SignedCommitment>);
+impl Commitments{
+    pub fn iter(&self) -> ::std::slice::Iter<SignedCommitment> {
+        self.0.iter()
+    }
+}
 impl cbor::CborValue for Commitments {
     fn encode(&self) -> cbor::Value {
         unimplemented!()
@@ -200,9 +206,9 @@ impl cbor::CborValue for Commitments {
 
 #[derive(Debug, Clone)]
 pub struct SignedCommitment {
-    public_key: cbor::Value, // TODO public key
-    commitment: cbor::Value, // TODO new struct
-    signature: cbor::Value, // TODO this is just bytes; heavily phantom-type-parameterized in the hs
+    pub public_key: hdwallet::XPub,
+    pub commitment: cbor::Value, // TODO new struct
+    pub signature: redeem::Signature,
 }
 impl cbor::CborValue for SignedCommitment {
     fn encode(&self) -> cbor::Value {
@@ -229,8 +235,15 @@ impl cbor::CborValue for SignedCommitment {
     }
 }
 
+// TODO: decode value in this map to
+// http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Secret
 #[derive(Debug, Clone)]
-pub struct OpeningsMap(BTreeMap<address::StakeholderId, cbor::Bytes>);
+pub struct OpeningsMap(BTreeMap<address::StakeholderId, cbor::Value>);
+impl OpeningsMap{
+    pub fn iter(&self) -> btree_map::Iter<address::StakeholderId, cbor::Value> {
+        self.0.iter()
+    }
+}
 impl cbor::CborValue for OpeningsMap {
     fn encode(&self) -> cbor::Value {
         unimplemented!() // TODO crashes
@@ -244,8 +257,14 @@ impl cbor::CborValue for OpeningsMap {
 
 #[derive(Debug, Clone)]
 pub struct SharesMap(
-    BTreeMap<address::StakeholderId, BTreeMap<address::StakeholderId, cbor::Value>>,
+    BTreeMap<address::StakeholderId, SharesSubMap>,
 );
+pub type SharesSubMap = BTreeMap<address::StakeholderId, DecShare>;
+impl SharesMap{
+    pub fn iter(&self) -> btree_map::Iter<address::StakeholderId, SharesSubMap> {
+        self.0.iter()
+    }
+}
 impl cbor::CborValue for SharesMap {
     fn encode(&self) -> cbor::Value {
         unimplemented!() // TODO crashes
@@ -255,9 +274,29 @@ impl cbor::CborValue for SharesMap {
     }
 }
 
-// TODO: change to a BTreeMap<StakeholderId, VssCertificate> see https://github.com/input-output-hk/cardano-sl/blob/005076eb3434444a505c0fb150ea98e56e8bb3d9/core/src/Pos/Core/Ssc/VssCertificatesMap.hs#L36-L44
+// TODO: decode to
+// https://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:DecryptedShare
+#[derive(Debug, Clone)]
+pub struct DecShare(cbor::Value);
+impl cbor::CborValue for DecShare {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        Ok(DecShare(value))
+    }
+}
+
+// TODO: after we properly decode VssCertificate.vss_key, change this struct to a
+// BTreeMap<StakeholderId, VssCertificate> see
+// https://github.com/input-output-hk/cardano-sl/blob/005076eb3434444a505c0fb150ea98e56e8bb3d9/core/src/Pos/Core/Ssc/VssCertificatesMap.hs#L36-L44
 #[derive(Debug, Clone)]
 pub struct VssCertificates(Vec<VssCertificate>);
+impl VssCertificates {
+    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
+        self.0.iter()
+    }
+}
 impl cbor::CborValue for VssCertificates {
     fn encode(&self) -> cbor::Value {
         unimplemented!() // TODO crashes
@@ -270,11 +309,6 @@ impl cbor::CborValue for VssCertificates {
                 (tag, value) => cbor::Result::tag(tag, value, cbor::Error::UnparsedValues),
             })
             .embed("while decoding VssCertificates")
-    }
-}
-impl VssCertificates {
-    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
-        self.0.iter()
     }
 }
 

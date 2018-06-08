@@ -1,4 +1,5 @@
 use std;
+use std::collections::btree_map;
 use std::fmt;
 use std::string::String;
 
@@ -42,6 +43,17 @@ fn from_debug<'a>(d: impl fmt::Debug) -> Val<'a> {
 
 fn from_display<'a>(d: impl fmt::Display) -> Val<'a> {
     Val::Raw(format!("{}", d))
+}
+
+fn from_kv_iter<'a, K: Pretty, V: Pretty>(
+    m: btree_map::Iter<'a, K, V>,
+    k_label: &'a str,
+    v_label: &'a str,
+) -> Val<'a> {
+    Val::List(
+        m.map(|(k, v)| Val::Tree(vec![(k_label, k.to_pretty()), (v_label, v.to_pretty())]))
+            .collect(),
+    )
 }
 
 pub trait Pretty {
@@ -343,6 +355,46 @@ impl Pretty for normal::SscPayload {
                 Val::Tree(vec![("vss certificatates", vss.to_pretty())])
             }
         }
+    }
+}
+
+impl Pretty for normal::Commitments {
+    fn to_pretty(&self) -> Val {
+        Val::List(self.iter().map(|comm| comm.to_pretty()).collect())
+    }
+}
+
+impl Pretty for normal::SignedCommitment {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("public key", self.public_key.to_pretty()),
+            ("commitment", self.commitment.to_pretty()),
+            ("signature", self.signature.to_pretty()),
+        ])
+    }
+}
+
+impl Pretty for normal::OpeningsMap {
+    fn to_pretty(&self) -> Val {
+        from_kv_iter(self.iter(), "stakeholder", "secret")
+    }
+}
+
+impl Pretty for normal::SharesMap {
+    fn to_pretty(&self) -> Val {
+        from_kv_iter(self.iter(), "stakeholder", "share-map")
+    }
+}
+
+impl Pretty for normal::SharesSubMap {
+    fn to_pretty(&self) -> Val {
+        from_kv_iter(self.iter(), "stakeholder", "dec-share")
+    }
+}
+
+impl Pretty for normal::DecShare {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
     }
 }
 
