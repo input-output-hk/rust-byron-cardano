@@ -374,6 +374,36 @@ impl Pretty for normal::SignedCommitment {
     }
 }
 
+impl Pretty for normal::Commitment {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("proof", self.proof.to_pretty()),
+            (
+                "shares",
+                from_kv_iter(self.shares.iter(), "vss key", "enc-share"),
+            ),
+        ])
+    }
+}
+
+impl Pretty for normal::SecretProof {
+    fn to_pretty(&self) -> Val {
+        Val::Tree(vec![
+            ("extra gen", self.extra_gen.to_pretty()),
+            ("proof", self.proof.to_pretty()),
+            ("parallel proofs", self.parallel_proofs.to_pretty()),
+            ("commitments", Val::List(self.commitments.iter().map(|x| x.to_pretty()).collect())),
+        ])
+    }
+}
+
+// XXX: struct is still bare cbor
+impl Pretty for normal::EncShare {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
+    }
+}
+
 impl Pretty for normal::OpeningsMap {
     fn to_pretty(&self) -> Val {
         from_kv_iter(self.iter(), "stakeholder", "secret")
@@ -412,6 +442,13 @@ impl Pretty for normal::VssCertificate {
             ("signature", self.signature.to_pretty()),
             ("signing key", self.signing_key.to_pretty()),
         ])
+    }
+}
+
+// XXX: struct is still bare cbor
+impl Pretty for normal::VssPublicKey {
+    fn to_pretty(&self) -> Val {
+        from_debug(self)
     }
 }
 
