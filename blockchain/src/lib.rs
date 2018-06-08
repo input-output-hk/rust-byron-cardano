@@ -14,7 +14,7 @@ extern crate serde;
 pub mod types;
 pub mod genesis; /* genesis block related value */
 pub mod normal; /* normal block related value */
-mod block;
+pub mod block;
 
 pub use types::*;
 pub use block::*;

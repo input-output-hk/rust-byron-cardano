@@ -3,7 +3,7 @@ use std::collections::btree_map;
 use std::fmt;
 use std::string::String;
 
-use blockchain::{genesis, normal, types, Block, SscProof};
+use blockchain::{genesis, normal, types, Block, SscProof, block::BlockDate};
 use wallet_crypto::{address, cbor, config, hash, hdwallet, tx, vss, util::hex};
 
 use ansi_term::Colour;
@@ -23,9 +23,7 @@ pub enum Val<'a> {
     Raw(String),
     Hash(Vec<u8>),
     Signature(Vec<u8>),
-    //// numbers
-    Epoch(u32),
-    SlotId(u32),
+    BlockDate(BlockDate),
     //// actor ids
     XPub(hdwallet::XPub),
     Stakeholder(address::StakeholderId),
@@ -83,8 +81,7 @@ fn fmt_val(
         Val::Raw(_)
         | Val::Hash(_)
         | Val::Signature(_)
-        | Val::Epoch(_)
-        | Val::SlotId(_)
+        | Val::BlockDate(_)
         | Val::XPub(_)
         | Val::Stakeholder(_) => {
             write!(f, " ")?;
@@ -111,9 +108,7 @@ fn fmt_pretty(
         Val::Raw(display) => write!(f, "{}", display),
         Val::Hash(hash) => write!(f, "{}", Colour::Green.paint(hex::encode(hash.as_ref()))),
         Val::Signature(sig) => write!(f, "{}", Colour::Cyan.paint(hex::encode(sig))),
-        //// numbers get colors for meanings
-        Val::Epoch(epoch) => write!(f, "{}", Colour::Blue.paint(format!("{}", epoch))),
-        Val::SlotId(slotid) => write!(f, "{}", Colour::Purple.paint(format!("{}", slotid))),
+        Val::BlockDate(bd) => write!(f, "{}", Colour::Blue.paint(format!("{}", bd))),
         //// actor ids are yellow
         Val::XPub(pubkey) => write!(f, "{}", Colour::Yellow.paint(format!("{}", pubkey))),
         Val::Stakeholder(stkhodl) => write!(f, "{}", Colour::Yellow.paint(format!("{}", stkhodl))),
@@ -301,16 +296,14 @@ impl Pretty for normal::BlockSignature {
 
 impl Pretty for types::SlotId {
     fn to_pretty(&self) -> Val {
-        Val::Tree(vec![
-            ("epoch", self.epoch.to_pretty()),
-            ("slot id", Val::SlotId(self.slotid)),
-        ])
+        Val::BlockDate(BlockDate::Normal(self.clone()))
     }
 }
 
+// XXX: EpochId is only a type alias; make sure this instance isn't used for any u32
 impl Pretty for types::EpochId {
     fn to_pretty(&self) -> Val {
-        Val::Epoch(*self)
+        Val::BlockDate(BlockDate::Genesis(*self))
     }
 }
 
