@@ -1,4 +1,4 @@
-use wallet_crypto::{address, tx, hdwallet, cbor, redeem, hash::{Blake2b256}};
+use wallet_crypto::{address, tx, hdwallet, cbor, vss, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
@@ -208,7 +208,7 @@ impl cbor::CborValue for Commitments {
 pub struct SignedCommitment {
     pub public_key: hdwallet::XPub,
     pub commitment: Commitment,
-    pub signature: redeem::Signature,
+    pub signature: vss::Signature,
 }
 impl cbor::CborValue for SignedCommitment {
     fn encode(&self) -> cbor::Value {
@@ -238,7 +238,7 @@ impl cbor::CborValue for SignedCommitment {
 #[derive(Debug, Clone)]
 pub struct Commitment {
     pub proof: SecretProof,
-    pub shares: BTreeMap<VssPublicKey, EncShare>,
+    pub shares: BTreeMap<vss::PublicKey, EncShare>,
 }
 impl cbor::CborValue for Commitment {
     fn encode(&self) -> cbor::Value {
@@ -388,9 +388,9 @@ impl cbor::CborValue for VssCertificates {
 
 #[derive(Debug, Clone)]
 pub struct VssCertificate {
-    pub vss_key: VssPublicKey,
+    pub vss_key: vss::PublicKey,
     pub expiry_epoch: types::EpochId,
-    pub signature: redeem::Signature,
+    pub signature: vss::Signature,
     pub signing_key: hdwallet::XPub,
 }
 impl cbor::CborValue for VssCertificate {
@@ -417,31 +417,6 @@ impl cbor::CborValue for VssCertificate {
                 })
             })
             .embed("while decoding a VssCertificate")
-    }
-}
-
-// TODO: decode to 35 bytes public-key
-// http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VssPublicKey(cbor::Value);
-impl cbor::CborValue for VssPublicKey {
-    fn encode(&self) -> cbor::Value {
-        unimplemented!() // TODO crashes
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        Ok(VssPublicKey(value))
-    }
-}
-// XXX: Bogus Ord implementation to satisfy VssPublicKey being used in a map-key (even though we
-// don't actually decode it yet!)
-impl Ord for VssPublicKey {
-    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
-        format!("{:?}", self).cmp(&format!("{:?}", other))
-    }
-}
-impl PartialOrd for VssPublicKey {
-    fn partial_cmp(&self, other: &Self) -> Option<::std::cmp::Ordering> {
-        Some(self.cmp(other))
     }
 }
 

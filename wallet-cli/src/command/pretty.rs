@@ -4,7 +4,7 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof};
-use wallet_crypto::{address, cbor, config, hash, hdwallet, redeem, tx, util::hex};
+use wallet_crypto::{address, cbor, config, hash, hdwallet, tx, vss, util::hex};
 
 use ansi_term::Colour;
 
@@ -294,7 +294,7 @@ impl Pretty for normal::BlockSignature {
     fn to_pretty(&self) -> Val {
         match self.to_bytes() {
             Some(bs) => Val::Signature(bs.to_vec()),
-            None => from_debug(self)
+            None => from_debug(self),
         }
     }
 }
@@ -390,7 +390,10 @@ impl Pretty for normal::SecretProof {
             ("extra gen", self.extra_gen.to_pretty()),
             ("proof", self.proof.to_pretty()),
             ("parallel proofs", self.parallel_proofs.to_pretty()),
-            ("commitments", Val::List(self.commitments.iter().map(|x| x.to_pretty()).collect())),
+            (
+                "commitments",
+                Val::List(self.commitments.iter().map(|x| x.to_pretty()).collect()),
+            ),
         ])
     }
 }
@@ -444,13 +447,13 @@ impl Pretty for normal::VssCertificate {
 }
 
 // XXX: struct is still bare cbor
-impl Pretty for normal::VssPublicKey {
+impl Pretty for vss::PublicKey {
     fn to_pretty(&self) -> Val {
         from_debug(self)
     }
 }
 
-impl Pretty for redeem::Signature {
+impl Pretty for vss::Signature {
     fn to_pretty(&self) -> Val {
         Val::Signature(self.to_bytes().to_vec())
     }
