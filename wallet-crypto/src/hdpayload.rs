@@ -29,9 +29,9 @@ impl Path {
     fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
 }
 impl cbor::CborValue for Path {
-    fn encode(&self) -> cbor::Value { cbor::Value::Array(self.0.iter().map(cbor::CborValue::encode).collect()) }
+    fn encode(&self) -> cbor::Value { cbor::Value::IArray(self.0.iter().map(cbor::CborValue::encode).collect()) }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|vec| {
+        value.iarray().and_then(|vec| {
             let mut v = vec![];
             for el in vec.iter() { v.push(cbor::CborValue::decode(el.clone())?); }
             Ok(Path::new(v))
