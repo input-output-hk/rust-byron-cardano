@@ -12,13 +12,24 @@ use poly1305::Poly1305;
 use mac::Mac;
 use cryptoutil::{write_u64_le};
 use util::fixed_time_eq;
+
 #[derive(Clone, Copy)]
 pub struct ChaCha20Poly1305 {
     cipher  : ChaCha20,
     mac: Poly1305,
     finished: bool,
-    data_len: usize
+    aad_len: u64,
+    data_len: u64,
 }
+
+fn pad16(mac: &mut Poly1305, len: u64) {
+    if (len % 16) != 0 {
+        let padding = [0u8; 15];
+        let sz = 16 - (len % 16) as usize;
+        mac.input(&padding[0..sz]);
+    }
+}
+
 
 impl ChaCha20Poly1305 {
   pub fn new(key: &[u8], nonce: &[u8], aad: &[u8]) -> ChaCha20Poly1305 {
@@ -32,15 +43,13 @@ impl ChaCha20Poly1305 {
 
       let mut mac = Poly1305::new(&mac_key[..32]);
       mac.input(aad);
-      let mut aad_len = [0u8; 8];
-      let aad_len_uint: u64 = aad.len() as u64;
-      write_u64_le(&mut aad_len, aad_len_uint);
-      mac.input(&aad_len);
+      pad16(&mut mac, aad.len() as u64);
       ChaCha20Poly1305 {
         cipher: cipher,
         mac: mac,
         finished: false,
-        data_len: 0
+        aad_len: aad.len() as u64,
+        data_len: 0,
       }
   }
 }
@@ -50,12 +59,14 @@ impl AeadEncryptor for ChaCha20Poly1305 {
         assert!(input.len() == output.len());
         assert!(self.finished == false);
         self.cipher.process(input, output);
-        self.data_len += input.len();
+        self.data_len += input.len() as u64;
         self.mac.input(output);
         self.finished = true;
-        let mut data_len_buf = [0u8; 8];
-        write_u64_le(&mut data_len_buf, self.data_len as u64);
-        self.mac.input(&data_len_buf);
+        pad16(&mut self.mac, self.data_len);
+        let mut len_buf = [0u8; 16];
+        write_u64_le(&mut len_buf[0..8], self.aad_len);
+        write_u64_le(&mut len_buf[8..16], self.data_len);
+        self.mac.input(&len_buf);
         self.mac.raw_result(out_tag);
     }
 }
@@ -69,11 +80,14 @@ impl AeadDecryptor for ChaCha20Poly1305 {
 
         self.mac.input(input);
 
-        self.data_len += input.len();
-        let mut data_len_buf = [0u8; 8];
+        self.data_len += input.len() as u64;
 
-        write_u64_le(&mut data_len_buf, self.data_len as u64);
-        self.mac.input(&data_len_buf);
+        pad16(&mut self.mac, self.data_len);
+        let mut len_buf = [0u8; 16];
+
+        write_u64_le(&mut len_buf[0..8], self.aad_len);
+        write_u64_le(&mut len_buf[8..16], self.data_len);
+        self.mac.input(&len_buf);
 
         let mut calc_tag =  [0u8; 16];
         self.mac.raw_result(&mut calc_tag);
@@ -91,6 +105,7 @@ mod test {
 
   use chacha20poly1305::ChaCha20Poly1305;
   use aead::{AeadEncryptor,AeadDecryptor};
+  /*
   struct TestVector {
     key:   [u8; 32],
     nonce: [u8; 8],
@@ -733,6 +748,7 @@ mod test {
       }
     )
   }
+    */
 }
 
 #[cfg(all(test, feature = "with-bench"))]
