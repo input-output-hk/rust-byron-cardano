@@ -52,7 +52,7 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
     Genesis(EpochId),
     Normal(SlotId),
@@ -94,6 +94,13 @@ impl BlockDate {
         match self {
             &BlockDate::Genesis(e) => BlockDate::Normal(SlotId { epoch: e, slotid: 0 }),
             &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()),
+        }
+    }
+
+    pub fn is_genesis(&self) -> bool {
+        match self {
+            BlockDate::Genesis(_) => true,
+            _                     => false
         }
     }
 }

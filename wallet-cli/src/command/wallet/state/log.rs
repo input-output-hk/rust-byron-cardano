@@ -1,8 +1,14 @@
-use storage::{Storage, append, lock::{self, Lock}};
+use storage::{append, lock::{self, Lock}};
 use std::{fmt, result, path::{Path}};
-use super::config;
+use super::super::config;
 
+use super::lookup::{StatePtr, Utxo};
+
+use serde_yaml;
+
+#[derive(Debug)]
 pub enum Error {
+    LogNotFound,
     ConfigError(config::Error),
     LogFormatError(String),
     LockError(lock::Error),
@@ -12,7 +18,12 @@ impl From<lock::Error> for Error {
     fn from(e: lock::Error) -> Self { Error::LockError(e) }
 }
 impl From<append::Error> for Error {
-    fn from(e: append::Error) -> Self { Error::AppendError(e) }
+    fn from(e: append::Error) -> Self {
+        match e {
+            append::Error::NotFound => Error::LogNotFound,
+            _ => Error::AppendError(e)
+        }
+    }
 }
 impl From<config::Error> for Error {
     fn from(e: config::Error) -> Self { Error::ConfigError(e) }
@@ -20,33 +31,29 @@ impl From<config::Error> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Log {
-    /* Todo */
-    #[deprecated]
-    Nothing
+    Checkpoint(StatePtr),
+    ReceivedFund(Utxo),
+    SpentFund(Utxo),
 }
 impl Log {
     fn serialise(&self) -> Vec<u8> {
-        let buffer = Vec::new();
-        match self {
-            Log::Nothing => {},
-        };
-        buffer
+        serde_yaml::to_vec(self).unwrap()
     }
 
     fn deserisalise(bytes: &[u8]) -> Result<Self> {
-        if bytes.is_empty() {
-            Ok(Log::Nothing)
-        } else {
-            Err(Error::LogFormatError(format!("Nothing to parse yet")))
-        }
+        serde_yaml::from_slice(bytes).map_err(|e|
+            Error::LogFormatError(format!("log format error: {:?}", e))
+        )
     }
 }
 impl fmt::Display for Log {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Log::Nothing => write!(f, "<nothing yet>")
+            Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr),
+            Log::ReceivedFund(utxo) => write!(f, "Received funds: {}", utxo),
+            Log::SpentFund(utxo) => write!(f, "Spent funds: {}", utxo),
         }
     }
 }

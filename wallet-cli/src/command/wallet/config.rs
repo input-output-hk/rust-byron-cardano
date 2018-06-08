@@ -8,7 +8,7 @@
 
 use wallet_crypto::{
     self,
-    hdwallet::{XPrv},
+    hdwallet::{XPrv, DerivationScheme},
     tx::fee::{SelectionPolicy},
     wallet::{self, Wallet, Account},
     bip44
@@ -16,7 +16,7 @@ use wallet_crypto::{
 use exe_common::config::{net};
 use std::{io, slice::{Iter}, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
 use std::{num::{ParseIntError}, collections::{BTreeMap}};
-use storage::tmpfile::{TmpFile};
+use storage::{self, tmpfile::{TmpFile}};
 use serde_yaml;
 
 #[derive(Debug)]
@@ -28,6 +28,7 @@ pub enum Error {
     YamlError(serde_yaml::Error),
     ParseIntError(ParseIntError),
     AccountIndexNotFound(bip44::Account),
+    StorageError(storage::Error),
     AccountAliasNotFound(String),
     BlockchainConfigError(&'static str)
 }
@@ -48,6 +49,9 @@ impl From<bip44::Error> for Error {
 }
 impl From<serde_yaml::Error> for Error {
     fn from(e: serde_yaml::Error) -> Error { Error::YamlError(e) }
+}
+impl From<storage::Error> for Error {
+    fn from(e: storage::Error) -> Error { Error::StorageError(e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -97,6 +101,16 @@ impl Config {
         }
     }
 
+    pub fn blockchain_storage_config(&self) -> Result<storage::StorageConfig> {
+        let path = ariadne_path()?.join("networks").join(&self.blockchain);
+
+        Ok(storage::StorageConfig::new(&path))
+    }
+
+    pub fn blockchain_storage(&self) -> Result<storage::Storage> {
+        Ok(storage::Storage::init(&self.blockchain_storage_config()?)?)
+    }
+
     /// construct the wallet object from the wallet configuration
     pub fn wallet(&self) -> Result<Wallet> {
         let blockchain_config = self.blockchain_config()?;
@@ -105,7 +119,7 @@ impl Config {
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
-        let path = wallet_path(name)?.join(name);
+        let path = wallet_path(name)?;
         fs::DirBuilder::new().recursive(true).create(path.clone())?;
         let mut tmpfile = TmpFile::create(path.clone())?;
         serde_yaml::to_writer(&mut tmpfile, self)?;
@@ -140,7 +154,7 @@ impl Accounts {
 
         match self.0.get(account_index as usize) {
             None => Err(Error::AccountIndexNotFound(account)),
-            Some(cfg) => Ok(Account::new(account, cfg.cached_root_key.clone()))
+            Some(cfg) => Ok(Account::new(account, cfg.cached_root_key.clone(), DerivationScheme::V2)),
         }
     }
 

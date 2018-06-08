@@ -4,7 +4,7 @@ use self::rcw::digest::Digest;
 use self::rcw::sha2::Sha512;
 use self::rcw::hmac::Hmac;
 use self::rcw::mac::Mac;
-use self::rcw::curve25519::{GeP3, ge_scalarmult_base};
+use self::rcw::curve25519::{Fe, GeP3, ge_scalarmult_base};
 use self::rcw::ed25519::signature_extended;
 use self::rcw::ed25519;
 use self::rcw::util::fixed_time_eq;
@@ -70,6 +70,16 @@ impl From<hex::Error> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// Ed25519-bip32 Scheme Derivation version
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DerivationScheme {
+    V1,
+    V2,
+}
+impl Default for DerivationScheme {
+    fn default() -> Self { DerivationScheme::V2 }
+}
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
@@ -234,8 +244,8 @@ impl XPrv {
         xpub.verify(message, signature)
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Self {
-        derive_private(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Self {
+        derive_private(self, index, scheme)
     }
 }
 impl PartialEq for XPrv {
@@ -363,8 +373,8 @@ impl XPub {
         ed25519::verify(message, &self.as_ref()[0..32], signature.as_ref())
     }
 
-    pub fn derive(&self, index: DerivationIndex) -> Result<Self> {
-        derive_public(self, index, DerivationScheme::V2)
+    pub fn derive(&self, scheme: DerivationScheme, index: DerivationIndex) -> Result<Self> {
+        derive_public(self, index, scheme)
     }
 }
 impl PartialEq for XPub {
@@ -598,8 +608,19 @@ fn mk_ed25519_extended(extended_out: &mut [u8], secret: &[u8]) {
     extended_out[31] |= 64;
 }
 
+fn be32(i: u32) -> [u8; 4] {
+    [(i >> 24) as u8, (i >> 8) as u8, (i >> 16) as u8, i as u8]
+}
+
 fn le32(i: u32) -> [u8; 4] {
     [i as u8, (i >> 8) as u8, (i >> 16) as u8, (i >> 24) as u8]
+}
+
+fn serialize_index(i: u32, derivation_scheme: DerivationScheme) -> [u8; 4] {
+    match derivation_scheme {
+        DerivationScheme::V1 => be32(i),
+        DerivationScheme::V2 => le32(i),
+    }
 }
 
 fn mk_xprv(out: &mut [u8; XPRV_SIZE], kl: &[u8], kr: &[u8], cc: &[u8]) {
@@ -620,7 +641,19 @@ fn mk_xpub(out: &mut [u8; XPUB_SIZE], pk: &[u8], cc: &[u8]) {
     out[32..64].clone_from_slice(cc);
 }
 
-fn add_256bits(x: &[u8], y: &[u8]) -> [u8; 32] {
+fn add_256bits_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
+    assert!(x.len() == 32);
+    assert!(y.len() == 32);
+
+    let mut out = [0u8; 32];
+    for i in 0..32 {
+        let r = x[i] as u16 + y[i] as u16;
+        out[i] = r as u8;
+    }
+    out
+}
+
+fn add_256bits_v2(x: &[u8], y: &[u8]) -> [u8; 32] {
     assert!(x.len() == 32);
     assert!(y.len() == 32);
 
@@ -634,7 +667,34 @@ fn add_256bits(x: &[u8], y: &[u8]) -> [u8; 32] {
     out
 }
 
-fn add_28_mul8(x: &[u8], y: &[u8]) -> [u8; 32] {
+fn add_256bits(x: &[u8], y: &[u8], scheme: DerivationScheme) -> [u8; 32] {
+    match scheme {
+        DerivationScheme::V1 => add_256bits_v1(x, y),
+        DerivationScheme::V2 => add_256bits_v2(x, y),
+    }
+}
+
+fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
+    assert!(x.len() == 32);
+    assert!(y.len() == 32);
+
+    let yfe8 = {
+        let mut acc = 0;
+        let mut out = [0u8; 32];
+        for i in 0..32 {
+            out[i] = (y[i] << 3) + acc & 0x8;
+            acc = y[i] >> 5;
+        }
+        Fe::from_bytes(&out)
+    };
+
+    let xfe = Fe::from_bytes(x);
+    let r = xfe + yfe8;
+    r.to_bytes()
+}
+
+
+fn add_28_mul8_v2(x: &[u8], y: &[u8]) -> [u8; 32] {
     assert!(x.len() == 32);
     assert!(y.len() == 32);
 
@@ -654,13 +714,14 @@ fn add_28_mul8(x: &[u8], y: &[u8]) -> [u8; 32] {
     out
 }
 
-#[derive(Clone, Copy)]
-pub enum DerivationScheme {
-    V1,
-    V2,
+fn add_28_mul8(x: &[u8], y: &[u8], scheme: DerivationScheme) -> [u8; 32] {
+    match scheme {
+        DerivationScheme::V1 => add_28_mul8_v1(x, y),
+        DerivationScheme::V2 => add_28_mul8_v2(x, y),
+    }
 }
 
-fn derive_private(xprv: &XPrv, index: DerivationIndex, _scheme: DerivationScheme) -> XPrv {
+fn derive_private(xprv: &XPrv, index: DerivationIndex, scheme: DerivationScheme) -> XPrv {
     /*
      * If so (hardened child):
      *    let Z = HMAC-SHA512(Key = cpar, Data = 0x00 || ser256(left(kpar)) || ser32(i)).
@@ -677,7 +738,7 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex, _scheme: DerivationScheme
 
     let mut zmac = Hmac::new(Sha512::new(), &chaincode);
     let mut imac = Hmac::new(Sha512::new(), &chaincode);
-    let seri = le32(index);
+    let seri = serialize_index(index, scheme);
     match to_type(index) {
         DerivationType::Soft(_) => {
             let pk = mk_public_key(ekey);
@@ -704,9 +765,9 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex, _scheme: DerivationScheme
     let zr = &zout[32..64];
 
     // left = kl + 8 * trunc28(zl)
-    let left = add_28_mul8(kl, zl);
+    let left = add_28_mul8(kl, zl, scheme);
     // right = zr + kr
-    let right = add_256bits(kr, zr);
+    let right = add_256bits(kr, zr, scheme);
 
     let mut iout = [0u8; 64];
     imac.raw_result(&mut iout);
@@ -721,9 +782,9 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex, _scheme: DerivationScheme
     XPrv::from_bytes(out)
 }
 
-fn point_of_trunc28_mul8(sk: &[u8]) -> [u8;32] {
+fn point_of_trunc28_mul8(sk: &[u8], scheme: DerivationScheme) -> [u8;32] {
     assert!(sk.len() == 32);
-    let copy = add_28_mul8(&[0u8;32], sk);
+    let copy = add_28_mul8(&[0u8;32], sk, scheme);
     let a = ge_scalarmult_base(&copy);
     a.to_bytes()
 }
@@ -743,13 +804,13 @@ fn point_plus(p1: &[u8], p2: &[u8]) -> Result<[u8;32]> {
     Ok(r)
 }
 
-fn derive_public(xpub: &XPub, index: DerivationIndex, _scheme: DerivationScheme) -> Result<XPub> {
+fn derive_public(xpub: &XPub, index: DerivationIndex, scheme: DerivationScheme) -> Result<XPub> {
     let pk = &xpub.as_ref()[0..32];
     let chaincode = &xpub.as_ref()[32..64];
 
     let mut zmac = Hmac::new(Sha512::new(), &chaincode);
     let mut imac = Hmac::new(Sha512::new(), &chaincode);
-    let seri = le32(index);
+    let seri = serialize_index(index, scheme);
     match to_type(index) {
         DerivationType::Soft(_) => {
             zmac.input(&[0x2]);
@@ -770,7 +831,7 @@ fn derive_public(xpub: &XPub, index: DerivationIndex, _scheme: DerivationScheme)
     let _zr = &zout[32..64];
 
     // left = kl + 8 * trunc28(zl)
-    let left = point_plus(pk, &point_of_trunc28_mul8(zl))?;
+    let left = point_plus(pk, &point_of_trunc28_mul8(zl, scheme))?;
 
     let mut iout = [0u8; 64];
     imac.raw_result(&mut iout);
@@ -862,12 +923,31 @@ mod tests {
     }
 
     #[test]
-    fn xpub_derive()  {
+    fn xpub_derive_v1_hardened()  {
+        let derivation_index = 0x1;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+    }
+
+    #[test]
+    fn xpub_derive_v1_soft()  {
+        let derivation_index = 0x10000000;
+        let seed = Seed::from_bytes([0;32]);
+        let prv = XPrv::generate_from_seed(&seed);
+        let xpub = prv.public();
+        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V1, derivation_index).unwrap();
+        assert_eq!(child_prv.public(), child_xpub);
+    }
+
+    #[test]
+    fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
         let prv = XPrv::from_bytes(D1);
         let xpub = prv.public();
-        let child_prv = prv.derive(derivation_index);
-        let child_xpub = xpub.derive(derivation_index).unwrap();
+        let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
+        let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
         assert_eq!(child_prv.public(), child_xpub);
     }
 

@@ -13,9 +13,6 @@ extern crate log;
 #[cfg(feature = "with-bench")]
 extern crate test;
 
-extern crate bit_vec;
-extern crate bitreader;
-
 extern crate rcw;
 
 mod crc32;

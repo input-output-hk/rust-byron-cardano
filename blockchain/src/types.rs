@@ -4,9 +4,9 @@ use wallet_crypto::{cbor, hash, hash::{HASH_SIZE, Blake2b256}};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
-   major:    u32, 
-   minor:    u32, 
-   revision: u32, 
+   major:    u32,
+   minor:    u32,
+   revision: u32,
 }
 impl Version {
     pub fn new(major: u32, minor: u32, revision: u32) -> Self {
@@ -124,7 +124,7 @@ impl fmt::Display for ChainDifficulty {
 
 pub type EpochId = u32;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotId {
     pub epoch: EpochId,
     pub slotid: u32,

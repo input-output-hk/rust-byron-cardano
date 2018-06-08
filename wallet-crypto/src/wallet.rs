@@ -51,17 +51,23 @@ impl fmt::Display for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 /// the Wallet object
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
     pub cached_root_key: hdwallet::XPrv,
 
     pub config: config::Config,
     pub selection_policy: tx::fee::SelectionPolicy,
+    pub derivation_scheme: hdwallet::DerivationScheme,
 }
 
 impl Wallet {
     pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: tx::fee::SelectionPolicy) -> Self {
-        Wallet { cached_root_key: cached_root_key, config: config, selection_policy: policy }
+        Wallet {
+            cached_root_key: cached_root_key,
+            config: config,
+            selection_policy: policy,
+            derivation_scheme: hdwallet::DerivationScheme::V2,
+        }
     }
 
     /// create a new wallet from the given seed
@@ -70,10 +76,12 @@ impl Wallet {
     }
 
     pub fn new_from_root_xprv(key: hdwallet::XPrv) -> Self {
+        let derivation_scheme = hdwallet::DerivationScheme::default();
         Wallet {
-            cached_root_key: key.derive(BIP44_PURPOSE).derive(BIP44_COIN_TYPE),
+            cached_root_key: key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE),
             config: config::Config::default(),
-            selection_policy: tx::fee::SelectionPolicy::default()
+            selection_policy: tx::fee::SelectionPolicy::default(),
+            derivation_scheme
         }
     }
 
@@ -84,9 +92,9 @@ impl Wallet {
 
     pub fn account(&self, account_index: u32) -> Result<Account> {
         let account = bip44::Account::new(account_index)?;
-        let account_key = self.get_root_key().derive(account.get_scheme_value()).public();
+        let account_key = self.get_root_key().derive(self.derivation_scheme, account.get_scheme_value()).public();
 
-        Ok(Account::new(account, account_key))
+        Ok(Account::new(account, account_key, self.derivation_scheme))
     }
 
     /// create an extended address from the given addressing
@@ -157,11 +165,11 @@ impl Wallet {
     /// retrieve the key from the wallet and the given path
     ///
     /// TODO: this function is not meant to be public
-    fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
+    pub fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
         self.get_root_key()
-            .derive(addressing.account.get_scheme_value())
-            .derive(addressing.change)
-            .derive(addressing.index.get_scheme_value())
+            .derive(self.derivation_scheme, addressing.account.get_scheme_value())
+            .derive(self.derivation_scheme, addressing.change)
+            .derive(self.derivation_scheme, addressing.index.get_scheme_value())
     }
 }
 
@@ -171,10 +179,13 @@ impl Wallet {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Account {
     pub account: bip44::Account,
-    pub cached_account_key: hdwallet::XPub
+    pub cached_account_key: hdwallet::XPub,
+    pub derivation_scheme: hdwallet::DerivationScheme,
 }
 impl Account {
-    pub fn new(account: bip44::Account, xpub: hdwallet::XPub) -> Self { Account { account: account, cached_account_key: xpub } }
+    pub fn new(account: bip44::Account, cached_account_key: hdwallet::XPub, derivation_scheme: hdwallet::DerivationScheme) -> Self {
+        Account { account, cached_account_key, derivation_scheme }
+    }
 
     /// create an extended address from the given addressing
     ///
@@ -183,11 +194,11 @@ impl Account {
         let addressing = self.account.change(addr_type)?.index(0)?;
 
         let change_prv = self.cached_account_key
-            .derive(addressing.change)?;
+            .derive(self.derivation_scheme, addressing.change)?;
 
         let mut res = vec![];
         for index in indices {
-            let pk = change_prv.derive(index)?;
+            let pk = change_prv.derive(self.derivation_scheme, index)?;
             let addr_type = address::AddrType::ATPubKey;
             let sd = address::SpendingData::PubKeyASD(pk);
             let attrs = address::Attributes::new_bootstrap_era(None);
@@ -212,7 +223,8 @@ mod test {
   \"config\": {
     \"protocol_magic\": 633343913
   },
-  \"selection_policy\": \"FirstMatchFirst\"
+  \"selection_policy\": \"FirstMatchFirst\",
+  \"derivation_scheme\": \"V2\"
 }
     ";
 

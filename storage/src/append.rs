@@ -5,12 +5,15 @@ use lock::{self, Lock};
 pub enum Error {
     IoError(io::Error),
     EOF,
+    NotFound,
     LockError(lock::Error)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
         if e.kind() == io::ErrorKind::UnexpectedEof {
             Error::EOF
+        } else if e.kind() == io::ErrorKind::NotFound {
+            Error::NotFound
         } else {
             Error::IoError(e)
         }
@@ -71,6 +74,8 @@ impl Writer {
     /// The slice **must** contain all the bytes that needs to be written in the
     /// append only file.
     pub fn append_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+        if bytes.is_empty() { return Ok(()) }
+
         let len = bytes.len() as Size;
         let mut sz_buf = [0u8;SIZE_SIZE];
         write_size(&mut sz_buf, len);
