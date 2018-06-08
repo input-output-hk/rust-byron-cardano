@@ -17,7 +17,7 @@ use util::{hex};
 use cbor;
 use cbor::{ExtendedResult};
 
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 
 use serde;
 
@@ -421,6 +421,11 @@ impl fmt::Debug for XPub {
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
+impl raw_cbor::se::Serialize for XPub {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.as_ref())
+    }
+}
 impl raw_cbor::de::Deserialize for XPub {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let bytes = raw.bytes()?;
@@ -549,6 +554,11 @@ impl<T> fmt::Debug for Signature<T> {
 }
 impl<T> AsRef<[u8]> for Signature<T> {
     fn as_ref(&self) -> &[u8] { &self.bytes }
+}
+impl<T> raw_cbor::se::Serialize for Signature<T> {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.as_ref())
+    }
 }
 impl<T> raw_cbor::de::Deserialize for Signature<T> {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {

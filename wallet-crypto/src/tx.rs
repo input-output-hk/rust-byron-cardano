@@ -5,7 +5,7 @@ use hash::{Blake2b256};
 
 use cbor;
 use cbor::{ExtendedResult};
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use config::{Config};
 use redeem;
 
@@ -45,6 +45,13 @@ impl raw_cbor::de::Deserialize for TxOut {
         let addr = raw_cbor::de::Deserialize::deserialize(raw)?;
         let val  = raw_cbor::de::Deserialize::deserialize(raw)?;
         Ok(TxOut::new(addr, val))
+    }
+}
+impl raw_cbor::se::Serialize for TxOut {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(2))?
+                  .serialize(&self.address)?
+                  .serialize(&self.value)
     }
 }
 impl cbor::CborValue for TxOut {
@@ -88,11 +95,11 @@ impl fmt::Display for TxInWitness {
 impl TxInWitness {
     /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
     pub fn new(cfg: &Config, key: &XPrv, tx: &Tx) -> Self {
-        let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
-
-        let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
-        vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
-        vec.extend_from_slice(&txid);
+        let vec = Serializer::new()
+            .write_unsigned_integer(1).expect("write byte 0x01")
+            .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
+            .serialize(&tx.id()).expect("serialize Tx's Id")
+            .finalize();
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
     }
 
@@ -119,26 +126,15 @@ impl TxInWitness {
     /// verify the signature against the given transation `Tx`
     ///
     pub fn verify_tx(&self, cfg: &Config, tx: &Tx) -> bool {
+        let vec = Serializer::new()
+            .write_unsigned_integer(1).expect("write byte 0x01")
+            .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
+            .serialize(&tx.id()).expect("serialize Tx's Id")
+            .finalize();
         match self {
-            &TxInWitness::PkWitness(ref pk, ref sig) => {
-                let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
-
-                let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
-                vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
-                vec.extend_from_slice(&txid);
-
-                pk.verify(&vec, sig)
-            },
-            &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
-            &TxInWitness::RedeemWitness(ref pk, ref sig) => {
-                let txid = cbor::encode_to_cbor(&tx.id()).unwrap();
-
-                let mut vec = vec![ 0x01 ]; // this is the tag for TxSignature
-                vec.extend_from_slice(&cbor::encode_to_cbor(&cfg.protocol_magic).unwrap());
-                vec.extend_from_slice(&txid);
-
-                pk.verify(sig, &vec)
-            },
+            &TxInWitness::PkWitness(ref pk, ref sig)     => pk.verify(&vec, sig),
+            &TxInWitness::ScriptWitness(_, _)            => unimplemented!(),
+            &TxInWitness::RedeemWitness(ref pk, ref sig) => pk.verify(sig, &vec),
         }
     }
 
@@ -205,6 +201,28 @@ impl cbor::CborValue for TxInWitness {
                 }
             }
         }).embed("While decoding TxInWitness")
+    }
+}
+impl raw_cbor::se::Serialize for TxInWitness {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let mut serializer = serializer.write_array(raw_cbor::Len::Len(2))?;
+        let inner_serializer = match self {
+            &TxInWitness::PkWitness(ref xpub, ref signature) => {
+                serializer = serializer.write_unsigned_integer(0)?;
+                Serializer::new()
+                    .write_array(raw_cbor::Len::Len(2))?
+                        .serialize(xpub)?.serialize(signature)?
+            },
+            &TxInWitness::ScriptWitness(_, _) => { unimplemented!() },
+            &TxInWitness::RedeemWitness(ref pk, ref signature) => {
+                serializer = serializer.write_unsigned_integer(2)?;
+                Serializer::new()
+                    .write_array(raw_cbor::Len::Len(2))?
+                        .serialize(pk)?.serialize(signature)?
+            }
+        };
+        serializer.write_tag(raw_cbor::Tag(24))?
+                .write_bytes(&inner_serializer.finalize())
     }
 }
 impl raw_cbor::de::Deserialize for TxInWitness {
@@ -293,6 +311,14 @@ impl cbor::CborValue for TxIn {
         }).embed("while decoding TxIn")
     }
 }
+impl raw_cbor::se::Serialize for TxIn {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(2))?
+            .write_unsigned_integer(0)?
+            .write_tag(raw_cbor::Tag(24))?
+                .write_bytes(&Serializer::new().serialize(&(&self.id, &self.index))?.finalize())
+    }
+}
 impl raw_cbor::de::Deserialize for TxIn {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -344,7 +370,7 @@ impl Tx {
         Tx { inputs: ins, outputs: outs }
     }
     pub fn id(&self) -> TxId {
-        let buf = cbor::encode_to_cbor(self).expect("to cbor-encode a Tx in a vector in memory");
+        let buf = Serializer::new().serialize(self).expect("encode Tx").finalize();
         TxId::new(&buf)
     }
     pub fn add_input(&mut self, i: TxIn) {
@@ -375,6 +401,14 @@ impl cbor::CborValue for Tx {
     }
 
 }
+impl raw_cbor::se::Serialize for Tx {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(3))?;
+        let serializer = raw_cbor::se::serialize_indefinite_array(self.inputs.iter(), serializer)?;
+        let serializer = raw_cbor::se::serialize_indefinite_array(self.outputs.iter(), serializer)?;
+        serializer.write_map(raw_cbor::Len::Len(0))
+    }
+}
 impl raw_cbor::de::Deserialize for Tx {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -389,7 +423,7 @@ impl raw_cbor::de::Deserialize for Tx {
             let t = raw.cbor_type()?;
             if t == raw_cbor::Type::Special {
                 let special = raw.special()?;
-                assert_eq!(special, raw_cbor::de::Special::Break);
+                assert_eq!(special, raw_cbor::Special::Break);
                 false
             } else {
                 inputs.push(raw_cbor::de::Deserialize::deserialize(raw)?);
@@ -403,7 +437,7 @@ impl raw_cbor::de::Deserialize for Tx {
             let t = raw.cbor_type()?;
             if t == raw_cbor::Type::Special {
                 let special = raw.special()?;
-                assert_eq!(special, raw_cbor::de::Special::Break);
+                assert_eq!(special, raw_cbor::Special::Break);
                 false
             } else {
                 outputs.push(raw_cbor::de::Deserialize::deserialize(raw)?);
@@ -719,6 +753,13 @@ impl raw_cbor::de::Deserialize for TxAux {
         Ok(TxAux::new(tx, witnesses))
     }
 }
+impl raw_cbor::se::Serialize for TxAux {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?
+                .serialize(&self.tx)?;
+        raw_cbor::se::serialize_fixed_array(self.witnesses.iter(), serializer)
+    }
+}
 impl cbor::CborValue for TxAux {
     fn encode(&self) -> cbor::Value {
         cbor::Value::Array(
@@ -755,6 +796,14 @@ impl TxProof {
 impl fmt::Display for TxProof {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "number: {}, root: {}, witnesses: {}", self.number, self.root, self.witnesses_hash)
+    }
+}
+impl raw_cbor::se::Serialize for TxProof {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(3))?
+            .write_unsigned_integer(self.number as u64)?
+            .serialize(&self.root)?
+            .serialize(&self.witnesses_hash)
     }
 }
 impl raw_cbor::de::Deserialize for TxProof {
@@ -839,8 +888,10 @@ mod tests {
 
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
         let value = Coin::new(42).unwrap();
+        let txout = TxOut::new(ea, value);
 
-        assert!(cbor::hs::encode_decode(&TxOut::new(ea, value)));
+        assert!(cbor::hs::encode_decode(&txout));
+        assert!(raw_cbor::test_encode_decode(&txout).expect("encode/decode TxOut"));
     }
 
     #[test]
@@ -891,6 +942,7 @@ mod tests {
         tx.add_output(txout);
 
         assert!(cbor::hs::encode_decode(&tx));
+        assert!(raw_cbor::test_encode_decode(&tx).expect("encode/decode Tx"));
     }
 
     #[test]
@@ -918,6 +970,7 @@ mod tests {
         let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
 
         assert!(cbor::hs::encode_decode(&txinwitness));
+        assert!(raw_cbor::test_encode_decode(&txinwitness).expect("encode/decode TxInWitness"));
     }
 
     #[test]
@@ -974,6 +1027,7 @@ mod tests {
         let txaux = TxAux::new(tx, witnesses);
 
         assert!(cbor::hs::encode_decode(&txaux));
+        assert!(raw_cbor::test_encode_decode(&txaux).expect("encode/decode TxAux"));
     }
 }
 
@@ -984,14 +1038,29 @@ mod bench {
     use super::*;
     use cbor;
     use raw_cbor;
+    use test;
 
     const TX_AUX : &'static [u8] = &[0x82, 0x83, 0x9f, 0x82, 0x00, 0xd8, 0x18, 0x58, 0x26, 0x82, 0x58, 0x20, 0xaa, 0xd7, 0x8a, 0x13, 0xb5, 0x0a, 0x01, 0x4a, 0x24, 0x63, 0x3c, 0x7d, 0x44, 0xfd, 0x8f, 0x8d, 0x18, 0xf6, 0x7b, 0xbb, 0x3f, 0xa9, 0xcb, 0xce, 0xdf, 0x83, 0x4a, 0xc8, 0x99, 0x75, 0x9d, 0xcd, 0x19, 0x02, 0x9a, 0xff, 0x9f, 0x82, 0x82, 0xd8, 0x18, 0x58, 0x29, 0x83, 0x58, 0x1c, 0x83, 0xee, 0xa1, 0xb5, 0xec, 0x8e, 0x80, 0x26, 0x65, 0x81, 0x46, 0x4a, 0xee, 0x0e, 0x2d, 0x6a, 0x45, 0xfd, 0x6d, 0x7b, 0x9e, 0x1a, 0x98, 0x3a, 0x50, 0x48, 0xcd, 0x15, 0xa1, 0x01, 0x46, 0x45, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0x1a, 0x9d, 0x45, 0x88, 0x4a, 0x18, 0x2a, 0xff, 0xa0, 0x81, 0x82, 0x00, 0xd8, 0x18, 0x58, 0x85, 0x82, 0x58, 0x40, 0x1c, 0x0c, 0x3a, 0xe1, 0x82, 0x5e, 0x90, 0xb6, 0xdd, 0xda, 0x3f, 0x40, 0xa1, 0x22, 0xc0, 0x07, 0xe1, 0x00, 0x8e, 0x83, 0xb2, 0xe1, 0x02, 0xc1, 0x42, 0xba, 0xef, 0xb7, 0x21, 0xd7, 0x2c, 0x1a, 0x5d, 0x36, 0x61, 0xde, 0xb9, 0x06, 0x4f, 0x2d, 0x0e, 0x03, 0xfe, 0x85, 0xd6, 0x80, 0x70, 0xb2, 0xfe, 0x33, 0xb4, 0x91, 0x60, 0x59, 0x65, 0x8e, 0x28, 0xac, 0x7f, 0x7f, 0x91, 0xca, 0x4b, 0x12, 0x58, 0x40, 0x9d, 0x6d, 0x91, 0x1e, 0x58, 0x8d, 0xd4, 0xfb, 0x77, 0xcb, 0x80, 0xc2, 0xc6, 0xad, 0xbc, 0x2b, 0x94, 0x2b, 0xce, 0xa5, 0xd8, 0xa0, 0x39, 0x22, 0x0d, 0xdc, 0xd2, 0x35, 0xcb, 0x75, 0x86, 0x2c, 0x0c, 0x95, 0xf6, 0x2b, 0xa1, 0x11, 0xe5, 0x7d, 0x7c, 0x1a, 0x22, 0x1c, 0xf5, 0x13, 0x3e, 0x44, 0x12, 0x88, 0x32, 0xc1, 0x49, 0x35, 0x4d, 0x1e, 0x57, 0xb6, 0x80, 0xfe, 0x57, 0x2d, 0x76, 0x0c];
 
-    use test;
+    #[bench]
+    fn encode_txaux_cbor_value(b: &mut test::Bencher) {
+        let txaux : TxAux = cbor::decode_from_cbor(TX_AUX).expect("to decode a TxAux");
+        b.iter(|| {
+            let _ = cbor::encode_to_cbor(&txaux).expect("encode TxAux");
+        })
+    }
     #[bench]
     fn decode_txaux_cbor_value(b: &mut test::Bencher) {
         b.iter(|| {
             let _ : TxAux = cbor::decode_from_cbor(TX_AUX).expect("to decode a TxAux");
+        })
+    }
+    #[bench]
+    fn encode_txaux_cbor_raw(b: &mut test::Bencher) {
+        let mut raw = raw_cbor::de::RawCbor::from(TX_AUX);
+        let txaux : TxAux = raw_cbor::de::Deserialize::deserialize(&mut raw).unwrap();
+        b.iter(|| {
+            let _ = raw_cbor::se::Serializer::new().serialize(&txaux).expect("encode TxAux").finalize();
         })
     }
     #[bench]

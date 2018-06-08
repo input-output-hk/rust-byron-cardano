@@ -87,6 +87,11 @@ impl raw_cbor::de::Deserialize for Blake2b256 {
         }
     }
 }
+impl raw_cbor::se::Serialize for Blake2b256 {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        serializer.write_bytes(&self.0)
+    }
+}
 impl cbor::CborValue for Blake2b256 {
     fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
     fn decode(value: cbor::Value) -> cbor::Result<Self> {
@@ -156,3 +161,13 @@ impl<'de> serde::Deserialize<'de> for Blake2b256
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
+    use raw_cbor::{self};
+
+    #[test]
+    fn encode_decode() {
+        assert!(raw_cbor::test_encode_decode(&Blake2b256::new([0;32].as_ref())).unwrap())
+    }
+}

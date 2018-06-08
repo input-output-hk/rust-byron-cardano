@@ -11,7 +11,7 @@ use std::{iter::repeat, ops::{Deref}};
 use hdwallet::{XPub};
 use cbor;
 use cbor::{ExtendedResult};
-use raw_cbor::{self, Len, de::RawCbor};
+use raw_cbor::{self, Len, de::RawCbor, se::{self, Serializer}};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -28,7 +28,16 @@ impl Path {
         let mut raw = RawCbor::from(bytes);
         raw_cbor::de::Deserialize::deserialize(&mut raw)
     }
-    fn cbor(&self) -> Vec<u8> { cbor::encode_to_cbor(self).unwrap() }
+    fn cbor(&self) -> Vec<u8> {
+        raw_cbor::se::Serialize::serialize(self, Serializer::new())
+            .expect("Serialize the given Path in cbor")
+            .finalize()
+    }
+}
+impl raw_cbor::se::Serialize for Path {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        se::serialize_fixed_array(self.0.iter(), serializer)
+    }
 }
 impl raw_cbor::Deserialize for Path {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
@@ -135,6 +144,11 @@ impl HDAddressPayload {
         HDAddressPayload::from_vec(bytes.iter().cloned().collect())
     }
     pub fn len(&self) -> usize { self.0.len() }
+}
+impl raw_cbor::se::Serialize for HDAddressPayload {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        se::serialize_cbor_in_cbor(self.0.as_slice(), serializer)
+    }
 }
 impl raw_cbor::de::Deserialize for HDAddressPayload {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {

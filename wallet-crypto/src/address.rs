@@ -10,7 +10,7 @@ use redeem;
 use util::{base58};
 use cbor;
 use cbor::{ExtendedResult};
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
@@ -54,6 +54,11 @@ impl fmt::Display for DigestBlake2b224 {
             }
         });
         Ok(())
+    }
+}
+impl raw_cbor::se::Serialize for DigestBlake2b224 {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
     }
 }
 impl raw_cbor::de::Deserialize for DigestBlake2b224 {
@@ -105,6 +110,11 @@ impl AddrType {
         }
     }
 }
+impl raw_cbor::se::Serialize for AddrType {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_unsigned_integer(self.to_byte() as u64)
+    }
+}
 impl raw_cbor::de::Deserialize for AddrType {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         match AddrType::from_u64(*raw.unsigned_integer()?) {
@@ -133,6 +143,11 @@ impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
         let buf = cbor::encode_to_cbor(pubk).unwrap();
         StakeholderId(DigestBlake2b224::new(buf.as_ref()))
+    }
+}
+impl raw_cbor::se::Serialize for StakeholderId {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        raw_cbor::se::Serialize::serialize(&self.0, serializer)
     }
 }
 impl raw_cbor::de::Deserialize for StakeholderId {
@@ -212,6 +227,22 @@ impl cbor::CborValue for StakeDistribution {
                 cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
             }
         }).embed("while decoding `StakeDistribution`")
+    }
+}
+impl raw_cbor::se::Serialize for StakeDistribution {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let inner_serializer = match self {
+            &StakeDistribution::BootstrapEraDistr => {
+                Serializer::new().write_array(raw_cbor::Len::Len(1))?
+                    .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)?
+            }
+            &StakeDistribution::SingleKeyDistr(ref si) => {
+                Serializer::new().write_array(raw_cbor::Len::Len(2))?
+                    .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_SINGLEKEY)?
+                    .serialize(si)?
+            }
+        };
+        serializer.write_bytes(&inner_serializer.finalize())
     }
 }
 impl raw_cbor::de::Deserialize for StakeDistribution {
@@ -298,6 +329,34 @@ impl cbor::CborValue for Attributes {
         }).embed("while decoding `Attributes`")
     }
 }
+impl raw_cbor::se::Serialize for Attributes {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let mut len = 0;
+        match &self.stake_distribution {
+            &StakeDistribution::BootstrapEraDistr => {},
+            &StakeDistribution::SingleKeyDistr(_) => {len += 1 }
+        };
+        match &self.derivation_path {
+            &None => { },
+            &Some(_) => { len += 1 }
+        };
+        let serializer = serializer.write_map(raw_cbor::Len::Len(len))?;
+        let serializer = match &self.stake_distribution {
+            &StakeDistribution::BootstrapEraDistr => { serializer },
+            &StakeDistribution::SingleKeyDistr(_) => {
+                serializer.write_unsigned_integer(ATTRIBUTE_NAME_TAG_STAKE)?
+                          .serialize(&self.stake_distribution)?
+            },
+        };
+        match &self.derivation_path {
+            &None => { Ok(serializer) },
+            &Some(ref dp) => {
+                serializer.write_unsigned_integer(ATTRIBUTE_NAME_TAG_DERIVATION)?
+                          .serialize(dp)
+            }
+        }
+    }
+}
 impl raw_cbor::de::Deserialize for Attributes {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.map()?;
@@ -331,6 +390,11 @@ impl fmt::Display for Addr {
         fmt::Display::fmt(&self.0, f)
     }
 }
+impl raw_cbor::se::Serialize for Addr {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.serialize(&self.0)
+    }
+}
 impl raw_cbor::de::Deserialize for Addr {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         raw_cbor::de::Deserialize::deserialize(raw).map(|digest| Addr(digest))
@@ -345,9 +409,14 @@ impl cbor::CborValue for Addr {
 }
 impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
-        let d : (AddrType, SpendingData, Attributes) = (addr_type, spending_data.clone(), attrs.clone());
-        let v = cbor::encode_to_cbor(&d).unwrap();
-        Addr(DigestBlake2b224::new(v.as_slice()))
+        Addr(
+            DigestBlake2b224::new(
+                &raw_cbor::se::Serializer::new()
+                    .serialize(&(&addr_type, spending_data, attrs))
+                    .expect("serialize the Addr's digest data")
+                    .finalize()
+            )
+        )
     }
 
     /// create a Digest from the given 224 bits
@@ -398,7 +467,10 @@ impl ExtendedAddr {
     /// ```
     ///
     pub fn to_bytes(&self) -> Vec<u8> {
-        cbor::encode_to_cbor(self).unwrap()
+        raw_cbor::se::Serializer::new()
+            .serialize(self)
+            .expect("serialising ExtendedAddr into cbor")
+            .finalize()
     }
 
     /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
@@ -440,6 +512,11 @@ impl cbor::CborValue for ExtendedAddr {
         Ok(ExtendedAddr{addr:addr, attributes: attr, addr_type: ty})
     }
 }
+impl raw_cbor::se::Serialize for ExtendedAddr {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        cbor::hs::util::encode_with_crc32_(&(&self.addr, &self.attributes, &self.addr_type), serializer)
+    }
+}
 impl raw_cbor::de::Deserialize for ExtendedAddr {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let bytes = cbor::hs::util::raw_with_crc32(raw)?;
@@ -466,7 +543,7 @@ impl serde::Serialize for ExtendedAddr
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        let vec = cbor::encode_to_cbor(self).unwrap();
+        let vec = self.to_bytes();
         if serializer.is_human_readable() {
             serializer.serialize_str(&base58::encode(&vec))
         } else {
@@ -491,8 +568,8 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
             Ok(v) => v
         };
 
-        match cbor::decode_from_cbor(&bytes) {
-            Err((val, err)) => { Err(E::custom(format!("{:?}\n{:?}", err, val))) },
+        match Self::Value::from_bytes(&bytes) {
+            Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
     }
@@ -500,8 +577,8 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
         where E: serde::de::Error
     {
-        match cbor::decode_from_cbor(v) {
-            Err((val, err)) => { Err(E::custom(format!("{:?}\n{:?}", err, val))) },
+        match Self::Value::from_bytes(v) {
+            Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
     }
@@ -531,6 +608,23 @@ pub enum SpendingData {
     ScriptASD (Script),
     RedeemASD (redeem::PublicKey)
     // UnknownASD... whatever...
+}
+impl raw_cbor::se::Serialize for SpendingData {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        match self {
+            &SpendingData::PubKeyASD(ref pk) => {
+                serializer.write_array(raw_cbor::Len::Len(2))?
+                          .write_unsigned_integer(SPENDING_DATA_TAG_PUBKEY)?
+                          .serialize(pk)
+            },
+            &SpendingData::ScriptASD(_)      => unimplemented!(),
+            &SpendingData::RedeemASD(ref pk) => {
+                serializer.write_array(raw_cbor::Len::Len(2))?
+                          .write_unsigned_integer(SPENDING_DATA_TAG_REDEEM)?
+                          .serialize(pk)
+            }
+        }
+    }
 }
 impl cbor::CborValue for SpendingData {
     fn encode(&self) -> cbor::Value {
@@ -623,7 +717,7 @@ mod tests {
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
-        let out = cbor::encode_to_cbor(&ea).unwrap();
+        let out = ea.to_bytes();
 
         v.iter().for_each(|b| {
             if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
@@ -643,7 +737,8 @@ mod tests {
     #[test]
     fn encode_decode_digest_blake2b() {
         let digest = DigestBlake2b224::new(b"some random bytes...");
-        assert!(cbor::hs::encode_decode(&digest))
+        assert!(cbor::hs::encode_decode(&digest));
+        assert!(raw_cbor::test_encode_decode(&digest).expect("encode/decode DigestBlake2b224"));
     }
     #[test]
     fn encode_decode_addr_type() {
@@ -653,6 +748,9 @@ mod tests {
         assert!(cbor::hs::encode_decode(&addr_type_1));
         assert!(cbor::hs::encode_decode(&addr_type_2));
         assert!(cbor::hs::encode_decode(&addr_type_3));
+        assert!(raw_cbor::test_encode_decode(&addr_type_1).expect("encode/decode AddrType::ATPubKey"));
+        assert!(raw_cbor::test_encode_decode(&addr_type_2).expect("encode/decode AddrType::ATScript"));
+        assert!(raw_cbor::test_encode_decode(&addr_type_3).expect("encode/decode AddrType::ATRedeem"));
     }
     #[test]
     fn encode_decode_stakeholderid() {
@@ -662,6 +760,7 @@ mod tests {
         let pk = sk.public();
         let si = StakeholderId::new(&pk);
         assert!(cbor::hs::encode_decode(&si));
+        assert!(raw_cbor::test_encode_decode(&si).expect("encode/decode StakeholderId"));
     }
     #[test]
     fn encode_decode_stakedistribution() {
@@ -673,6 +772,8 @@ mod tests {
         let sd_2 = StakeDistribution::new_single_key(&pk);
         assert!(cbor::hs::encode_decode(&sd_1));
         assert!(cbor::hs::encode_decode(&sd_2));
+        assert!(raw_cbor::test_encode_decode(&sd_1).expect("encode/decode StakeDistribution::BootstrapEra"));
+        assert!(raw_cbor::test_encode_decode(&sd_2).expect("encode/decode StakeDistribution::SingleKey"));
     }
 
     #[test]
@@ -732,10 +833,26 @@ mod bench {
          ];
 
     use test;
+
+    #[bench]
+    fn encode_address_cbor_value(b: &mut test::Bencher) {
+        let addr : ExtendedAddr = cbor::decode_from_cbor(CBOR).unwrap();
+        b.iter(|| {
+            let _ = cbor::encode_to_cbor(&addr).unwrap();
+        })
+    }
     #[bench]
     fn decode_address_cbor_value(b: &mut test::Bencher) {
         b.iter(|| {
             let _ : ExtendedAddr = cbor::decode_from_cbor(CBOR).unwrap();
+        })
+    }
+    #[bench]
+    fn encode_address_cbor_raw(b: &mut test::Bencher) {
+        let mut raw = raw_cbor::de::RawCbor::from(CBOR);
+        let addr : ExtendedAddr = raw_cbor::de::Deserialize::deserialize(&mut raw).unwrap();
+        b.iter(|| {
+            let _ = raw_cbor::se::Serializer::new().serialize(&addr).unwrap().finalize();
         })
     }
     #[bench]

@@ -11,7 +11,7 @@ use rcw::{ed25519};
 use util::{hex};
 use cbor;
 use cbor::{ExtendedResult};
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use serde;
 
 use std::{fmt, result, cmp};
@@ -192,6 +192,11 @@ impl cbor::CborValue for PublicKey {
         }).embed("while decoding Reedem's PublicKey")
     }
 }
+impl raw_cbor::se::Serialize for PublicKey {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
+    }
+}
 impl raw_cbor::de::Deserialize for PublicKey {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         match PublicKey::from_slice(&raw.bytes()?) {
@@ -216,6 +221,11 @@ impl cbor::CborValue for PrivateKey {
         }).embed("while decoding Reedem's PrivateKey")
     }
 }
+impl raw_cbor::se::Serialize for PrivateKey {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
+    }
+}
 impl raw_cbor::de::Deserialize for PrivateKey {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         match PrivateKey::from_slice(&raw.bytes()?) {
@@ -238,6 +248,11 @@ impl cbor::CborValue for Signature {
                 Err(err) => panic!("unexpected error: {}", err)
             }
         }).embed("while decoding Reedem's Signature")
+    }
+}
+impl raw_cbor::se::Serialize for Signature {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
     }
 }
 impl raw_cbor::de::Deserialize for Signature {

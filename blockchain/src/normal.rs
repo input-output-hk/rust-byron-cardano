@@ -114,7 +114,7 @@ impl raw_cbor::de::Deserialize for TxPayload {
             let t = raw.cbor_type()?;
             if t == raw_cbor::Type::Special {
                 let special = raw.special()?;
-                assert_eq!(special, raw_cbor::de::Special::Break);
+                assert_eq!(special, raw_cbor::Special::Break);
                 false
             } else {
                 l.push_back(raw_cbor::de::Deserialize::deserialize(raw)?);

@@ -1,7 +1,7 @@
 //! the CBOR util and compatible with the haskell usage...
 
 #[cfg(test)]
-use cbor::spec::{CborValue, encode_to_cbor, decode_from_cbor};
+use cbor::spec::{CborValue, encode_to_cbor};
 #[cfg(test)]
 use raw_cbor::de;
 
@@ -23,10 +23,17 @@ pub mod util {
     //! CBor util and other stuff
 
     use cbor;
-    use raw_cbor::{self, Len, de::{RawCbor, Bytes}};
+    use raw_cbor::{self, Len, de::{RawCbor}, Bytes, Tag};
     use cbor::spec::{ExtendedResult};
     use crc32::{crc32};
 
+    pub fn encode_with_crc32_<T: raw_cbor::se::Serialize>(t: &T, s: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        let bytes = t.serialize(raw_cbor::se::Serializer::new())?.finalize();
+        let crc32 = crc32(&bytes);
+        s.write_array(Len::Len(2))?
+            .write_tag(Tag(24))?.write_bytes(&bytes)?
+            .write_unsigned_integer(crc32 as u64)
+    }
     pub fn encode_with_crc32<T: cbor::CborValue>(t: &T) -> cbor::Value {
         let v = cbor::encode_to_cbor(t).unwrap();
         let crc32 = crc32(&v);
@@ -110,12 +117,28 @@ pub mod util {
     mod bench {
         use super::*;
         use cbor;
-        use raw_cbor::de::RawCbor;
+        use raw_cbor::{self, de::RawCbor, se::{Serialize, Serializer}};
 
         #[cfg(feature = "with-bench")]
         use test;
 
         const CBOR : &'static [u8] = &[0x82, 0xd8, 0x18, 0x53, 0x52, 0x73, 0x6f, 0x6d, 0x65, 0x20, 0x72, 0x61, 0x6e, 0x64, 0x6f, 0x6d, 0x20, 0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x1a, 0x71, 0xad, 0x58, 0x36];
+
+        const BYTES : &'static [u8] = b"some bytes";
+
+        #[bench]
+        fn encode_crc32_with_raw_cbor(b: &mut test::Bencher) {
+            b.iter(|| {
+                let _ = encode_with_crc32_(&Test(BYTES), Serializer::new()).unwrap();
+            })
+        }
+
+        #[bench]
+        fn encode_crc32_with_value_cbor(b: &mut test::Bencher) {
+            b.iter(|| {
+                let _ = encode_with_crc32(&cbor::Bytes::new(Vec::from(BYTES)));
+            })
+        }
 
         #[bench]
         fn decode_crc32_with_raw_cbor(b: &mut test::Bencher) {
@@ -131,6 +154,13 @@ pub mod util {
                 let value: cbor::Value = cbor::decode_from_cbor(CBOR).unwrap();
                 let bytes : cbor::Bytes = decode_with_crc32(value).unwrap();
             })
+        }
+
+        struct Test(&'static [u8]);
+        impl Serialize for Test {
+            fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+                serializer.write_bytes(self.0)
+            }
         }
     }
 }

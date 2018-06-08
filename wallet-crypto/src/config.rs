@@ -3,7 +3,7 @@
 //!
 
 use cbor;
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use std::fmt;
 
 /// this is the protocol magic number
@@ -40,6 +40,11 @@ impl cbor::CborValue for ProtocolMagic {
 }
 impl Default for ProtocolMagic {
     fn default() -> Self { ProtocolMagic::new(764824073) }
+}
+impl raw_cbor::se::Serialize for ProtocolMagic {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_unsigned_integer(self.0 as u64)
+    }
 }
 impl raw_cbor::Deserialize for ProtocolMagic {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {

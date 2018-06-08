@@ -6,7 +6,7 @@
 
 use cbor;
 use cbor::ExtendedResult;
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use std::{ops, fmt, result};
 
 /// maximum value of a Lovelace.
@@ -67,6 +67,11 @@ impl Coin {
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl raw_cbor::se::Serialize for Coin {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_unsigned_integer(self.0)
     }
 }
 impl raw_cbor::de::Deserialize for Coin {
