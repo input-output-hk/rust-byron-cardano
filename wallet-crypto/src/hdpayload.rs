@@ -174,6 +174,15 @@ mod tests {
         let payload = key.encrypt_path(&path);
         assert_eq!(Some(path), key.decrypt_path(&payload))
     }
+
+    #[test]
+    fn unit1() {
+        let key = HDKey::from_bytes([0u8;32]);
+        let dat = [0x9f, 0x00, 0x01, 0x0ff];
+        let expected = [0xda, 0xac, 0x4a, 0x55, 0xfc, 0xa7, 0x48, 0xf3, 0x2f, 0xfa, 0xf4, 0x9e, 0x2b, 0x41, 0xab, 0x86, 0xf3, 0x54, 0xdb, 0x96];
+        let got = key.encrypt(&dat[..]);
+        assert_eq!(&expected[..], &got[..])
+    }
 }
 
 #[cfg(test)]
