@@ -984,3 +984,62 @@ mod tests {
         do_sign(&prv, &D1_H0_SIGNATURE);
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "with-bench")]
+mod bench {
+    use super::*;
+    use test;
+
+    #[bench]
+    fn derivate_hard_v1(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        b.iter(|| {
+            let _ = sk.derive(DerivationScheme::V1, 0x80000000);
+        })
+    }
+    #[bench]
+    fn derivate_hard_v2(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        b.iter(|| {
+            let _ = sk.derive(DerivationScheme::V2, 0x80000000);
+        })
+    }
+
+    #[bench]
+    fn derivate_soft_v1_xprv(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        b.iter(|| {
+            let _ = sk.derive(DerivationScheme::V1, 0);
+        })
+    }
+    #[bench]
+    fn derivate_soft_v2_xprv(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        b.iter(|| {
+            let _ = sk.derive(DerivationScheme::V2, 0);
+        })
+    }
+    #[bench]
+    fn derivate_soft_v1_xpub(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+        b.iter(|| {
+            let _ = pk.derive(DerivationScheme::V1, 0);
+        })
+    }
+    #[bench]
+    fn derivate_soft_v2_xpub(b: &mut test::Bencher) {
+        let seed = Seed::from_bytes([0;SEED_SIZE]);
+        let sk = XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+        b.iter(|| {
+            let _ = pk.derive(DerivationScheme::V2, 0);
+        })
+    }
+}
