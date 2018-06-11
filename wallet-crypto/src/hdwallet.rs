@@ -518,6 +518,8 @@ impl<T> Signature<T> {
     pub fn coerce<R>(self) -> Signature<R> {
         Signature::<R>::from_bytes(self.bytes)
     }
+
+    pub fn to_bytes<'a>(&'a self) -> &'a [u8;SIGNATURE_SIZE] { &self.bytes }
 }
 impl<T> PartialEq for Signature<T> {
     fn eq(&self, rhs: &Signature<T>) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }

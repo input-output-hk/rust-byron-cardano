@@ -1,9 +1,10 @@
-use wallet_crypto::{tx, hdwallet, cbor, hash::{Blake2b256}};
+use wallet_crypto::{address, tx, hdwallet, cbor, vss, hash::{Blake2b256}};
 use wallet_crypto::cbor::{ExtendedResult};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
 use std::collections::linked_list::{Iter};
-use std::collections::{LinkedList};
+use std::collections::{LinkedList, BTreeMap};
+use std::collections::btree_map;
 
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
@@ -93,13 +94,13 @@ impl cbor::CborValue for TxPayload {
 #[derive(Debug, Clone)]
 pub struct Body {
     pub tx: TxPayload,
-    pub scc: cbor::Value,
+    pub ssc: SscPayload,
     pub delegation: cbor::Value,
     pub update: cbor::Value
 }
 impl Body {
-    pub fn new(tx: TxPayload, scc: cbor::Value, dlg: cbor::Value, upd: cbor::Value) -> Self {
-        Body { tx: tx, scc: scc, delegation: dlg, update: upd }
+    pub fn new(tx: TxPayload, ssc: SscPayload, dlg: cbor::Value, upd: cbor::Value) -> Self {
+        Body { tx: tx, ssc: ssc, delegation: dlg, update: upd }
     }
 }
 impl fmt::Display for Body {
@@ -120,6 +121,302 @@ impl cbor::CborValue for Body {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Body::new(tx, scc, dlg, upd))
         }).embed("While decoding main::Body")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SscPayload {
+    CommitmentsPayload(Commitments, VssCertificates),
+    OpeningsPayload(OpeningsMap, VssCertificates),
+    SharesPayload(SharesMap, VssCertificates),
+    CertificatesPayload(VssCertificates),
+}
+impl cbor::CborValue for SscPayload {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!()
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value.array().and_then(|array| {
+            let (array, code) = cbor::array_decode_elem(array, 0).embed("enumeration code")?;
+            match code {
+                0u64 => {
+                    let (array, comms) =
+                        cbor::array_decode_elem(array, 0).embed("commitments map")?;
+                    let (array, vss) =
+                        cbor::array_decode_elem(array, 0).embed("vss certificates map")?;
+                    if !array.is_empty() {
+                        return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                    }
+                    Ok(SscPayload::CommitmentsPayload(comms, vss))
+                }
+                1u64 => {
+                    let (array, openings) =
+                        cbor::array_decode_elem(array, 0).embed("openings map")?;
+                    let (array, vss) =
+                        cbor::array_decode_elem(array, 0).embed("vss certificates map")?;
+                    if !array.is_empty() {
+                        return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                    }
+                    Ok(SscPayload::OpeningsPayload(openings, vss))
+                }
+                2u64 => {
+                    let (array, shares) = cbor::array_decode_elem(array, 0).embed("shares map")?;
+                    let (array, vss) =
+                        cbor::array_decode_elem(array, 0).embed("vss certificates map")?;
+                    if !array.is_empty() {
+                        return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                    }
+                    Ok(SscPayload::SharesPayload(shares, vss))
+                }
+                3u64 => {
+                    let (array, vss) =
+                        cbor::array_decode_elem(array, 0).embed("vss certificates map")?;
+                    if !array.is_empty() {
+                        return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                    }
+                    Ok(SscPayload::CertificatesPayload(vss))
+                }
+                _ => cbor::Result::array(array, cbor::Error::UnparsedValues),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Commitments(Vec<SignedCommitment>);
+impl Commitments{
+    pub fn iter(&self) -> ::std::slice::Iter<SignedCommitment> {
+        self.0.iter()
+    }
+}
+impl cbor::CborValue for Commitments {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!()
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .tag()
+            .and_then(|tagged| match tagged {
+                (258, value) => Ok(Commitments(value.decode()?)),
+                (tag, value) => cbor::Result::tag(tag, value, cbor::Error::UnparsedValues),
+            })
+            .embed("while decoding Commitments")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SignedCommitment {
+    pub public_key: hdwallet::XPub,
+    pub commitment: Commitment,
+    pub signature: vss::Signature,
+}
+impl cbor::CborValue for SignedCommitment {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .array()
+            .and_then(|array| {
+                let (array, public_key) = cbor::array_decode_elem(array, 0).embed("public key")?;
+                let (array, commitment) = cbor::array_decode_elem(array, 0).embed("commitment")?;
+                let (array, signature) =
+                    cbor::array_decode_elem(array, 0).embed("commitment signature")?;
+                if !array.is_empty() {
+                    return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                }
+                Ok(SignedCommitment {
+                    public_key,
+                    commitment,
+                    signature,
+                })
+            })
+            .embed("while decoding a SignedCommitment")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Commitment {
+    pub proof: SecretProof,
+    pub shares: BTreeMap<vss::PublicKey, EncShare>,
+}
+impl cbor::CborValue for Commitment {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .array()
+            .and_then(|array| {
+                let (array, shares) = cbor::array_decode_elem(array, 0).embed("shares")?;
+                let (array, proof) = cbor::array_decode_elem(array, 0).embed("proof")?;
+                if !array.is_empty() {
+                    return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                }
+                Ok(Commitment {
+                    proof,
+                    shares,
+                })
+            })
+            .embed("while decoding a Commitment")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SecretProof {
+    pub extra_gen: cbor::Value, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:ExtraGen
+    pub proof: cbor::Value, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Proof
+    pub parallel_proofs: cbor::Value, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:ParallelProofs
+    pub commitments: LinkedList<cbor::Value>, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Commitment
+}
+impl cbor::CborValue for SecretProof {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .array()
+            .and_then(|array| {
+                let (array, extra_gen) = cbor::array_decode_elem(array, 0).embed("extra gen")?;
+                let (array, proof) = cbor::array_decode_elem(array, 0).embed("proof")?;
+                let (array, parallel_proofs) = cbor::array_decode_elem(array, 0).embed("parallel proofs")?;
+                let (array, commitments) = cbor::array_decode_elem(array, 0).embed("commitments")?;
+                if !array.is_empty() {
+                    return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                }
+                Ok(SecretProof {
+                    extra_gen,
+                    proof,
+                    parallel_proofs,
+                    commitments,
+                })
+            })
+            .embed("while decoding a Commitment")
+    }
+}
+
+// TODO: decode to
+// http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:EncryptedSi
+#[derive(Debug, Clone)]
+pub struct EncShare(cbor::Value);
+impl cbor::CborValue for EncShare {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        Ok(EncShare(value))
+    }
+}
+
+// TODO: decode value in this map to
+// http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Secret
+#[derive(Debug, Clone)]
+pub struct OpeningsMap(BTreeMap<address::StakeholderId, cbor::Value>);
+impl OpeningsMap{
+    pub fn iter(&self) -> btree_map::Iter<address::StakeholderId, cbor::Value> {
+        self.0.iter()
+    }
+}
+impl cbor::CborValue for OpeningsMap {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        Ok(OpeningsMap(value
+            .decode()
+            .embed("while decoding OpeningsMap")?))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SharesMap(
+    BTreeMap<address::StakeholderId, SharesSubMap>,
+);
+pub type SharesSubMap = BTreeMap<address::StakeholderId, DecShare>;
+impl SharesMap{
+    pub fn iter(&self) -> btree_map::Iter<address::StakeholderId, SharesSubMap> {
+        self.0.iter()
+    }
+}
+impl cbor::CborValue for SharesMap {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        Ok(SharesMap(value.decode().embed("while decoding SharesMap")?))
+    }
+}
+
+// TODO: decode to
+// https://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:DecryptedShare
+#[derive(Debug, Clone)]
+pub struct DecShare(cbor::Value);
+impl cbor::CborValue for DecShare {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        Ok(DecShare(value))
+    }
+}
+
+// TODO: after we properly decode VssCertificate.vss_key, change this struct to a
+// BTreeMap<StakeholderId, VssCertificate> see
+// https://github.com/input-output-hk/cardano-sl/blob/005076eb3434444a505c0fb150ea98e56e8bb3d9/core/src/Pos/Core/Ssc/VssCertificatesMap.hs#L36-L44
+#[derive(Debug, Clone)]
+pub struct VssCertificates(Vec<VssCertificate>);
+impl VssCertificates {
+    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
+        self.0.iter()
+    }
+}
+impl cbor::CborValue for VssCertificates {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .tag()
+            .and_then(|tagged| match tagged {
+                (258, value) => Ok(VssCertificates(value.decode()?)),
+                (tag, value) => cbor::Result::tag(tag, value, cbor::Error::UnparsedValues),
+            })
+            .embed("while decoding VssCertificates")
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct VssCertificate {
+    pub vss_key: vss::PublicKey,
+    pub expiry_epoch: types::EpochId,
+    pub signature: vss::Signature,
+    pub signing_key: hdwallet::XPub,
+}
+impl cbor::CborValue for VssCertificate {
+    fn encode(&self) -> cbor::Value {
+        unimplemented!() // TODO crashes
+    }
+    fn decode(value: cbor::Value) -> cbor::Result<Self> {
+        value
+            .array()
+            .and_then(|array| {
+                let (array, vss_key) = cbor::array_decode_elem(array, 0).embed("vss key")?;
+                let (array, expiry_epoch) =
+                    cbor::array_decode_elem(array, 0).embed("expiry epoch")?;
+                let (array, signature) = cbor::array_decode_elem(array, 0).embed("signature")?;
+                let (array, signing_key) = cbor::array_decode_elem(array, 0).embed("signing key")?;
+                if !array.is_empty() {
+                    return cbor::Result::array(array, cbor::Error::UnparsedValues);
+                }
+                Ok(VssCertificate {
+                    vss_key,
+                    expiry_epoch,
+                    signature,
+                    signing_key,
+                })
+            })
+            .embed("while decoding a VssCertificate")
     }
 }
 
@@ -217,6 +514,14 @@ pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
     ProxyLight(Vec<cbor::Value>),
     ProxyHeavy(Vec<cbor::Value>),
+}
+impl BlockSignature {
+    pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8;hdwallet::SIGNATURE_SIZE]> {
+        match self {
+            BlockSignature::Signature(s) => Some(s.to_bytes()),
+            _ => None,
+        }
+    }
 }
 impl cbor::CborValue for BlockSignature {
     fn encode(&self) -> cbor::Value {
