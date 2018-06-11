@@ -6,7 +6,7 @@ use std::collections::linked_list::{Iter};
 use std::collections::{LinkedList, BTreeMap};
 use std::collections::btree_map;
 
-use raw_cbor::{self, de::RawCbor};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use types;
 use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
 
@@ -46,6 +46,15 @@ impl cbor::CborValue for BodyProof {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(BodyProof::new(tx, mpc, proxy_sk, update))
         }).embed("While decoding BodyProof")
+    }
+}
+impl raw_cbor::se::Serialize for BodyProof {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_map(raw_cbor::Len::Len(4))?
+            .serialize(&self.tx)?
+            .serialize(&self.mpc)?
+            .serialize(&self.proxy_sk)?
+            .serialize(&self.update)
     }
 }
 impl raw_cbor::de::Deserialize for BodyProof {
@@ -105,6 +114,11 @@ impl cbor::CborValue for TxPayload {
         }).embed("While decoding TxPayload")
     }
 }
+impl raw_cbor::se::Serialize for TxPayload {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        raw_cbor::se::serialize_indefinite_array(self.txaux.iter(), serializer)
+    }
+}
 impl raw_cbor::de::Deserialize for TxPayload {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let num_inputs = raw.array()?;
@@ -156,6 +170,11 @@ impl cbor::CborValue for Body {
             if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
             Ok(Body::new(tx, scc, dlg, upd))
         }).embed("While decoding main::Body")
+    }
+}
+impl raw_cbor::se::Serialize for Body {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        unimplemented!()
     }
 }
 impl raw_cbor::de::Deserialize for Body {
@@ -535,6 +554,16 @@ impl cbor::CborValue for BlockHeader {
         }).embed("While decoding a main::BlockHeader")
     }
 }
+impl raw_cbor::se::Serialize for BlockHeader {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(5))?
+            .serialize(&self.protocol_magic)?
+            .serialize(&self.previous_header)?
+            .serialize(&self.body_proof)?
+            .serialize(&self.consensus)?
+            .serialize(&self.extra_data)
+    }
+}
 impl raw_cbor::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -655,6 +684,34 @@ impl cbor::CborValue for BlockSignature {
         }).embed("While decoding main::BlockSignature")
     }
 }
+impl raw_cbor::se::Serialize for BlockSignature {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        match self {
+            &BlockSignature::Signature(ref sig) => {
+                serializer.write_array(raw_cbor::Len::Len(2))?
+                    .write_unsigned_integer(0)?.serialize(sig)
+            },
+            &BlockSignature::ProxyLight(ref v) => {
+                unimplemented!()
+            },
+            /*
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(1));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },*/
+            &BlockSignature::ProxyHeavy(ref v) => {
+                unimplemented!()
+            },
+            /*
+                let mut r = Vec::new();
+                r.push(cbor::Value::U64(2));
+                r.extend_from_slice(v);
+                cbor::Value::Array(r)
+            },*/
+        }
+    }
+}
 impl raw_cbor::de::Deserialize for BlockSignature {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -721,6 +778,15 @@ impl cbor::CborValue for Consensus {
                 block_signature: block_signature,
             })
         }).embed("While decoding main::Consensus")
+    }
+}
+impl raw_cbor::se::Serialize for Consensus {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(4))?
+            .serialize(&self.slot_id)?
+            .serialize(&self.leader_key)?
+            .serialize(&self.chain_difficulty)?
+            .serialize(&self.block_signature)
     }
 }
 impl raw_cbor::de::Deserialize for Consensus {
