@@ -69,7 +69,7 @@ fn main() {
             let dir  = value_t!(args.value_of("NETWORKS DIRECTORY"), String).unwrap();
             cfg.port = port;
             cfg.root_dir = PathBuf::from(&dir);
-            cfg.save().unwrap();
+            info!("saving config, result {:?}", cfg.save());
         },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
