@@ -44,7 +44,6 @@ fn main() {
                     .value_name("PORT NUMBER")
                     .help("set the port number to listen to")
                     .required(false)
-                    .default_value(r"80")
                 )
                 .arg(Arg::with_name("NETWORKS DIRECTORY")
                     .long("networks-dir")
@@ -52,7 +51,6 @@ fn main() {
                     .value_name("NETWORKS DIRECTORY")
                     .help("the relative or absolute directory of the networks to server")
                     .required(false)
-                    .default_value(r"networks")
                 )
         )
         .subcommand(
@@ -65,11 +63,20 @@ fn main() {
 
     match matches.subcommand() {
         ("init", Some(args)) => {
-            let port = value_t!(args.value_of("PORT NUMBER"), u16).unwrap();
-            let dir  = value_t!(args.value_of("NETWORKS DIRECTORY"), String).unwrap();
-            cfg.port = port;
-            cfg.root_dir = PathBuf::from(&dir);
-            info!("saving config, result {:?}", cfg.save());
+            cfg.port = value_t!(args.value_of("PORT NUMBER"), u16)
+                .or_else(|err| match err {
+                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.port),
+                    err => Err(err),
+                })
+                .unwrap();
+            cfg.root_dir = value_t!(args.value_of("NETWORKS DIRECTORY"), String)
+                .map(PathBuf::from)
+                .or_else(|err| match err {
+                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.root_dir.clone()),
+                    err => Err(err),
+                })
+                .unwrap();
+            info!("saving config, {:?}", cfg.save());
         },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
