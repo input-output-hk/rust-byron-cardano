@@ -1085,6 +1085,11 @@ struct TestVector {
         let xpub = xprv.public();
         let ref_xpub = XPub::from_slice(test.xPub).expect("failed to read the xpub from the test");
         assert_eq!(ref_xpub, xpub, "xpub from test {}", test_index);
+
+        let ref_signature : Signature<Vec<u8>> = Signature::from_slice(test.signature)
+            .expect("retrieve signature from the golden test");
+        let signature = xprv.sign(test.data_to_sign.as_bytes());
+        assert_eq!(ref_signature, signature, "xpub from test {}", test_index);
     }
 
     #[test]
