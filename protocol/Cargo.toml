@@ -12,3 +12,7 @@ keywords = [ "Cardano", "Protocol" ]
 wallet-crypto = { path = "../wallet-crypto" }
 blockchain = { path = "../blockchain" }
 log = "0.4"
+
+[dev-dependencies]
+rand = "*"
+env_logger = "*"

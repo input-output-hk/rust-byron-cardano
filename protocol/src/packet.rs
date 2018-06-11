@@ -2,7 +2,7 @@ use std::collections::{BTreeMap};
 use std::collections::{LinkedList};
 use std::{fmt};
 use wallet_crypto::cbor::{encode_to_cbor, Value, Bytes, ExtendedResult};
-use wallet_crypto::{cbor};
+use wallet_crypto::{cbor, tx};
 use wallet_crypto::config::{ProtocolMagic};
 use blockchain;
 use blockchain::{HeaderHash};
@@ -228,6 +228,12 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
     let to_encoded = Value::Bytes(Bytes::from_slice(to.as_ref()));
     let dat = encode_to_cbor(&Value::Array(vec![from_encoded, to_encoded])).unwrap();
     (0x6, dat)
+}
+
+pub fn send_msg_announcetx(txid: &tx::TxId) -> Message {
+    let data_to_send = Value::Array(vec![cbor::Value::U64(0), cbor::CborValue::encode(txid)]);
+    let dat = encode_to_cbor(&data_to_send).unwrap();
+    (0x24, dat)
 }
 
 #[derive(Debug)]

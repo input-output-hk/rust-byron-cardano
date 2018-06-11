@@ -97,7 +97,7 @@ impl LightConnection {
     }
 
     /// consume the eventual data to read
-    /// 
+    ///
     /// to call only if you are ready to process the data
     pub fn pop_received(&mut self) -> Option<Vec<u8>> {
         if self.received.len() > 0 { Some(self.received.remove(0)) } else { None }
@@ -237,6 +237,18 @@ impl<T: Write+Read> Connection<T> {
         }
     }
 
+    pub fn wait_ack(&mut self, id: LightId) -> Result<bool> {
+        while !self.has_bytes_to_read_or_finish(id) {
+            self.process_messages()?;
+        }
+
+        match self.client_cons.get_mut(&id) {
+            None => panic!("oops"),
+            Some(ref mut con) => {
+                Ok(con.pending_received())
+            },
+        }
+    }
     pub fn wait_msg(&mut self, id: LightId) -> Result<Vec<u8>> {
         while !self.has_bytes_to_read_or_finish(id) {
             self.process_messages()?;
@@ -351,7 +363,7 @@ impl<T: Write+Read> Connection<T> {
                 error!("LightId({}) Unsupported control `{:?}`", cid, ch);
                 Err(Error::UnsupportedControl(ch))
             },
-            ntt::protocol::Command::Data(server_id, len) => {
+            Command::Data(server_id, len) => {
                 let id = LightId::new(server_id);
                 let v = match self.server_cons.get(&id) {
                     None      => None,
@@ -412,6 +424,7 @@ pub mod command {
     use std::io::{Read, Write};
     use super::{LightId, Connection};
     use wallet_crypto::cbor::hs::util::decode_sum_type;
+    use wallet_crypto::{tx};
     use blockchain;
     use packet;
 
@@ -529,6 +542,74 @@ pub mod command {
                 msgs.push(msg)
             }
             Ok(msgs)
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct AnnounceTx(tx::TxAux);
+    impl AnnounceTx {
+        pub fn new(tx: tx::TxAux) -> Self { AnnounceTx(tx) }
+    }
+    impl<W> Command<W> for AnnounceTx where W: Read+Write {
+        type Output = SendTx;
+
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            let (_, get_header_dat) = packet::send_msg_announcetx(&self.0.tx.id());
+
+            connection.send_bytes(id, &[0x18, 0x25]).unwrap();
+            connection.send_bytes(id, &get_header_dat[..]).unwrap();
+            Ok(())
+        }
+
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
+            let dat = connection.wait_msg(id).unwrap();
+            match ::wallet_crypto::cbor::decode_from_cbor(&dat) {
+                Err(err) => {
+                    error!("error while decoding cbor: {:?}", err);
+                    Err("error whlie decoding response from cbor")
+                },
+                Ok(res) => {
+                    let (v, txid) : (u64, Vec<tx::TxId>) = res;
+                    assert_eq!(v, 0u64);
+                    assert_eq!(txid[0], self.0.tx.id());
+                    Ok(SendTx(self.0.clone(), id))
+                },
+            }
+        }
+
+        fn terminate(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct SendTx(tx::TxAux, LightId);
+
+    impl<W> Command<W> for SendTx where W: Read+Write {
+        type Output = ::wallet_crypto::cbor::Value;
+
+        fn initial(&self, connection: &mut Connection<W>) -> Result<LightId, &'static str> {
+            Ok(self.1)
+        }
+
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            use wallet_crypto::cbor::{self, encode_to_cbor};
+
+            let data_to_send = cbor::Value::Array(vec![cbor::Value::U64(1), cbor::CborValue::encode(&self.0)]);
+            let dat = encode_to_cbor(&data_to_send).unwrap();
+            connection.send_bytes(id, &dat[..]).unwrap();
+
+            Ok(())
+        }
+
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
+            let dat = connection.wait_msg(id).unwrap();
+            match ::wallet_crypto::cbor::decode_from_cbor(&dat).ok() {
+                None => Err("message block decoder failed with something unexpected"),
+                Some(val) => {
+                    Ok(val)
+                },
+            }
         }
     }
 
