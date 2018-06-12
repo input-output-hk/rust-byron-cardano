@@ -1,8 +1,6 @@
 use std::{fmt};
 use std::collections::LinkedList;
 use std::cmp::{Ord, Ordering};
-use wallet_crypto::cbor::{ExtendedResult};
-use wallet_crypto::{cbor};
 
 use raw_cbor::{self, de::RawCbor};
 use types::{HeaderHash, SlotId, EpochId};
@@ -20,23 +18,18 @@ pub struct RawBlock(pub Vec<u8>);
 
 impl RawBlockHeaderMultiple {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeaderMultiple(dat) }
-    pub fn decode(&self) -> cbor::Result<Vec<BlockHeader>> {
-        let list : LinkedList<BlockHeader> = cbor::decode_from_cbor(&self.0[..])?;
-        let mut v = Vec::new();
-        for x in list {
-            v.push(x);
-        }
-        Ok(v)
+    pub fn decode(&self) -> raw_cbor::Result<Vec<BlockHeader>> {
+        RawCbor::from(&self.0).deserialize()
     }
 }
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
-    pub fn decode(&self) -> cbor::Result<BlockHeader> { cbor::decode_from_cbor(&self.0[..]) }
-    pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0[..]) }
+    pub fn decode(&self) -> raw_cbor::Result<BlockHeader> { RawCbor::from(&self.0[..]).deserialize() }
+    pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0) }
 }
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
-    pub fn decode(&self) -> cbor::Result<Block> { cbor::decode_from_cbor(&self.0[..]) }
+    pub fn decode(&self) -> raw_cbor::Result<Block> { RawCbor::from(&self.0).deserialize() }
     pub fn to_header(&self) -> RawBlockHeader {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode().unwrap();
@@ -142,11 +135,11 @@ impl BlockHeader {
     }
 
     pub fn to_raw(&self) -> RawBlockHeader {
-        RawBlockHeader(cbor::encode_to_cbor(self).unwrap())
+        RawBlockHeader(cbor!(self).unwrap())
     }
 
     pub fn compute_hash(&self) -> HeaderHash {
-        let v = cbor::encode_to_cbor(self).unwrap();
+        let v = cbor!(self).unwrap();
         HeaderHash::new(&v[..])
     }
 }
@@ -206,27 +199,6 @@ impl fmt::Display for Block {
 // CBOR implementations
 // **************************************************************************
 
-impl cbor::CborValue for Block {
-    fn encode(&self) -> cbor::Value {
-        unimplemented!()
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, code)  = cbor::array_decode_elem(array, 0).embed("enumeration code")?;
-            if code == 0u64 {
-                let (array, blk) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(Block::GenesisBlock(blk))
-            } else if code == 1u64 {
-                let (array, blk) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(Block::MainBlock(blk))
-            } else {
-                cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
-            }
-        }).embed("While decoding block::Block")
-    }
-}
 impl raw_cbor::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -234,7 +206,7 @@ impl raw_cbor::de::Deserialize for Block {
             return Err(raw_cbor::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
-        match *sum_type_idx {
+        match sum_type_idx {
             0 => {
                 let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
                 Ok(Block::GenesisBlock(blk))
@@ -244,42 +216,23 @@ impl raw_cbor::de::Deserialize for Block {
                 Ok(Block::MainBlock(blk))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported Block: {}", *sum_type_idx)))
+                Err(raw_cbor::Error::CustomError(format!("Unsupported Block: {}", sum_type_idx)))
             }
         }
     }
 }
 
-impl cbor::CborValue for BlockHeader {
-    fn encode(&self) -> cbor::Value {
+impl raw_cbor::se::Serialize for BlockHeader {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?;
         match self {
-            &BlockHeader::GenesisBlockHeader(ref mbh) => {
-                cbor::Value::Array(
-                   vec![cbor::Value::U64(0), cbor::CborValue::encode(mbh)]
-                )
+            &BlockHeader::GenesisBlockHeader(ref gbh) => {
+                serializer.write_unsigned_integer(0)?.serialize(gbh)
             },
             &BlockHeader::MainBlockHeader(ref mbh) => {
-                cbor::Value::Array(
-                   vec![cbor::Value::U64(1), cbor::CborValue::encode(mbh)]
-                )
+                serializer.write_unsigned_integer(1)?.serialize(mbh)
             },
         }
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, code)  = cbor::array_decode_elem(array, 0).embed("enumeration code")?;
-            if code == 0u64 {
-                let (array, mbh) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(BlockHeader::GenesisBlockHeader(mbh))
-            } else if code == 1u64 {
-                let (array, mbh) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(BlockHeader::MainBlockHeader(mbh))
-            } else {
-                cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
-            }
-        })
     }
 }
 impl raw_cbor::de::Deserialize for BlockHeader {
@@ -289,7 +242,7 @@ impl raw_cbor::de::Deserialize for BlockHeader {
             return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
-        match *sum_type_idx {
+        match sum_type_idx {
             0 => {
                 let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::GenesisBlockHeader(blk))
@@ -299,7 +252,7 @@ impl raw_cbor::de::Deserialize for BlockHeader {
                 Ok(BlockHeader::MainBlockHeader(blk))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported BlockHeader: {}", *sum_type_idx)))
+                Err(raw_cbor::Error::CustomError(format!("Unsupported BlockHeader: {}", sum_type_idx)))
             }
         }
     }
@@ -307,7 +260,7 @@ impl raw_cbor::de::Deserialize for BlockHeader {
 
 #[cfg(test)]
 mod test {
-    use wallet_crypto::{cbor};
+    use raw_cbor::{de::{RawCbor}};
     use wallet_crypto::util::hex;
     const MAINBLOCK_HEX : [u8;408] =
         [ 0x82, 0x01, 0x85, 0x00, 0x58, 0x20, 0xc4, 0xe0, 0xfc, 0x3a, 0x4f, 0xfb, 0x31, 0x91, 0xf8, 0x8b
@@ -347,9 +300,9 @@ mod test {
     const GENESIS_HASH : &str = "0027f90a735237e2555b418ac4e02d35daf75945aad6253c7ac0bc7b121f974b";
 
     fn check_blockheader_serialization(header_raw: &[u8], hash: &str) {
-        let header : super::BlockHeader = cbor::decode_from_cbor(header_raw).unwrap();
-        let got_raw = cbor::encode_to_cbor(&header).unwrap();
-        assert_eq!(header_raw, &got_raw[..]);
+        let header : super::BlockHeader = RawCbor::from(header_raw).deserialize().unwrap();
+        let got_raw = cbor!(&header).unwrap();
+        assert_eq!(hex::encode(header_raw), hex::encode(&got_raw[..]));
         let got_hash = header.compute_hash();
         let got_hex = hex::encode(got_hash.as_ref());
         assert_eq!(hash, got_hex)

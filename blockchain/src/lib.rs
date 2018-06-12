@@ -11,6 +11,7 @@ extern crate test;
 extern crate serde_derive;
 extern crate serde;
 
+#[macro_use]
 extern crate raw_cbor;
 
 pub mod types;
