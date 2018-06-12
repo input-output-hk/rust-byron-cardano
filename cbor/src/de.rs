@@ -437,6 +437,12 @@ impl<'a> RawCbor<'a> {
             _           => unreachable!()
         }
     }
+
+    pub fn deserialize<T>(&mut self) -> Result<T>
+        where T: Deserialize
+    {
+        Deserialize::deserialize(self)
+    }
 }
 impl<'a> From<&'a [u8]> for RawCbor<'a> {
     fn from(bytes: &'a [u8]) -> RawCbor<'a> { RawCbor(bytes) }
