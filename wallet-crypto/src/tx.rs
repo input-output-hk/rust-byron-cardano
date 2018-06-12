@@ -1,9 +1,7 @@
 use std::{fmt, ops, iter, vec, slice, convert};
-use std::collections::{BTreeMap};
 
 use hash::{Blake2b256};
 
-use cbor;
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use config::{Config};
 use redeem;

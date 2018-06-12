@@ -1,5 +1,4 @@
 use std::{fmt};
-use std::collections::LinkedList;
 use std::cmp::{Ord, Ordering};
 
 use raw_cbor::{self, de::RawCbor};

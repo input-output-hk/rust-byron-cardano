@@ -1,14 +1,14 @@
 use std::{io};
 use protocol::{self, ntt};
-use wallet_crypto::{cbor};
 use hyper;
+use raw_cbor;
 
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
     NttError(ntt::Error),
     ProtocolError(protocol::Error),
-    CborError(cbor::Value, cbor::Error),
+    CborError(raw_cbor::Error),
     HyperError(hyper::Error),
     ConnectionTimedOut,
 }
@@ -24,6 +24,6 @@ impl From<hyper::Error> for Error {
 impl From<ntt::Error> for Error {
     fn from(e: ntt::Error) -> Self { Error::NttError(e) }
 }
-impl From<(cbor::Value, cbor::Error)> for Error {
-    fn from((v, e): (cbor::Value, cbor::Error)) -> Self { Error::CborError(v, e) }
+impl From<raw_cbor::Error> for Error {
+    fn from(e: raw_cbor::Error) -> Self { Error::CborError(e) }
 }
