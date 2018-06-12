@@ -15,14 +15,14 @@ extern crate wallet_crypto;
 extern crate blockchain;
 extern crate exe_common;
 
-use std::{sync::{Arc}, path::{PathBuf}};
+use std::path::{PathBuf};
 
-use iron::Iron;
 
 mod config;
 mod handlers;
+mod service;
 
-use config::{Config};
+use config::Config;
 
 fn main() {
     use clap::{App, Arg, SubCommand};
@@ -80,13 +80,7 @@ fn main() {
         },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
-            let mut router = router::Router::new();
-            let networks = Arc::new(cfg.get_networks().unwrap());
-            handlers::block::Handler::new(networks.clone()).route(&mut router);
-            handlers::pack::Handler::new(networks.clone()).route(&mut router);
-            handlers::epoch::Handler::new(networks.clone()).route(&mut router);
-            info!("listenting to port {}", cfg.port);
-            Iron::new(router).http(format!("0.0.0.0:{}", cfg.port)).unwrap();
+            service::start(cfg);
         },
         _ => {
             println!("{}", matches.usage());
