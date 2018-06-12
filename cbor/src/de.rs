@@ -1,4 +1,4 @@
-use std::{fmt, ops::{Deref}};
+use std::{fmt, ops::{Deref}, collections::BTreeMap};
 use error::Error;
 use result::Result;
 use types::{Type, Special, Bytes};
@@ -8,6 +8,65 @@ pub trait Deserialize : Sized {
     /// method to implement to deserialise an object from the given
     /// `RawCbor`.
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
+}
+
+impl<T: Deserialize> Deserialize for Vec<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        let len = raw.array()?;
+        let mut vec = Vec::new();
+        match len {
+            Len::Indefinite => {
+                while {
+                    let t = raw.cbor_type()?;
+                    if t == Type::Special {
+                        let special = raw.special()?;
+                        assert_eq!(special, Special::Break);
+                        false
+                    } else {
+                        vec.push(Deserialize::deserialize(raw)?);
+                        true
+                    }
+                } {};
+            },
+            Len::Len(len) => {
+                for _ in 0..len {
+                    vec.push(Deserialize::deserialize(raw)?);
+                }
+            }
+        }
+        Ok(vec)
+    }
+}
+impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        let len = raw.map()?;
+        let mut vec = BTreeMap::new();
+        match len {
+            Len::Indefinite => {
+                while {
+                    let t = raw.cbor_type()?;
+                    if t == Type::Special {
+                        let special = raw.special()?;
+                        assert_eq!(special, Special::Break);
+                        false
+                    } else {
+                        let k = Deserialize::deserialize(raw)?;
+                        let v = Deserialize::deserialize(raw)?;
+                        vec.insert(k, v);
+                        true
+                    }
+                } {};
+            },
+            Len::Len(len) => {
+                for _ in 0..len {
+                    let k = Deserialize::deserialize(raw)?;
+                    let v = Deserialize::deserialize(raw)?;
+                    vec.insert(k, v);
+                }
+            }
+        }
+        Ok(vec)
+    }
 }
 
 /// Raw Cbor

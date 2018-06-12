@@ -4,7 +4,7 @@ mod types;
 mod len;
 pub mod de;
 pub mod se;
-pub mod value;
+mod value;
 mod macros;
 
 pub use len::{*};
@@ -13,6 +13,7 @@ pub use result::{Result};
 pub use error::{Error};
 pub use de::{Deserialize};
 pub use se::{Serialize};
+pub use value::{ObjectKey, Value};
 
 const MAX_INLINE_ENCODING : u64 = 23;
 

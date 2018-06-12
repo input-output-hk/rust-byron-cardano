@@ -95,7 +95,7 @@ impl Serialize for Value {
                 serializer.write_special(Special::Break)
             },
             Value::Object(ref v) => {
-                let mut serializer = serializer.write_array(Len::Len(v.len() as u64))?;
+                let mut serializer = serializer.write_map(Len::Len(v.len() as u64))?;
                 for element in v {
                     serializer = serializer.serialize(element.0)?
                                            .serialize(element.1)?;
@@ -103,7 +103,7 @@ impl Serialize for Value {
                 Ok(serializer)
             },
             Value::IObject(ref v) => {
-                let mut serializer = serializer.write_array(Len::Indefinite)?;
+                let mut serializer = serializer.write_map(Len::Indefinite)?;
                 for element in v {
                     serializer = serializer.serialize(element.0)?
                                            .serialize(element.1)?;
@@ -152,7 +152,7 @@ impl Deserialize for Value {
                 }
             },
             Type::Map          => {
-                let len = raw.array()?;
+                let len = raw.map()?;
                 let mut vec = BTreeMap::new();
                 match len {
                     Len::Indefinite => {
