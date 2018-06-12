@@ -66,7 +66,7 @@ impl<'a> AsRef<[u8]> for Bytes<'a> {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum Special {
     Bool(bool),
     Null,
