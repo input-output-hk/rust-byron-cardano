@@ -1063,6 +1063,9 @@ mod bench {
 #[cfg(test)]
 mod golden_tests {
     use super::*;
+    use bip39;
+    use rcw::{blake2b::Blake2b};
+    use cbor;
 
 struct TestVector {
     /// BIP39 Seed
@@ -1085,7 +1088,7 @@ struct TestVector {
     words: &'static str,
 }
 
-    fn check_test(test_index: usize, test: &TestVector) {
+    fn check_derivation(test_index: usize, test: &TestVector) {
         // we ignore the 2 bytes that are from cbor serialisation
         let seed = Seed::from_slice(&test.seed[2..]).expect("failed to read the seed slice from test");
         let mut xprv = XPrv::generate_from_daedalus_seed(&seed);
@@ -1110,11 +1113,41 @@ struct TestVector {
         assert_eq!(ref_signature, signature, "xpub from test {}", test_index);
     }
 
+    fn check_mnemonics(test_index: usize, test: &TestVector) {
+        let mnemonics = bip39::Mnemonics::from_string(&bip39::dictionary::ENGLISH, test.words)
+            .expect("retrieve the mnemonics from the string");
+        let entropy = bip39::Entropy::from_mnemonics(&mnemonics)
+            .expect("retrieve the entropy from the mnemonics");
+
+        let entropy_bytes = cbor::Value::Bytes(cbor::Bytes::new(Vec::from(entropy.as_ref())));
+        let entropy_cbor = cbor::encode_to_cbor(&entropy_bytes).expect("encode entropy in cbor");
+        let seed = {
+            let mut blake2b = Blake2b::new(32);
+            Digest::input(&mut blake2b, &entropy_cbor);
+            let mut out = [0;32];
+            Digest::result(&mut blake2b, &mut out);
+            Seed::from_bytes(out)
+        };
+        let seed_ref_hex = hex::encode(&test.seed[2..]);
+        let seed_hex = hex::encode(seed.as_ref());
+
+        assert_eq!(seed_ref_hex, seed_hex, "seed from test {}", test_index);
+    }
+
     #[test]
-    fn test() {
+    fn derivation() {
         let mut test_index = 0;
         for test in TEST_VECTORS.iter() {
-            check_test(test_index, test);
+            check_derivation(test_index, test);
+            test_index += 1;
+        }
+    }
+
+    #[test]
+    fn mnemonics() {
+        let mut test_index = 0;
+        for test in TEST_VECTORS.iter() {
+            check_mnemonics(test_index, test);
             test_index += 1;
         }
     }
