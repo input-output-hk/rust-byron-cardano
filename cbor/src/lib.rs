@@ -4,6 +4,7 @@ mod types;
 mod len;
 pub mod de;
 pub mod se;
+mod macros;
 
 pub use len::{*};
 pub use types::{*};
