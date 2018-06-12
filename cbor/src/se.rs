@@ -1,7 +1,7 @@
 use std::io::{Write};
 
 use result::Result;
-use types::{Type, Tag, Special};
+use types::{Type, Special};
 use len::Len;
 
 pub trait Serialize {
@@ -372,19 +372,19 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len, Tag};
+    /// use raw_cbor::{se::{Serializer}, Len};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
-    ///     .write_tag(Tag(24)).expect("write a tag")
+    ///     .write_tag(24).expect("write a tag")
     ///     .write_text(r"hello").expect("write text");
     ///
     /// # let bytes = serializer.finalize();
     /// # assert_eq!(bytes, [0xd8, 0x18, 0x65, 0x68, 0x65, 0x6C, 0x6C, 0x6F].as_ref());
     /// ```
     ///
-    pub fn write_tag(self, tag: Tag) -> Result<Self> {
-        self.write_type(Type::Tag, *tag)
+    pub fn write_tag(self, tag: u64) -> Result<Self> {
+        self.write_type(Type::Tag, tag)
     }
 
     /// write a special value in cbor

@@ -1,7 +1,7 @@
 use std::{fmt, ops::{Deref}};
 use error::Error;
 use result::Result;
-use types::{Type, Special, Tag, Text, Bytes, UnsignedInteger, NegativeInteger};
+use types::{Type, Special, Bytes};
 use len::Len;
 
 pub trait Deserialize : Sized {
@@ -62,7 +62,7 @@ pub trait Deserialize : Sized {
 ///     raw.unsigned_integer().unwrap()
 /// };
 ///
-/// assert_eq!(64, *integer);
+/// assert_eq!(64, integer);
 ///
 /// ```
 ///
@@ -228,7 +228,7 @@ impl<'a> RawCbor<'a> {
     ///
     /// let integer = raw.unsigned_integer().unwrap();
     ///
-    /// assert_eq!(*integer, 64);
+    /// assert_eq!(integer, 64);
     /// ```
     ///
     /// ```should_panic
@@ -240,14 +240,14 @@ impl<'a> RawCbor<'a> {
     /// // the following line will panic:
     /// let integer = raw.unsigned_integer().unwrap();
     /// ```
-    pub fn unsigned_integer(&mut self) -> Result<UnsignedInteger> {
+    pub fn unsigned_integer(&mut self) -> Result<u64> {
         self.cbor_expect_type(Type::UnsignedInteger)?;
         let (len, len_sz) = self.cbor_len()?;
         match len {
             Len::Indefinite => Err(Error::IndefiniteLenNotSupported(Type::UnsignedInteger)),
             Len::Len(v) => {
                 self.advance(1 + len_sz)?;
-                Ok(UnsignedInteger::from(v))
+                Ok(v)
             }
         }
     }
@@ -266,16 +266,16 @@ impl<'a> RawCbor<'a> {
     ///
     /// let integer = raw.negative_integer().unwrap();
     ///
-    /// assert_eq!(*integer, -42);
+    /// assert_eq!(integer, -42);
     /// ```
-    pub fn negative_integer(&mut self) -> Result<NegativeInteger> {
+    pub fn negative_integer(&mut self) -> Result<i64> {
         self.cbor_expect_type(Type::NegativeInteger)?;
         let (len, len_sz) = self.cbor_len()?;
         match len {
             Len::Indefinite => Err(Error::IndefiniteLenNotSupported(Type::NegativeInteger)),
             Len::Len(v)     => {
                 self.advance(1 + len_sz)?;
-                Ok(NegativeInteger::from(- (v as i64) - 1))
+                Ok(- (v as i64) - 1)
             }
         }
     }
@@ -325,7 +325,7 @@ impl<'a> RawCbor<'a> {
     ///
     /// assert!(&*text == "text");
     /// ```
-    pub fn text(&mut self) -> Result<Text> {
+    pub fn text(&mut self) -> Result<String> {
         self.cbor_expect_type(Type::Text)?;
         let (len, len_sz) = self.cbor_len()?;
         match len {
@@ -334,7 +334,7 @@ impl<'a> RawCbor<'a> {
                 let start = 1 + len_sz;
                 let end   = start + len as usize;
                 let bytes = &self.0[start..end as usize];
-                let text = Text::from(String::from_utf8(Vec::from(bytes))?);
+                let text = String::from_utf8(Vec::from(bytes))?;
                 self.advance(end)?;
                 Ok(text)
             }
@@ -404,17 +404,17 @@ impl<'a> RawCbor<'a> {
     ///
     /// let tag = raw.tag().unwrap();
     ///
-    /// assert_eq!(24, *tag);
+    /// assert_eq!(24, tag);
     /// assert_eq!("text", &*raw.text().unwrap());
     /// ```
     ///
-    pub fn tag(&mut self) -> Result<Tag> {
+    pub fn tag(&mut self) -> Result<u64> {
         self.cbor_expect_type(Type::Tag)?;
         match self.cbor_len()? {
             (Len::Indefinite, _) => Err(Error::IndefiniteLenNotSupported(Type::Tag)),
             (Len::Len(len), sz) => {
                 self.advance(1+sz)?;
-                Ok(Tag::from(len))
+                Ok(len)
             }
         }
     }
@@ -466,7 +466,7 @@ mod test {
 
         let integer = raw.negative_integer().unwrap();
 
-        assert_eq!(*integer, -42);
+        assert_eq!(integer, -42);
     }
 
     #[test]
@@ -493,7 +493,7 @@ mod test {
 
         let text = raw.text().unwrap();
 
-        assert_eq!(&*text, "text");
+        assert_eq!(&text, "text");
     }
     #[test]
     fn text_empty() {
@@ -502,7 +502,7 @@ mod test {
 
         let text = raw.text().unwrap();
 
-        assert_eq!(&*text, "");
+        assert_eq!(&text, "");
     }
 
     #[test]
@@ -515,12 +515,12 @@ mod test {
         assert_eq!(len, Len::Len(6));
         assert_eq!(&*raw, &[0,1,2,3,4,5][..]);
 
-        assert_eq!(0, *raw.unsigned_integer().unwrap());
-        assert_eq!(1, *raw.unsigned_integer().unwrap());
-        assert_eq!(2, *raw.unsigned_integer().unwrap());
-        assert_eq!(3, *raw.unsigned_integer().unwrap());
-        assert_eq!(4, *raw.unsigned_integer().unwrap());
-        assert_eq!(5, *raw.unsigned_integer().unwrap());
+        assert_eq!(0, raw.unsigned_integer().unwrap());
+        assert_eq!(1, raw.unsigned_integer().unwrap());
+        assert_eq!(2, raw.unsigned_integer().unwrap());
+        assert_eq!(3, raw.unsigned_integer().unwrap());
+        assert_eq!(4, raw.unsigned_integer().unwrap());
+        assert_eq!(5, raw.unsigned_integer().unwrap());
     }
     #[test]
     fn array_empty() {
@@ -543,9 +543,9 @@ mod test {
         assert_eq!(&*raw, &[0x01, 0x02, 0xFF][..]);
 
         let i = raw.unsigned_integer().unwrap();
-        assert!(*i == 1);
+        assert!(i == 1);
         let i = raw.unsigned_integer().unwrap();
-        assert!(*i == 2);
+        assert!(i == 2);
         assert_eq!(Special::Break, raw.special().unwrap());
     }
 
@@ -558,18 +558,18 @@ mod test {
 
         assert_eq!(len, Len::Len(5));
 
-        assert_eq!("iohk", &*raw.text().unwrap());
-        assert_eq!(1, *raw.unsigned_integer().unwrap());
-        assert_eq!(-1, *raw.negative_integer().unwrap());
+        assert_eq!("iohk", &raw.text().unwrap());
+        assert_eq!(1, raw.unsigned_integer().unwrap());
+        assert_eq!(-1, raw.negative_integer().unwrap());
 
         let nested_array_len = raw.array().unwrap();
         assert_eq!(nested_array_len, Len::Len(4));
-        assert_eq!(0, *raw.unsigned_integer().unwrap());
-        assert_eq!(1, *raw.unsigned_integer().unwrap());
-        assert_eq!(2, *raw.unsigned_integer().unwrap());
-        assert_eq!(3, *raw.unsigned_integer().unwrap());
+        assert_eq!(0, raw.unsigned_integer().unwrap());
+        assert_eq!(1, raw.unsigned_integer().unwrap());
+        assert_eq!(2, raw.unsigned_integer().unwrap());
+        assert_eq!(3, raw.unsigned_integer().unwrap());
 
-        assert_eq!(0x10, *raw.unsigned_integer().unwrap());
+        assert_eq!(0x10, raw.unsigned_integer().unwrap());
 
         const GARBAGE_LEN : usize = 7;
         assert_eq!(GARBAGE_LEN, raw.len());
@@ -586,13 +586,13 @@ mod test {
 
         let k = raw.unsigned_integer().unwrap();
         let v = raw.text().unwrap();
-        assert_eq!(0, *k);
-        assert_eq!("text", &*v);
+        assert_eq!(0, k);
+        assert_eq!("text", &v);
 
         let k = raw.unsigned_integer().unwrap();
         let v = raw.unsigned_integer().unwrap();
-        assert_eq!(1,  *k);
-        assert_eq!(42, *v);
+        assert_eq!(1,  k);
+        assert_eq!(42, v);
     }
 
     #[test]
@@ -612,7 +612,7 @@ mod test {
 
         let tag = raw.tag().unwrap();
 
-        assert_eq!(24, *tag);
+        assert_eq!(24, tag);
         let tagged = raw.bytes().unwrap();
         assert_eq!(b"some random string", &*tagged);
     }
@@ -626,11 +626,11 @@ mod test {
         assert_eq!(len, Len::Len(2));
 
         let tag = raw.tag().unwrap();
-        assert!(*tag == 24);
+        assert!(tag == 24);
         let _ = raw.bytes().unwrap();
 
         let crc = raw.unsigned_integer().unwrap();
-        assert!(*crc as u32 == 0x71AD5836);
+        assert!(crc as u32 == 0x71AD5836);
     }
 }
 

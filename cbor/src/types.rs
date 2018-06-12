@@ -48,56 +48,6 @@ impl From<u8> for Type {
     fn from(byte: u8) -> Type { Type::from_byte(byte) }
 }
 
-/// CBOR Unsigned Integer
-///
-/// it can be any unsigned integer: u8, u16, u32 or u64. However
-/// the decode does not retrain the details of the encoding.
-/// It is the user's responsibility to check for integer overflow.
-///
-/// # Example
-///
-/// ```
-/// use raw_cbor::de::{*};
-///
-/// let bytes = vec![0x1A, 0x31, 0x6D, 0xD6, 0xE6];
-/// let mut raw = RawCbor::from(&bytes);
-///
-/// let integer = raw.unsigned_integer().unwrap();
-/// assert!(*integer <= u32::max_value() as u64);
-/// ```
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct UnsignedInteger(u64);
-impl From<u64> for UnsignedInteger { fn from(v: u64) -> Self { UnsignedInteger(v) } }
-impl Deref for UnsignedInteger {
-    type Target = u64;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-/// CBOR Unsigned Integer
-///
-/// it can be any signed integer: i8, i16, i32 or i64. However
-/// the decode does not retrain the details of the encoding.
-/// It is the user's responsibility to check for integer overflow.
-///
-/// # Example
-///
-/// ```
-/// use raw_cbor::de::{*};
-///
-/// let bytes = vec![0x3A, 0x31, 0x6C, 0xC5, 0x76];
-/// let mut raw = RawCbor::from(&bytes);
-///
-/// let integer = raw.negative_integer().unwrap();
-/// assert!(*integer >= i32::min_value() as i64);
-/// ```
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct NegativeInteger(i64);
-impl From<i64> for NegativeInteger { fn from(v: i64) -> Self { NegativeInteger(v) } }
-impl Deref for NegativeInteger {
-    type Target = i64;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
 /// CBOR Raw bytes
 ///
 /// Simply a slice of a given length of the original buffer.
@@ -114,26 +64,6 @@ impl<'a> Deref for Bytes<'a> {
 }
 impl<'a> AsRef<[u8]> for Bytes<'a> {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-/// CBOR UTF8 String
-///
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Text(String);
-impl From<String> for Text { fn from(v: String) -> Self { Text(v) } }
-impl Deref for Text {
-    type Target = str;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-impl AsRef<str> for Text {
-    fn as_ref(&self) -> &str { self.0.as_ref() }
-}
-
-pub struct Tag(pub u64);
-impl From<u64> for Tag { fn from(v: u64) -> Self { Tag(v) } }
-impl Deref for Tag {
-    type Target = u64;
-    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
