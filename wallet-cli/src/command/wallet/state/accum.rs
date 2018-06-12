@@ -1,8 +1,5 @@
-use wallet_crypto::hdwallet;
-use wallet_crypto::hdpayload;
-use wallet_crypto::address::ExtendedAddr;
 use wallet_crypto::tx::{TxIn, TxId, TxOut};
-use super::lookup::{AddrLookup, Result, StatePtr, Utxo, Utxos, WalletAddr};
+use super::lookup::{AddrLookup, Result, StatePtr, Utxo, WalletAddr};
 
 #[derive(Clone,Debug)]
 pub struct AccumLookup {}

@@ -1,9 +1,8 @@
 use wallet_crypto::{address, tx, hdwallet, vss, hash::{Blake2b256}};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
-use std::collections::linked_list::{Iter};
-use std::collections::{LinkedList, BTreeMap};
-use std::collections::btree_map;
+use std::slice::{Iter};
+use std::collections::{BTreeMap, btree_map};
 
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use types;
@@ -53,7 +52,7 @@ impl raw_cbor::de::Deserialize for BodyProof {
 
 #[derive(Debug, Clone)]
 pub struct TxPayload {
-    txaux: LinkedList<tx::TxAux>
+    txaux: Vec<tx::TxAux>
 }
 impl fmt::Display for TxPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -67,11 +66,11 @@ impl fmt::Display for TxPayload {
     }
 }
 impl TxPayload {
-    pub fn new(txaux: LinkedList<tx::TxAux>) -> Self {
+    pub fn new(txaux: Vec<tx::TxAux>) -> Self {
         TxPayload { txaux: txaux }
     }
     pub fn empty() -> Self {
-        TxPayload::new(LinkedList::new())
+        TxPayload::new(Vec::new())
     }
     pub fn iter(&self) -> Iter<tx::TxAux> { self.txaux.iter() }
 }
@@ -84,7 +83,7 @@ impl raw_cbor::de::Deserialize for TxPayload {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let num_inputs = raw.array()?;
         assert_eq!(num_inputs, raw_cbor::Len::Indefinite);
-        let mut l = LinkedList::new();
+        let mut l = Vec::new();
         while {
             let t = raw.cbor_type()?;
             if t == raw_cbor::Type::Special {
@@ -92,7 +91,7 @@ impl raw_cbor::de::Deserialize for TxPayload {
                 assert_eq!(special, raw_cbor::Special::Break);
                 false
             } else {
-                l.push_back(raw_cbor::de::Deserialize::deserialize(raw)?);
+                l.push(raw_cbor::de::Deserialize::deserialize(raw)?);
                 true
             }
         } {}
@@ -118,6 +117,15 @@ impl fmt::Display for Body {
         write!(f, "{}", self.tx)
     }
 }
+impl raw_cbor::se::Serialize for Body {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(4))?
+            .serialize(&self.tx)?
+            .serialize(&self.ssc)?
+            .serialize(&self.delegation)?
+            .serialize(&self.update)
+    }
+}
 impl raw_cbor::de::Deserialize for Body {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -139,6 +147,35 @@ pub enum SscPayload {
     OpeningsPayload(OpeningsMap, VssCertificates),
     SharesPayload(SharesMap, VssCertificates),
     CertificatesPayload(VssCertificates),
+}
+impl raw_cbor::se::Serialize for SscPayload {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        match self {
+            SscPayload::CommitmentsPayload(ref comms, ref cert) => {
+                serializer.write_array(raw_cbor::Len::Len(3))?
+                    .write_unsigned_integer(0)?
+                    .serialize(comms)?
+                    .serialize(cert)
+            },
+            SscPayload::OpeningsPayload(ref openings, ref cert) => {
+                serializer.write_array(raw_cbor::Len::Len(3))?
+                    .write_unsigned_integer(1)?
+                    .serialize(openings)?
+                    .serialize(cert)
+            },
+            SscPayload::SharesPayload(ref shares, ref cert) => {
+                serializer.write_array(raw_cbor::Len::Len(3))?
+                    .write_unsigned_integer(2)?
+                    .serialize(shares)?
+                    .serialize(cert)
+            },
+            SscPayload::CertificatesPayload(ref cert) => {
+                serializer.write_array(raw_cbor::Len::Len(2))?
+                    .write_unsigned_integer(3)?
+                    .serialize(cert)
+            },
+        }
+    }
 }
 impl raw_cbor::de::Deserialize for SscPayload {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
@@ -181,6 +218,11 @@ impl Commitments{
         self.0.iter()
     }
 }
+impl raw_cbor::se::Serialize for Commitments {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        raw_cbor::se::serialize_fixed_array(self.0.iter(), serializer.write_tag(258)?)
+    }
+}
 impl raw_cbor::de::Deserialize for Commitments {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let tag = raw.tag()?;
@@ -196,6 +238,14 @@ pub struct SignedCommitment {
     pub public_key: hdwallet::XPub,
     pub commitment: Commitment,
     pub signature: vss::Signature,
+}
+impl raw_cbor::se::Serialize for SignedCommitment {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(3))?
+            .serialize(&self.public_key)?
+            .serialize(&self.commitment)?
+            .serialize(&self.signature)
+    }
 }
 impl raw_cbor::de::Deserialize for SignedCommitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
@@ -215,6 +265,13 @@ impl raw_cbor::de::Deserialize for SignedCommitment {
 pub struct Commitment {
     pub proof: SecretProof,
     pub shares: BTreeMap<vss::PublicKey, EncShare>,
+}
+impl raw_cbor::se::Serialize for Commitment {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?
+            .serialize(&self.proof)?;
+        raw_cbor::se::serialize_fixed_map(self.shares.iter(), serializer)
+    }
 }
 impl raw_cbor::de::Deserialize for Commitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
@@ -236,6 +293,15 @@ pub struct SecretProof {
     pub parallel_proofs: raw_cbor::Value, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:ParallelProofs
     pub commitments: Vec<raw_cbor::Value>, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Commitment
 }
+impl raw_cbor::se::Serialize for SecretProof {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(4))?
+            .serialize(&self.extra_gen)?
+            .serialize(&self.proof)?
+            .serialize(&self.parallel_proofs)?;
+        raw_cbor::se::serialize_fixed_array(self.commitments.iter(), serializer)
+    }
+}
 impl raw_cbor::de::Deserialize for SecretProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
@@ -255,6 +321,11 @@ impl raw_cbor::de::Deserialize for SecretProof {
 // http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:EncryptedSi
 #[derive(Debug, Clone)]
 pub struct EncShare(raw_cbor::Value);
+impl raw_cbor::se::Serialize for EncShare {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.serialize(&self.0)
+    }
+}
 impl raw_cbor::de::Deserialize for EncShare {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         Ok(EncShare(raw.deserialize()?))
@@ -268,6 +339,11 @@ pub struct OpeningsMap(BTreeMap<address::StakeholderId, raw_cbor::Value>);
 impl OpeningsMap{
     pub fn iter(&self) -> btree_map::Iter<address::StakeholderId, raw_cbor::Value> {
         self.0.iter()
+    }
+}
+impl raw_cbor::se::Serialize for OpeningsMap {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        raw_cbor::se::serialize_fixed_map(self.0.iter(), serializer)
     }
 }
 impl raw_cbor::de::Deserialize for OpeningsMap {
@@ -286,6 +362,16 @@ impl SharesMap{
         self.0.iter()
     }
 }
+impl raw_cbor::se::Serialize for SharesMap {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        let mut serializer = serializer.write_map(raw_cbor::Len::Len(self.0.len() as u64))?;
+        for element in self.iter() {
+            serializer = serializer.serialize(element.0)?;
+            serializer = raw_cbor::se::serialize_fixed_map(element.1.iter(), serializer)?;
+        }
+        Ok(serializer)
+    }
+}
 impl raw_cbor::de::Deserialize for SharesMap {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         Ok(SharesMap(raw.deserialize()?))
@@ -296,6 +382,11 @@ impl raw_cbor::de::Deserialize for SharesMap {
 // https://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:DecryptedShare
 #[derive(Debug, Clone)]
 pub struct DecShare(raw_cbor::Value);
+impl raw_cbor::se::Serialize for DecShare {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.serialize(&self.0)
+    }
+}
 impl raw_cbor::de::Deserialize for DecShare {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         Ok(DecShare(raw.deserialize()?))
@@ -310,6 +401,11 @@ pub struct VssCertificates(Vec<VssCertificate>);
 impl VssCertificates {
     pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
         self.0.iter()
+    }
+}
+impl raw_cbor::se::Serialize for VssCertificates {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        raw_cbor::se::serialize_fixed_array(self.iter(), serializer.write_tag(258)?)
     }
 }
 impl raw_cbor::de::Deserialize for VssCertificates {
@@ -329,6 +425,15 @@ pub struct VssCertificate {
     pub expiry_epoch: types::EpochId,
     pub signature: vss::Signature,
     pub signing_key: hdwallet::XPub,
+}
+impl raw_cbor::se::Serialize for VssCertificate {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(4))?
+            .serialize(&self.vss_key)?
+            .serialize(&self.expiry_epoch)?
+            .serialize(&self.signature)?
+            .serialize(&self.signing_key)
+    }
 }
 impl raw_cbor::de::Deserialize for VssCertificate {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
@@ -415,6 +520,14 @@ impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}", self.header)?;
         write!(f, "{}", self.body)
+    }
+}
+impl raw_cbor::se::Serialize for Block {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(3))?
+            .serialize(&self.header)?
+            .serialize(&self.body)?
+            .serialize(&self.extra)
     }
 }
 impl raw_cbor::de::Deserialize for Block {

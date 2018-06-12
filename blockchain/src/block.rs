@@ -171,14 +171,14 @@ impl Block {
 
     pub fn has_transactions(&self) -> bool {
         match self {
-            &Block::GenesisBlock(ref blk) => false,
+            &Block::GenesisBlock(_) => false,
             &Block::MainBlock(ref blk) => blk.header.body_proof.tx.number > 0,
         }
     }
 
     pub fn get_transactions(&self) -> Option<normal::TxPayload> {
         match self {
-            &Block::GenesisBlock(ref blk) => None,
+            &Block::GenesisBlock(_) => None,
             &Block::MainBlock(ref blk) => Some(blk.body.tx.clone()),
         }
     }
@@ -198,6 +198,19 @@ impl fmt::Display for Block {
 // CBOR implementations
 // **************************************************************************
 
+impl raw_cbor::se::Serialize for Block {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?;
+        match self {
+            &Block::GenesisBlock(ref gbh) => {
+                serializer.write_unsigned_integer(0)?.serialize(gbh)
+            },
+            &Block::MainBlock(ref mbh) => {
+                serializer.write_unsigned_integer(1)?.serialize(mbh)
+            },
+        }
+    }
+}
 impl raw_cbor::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;

@@ -4,7 +4,8 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof, block::BlockDate};
-use wallet_crypto::{address, cbor, config, hash, hdwallet, tx, vss, util::hex};
+use wallet_crypto::{address, config, hash, hdwallet, tx, vss, util::hex};
+use raw_cbor;
 
 use ansi_term::Colour;
 
@@ -145,7 +146,7 @@ impl<'a> fmt::Display for Val<'a> {
 // the rest of the file is `impl` and `test`
 
 // XXX: eventually there should be no uses of this
-impl Pretty for cbor::Value {
+impl Pretty for raw_cbor::Value {
     fn to_pretty(&self) -> Val {
         from_debug(self)
     }

@@ -1,4 +1,3 @@
-use std::collections::LinkedList;
 use wallet_crypto::{address, hash::{Blake2b256}};
 use wallet_crypto::config::{ProtocolMagic};
 use std::{fmt};
@@ -23,13 +22,18 @@ impl raw_cbor::de::Deserialize for BodyProof {
 
 #[derive(Debug, Clone)]
 pub struct Body {
-    pub slot_leaders: LinkedList<address::StakeholderId>,
+    pub slot_leaders: Vec<address::StakeholderId>,
+}
+impl raw_cbor::se::Serialize for Body {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        raw_cbor::se::serialize_indefinite_array(self.slot_leaders.iter(), serializer)
+    }
 }
 impl raw_cbor::de::Deserialize for Body {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let len = raw.array()?;
         assert_eq!(len, raw_cbor::Len::Indefinite);
-        let mut slot_leaders = LinkedList::new();
+        let mut slot_leaders = Vec::new();
         while {
             let t = raw.cbor_type()?;
             if t == raw_cbor::Type::Special {
@@ -37,7 +41,7 @@ impl raw_cbor::de::Deserialize for Body {
                 assert_eq!(special, raw_cbor::Special::Break);
                 false
             } else {
-                slot_leaders.push_back(raw_cbor::de::Deserialize::deserialize(raw)?);
+                slot_leaders.push(raw_cbor::de::Deserialize::deserialize(raw)?);
                 true
             }
         } {}
@@ -110,6 +114,14 @@ impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}", self.header)?;
         write!(f, "{:?}", self.body)
+    }
+}
+impl raw_cbor::se::Serialize for Block {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(3))?
+            .serialize(&self.header)?
+            .serialize(&self.body)?
+            .serialize(&self.extra)
     }
 }
 impl raw_cbor::de::Deserialize for Block {

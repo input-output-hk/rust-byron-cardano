@@ -4,6 +4,8 @@ extern crate clap;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate raw_cbor;
 extern crate env_logger;
 extern crate serde_yaml;
 extern crate rcw;
