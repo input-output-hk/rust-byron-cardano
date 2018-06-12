@@ -87,7 +87,7 @@ impl raw_cbor::de::Deserialize for Signature {
             Err(Error::InvalidSignatureSize(sz)) => {
                 Err(raw_cbor::Error::NotEnough(SIGNATURE_SIZE, sz))
             },
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {}", err))),
+            // Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {}", err))),
         }
     }
 }

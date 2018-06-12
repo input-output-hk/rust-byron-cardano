@@ -1,5 +1,4 @@
 use std::fmt;
-use std::collections::BTreeMap;
 use serde;
 
 use rcw::digest::Digest;

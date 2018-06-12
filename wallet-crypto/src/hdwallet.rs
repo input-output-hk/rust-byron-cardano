@@ -958,7 +958,7 @@ mod tests {
         let derivation_index = 0x1;
         let seed = Seed::from_bytes([0;32]);
         let prv = XPrv::generate_from_seed(&seed);
-        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+        let _ = prv.derive(DerivationScheme::V1, derivation_index);
     }
 
     #[test]
