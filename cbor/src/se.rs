@@ -49,6 +49,23 @@ impl<'a, A, B, C> Serialize for (&'a A, &'a B, &'a C)
 ///
 /// i.e. the size must be known ahead of time
 ///
+pub fn serialize_fixed_map<'a, C, K, V>(data: C, serializer: Serializer) -> Result<Serializer>
+    where K: 'a + Serialize
+        , V: 'a + Serialize
+        , C: Iterator<Item = (&'a K, &'a V)> + ExactSizeIterator
+{
+    let mut serializer = serializer.write_map(Len::Len(data.len() as u64))?;
+    for element in data {
+        serializer = Serialize::serialize(element.0, serializer)?;
+        serializer = Serialize::serialize(element.1, serializer)?;
+    }
+    Ok(serializer)
+}
+
+/// helper function to serialise a collection of T as a fixed number of element
+///
+/// i.e. the size must be known ahead of time
+///
 pub fn serialize_fixed_array<'a, C, T>(data: C, serializer: Serializer) -> Result<Serializer>
     where T: 'a + Serialize
         , C: Iterator<Item = &'a T> + ExactSizeIterator

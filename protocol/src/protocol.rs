@@ -6,20 +6,20 @@ use packet;
 use packet::{Handshake};
 use ntt;
 
-use wallet_crypto::cbor;
+use raw_cbor::{self, de::{RawCbor}};
 
 #[derive(Debug)]
 pub enum Error {
     NttError(ntt::Error),
     IOError(io::Error),
-    ByteEncodingError((cbor::Value, cbor::Error)),
+    ByteEncodingError(raw_cbor::Error),
     ServerCreatedLightIdTwice(LightId),
     UnsupportedControl(ntt::protocol::ControlHeader),
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
 }
-impl From<(cbor::Value, cbor::Error)> for Error {
-    fn from(e: (cbor::Value, cbor::Error)) -> Self { Error::ByteEncodingError(e) }
+impl From<raw_cbor::Error> for Error {
+    fn from(e: raw_cbor::Error) -> Self { Error::ByteEncodingError(e) }
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IOError(e) }
@@ -97,7 +97,7 @@ impl LightConnection {
     }
 
     /// consume the eventual data to read
-    /// 
+    ///
     /// to call only if you are ready to process the data
     pub fn pop_received(&mut self) -> Option<Vec<u8>> {
         if self.received.len() > 0 { Some(self.received.remove(0)) } else { None }
@@ -200,7 +200,7 @@ impl<T: Write+Read> Connection<T> {
         };
 
         let server_bytes_hs = data_recv_on(self, siv)?;
-        let _server_handshake : Handshake = cbor::decode_from_cbor(&server_bytes_hs)?;
+        let _server_handshake : Handshake = RawCbor::from(&server_bytes_hs).deserialize()?;
 
         let server_bytes_nodeid = data_recv_on(self, siv)?;
         let server_nodeid = match ntt::protocol::NodeId::from_slice(&server_bytes_nodeid[..]) {

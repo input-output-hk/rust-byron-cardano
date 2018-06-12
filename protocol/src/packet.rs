@@ -1,11 +1,10 @@
 use std::collections::{BTreeMap};
-use std::collections::{LinkedList};
 use std::{fmt};
-use wallet_crypto::cbor::{encode_to_cbor, Value, Bytes, ExtendedResult};
-use wallet_crypto::{cbor};
 use wallet_crypto::config::{ProtocolMagic};
 use blockchain;
 use blockchain::{HeaderHash};
+
+use raw_cbor::{self, se, de::{self, RawCbor}};
 
 type MessageCode = u32;
 
@@ -19,28 +18,30 @@ impl fmt::Display for HandlerSpec {
         write!(f, "{}", self.0)
     }
 }
-impl cbor::CborValue for HandlerSpec {
-    fn encode(&self) -> cbor::Value {
-        let b = cbor::encode_to_cbor(&self.0).unwrap();
-        cbor::Value::Array(
-            vec![ cbor::Value::U64(0)
-                , cbor::Value::Tag(24, Box::new(cbor::Value::Bytes(cbor::Bytes::new(b))))
-                ]
-        )
+impl se::Serialize for HandlerSpec {
+    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(2))?
+            .write_unsigned_integer(0)?
+            .write_tag(24)?
+            .write_bytes(se::Serializer::new().write_unsigned_integer(self.0 as u64)?.finalize())
     }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, id) = cbor::array_decode_elem(array, 0).embed("sum type id")?;
-            if id != 0u64 { return cbor::Result::array(array, cbor::Error::InvalidSumtype(id)); }
-            let (array, tag) = cbor::array_decode_elem(array, 0).embed("tagged bytes")?;
-            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-            cbor::Value::tag(tag).and_then(|(tag_id, value)| {
-                assert!(tag_id == 24);
-                value.bytes().and_then(|bs| {
-                    cbor::decode_from_cbor(bs.as_ref())
-                }).map(|c| HandlerSpec::new(c))
-            })
-        }).embed("while decoding HandlerSpec")
+}
+impl de::Deserialize for HandlerSpec {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid HandlerSpec: recieved array of {:?} elements", len)));
+        }
+        let t = raw.unsigned_integer()?;
+        if t != 0 {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid value, expected 0, received {}", t)));
+        }
+        let tag = raw.tag()?;
+        if tag != 24 {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid tag, expected 24, received {}", tag)));
+        }
+        let v = RawCbor::from(&raw.bytes()?).unsigned_integer()? as u16;
+        Ok(HandlerSpec(v))
     }
 }
 
@@ -88,24 +89,14 @@ impl HandlerSpecs {
         HandlerSpecs(bm)
     }
 }
-impl cbor::CborValue for HandlerSpecs {
-    fn encode(&self) -> cbor::Value {
-        let bm = self.0.iter().map(|(k,v)| (cbor::ObjectKey::Integer(*k as u64), cbor::CborValue::encode(v))).collect();
-        cbor::Value::Object(bm)
+impl se::Serialize for HandlerSpecs {
+    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
+        se::serialize_fixed_map(self.0.iter(), serializer)
     }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.object().and_then(|object| {
-            let mut bm = BTreeMap::new();
-            for (k, v) in object.iter() {
-                match k {
-                    &cbor::ObjectKey::Integer(ref k) => {
-                        bm.insert(*k as u32, cbor::CborValue::decode(v.clone())?);
-                    },
-                    _ => unimplemented!()
-                }
-            }
-            Ok(HandlerSpecs(bm))
-        }).embed("while decoding HandlerSpecs")
+}
+impl de::Deserialize for HandlerSpecs {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        Ok(HandlerSpecs(raw.deserialize()?))
     }
 }
 impl fmt::Display for HandlerSpecs {
@@ -152,32 +143,31 @@ impl Default for Handshake {
         )
     }
 }
-impl cbor::CborValue for Handshake {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::Array(
-            vec![
-                cbor::CborValue::encode(&self.protocol_magic),
-                cbor::CborValue::encode(&self.version),
-                cbor::CborValue::encode(&self.in_handlers),
-                cbor::CborValue::encode(&self.out_handlers),
-            ]
-        )
+impl se::Serialize for Handshake {
+    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
+        serializer.write_array(raw_cbor::Len::Len(4))?
+            .serialize(&self.protocol_magic)?
+            .serialize(&self.version)?
+            .serialize(&self.in_handlers)?
+            .serialize(&self.out_handlers)
     }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, pm)   = cbor::array_decode_elem(array, 0)?;
-            let (array, v)    = cbor::array_decode_elem(array, 0)?;
-            let (array, ins)  = cbor::array_decode_elem(array, 0)?;
-            let (array, outs) = cbor::array_decode_elem(array, 0)?;
-            if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-            Ok(Handshake::new(pm, v, ins, outs))
-        }).embed("while decoding Version")
+}
+impl raw_cbor::de::Deserialize for Handshake {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(4) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid Handshake: recieved array of {:?} elements", len)));
+        }
+        let pm   = raw.deserialize()?;
+        let v    = raw.deserialize()?;
+        let ins  = raw.deserialize()?;
+        let outs = raw.deserialize()?;
+
+        Ok(Handshake::new(pm, v, ins, outs))
     }
 }
 
-pub fn send_handshake(hs: &Handshake) -> Vec<u8> {
-    cbor::encode_to_cbor(hs).unwrap()
-}
+pub fn send_handshake(hs: &Handshake) -> Vec<u8> { cbor!(hs).unwrap() }
 
 // Message Header follow by the data
 type Message = (u8, Vec<u8>);
@@ -200,39 +190,35 @@ impl MsgType {
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     let value = if keep_alive { 43 } else { 42 };
-    let dat = encode_to_cbor(&Value::U64(value)).unwrap();
+    let dat = se::Serializer::new().write_unsigned_integer(value).unwrap().finalize();
     (0xe, dat)
 }
 
 pub fn send_msg_getheaders(froms: &[blockchain::HeaderHash], to: &Option<blockchain::HeaderHash>) -> Message {
-    let mut from_encoded = LinkedList::new();
-    for f in froms {
-        let b = Bytes::from_slice(f.as_ref());
-        from_encoded.push_back(Value::Bytes(b));
-    }
-    let to_encoded =
-        match to {
-            &None    => Value::Array(vec![]),
-            &Some(ref h) => {
-                let b = Bytes::from_slice(h.as_ref());
-                Value::Array(vec![Value::Bytes(b)])
-            }
-        };
-    let r = Value::Array(vec![Value::IArray(from_encoded), to_encoded]);
-    let dat = encode_to_cbor(&r).unwrap();
+    let serializer = se::Serializer::new().write_array(raw_cbor::Len::Len(2)).unwrap();
+    let serializer = se::serialize_indefinite_array(froms.iter(), serializer).unwrap();
+    let serializer = match to {
+        &None    => serializer.write_array(raw_cbor::Len::Len(0)).unwrap(),
+        &Some(ref h) => {
+            serializer.write_array(raw_cbor::Len::Len(1)).unwrap()
+                .serialize(h).unwrap()
+        }
+    };
+    let dat = serializer.finalize();
     (0x4, dat)
 }
 
 pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
-    let from_encoded = Value::Bytes(Bytes::from_slice(from.as_ref()));
-    let to_encoded = Value::Bytes(Bytes::from_slice(to.as_ref()));
-    let dat = encode_to_cbor(&Value::Array(vec![from_encoded, to_encoded])).unwrap();
+    let dat = se::Serializer::new().write_array(raw_cbor::Len::Len(2)).unwrap()
+        .serialize(from).unwrap()
+        .serialize(to).unwrap()
+        .finalize();
     (0x6, dat)
 }
 
 #[derive(Debug)]
 pub enum BlockHeaderResponse {
-    Ok(LinkedList<blockchain::BlockHeader>),
+    Ok(Vec<blockchain::BlockHeader>),
     Err(String)
 }
 impl fmt::Display for BlockHeaderResponse {
@@ -250,36 +236,24 @@ impl fmt::Display for BlockHeaderResponse {
         write!(f, "")
     }
 }
-impl cbor::CborValue for BlockHeaderResponse {
-    fn encode(&self) -> cbor::Value {
-        match self {
-            &BlockHeaderResponse::Ok(ref l) => {
-                cbor::Value::Array(
-                   vec![ cbor::Value::U64(0)
-                       , cbor::CborValue::encode(l)
-                       ]
-                )
-            },
-            &BlockHeaderResponse::Err(ref s) => {
-                cbor::Value::Array(vec![ cbor::Value::U64(1), cbor::Value::Text(s.clone()) ])
-            },
+impl de::Deserialize for BlockHeaderResponse {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
         }
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, code)  = cbor::array_decode_elem(array, 0).embed("enumeration code")?;
-            if code == 0u64 {
-                let (array, l) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(BlockHeaderResponse::Ok(l))
-            } else if code == 1u64 {
-                let (array, s) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(BlockHeaderResponse::Err(s))
-            } else {
-                cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
+        let sum_type = raw.unsigned_integer()?;
+        match sum_type {
+            0 => {
+                Ok(BlockHeaderResponse::Ok(raw.deserialize()?))
+            },
+            1 => {
+                Ok(BlockHeaderResponse::Err(raw.text()?))
+            },
+            _ => {
+                return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
             }
-        })
+        }
     }
 }
 
@@ -287,36 +261,28 @@ impl cbor::CborValue for BlockHeaderResponse {
 pub enum BlockResponse {
     Ok(blockchain::Block)
 }
-impl cbor::CborValue for BlockResponse {
-    fn encode(&self) -> cbor::Value {
-        match self {
-            &BlockResponse::Ok(ref l) => {
-                cbor::Value::Array(
-                   vec![ cbor::Value::U64(0)
-                       , cbor::CborValue::encode(l)
-                       ]
-                )
+impl de::Deserialize for BlockResponse {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let len = raw.array()?;
+        if len != raw_cbor::Len::Len(2) {
+            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
+        }
+        let sum_type = raw.unsigned_integer()?;
+        match sum_type {
+            0 => {
+                Ok(BlockResponse::Ok(raw.deserialize()?))
+            },
+            _ => {
+                return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
             }
         }
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|array| {
-            let (array, code)  = cbor::array_decode_elem(array, 0).embed("enumeration code")?;
-            if code == 0u64 {
-                let (array, l) = cbor::array_decode_elem(array, 0)?;
-                if ! array.is_empty() { return cbor::Result::array(array, cbor::Error::UnparsedValues); }
-                Ok(BlockResponse::Ok(l))
-            } else {
-                cbor::Result::array(array, cbor::Error::InvalidSumtype(code))
-            }
-        }).embed("While decoding block's response")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wallet_crypto::cbor;
+    use raw_cbor::{de::{RawCbor}};
 
     const GET_BLOCK_HEADER_BYTES : &'static [u8] = &[
           0x82, 0x00, 0x9f, 0x82, 0x01, 0x85, 0x1a, 0x2d
@@ -363,7 +329,7 @@ mod tests {
 
     #[test]
     fn parse_get_block_headers_response() {
-        let b = cbor::decode_from_cbor(GET_BLOCK_HEADER_BYTES).unwrap();
+        let b = RawCbor::from(GET_BLOCK_HEADER_BYTES).deserialize().unwrap();
         match b {
             BlockHeaderResponse::Ok(ll) => assert!(ll.len() == 1),
             BlockHeaderResponse::Err(error) => panic!("test failed: {}", error)
@@ -396,7 +362,7 @@ mod tests {
     fn handshake_decoding() {
         let hs = Handshake::default();
 
-        let hs_ : Handshake = cbor::decode_from_cbor(HANDSHAKE_BYTES).unwrap();
+        let hs_ : Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
         println!("");
         println!("{}", hs.in_handlers);
         println!("{}", hs_.in_handlers);
@@ -411,7 +377,7 @@ mod tests {
     fn handshake_encoding() {
         let hs = Handshake::default();
 
-        let vec = cbor::encode_to_cbor(&hs).unwrap();
+        let vec = cbor!(&hs).unwrap();
         assert_eq!(HANDSHAKE_BYTES, vec.as_slice());
     }
 }

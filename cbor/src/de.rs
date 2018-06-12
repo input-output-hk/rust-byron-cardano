@@ -10,6 +10,12 @@ pub trait Deserialize : Sized {
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
 }
 
+impl Deserialize for u32 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.unsigned_integer().map(|v| v as u32)
+    }
+}
+
 impl<T: Deserialize> Deserialize for Vec<T> {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         let len = raw.array()?;
