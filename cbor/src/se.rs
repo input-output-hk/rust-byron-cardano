@@ -7,6 +7,11 @@ use len::Len;
 pub trait Serialize {
     fn serialize(&self, serializer: Serializer) -> Result<Serializer>;
 }
+impl<'a, T: Serialize> Serialize for &'a T {
+    fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
+        serializer.serialize(*self)
+    }
+}
 impl Serialize for u32 {
     fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
         serializer.write_unsigned_integer((*self) as u64)
