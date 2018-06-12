@@ -14,8 +14,6 @@ use bip39;
 use std::{fmt, result};
 use std::marker::PhantomData;
 use util::{hex};
-use cbor;
-use cbor::{ExtendedResult};
 
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 
@@ -167,7 +165,7 @@ impl XPrv {
     }
 
     pub fn generate_from_daedalus_seed(seed: &Seed) -> Self {
-        let bytes = cbor::encode_to_cbor(&cbor::Value::Bytes(cbor::Bytes::from_slice(seed.as_ref()))).unwrap();
+        let bytes = raw_cbor::se::Serializer::new().write_bytes(&cbor!(seed.as_ref()).unwrap()).unwrap().finalize();
         let mut mac = Hmac::new(Sha512::new(), &bytes);
 
         let mut iter = 1;
@@ -436,20 +434,6 @@ impl raw_cbor::de::Deserialize for XPub {
         }
     }
 }
-impl cbor::CborValue for XPub {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref()))
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match XPub::from_slice(bytes.as_ref()) {
-                Ok(pk) => Ok(pk),
-                Err(Error::InvalidXPubSize(_)) => cbor::Result::bytes(bytes, cbor::Error::InvalidSize(XPUB_SIZE)),
-                Err(err) => panic!("unexpected error happended: {}", err),
-            }
-        }).embed("while decoding `XPub`")
-    }
-}
 impl serde::Serialize for XPub
 {
     #[inline]
@@ -568,18 +552,6 @@ impl<T> raw_cbor::de::Deserialize for Signature<T> {
             Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
             Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
-    }
-}
-impl<T> cbor::CborValue for Signature<T> {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Signature::from_slice(bytes.as_ref()) {
-                Ok(sign) => Ok(sign),
-                Err(Error::InvalidSignatureSize(_)) => cbor::Result::bytes(bytes, cbor::Error::InvalidSize(SIGNATURE_SIZE)),
-                Err(err) => panic!("unexpected error happended: {}", err),
-            }
-        }).embed("while decoding Signature<T>")
     }
 }
 impl<T> serde::Serialize for Signature<T>

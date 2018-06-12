@@ -4,8 +4,6 @@ use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use util::hex;
-use cbor;
-use cbor::{ExtendedResult};
 use raw_cbor::{self, de::RawCbor};
 
 use serde;
@@ -90,20 +88,6 @@ impl raw_cbor::de::Deserialize for Blake2b256 {
 impl raw_cbor::se::Serialize for Blake2b256 {
     fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
         serializer.write_bytes(&self.0)
-    }
-}
-impl cbor::CborValue for Blake2b256 {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Blake2b256::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidHashSize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(HASH_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Hash")
     }
 }
 impl serde::Serialize for Blake2b256

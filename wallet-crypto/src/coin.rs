@@ -4,8 +4,6 @@
 //! such as a min bound of 0 and a max bound of `MAX_COIN`.
 //!
 
-use cbor;
-use cbor::ExtendedResult;
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use std::{ops, fmt, result};
 
@@ -76,20 +74,9 @@ impl raw_cbor::se::Serialize for Coin {
 }
 impl raw_cbor::de::Deserialize for Coin {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
-        Coin::new(*raw.unsigned_integer()?).map_err(|err| {
+        Coin::new(raw.unsigned_integer()?).map_err(|err| {
             match err {
                 Error::OutOfBound(v) => raw_cbor::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN))
-            }
-        })
-    }
-}
-impl cbor::CborValue for Coin {
-    fn encode(&self) -> cbor::Value { cbor::Value::U64(self.0) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.u64().and_then(|v| {
-            match Coin::new(v) {
-                Ok(coin) => Ok(coin),
-                Err(Error::OutOfBound(_)) => cbor::Result::u64(v, cbor::Error::Between(0, MAX_COIN))
             }
         })
     }

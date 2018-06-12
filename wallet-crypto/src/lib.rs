@@ -14,6 +14,7 @@ extern crate log;
 extern crate test;
 
 extern crate rcw;
+#[macro_use]
 extern crate raw_cbor;
 
 mod crc32;

@@ -9,7 +9,6 @@ use rcw::sha3::Sha3;
 use redeem;
 use util::{base58};
 use cbor;
-use cbor::{ExtendedResult};
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
@@ -70,21 +69,6 @@ impl raw_cbor::de::Deserialize for DigestBlake2b224 {
         }
     }
 }
-impl cbor::CborValue for DigestBlake2b224 {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(cbor::Bytes::from_slice(self.0.as_ref()))
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match DigestBlake2b224::from_slice(bytes.as_ref()) {
-                Some(digest) => Ok(digest),
-                None         => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(28))
-                }
-            }
-        }).embed("while decoding DigestBlake2b224")
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
@@ -117,23 +101,10 @@ impl raw_cbor::se::Serialize for AddrType {
 }
 impl raw_cbor::de::Deserialize for AddrType {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
-        match AddrType::from_u64(*raw.unsigned_integer()?) {
+        match AddrType::from_u64(raw.unsigned_integer()?) {
             Some(addr_type) => Ok(addr_type),
             None => Err(raw_cbor::Error::CustomError(format!("Invalid AddrType")))
         }
-    }
-}
-impl cbor::CborValue for AddrType {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::U64(self.to_byte() as u64)
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.u64().and_then(|v| {
-            match AddrType::from_u64(v) {
-                Some(addr_type) => Ok(addr_type),
-                None            => cbor::Result::u64(v, cbor::Error::NotOneOf(&[cbor::Value::U64(0), cbor::Value::U64(1), cbor::Value::U64(2)]))
-            }
-        }).embed("while decoding AddrType")
     }
 }
 
@@ -141,7 +112,7 @@ impl cbor::CborValue for AddrType {
 pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
-        let buf = cbor::encode_to_cbor(pubk).unwrap();
+        let buf = raw_cbor::se::Serializer::new().serialize(pubk).unwrap().finalize();
         StakeholderId(DigestBlake2b224::new(buf.as_ref()))
     }
 }
@@ -153,13 +124,6 @@ impl raw_cbor::se::Serialize for StakeholderId {
 impl raw_cbor::de::Deserialize for StakeholderId {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         Ok(StakeholderId(raw_cbor::de::Deserialize::deserialize(raw)?))
-    }
-}
-impl cbor::CborValue for StakeholderId {
-    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        cbor::CborValue::decode(value).map(|digest| { StakeholderId(digest) })
-            .embed("while decoding StakeholderId")
     }
 }
 impl fmt::Display for StakeholderId {
@@ -184,49 +148,6 @@ impl StakeDistribution {
     }
     pub fn new_single_key(pubk: &XPub) -> Self {
         StakeDistribution::new_single_stakeholder(StakeholderId::new(pubk))
-    }
-}
-impl cbor::CborValue for StakeDistribution {
-    fn encode(&self) -> cbor::Value {
-        let value = match self {
-            &StakeDistribution::BootstrapEraDistr => {
-                cbor::Value::Array(
-                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)
-                        ]
-                )
-            }
-            &StakeDistribution::SingleKeyDistr(ref si) => {
-                cbor::Value::Array(
-                    vec![ cbor::Value::U64(STAKE_DISTRIBUTION_TAG_SINGLEKEY)
-                        , cbor::CborValue::encode(si)
-                        ]
-                )
-            }
-        };
-        let bytes = cbor::encode_to_cbor(&value).unwrap();
-        cbor::Value::Bytes(cbor::Bytes::new(bytes))
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        let bytes = value.bytes()
-            .embed("while decoding `StakeDistribution''s first level of indirection")?;
-        let value = cbor::decode_from_cbor::<cbor::Value>(bytes.as_ref())
-            .embed("while decoding `StakeDistribution`'s from cbor bytes")?;
-        value.array().and_then(|sum_type| {
-            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
-                .embed("while decoding `StakeDistribution`'s sumtype indice")?;
-            if n == STAKE_DISTRIBUTION_TAG_BOOTSTRAP {
-                Ok(StakeDistribution::new_bootstrap_era())
-            } else if n == STAKE_DISTRIBUTION_TAG_SINGLEKEY {
-                let (sum_type, k) = cbor::array_decode_elem(sum_type, 0)
-                    .embed("while decoding single key stake distribution")?;
-                if sum_type.len() != 0 {
-                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
-                }
-                Ok(StakeDistribution::new_single_stakeholder(k))
-            } else {
-                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
-            }
-        }).embed("while decoding `StakeDistribution`")
     }
 }
 impl raw_cbor::se::Serialize for StakeDistribution {
@@ -255,14 +176,14 @@ impl raw_cbor::de::Deserialize for StakeDistribution {
         }
 
         let sum_type_idx = raw.unsigned_integer()?;
-        match *sum_type_idx {
+        match sum_type_idx {
             STAKE_DISTRIBUTION_TAG_BOOTSTRAP => Ok(StakeDistribution::new_bootstrap_era()),
             STAKE_DISTRIBUTION_TAG_SINGLEKEY => {
                 let k = raw_cbor::de::Deserialize::deserialize(&mut raw)?;
                 Ok(StakeDistribution::new_single_stakeholder(k))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported StakeDistribution: {}", *sum_type_idx)))
+                Err(raw_cbor::Error::CustomError(format!("Unsupported StakeDistribution: {}", sum_type_idx)))
             }
         }
     }
@@ -291,44 +212,6 @@ impl Attributes {
 const ATTRIBUTE_NAME_TAG_STAKE : u64 = 0;
 const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
 
-impl cbor::CborValue for Attributes {
-    fn encode(&self) -> cbor::Value {
-        let mut map = BTreeMap::new();
-        match &self.stake_distribution {
-            &StakeDistribution::BootstrapEraDistr => { /**/ },
-            &StakeDistribution::SingleKeyDistr(_) => {
-                map.insert(
-                    cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE),
-                    cbor::CborValue::encode(&self.stake_distribution)
-                );
-            }
-        };
-        match &self.derivation_path {
-            &Some(ref dp) => {
-                map.insert(
-                    cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION),
-                    cbor::CborValue::encode(dp)
-                );
-            },
-            &None => {
-                /* insert nothing */
-            }
-        }
-        cbor::Value::Object(map)
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.object().and_then(|object| {
-            let (object, stake_distribution) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_STAKE))
-                .or_else(|(val, _)| val.object().map(|obj| (obj, StakeDistribution::BootstrapEraDistr)))?;
-            let (object, derivation_path) = cbor::object_decode_elem(object, cbor::ObjectKey::Integer(ATTRIBUTE_NAME_TAG_DERIVATION))
-                .or_else(|(val, _)| val.object().map(|obj| (obj, None)))?;
-            if object.len() != 0 {
-                return cbor::Result::object(object, cbor::Error::UnparsedValues);
-            }
-            Ok(Attributes { derivation_path: derivation_path, stake_distribution: stake_distribution })
-        }).embed("while decoding `Attributes`")
-    }
-}
 impl raw_cbor::se::Serialize for Attributes {
     fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
         let mut len = 0;
@@ -370,11 +253,11 @@ impl raw_cbor::de::Deserialize for Attributes {
         let mut derivation_path = None;
         while len > 0 {
             let key = raw.unsigned_integer()?;
-            match *key {
+            match key {
                 0 => stake_distribution = raw_cbor::de::Deserialize::deserialize(raw)?,
                 1 => derivation_path    = Some(raw_cbor::de::Deserialize::deserialize(raw)?),
                 _ => {
-                    return Err(raw_cbor::Error::CustomError(format!("invalid Attribute key {}", *key)));
+                    return Err(raw_cbor::Error::CustomError(format!("invalid Attribute key {}", key)));
                 }
             }
             len -= 1;
@@ -398,13 +281,6 @@ impl raw_cbor::se::Serialize for Addr {
 impl raw_cbor::de::Deserialize for Addr {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         raw_cbor::de::Deserialize::deserialize(raw).map(|digest| Addr(digest))
-    }
-}
-impl cbor::CborValue for Addr {
-    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        cbor::CborValue::decode(value).map(|digest| { Addr(digest) })
-            .embed("while decoding Addr")
     }
 }
 impl Addr {
@@ -500,16 +376,6 @@ impl ExtendedAddr {
     pub fn from_bytes(buf: &[u8]) -> raw_cbor::Result<Self> {
         let mut raw = RawCbor::from(buf);
         raw_cbor::de::Deserialize::deserialize(&mut raw)
-    }
-}
-impl cbor::CborValue for ExtendedAddr {
-    fn encode(&self) -> cbor::Value {
-        cbor::hs::util::encode_with_crc32(&(self.addr.clone(), self.attributes.clone(), self.addr_type.clone()))
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        let (addr, attr, ty) = cbor::hs::util::decode_with_crc32(value)
-            .embed("while decoding `ExtendedAddr`")?;
-        Ok(ExtendedAddr{addr:addr, attributes: attr, addr_type: ty})
     }
 }
 impl raw_cbor::se::Serialize for ExtendedAddr {
@@ -626,46 +492,6 @@ impl raw_cbor::se::Serialize for SpendingData {
         }
     }
 }
-impl cbor::CborValue for SpendingData {
-    fn encode(&self) -> cbor::Value {
-        let mut v = vec![];
-        match self {
-            &SpendingData::PubKeyASD(ref pk) => {
-                v.push(cbor::CborValue::encode(&SPENDING_DATA_TAG_PUBKEY));
-                v.push(cbor::CborValue::encode(pk));
-            },
-            &SpendingData::ScriptASD(_)      => unimplemented!(),
-            &SpendingData::RedeemASD(ref pk) => {
-                v.push(cbor::CborValue::encode(&SPENDING_DATA_TAG_REDEEM));
-                v.push(cbor::CborValue::encode(pk));
-            }
-        };
-        cbor::Value::Array(v)
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.array().and_then(|sum_type| {
-            let (sum_type, n) = cbor::array_decode_elem(sum_type, 0)
-                .embed("while retrieving the ID of the sum type")?;
-            if n == SPENDING_DATA_TAG_PUBKEY {
-                let (sum_type, pk) = cbor::array_decode_elem(sum_type, 0)
-                    .embed("while decoding the public key")?;
-                if sum_type.len() != 0 {
-                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
-                }
-                Ok(SpendingData::PubKeyASD(pk))
-            } else if n == SPENDING_DATA_TAG_REDEEM {
-                let (sum_type, pk) = cbor::array_decode_elem(sum_type, 0)
-                    .embed("while decoding the public key")?;
-                if sum_type.len() != 0 {
-                    return cbor::Result::array(sum_type, cbor::Error::UnparsedValues);
-                }
-                Ok(SpendingData::RedeemASD(pk))
-            } else {
-                cbor::Result::array(sum_type, cbor::Error::InvalidSumtype(n))
-            }
-        }).embed("while decoding `SpendingData`")
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -737,7 +563,6 @@ mod tests {
     #[test]
     fn encode_decode_digest_blake2b() {
         let digest = DigestBlake2b224::new(b"some random bytes...");
-        assert!(cbor::hs::encode_decode(&digest));
         assert!(raw_cbor::test_encode_decode(&digest).expect("encode/decode DigestBlake2b224"));
     }
     #[test]
@@ -745,9 +570,6 @@ mod tests {
         let addr_type_1 = AddrType::ATPubKey;
         let addr_type_2 = AddrType::ATScript;
         let addr_type_3 = AddrType::ATRedeem;
-        assert!(cbor::hs::encode_decode(&addr_type_1));
-        assert!(cbor::hs::encode_decode(&addr_type_2));
-        assert!(cbor::hs::encode_decode(&addr_type_3));
         assert!(raw_cbor::test_encode_decode(&addr_type_1).expect("encode/decode AddrType::ATPubKey"));
         assert!(raw_cbor::test_encode_decode(&addr_type_2).expect("encode/decode AddrType::ATScript"));
         assert!(raw_cbor::test_encode_decode(&addr_type_3).expect("encode/decode AddrType::ATRedeem"));
@@ -759,7 +581,6 @@ mod tests {
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
         let si = StakeholderId::new(&pk);
-        assert!(cbor::hs::encode_decode(&si));
         assert!(raw_cbor::test_encode_decode(&si).expect("encode/decode StakeholderId"));
     }
     #[test]
@@ -770,8 +591,6 @@ mod tests {
         let pk = sk.public();
         let sd_1 = StakeDistribution::new_bootstrap_era();
         let sd_2 = StakeDistribution::new_single_key(&pk);
-        assert!(cbor::hs::encode_decode(&sd_1));
-        assert!(cbor::hs::encode_decode(&sd_2));
         assert!(raw_cbor::test_encode_decode(&sd_1).expect("encode/decode StakeDistribution::BootstrapEra"));
         assert!(raw_cbor::test_encode_decode(&sd_2).expect("encode/decode StakeDistribution::SingleKey"));
     }
@@ -819,7 +638,7 @@ mod bench {
     use address::*;
     use hdwallet;
     use util::base58;
-    use raw_cbor;
+    use raw_cbor::de::{RawCbor};
 
     const CBOR : &[u8] =
         &[ 0x82, 0xd8, 0x18, 0x58, 0x4c, 0x83, 0x58, 0x1c, 0x2a, 0xc3, 0xcc, 0x97
@@ -835,31 +654,17 @@ mod bench {
     use test;
 
     #[bench]
-    fn encode_address_cbor_value(b: &mut test::Bencher) {
-        let addr : ExtendedAddr = cbor::decode_from_cbor(CBOR).unwrap();
-        b.iter(|| {
-            let _ = cbor::encode_to_cbor(&addr).unwrap();
-        })
-    }
-    #[bench]
-    fn decode_address_cbor_value(b: &mut test::Bencher) {
-        b.iter(|| {
-            let _ : ExtendedAddr = cbor::decode_from_cbor(CBOR).unwrap();
-        })
-    }
-    #[bench]
     fn encode_address_cbor_raw(b: &mut test::Bencher) {
         let mut raw = raw_cbor::de::RawCbor::from(CBOR);
         let addr : ExtendedAddr = raw_cbor::de::Deserialize::deserialize(&mut raw).unwrap();
         b.iter(|| {
-            let _ = raw_cbor::se::Serializer::new().serialize(&addr).unwrap().finalize();
+            let _ = cbor!(addr).unwrap();
         })
     }
     #[bench]
     fn decode_address_cbor_raw(b: &mut test::Bencher) {
         b.iter(|| {
-            let mut raw = raw_cbor::de::RawCbor::from(CBOR);
-            let _ : ExtendedAddr = raw_cbor::de::Deserialize::deserialize(&mut raw).unwrap();
+            let _ : ExtendedAddr = RawCbor::from(CBOR).deserialize().unwrap();
         })
     }
 }

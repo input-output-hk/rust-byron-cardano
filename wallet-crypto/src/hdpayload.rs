@@ -9,8 +9,6 @@ use self::rcw::pbkdf2::{pbkdf2};
 use std::{iter::repeat, ops::{Deref}};
 
 use hdwallet::{XPub};
-use cbor;
-use cbor::{ExtendedResult};
 use raw_cbor::{self, Len, de::RawCbor, se::{self, Serializer}};
 
 const NONCE : &'static [u8] = b"serokellfore";
@@ -44,22 +42,12 @@ impl raw_cbor::Deserialize for Path {
         if let Len::Len(len) = raw.array()? {
             let mut elements = Vec::new();
             for _ in 0..len as usize {
-                elements.push(*raw.unsigned_integer()? as u32);
+                elements.push(raw.unsigned_integer()? as u32);
             }
             Ok(Path::new(elements))
         } else {
             Err(raw_cbor::Error::CustomError(format!("CBor derivation path does not support indefinite-length derivation path")))
         }
-    }
-}
-impl cbor::CborValue for Path {
-    fn encode(&self) -> cbor::Value { cbor::Value::IArray(self.0.iter().map(cbor::CborValue::encode).collect()) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.iarray().and_then(|vec| {
-            let mut v = vec![];
-            for el in vec.iter() { v.push(cbor::CborValue::decode(el.clone())?); }
-            Ok(Path::new(v))
-        }).embed("while decoding Path")
     }
 }
 
@@ -154,19 +142,6 @@ impl raw_cbor::de::Deserialize for HDAddressPayload {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
         let mut raw_encoded = RawCbor::from(&raw.bytes()?);
         Ok(HDAddressPayload::from_bytes(&mut raw_encoded.bytes()?))
-    }
-}
-impl cbor::CborValue for HDAddressPayload {
-    fn encode(&self) -> cbor::Value {
-        let vec = cbor::encode_to_cbor(&cbor::Bytes::new(self.0.clone())).unwrap();
-        cbor::Value::Bytes(cbor::Bytes::new(vec))
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            let b : cbor::Bytes = cbor::decode_from_cbor(bytes.as_ref()).embed("while decoding the serialised cbor")?;
-            Ok(b.to_vec())
-        }).map(HDAddressPayload::from_vec)
-        .embed("while decoding HDAddressPayload")
     }
 }
 impl Deref for HDAddressPayload {
