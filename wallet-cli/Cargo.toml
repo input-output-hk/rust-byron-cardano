@@ -8,6 +8,7 @@ keywords = [ "Cardano", "Wallet", "cli" ]
 
 [dependencies]
 rcw = { path = "../rcw" }
+raw_cbor = { path = "../cbor" }
 wallet-crypto = { path = "../wallet-crypto" }
 protocol = { path = "../protocol" }
 blockchain = { path = "../blockchain" }

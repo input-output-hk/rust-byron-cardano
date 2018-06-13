@@ -14,8 +14,8 @@ use bip39;
 use std::{fmt, result};
 use std::marker::PhantomData;
 use util::{hex};
-use cbor;
-use cbor::{ExtendedResult};
+
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 
 use serde;
 
@@ -165,7 +165,7 @@ impl XPrv {
     }
 
     pub fn generate_from_daedalus_seed(seed: &Seed) -> Self {
-        let bytes = cbor::encode_to_cbor(&cbor::Value::Bytes(cbor::Bytes::from_slice(seed.as_ref()))).unwrap();
+        let bytes = raw_cbor::se::Serializer::new().write_bytes(&cbor!(seed.as_ref()).unwrap()).unwrap().finalize();
         let mut mac = Hmac::new(Sha512::new(), &bytes);
 
         let mut iter = 1;
@@ -419,18 +419,19 @@ impl fmt::Debug for XPub {
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
-impl cbor::CborValue for XPub {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref()))
+impl raw_cbor::se::Serialize for XPub {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.as_ref())
     }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match XPub::from_slice(bytes.as_ref()) {
-                Ok(pk) => Ok(pk),
-                Err(Error::InvalidXPubSize(_)) => cbor::Result::bytes(bytes, cbor::Error::InvalidSize(XPUB_SIZE)),
-                Err(err) => panic!("unexpected error happended: {}", err),
-            }
-        }).embed("while decoding `XPub`")
+}
+impl raw_cbor::de::Deserialize for XPub {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match XPub::from_slice(&bytes) {
+            Ok(pk) => Ok(pk),
+            Err(Error::InvalidXPubSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, XPUB_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 impl serde::Serialize for XPub
@@ -538,16 +539,19 @@ impl<T> fmt::Debug for Signature<T> {
 impl<T> AsRef<[u8]> for Signature<T> {
     fn as_ref(&self) -> &[u8] { &self.bytes }
 }
-impl<T> cbor::CborValue for Signature<T> {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Signature::from_slice(bytes.as_ref()) {
-                Ok(sign) => Ok(sign),
-                Err(Error::InvalidSignatureSize(_)) => cbor::Result::bytes(bytes, cbor::Error::InvalidSize(SIGNATURE_SIZE)),
-                Err(err) => panic!("unexpected error happended: {}", err),
-            }
-        }).embed("while decoding Signature<T>")
+impl<T> raw_cbor::se::Serialize for Signature<T> {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.as_ref())
+    }
+}
+impl<T> raw_cbor::de::Deserialize for Signature<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match Signature::from_slice(&bytes) {
+            Ok(signature) => Ok(signature),
+            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 impl<T> serde::Serialize for Signature<T>
@@ -954,7 +958,7 @@ mod tests {
         let derivation_index = 0x1;
         let seed = Seed::from_bytes([0;32]);
         let prv = XPrv::generate_from_seed(&seed);
-        let child_prv = prv.derive(DerivationScheme::V1, derivation_index);
+        let _ = prv.derive(DerivationScheme::V1, derivation_index);
     }
 
     #[test]

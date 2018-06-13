@@ -1,7 +1,7 @@
 use blockchain::{BlockHeader, Block, HeaderHash};
-use storage::{self, Storage, types::{PackHash}, tmpfile::{TmpFile}};
+use storage::{self, Storage, tmpfile::{TmpFile}};
 use std::io::{Write, Seek, SeekFrom};
-use std::time::{SystemTime, Duration};
+use std::time::{SystemTime};
 
 use config::net;
 

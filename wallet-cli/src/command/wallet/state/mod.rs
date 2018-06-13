@@ -5,12 +5,12 @@ pub mod sequentialindex;
 pub mod accum;
 pub mod log;
 
-use blockchain::{Block, BlockDate, HeaderHash, SlotId};
+use blockchain::{BlockDate};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 
 use super::config;
-use self::log::{LogLock, LogWriter};
+use self::log::{LogLock};
 
 pub struct Update;
 

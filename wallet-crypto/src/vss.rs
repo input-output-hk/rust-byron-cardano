@@ -1,5 +1,4 @@
-use cbor;
-use cbor::ExtendedResult;
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use std::{fmt, result};
 use util::hex;
 
@@ -24,25 +23,17 @@ impl fmt::Display for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 // TODO: decode to 35 bytes public-key http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublicKey(cbor::Value);
-impl cbor::CborValue for PublicKey {
-    fn encode(&self) -> cbor::Value {
-        unimplemented!() // FIXME crashes
-    }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        Ok(PublicKey(value))
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PublicKey(Vec<u8>);
+impl raw_cbor::se::Serialize for PublicKey {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(&self.0)
     }
 }
-// XXX: Bogus Ord implementation to satisfy PublicKey being used as a map-key (even though we don't actually decode it yet!)
-impl Ord for PublicKey {
-    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
-        format!("{:?}", self).cmp(&format!("{:?}", other))
-    }
-}
-impl PartialOrd for PublicKey {
-    fn partial_cmp(&self, other: &Self) -> Option<::std::cmp::Ordering> {
-        Some(self.cmp(other))
+impl raw_cbor::de::Deserialize for PublicKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        Ok(PublicKey(Vec::from(bytes.as_ref())))
     }
 }
 
@@ -84,20 +75,19 @@ impl AsRef<[u8]> for Signature {
         &self.0
     }
 }
-impl cbor::CborValue for Signature {
-    fn encode(&self) -> cbor::Value {
-        cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref()))
+impl raw_cbor::se::Serialize for Signature {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.as_ref())
     }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value
-            .bytes()
-            .and_then(|bytes| match Self::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidSignatureSize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(SIGNATURE_SIZE))
-                }
-                Err(err) => panic!("unexpected error: {}", err),
-            })
-            .embed("while decoding Vss's Signature")
+}
+impl raw_cbor::de::Deserialize for Signature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match Self::from_slice(raw.bytes()?.as_ref()) {
+            Ok(sig) => Ok(sig),
+            Err(Error::InvalidSignatureSize(sz)) => {
+                Err(raw_cbor::Error::NotEnough(SIGNATURE_SIZE, sz))
+            },
+            // Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {}", err))),
+        }
     }
 }

@@ -2,7 +2,7 @@
 //! operability with the appropriate network or different option.
 //!
 
-use cbor;
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use std::fmt;
 
 /// this is the protocol magic number
@@ -30,15 +30,19 @@ impl fmt::Display for ProtocolMagic {
         write!(f, "{}", self.0)
     }
 }
-impl cbor::CborValue for ProtocolMagic {
-    fn encode(&self) -> cbor::Value { cbor::CborValue::encode(&self.0) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        let v : u32 = cbor::CborValue::decode(value)?;
-        Ok(ProtocolMagic::new(v))
-    }
-}
 impl Default for ProtocolMagic {
     fn default() -> Self { ProtocolMagic::new(764824073) }
+}
+impl raw_cbor::se::Serialize for ProtocolMagic {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_unsigned_integer(self.0 as u64)
+    }
+}
+impl raw_cbor::Deserialize for ProtocolMagic {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let v = raw.unsigned_integer()? as u32;
+        Ok(ProtocolMagic::new(v))
+    }
 }
 
 /// Configuration for the wallet-crypto

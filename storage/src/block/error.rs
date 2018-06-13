@@ -1,12 +1,13 @@
 use types::{BlockHash};
 use std::{result, io};
-use wallet_crypto::{hash, cbor};
+use wallet_crypto::{hash};
+use raw_cbor;
 
 #[derive(Debug)]
 pub enum Error {
     NoTagHead,
     IoError(io::Error),
-    BlockEncodingError(cbor::Value, cbor::Error),
+    BlockEncodingError(raw_cbor::Error),
     InvalidHeaderHash(hash::Error),
     HashNotFound(BlockHash)
 }
@@ -16,8 +17,8 @@ impl From<hash::Error> for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
 }
-impl From<(cbor::Value, cbor::Error)> for Error {
-    fn from(e: (cbor::Value, cbor::Error)) -> Self { Error::BlockEncodingError(e.0, e.1) }
+impl From<raw_cbor::Error> for Error {
+    fn from(e: raw_cbor::Error) -> Self { Error::BlockEncodingError(e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;

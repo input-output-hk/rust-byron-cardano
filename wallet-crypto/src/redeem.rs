@@ -9,8 +9,7 @@
 
 use rcw::{ed25519};
 use util::{hex};
-use cbor;
-use cbor::{ExtendedResult};
+use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use serde;
 
 use std::{fmt, result, cmp};
@@ -177,48 +176,48 @@ impl Ord for Signature {
 //                                      CBOR
 // ---------------------------------------------------------------------------
 
-impl cbor::CborValue for PublicKey {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match PublicKey::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidPublicKeySize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(PUBLICKEY_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Reedem's PublicKey")
+impl raw_cbor::se::Serialize for PublicKey {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
+    }
+}
+impl raw_cbor::de::Deserialize for PublicKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match PublicKey::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidPublicKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PUBLICKEY_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 
-impl cbor::CborValue for PrivateKey {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match PrivateKey::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidPublicKeySize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(PRIVATEKEY_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Reedem's PrivateKey")
+impl raw_cbor::se::Serialize for PrivateKey {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
+    }
+}
+impl raw_cbor::de::Deserialize for PrivateKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match PrivateKey::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidPrivateKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PRIVATEKEY_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 
-impl cbor::CborValue for Signature {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Self::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidSignatureSize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(SIGNATURE_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Reedem's Signature")
+impl raw_cbor::se::Serialize for Signature {
+    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+        serializer.write_bytes(self.0.as_ref())
+    }
+}
+impl raw_cbor::de::Deserialize for Signature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        match Signature::from_slice(&raw.bytes()?) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
     }
 }
 

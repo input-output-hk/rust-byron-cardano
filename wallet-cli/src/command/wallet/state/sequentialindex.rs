@@ -1,11 +1,9 @@
 use wallet_crypto::bip44;
-use wallet_crypto::hdwallet;
 use wallet_crypto::wallet::Wallet;
 use std::collections::BTreeMap;
 use wallet_crypto::address::ExtendedAddr;
 use wallet_crypto::tx::{TxIn, TxId, TxOut};
-use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo, Utxos};
-use super::super::config::account;
+use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo};
 
 #[derive(Clone,Debug)]
 pub struct SequentialBip44Lookup {

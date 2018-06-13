@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate rcw;
+extern crate raw_cbor;
 extern crate wallet_crypto;
 extern crate blockchain;
 extern crate rand;
@@ -25,11 +26,9 @@ pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
 use refpack::{RefPack};
-use wallet_crypto::{cbor};
 use blockchain::{HeaderHash, BlockDate, RawBlock};
 
 use types::*;
-use config::*;
 use tmpfile::*;
 
 const USE_COMPRESSION : bool = true;
@@ -38,7 +37,7 @@ const USE_COMPRESSION : bool = true;
 pub enum Error {
     IoError(io::Error),
     BlockError(block::Error),
-    CborBlockError(cbor::Value, cbor::Error),
+    CborBlockError(raw_cbor::Error),
     // ** RefPack creation errors
     RefPackError(refpack::Error),
     RefPackUnexpectedGenesis(u32),
@@ -57,8 +56,8 @@ impl From<block::Error> for Error {
 impl From<refpack::Error> for Error {
     fn from(e: refpack::Error) -> Self { Error::RefPackError(e) }
 }
-impl From<(cbor::Value, cbor::Error)> for Error {
-    fn from((v, e): (cbor::Value, cbor::Error)) -> Self { Error::CborBlockError(v, e) }
+impl From<raw_cbor::Error> for Error {
+    fn from(e: raw_cbor::Error) -> Self { Error::CborBlockError(e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;

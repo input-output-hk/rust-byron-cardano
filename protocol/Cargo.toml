@@ -9,6 +9,7 @@ keywords = [ "Cardano", "Protocol" ]
 [build-dependencies]
 
 [dependencies]
+raw_cbor = { path = "../cbor" }
 wallet-crypto = { path = "../wallet-crypto" }
 blockchain = { path = "../blockchain" }
 log = "0.4"

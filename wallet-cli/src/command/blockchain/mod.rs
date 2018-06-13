@@ -1,4 +1,4 @@
-use wallet_crypto::{cbor, util::{hex}};
+use wallet_crypto::{util::{hex}};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, SubCommand, App};
 use storage;
@@ -9,6 +9,7 @@ use storage::{pack_blobs, block_location, block_read_location, pack, PackParamet
 use blockchain;
 use config::{Config};
 use std::io::{Write, stdout};
+use raw_cbor::de::RawCbor;
 
 use exe_common::{config::{net}, network::{api::{*}}};
 
@@ -267,7 +268,7 @@ impl HasCommand for Blockchain {
                 let mut net = get_native_peer(config.network.clone(), &net_cfg);
                 let b = net.get_block(hh.clone()).unwrap();
                 let storage = config.get_storage().unwrap();
-                blob::write(&storage, hh.bytes(), &cbor::encode_to_cbor(&b).unwrap()).unwrap();
+                blob::write(&storage, hh.bytes(), &cbor!(&b).unwrap()).unwrap();
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
@@ -538,7 +539,7 @@ fn pack_is_epoch(config: &Config,
         match reader.get_next() {
             None      => { return (true, known_prev_header.clone()); },
             Some(blk_raw) => {
-                let blk : blockchain::Block = cbor::decode_from_cbor(blk_raw.as_ref()).unwrap();
+                let blk : blockchain::Block = RawCbor::from(blk_raw.as_ref()).deserialize().unwrap();
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 let prev_hdr = hdr.get_previous_header();

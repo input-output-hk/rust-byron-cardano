@@ -4,8 +4,7 @@ use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use util::hex;
-use cbor;
-use cbor::{ExtendedResult};
+use raw_cbor::{self, de::RawCbor};
 
 use serde;
 
@@ -76,18 +75,19 @@ impl fmt::Display for Blake2b256 {
         write!(f, "{}", hex::encode(&self.0[..]))
     }
 }
-impl cbor::CborValue for Blake2b256 {
-    fn encode(&self) -> cbor::Value { cbor::Value::Bytes(cbor::Bytes::from_slice(self.as_ref())) }
-    fn decode(value: cbor::Value) -> cbor::Result<Self> {
-        value.bytes().and_then(|bytes| {
-            match Blake2b256::from_slice(bytes.as_ref()) {
-                Ok(digest) => Ok(digest),
-                Err(Error::InvalidHashSize(_)) => {
-                    cbor::Result::bytes(bytes, cbor::Error::InvalidSize(HASH_SIZE))
-                },
-                Err(err) => panic!("unexpected error: {}", err)
-            }
-        }).embed("while decoding Hash")
+impl raw_cbor::de::Deserialize for Blake2b256 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+        let bytes = raw.bytes()?;
+        match Blake2b256::from_slice(&bytes) {
+            Ok(digest) => Ok(digest),
+            Err(Error::InvalidHashSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, HASH_SIZE)),
+            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+        }
+    }
+}
+impl raw_cbor::se::Serialize for Blake2b256 {
+    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+        serializer.write_bytes(&self.0)
     }
 }
 impl serde::Serialize for Blake2b256
@@ -145,3 +145,13 @@ impl<'de> serde::Deserialize<'de> for Blake2b256
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
+    use raw_cbor::{self};
+
+    #[test]
+    fn encode_decode() {
+        assert!(raw_cbor::test_encode_decode(&Blake2b256::new([0;32].as_ref())).unwrap())
+    }
+}

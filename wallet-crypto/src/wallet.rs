@@ -212,7 +212,6 @@ impl Account {
 mod test {
     use super::*;
     use address::ExtendedAddr;
-    use cbor;
     use tx;
     use coin;
     use serde_json;
@@ -276,7 +275,7 @@ mod test {
 
         let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
 
-        let bytes = cbor::encode_to_cbor(&aux).unwrap();
+        let bytes = cbor!(&aux).unwrap();
 
         let expected = coin::Coin::new(bytes.len() as u64 * 44 + 155381).unwrap();
 
