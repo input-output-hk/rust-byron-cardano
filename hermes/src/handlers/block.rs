@@ -1,6 +1,5 @@
 use config::{Networks};
 use storage::{tag, block_location, block_read_location};
-use wallet_crypto::{cbor};
 use wallet_crypto::util::{hex};
 use blockchain;
 use std::sync::{Arc};
@@ -66,8 +65,6 @@ impl iron::Handler for Handler {
                         Ok(Response::with(status::InternalServerError))
                     },
                     Some(rblk) => {
-                        let blk = rblk.decode().unwrap();
-                        let hdr = blk.get_header();
                         Ok(Response::with((status::Ok, rblk.as_ref())))
                     }
                 }

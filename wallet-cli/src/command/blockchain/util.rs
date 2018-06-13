@@ -60,13 +60,3 @@ pub fn get_native_peer(blockchain: String, cfg: &net::Config) -> Peer {
 
     panic!("no native peer to connect to")
 }
-
-pub fn get_http_peer(blockchain: String, cfg: &net::Config) -> Peer {
-    for peer in cfg.peers.iter() {
-        if peer.is_http() {
-            return Peer::new(blockchain, peer.name().to_owned(), peer.peer().clone(), cfg.protocol_magic).unwrap()
-        }
-    }
-
-    panic!("no http peer to connect to")
-}
