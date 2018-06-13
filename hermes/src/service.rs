@@ -1,7 +1,7 @@
 use config::{Config, Networks};
 use exe_common::sync;
 use handlers;
-use iron::Iron;
+use iron;
 use router::Router;
 use std::sync::Arc;
 
@@ -11,13 +11,14 @@ pub fn start(cfg: Config) {
     start_http_server(cfg, networks);
 }
 
-fn start_http_server(cfg: Config, networks: Arc<Networks>) {
+fn start_http_server(cfg: &Config, networks: Arc<Networks>) -> iron::Listening {
     let mut router = Router::new();
     handlers::block::Handler::new(networks.clone()).route(&mut router);
     handlers::pack::Handler::new(networks.clone()).route(&mut router);
     handlers::epoch::Handler::new(networks.clone()).route(&mut router);
     info!("listenting to port {}", cfg.port);
-    Iron::new(router)
+    iron::Iron::new(router)
         .http(format!("0.0.0.0:{}", cfg.port))
-        .unwrap();
+        .expect("start http server")
+}
 }
