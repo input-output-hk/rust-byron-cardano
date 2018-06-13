@@ -1,9 +1,10 @@
 use blockchain;
 use config::net;
 use network::{api, Peer, api::Api};
-use {storage, storage::{tag, Storage, types::PackHash}};
+use storage;
+use storage::types::PackHash;
 
-pub fn net_sync_faster(network: String, mut storage: Storage) {
+pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
     let netcfg_file = storage.config.get_config_file();
     let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
     let mut net = get_http_peer(network, &net_cfg);
@@ -80,7 +81,7 @@ fn find_earliest_epoch(
 ) -> Option<(blockchain::EpochId, PackHash)> {
     let mut epoch_id = start_epochid;
     loop {
-        match tag::read_hash(storage, &tag::get_epoch_tag(epoch_id)) {
+        match storage::tag::read_hash(storage, &storage::tag::get_epoch_tag(epoch_id)) {
             None => match storage::epoch::epoch_read_pack(&storage.config, epoch_id).ok() {
                 None => {}
                 Some(h) => {
