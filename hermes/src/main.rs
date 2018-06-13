@@ -76,7 +76,10 @@ fn main() {
                     err => Err(err),
                 })
                 .unwrap();
-            info!("saving config, {:?}", cfg.save());
+            let loc = cfg.save().expect("save hermes config");
+            info!("Saved config to {:?}", loc);
+            ::std::fs::create_dir_all(cfg.root_dir.clone()).expect("create networks directory");
+            info!("Created networks directory {:?}", cfg.root_dir);
         },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());

@@ -34,7 +34,7 @@ impl From<serde_yaml::Error> for Error {
 type Result<T> = result::Result<T, Error>;
 
 /// Configuration file for the Wallet CLI
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub root_dir: PathBuf,
     pub port: u16
@@ -71,7 +71,7 @@ impl Config {
         let dir = self.get_networks_dir();
         let mut networks = Networks::new();
 
-        for entry in fs::read_dir(dir.clone())? {
+        for entry in fs::read_dir(dir.clone()).expect("read the networks-dir") {
             let entry = entry?;
             if ! entry.file_type()?.is_dir() { continue; }
             let name = entry.file_name();
