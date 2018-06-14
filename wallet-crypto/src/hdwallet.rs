@@ -709,7 +709,7 @@ fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
         let mut acc = 0;
         let mut out = [0u8; 32];
         for i in 0..32 {
-            out[i] = (y[i] << 3) + acc & 0x8;
+            out[i] = (y[i] << 3) + (acc & 0x8);
             acc = y[i] >> 5;
         }
         Fe::from_bytes(&out)
