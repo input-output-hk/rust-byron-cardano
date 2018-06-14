@@ -4,7 +4,7 @@ use self::rcw::digest::Digest;
 use self::rcw::sha2::Sha512;
 use self::rcw::hmac::Hmac;
 use self::rcw::mac::Mac;
-use self::rcw::curve25519::{Fe, GeP3, ge_scalarmult_base};
+use self::rcw::curve25519::{GeP3, ge_scalarmult_base, sc_reduce};
 use self::rcw::ed25519::signature_extended;
 use self::rcw::ed25519;
 use self::rcw::util::fixed_time_eq;
@@ -707,17 +707,25 @@ fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
 
     let yfe8 = {
         let mut acc = 0;
-        let mut out = [0u8; 32];
+        let mut out = [0u8; 64];
         for i in 0..32 {
             out[i] = (y[i] << 3) + (acc & 0x8);
             acc = y[i] >> 5;
         }
-        Fe::from_bytes(&out)
+        out
     };
 
-    let xfe = Fe::from_bytes(x);
-    let r = xfe + yfe8;
-    r.to_bytes()
+    let mut r32 = [0u8;32];
+    let mut r = [0u8;64];
+    let mut carry = 0u16;
+    for i in 0..32 {
+        let v = x[i] as u16 + yfe8[i] as u16 + carry;
+        r[i] = v as u8;
+        carry = v >> 8;
+    }
+    sc_reduce(&mut r);
+    r32.clone_from_slice(&r[0..32]);
+    r32
 }
 
 
