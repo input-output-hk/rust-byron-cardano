@@ -15,14 +15,14 @@ extern crate wallet_crypto;
 extern crate blockchain;
 extern crate exe_common;
 
-use std::{sync::{Arc}, path::{PathBuf}};
+use std::path::{PathBuf};
 
-use iron::Iron;
 
 mod config;
 mod handlers;
+mod service;
 
-use config::{Config};
+use config::Config;
 
 fn main() {
     use clap::{App, Arg, SubCommand};
@@ -44,7 +44,6 @@ fn main() {
                     .value_name("PORT NUMBER")
                     .help("set the port number to listen to")
                     .required(false)
-                    .default_value(r"80")
                 )
                 .arg(Arg::with_name("NETWORKS DIRECTORY")
                     .long("networks-dir")
@@ -52,7 +51,6 @@ fn main() {
                     .value_name("NETWORKS DIRECTORY")
                     .help("the relative or absolute directory of the networks to server")
                     .required(false)
-                    .default_value(r"networks")
                 )
         )
         .subcommand(
@@ -65,21 +63,27 @@ fn main() {
 
     match matches.subcommand() {
         ("init", Some(args)) => {
-            let port = value_t!(args.value_of("PORT NUMBER"), u16).unwrap();
-            let dir  = value_t!(args.value_of("NETWORKS DIRECTORY"), String).unwrap();
-            cfg.port = port;
-            cfg.root_dir = PathBuf::from(&dir);
-            cfg.save().unwrap();
+            cfg.port = value_t!(args.value_of("PORT NUMBER"), u16)
+                .or_else(|err| match err {
+                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.port),
+                    err => Err(err),
+                })
+                .unwrap();
+            cfg.root_dir = value_t!(args.value_of("NETWORKS DIRECTORY"), String)
+                .map(PathBuf::from)
+                .or_else(|err| match err {
+                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.root_dir.clone()),
+                    err => Err(err),
+                })
+                .unwrap();
+            let loc = cfg.save().expect("save hermes config");
+            info!("Saved config to {:?}", loc);
+            ::std::fs::create_dir_all(cfg.root_dir.clone()).expect("create networks directory");
+            info!("Created networks directory {:?}", cfg.root_dir);
         },
         ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
-            let mut router = router::Router::new();
-            let networks = Arc::new(cfg.get_networks().unwrap());
-            handlers::block::Handler::new(networks.clone()).route(&mut router);
-            handlers::pack::Handler::new(networks.clone()).route(&mut router);
-            handlers::epoch::Handler::new(networks.clone()).route(&mut router);
-            info!("listenting to port {}", cfg.port);
-            Iron::new(router).http(format!("0.0.0.0:{}", cfg.port)).unwrap();
+            service::start(cfg);
         },
         _ => {
             println!("{}", matches.usage());

@@ -34,7 +34,7 @@ impl From<serde_yaml::Error> for Error {
 type Result<T> = result::Result<T, Error>;
 
 /// Configuration file for the Wallet CLI
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub root_dir: PathBuf,
     pub port: u16
@@ -60,7 +60,7 @@ impl Config {
         Self::from_file(p)
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result<PathBuf> {
         let p = hermes_path()?.join("config.yml");
         self.to_file(p)
     }
@@ -71,7 +71,7 @@ impl Config {
         let dir = self.get_networks_dir();
         let mut networks = Networks::new();
 
-        for entry in fs::read_dir(dir.clone())? {
+        for entry in fs::read_dir(dir.clone()).expect("read the networks-dir") {
             let entry = entry?;
             if ! entry.file_type()?.is_dir() { continue; }
             let name = entry.file_name();
@@ -121,13 +121,13 @@ impl Config {
     /// write the config in the given file
     ///
     /// if the file already exists it will erase the original data.
-    pub fn to_file<P: AsRef<Path>>(&self, p: P) -> Result<()> {
+    pub fn to_file<P: AsRef<Path>>(&self, p: P) -> Result<P> {
         let dir = p.as_ref().parent().unwrap().to_path_buf();
         fs::DirBuilder::new().recursive(true).create(dir.clone())?;
         let mut file = TmpFile::create(dir)?;
         serde_yaml::to_writer(&mut file, &self)?;
         file.render_permanent(&p.as_ref().to_path_buf())?;
-        Ok(())
+        Ok(p)
     }
 }
 
