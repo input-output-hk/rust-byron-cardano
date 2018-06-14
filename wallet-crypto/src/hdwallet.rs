@@ -636,7 +636,7 @@ fn mk_ed25519_extended(extended_out: &mut [u8], secret: &[u8]) {
 }
 
 fn be32(i: u32) -> [u8; 4] {
-    [(i >> 24) as u8, (i >> 8) as u8, (i >> 16) as u8, i as u8]
+    [(i >> 24) as u8, (i >> 16) as u8, (i >> 8) as u8, i as u8]
 }
 
 fn le32(i: u32) -> [u8; 4] {
