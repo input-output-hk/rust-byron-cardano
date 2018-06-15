@@ -397,7 +397,7 @@ impl<'a> IntoIterator for &'a Inputs {
     fn into_iter(self) -> Self::IntoIter { self.0.iter() }
 }
 
-/// Collection of `Input` that will be used for creating a `Tx` and fee stabilisation
+/// Collection of `Output` that will be used for creating a `Tx` and fee stabilisation
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct Outputs(Vec<TxOut>);
 impl Outputs {
