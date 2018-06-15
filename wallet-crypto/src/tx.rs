@@ -452,7 +452,7 @@ pub mod fee {
     use std::{result, fmt};
     use super::*;
 
-    /// fee
+    /// A fee value that represent either a fee to pay, or a fee paid.
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
     pub struct Fee(Coin);
     impl Fee {
