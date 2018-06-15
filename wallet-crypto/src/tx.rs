@@ -70,12 +70,12 @@ impl fmt::Display for TxInWitness {
     }
 }
 impl TxInWitness {
-    /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
-    pub fn new(cfg: &Config, key: &XPrv, tx: &Tx) -> Self {
+    /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
+    pub fn new(cfg: &Config, key: &XPrv, txid: &TxId) -> Self {
         let vec = Serializer::new()
             .write_unsigned_integer(1).expect("write byte 0x01")
             .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
-            .serialize(&tx.id()).expect("serialize Tx's Id")
+            .serialize(&txid).expect("serialize Tx's Id")
             .finalize();
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
     }

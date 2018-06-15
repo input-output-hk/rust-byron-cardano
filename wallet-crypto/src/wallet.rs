@@ -104,6 +104,24 @@ impl Wallet {
         self.account(account)?.gen_addresses(addr_type, indices)
     }
 
+    /// Create all the witness associated with each selected inputs
+    /// for a specific already constructed Tx
+    ///
+    /// internal API
+    fn sign_tx(&self, tx: &tx::Tx, selected_inputs: &tx::Inputs) -> Vec<tx::TxInWitness> {
+        let mut witnesses = vec![];
+
+        let txid = tx.id();
+
+        for input in selected_inputs {
+            let key  = self.get_xprv(&input.addressing);
+
+            let txwitness = tx::TxInWitness::new(&self.config, &key, &txid);
+            witnesses.push(txwitness);
+        }
+        witnesses
+    }
+
     /// function to create a ready to send transaction to the network
     ///
     /// it select the needed inputs, compute the fee and possible change
@@ -127,14 +145,7 @@ impl Wallet {
 
         tx.add_output(tx::TxOut::new(change_addr.clone(), change));
 
-        let mut witnesses = vec![];
-
-        for input in selected_inputs {
-            let key  = self.get_xprv(&input.addressing);
-
-            let txwitness = tx::TxInWitness::new(&self.config, &key, &tx);
-            witnesses.push(txwitness);
-        }
+        let witnesses = self.sign_tx(&tx, &selected_inputs);
 
         Ok((tx::TxAux::new(tx, witnesses), fee))
     }
