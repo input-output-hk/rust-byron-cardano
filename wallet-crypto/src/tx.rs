@@ -484,7 +484,19 @@ pub mod fee {
         fn from(e: coin::Error) -> Error { Error::CoinError(e) }
     }
 
+    /// Algorithm trait for input selections
     pub trait Algorithm {
+        /// This takes from input:
+        /// * Selection Policy
+        /// * The tx inputs with at minimum 1 entry
+        /// * The tx outputs with at minimum 1 entry
+        /// * Extended address of where to send the remain
+        ///
+        /// It returns on success:
+        ///
+        /// * The computed fee associated
+        /// * The inputs selected
+        /// * The number of coin remaining that will be associated to the extended address specified
         fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
     }
 
