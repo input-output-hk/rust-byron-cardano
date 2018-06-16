@@ -1,15 +1,5 @@
-use std::{fmt, ops, iter, vec, slice, convert, result};
-
-use hash::{Blake2b256};
-
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
-use config::{Config};
-use redeem;
-
-use hdwallet::{Signature, XPub, XPrv};
-use address::{ExtendedAddr, SpendingData};
-use hdpayload;
-use bip44::{Addressing};
+use std::{fmt, result};
+use address::{ExtendedAddr};
 use coin;
 use coin::{Coin};
 use tx::{Inputs, Outputs, TxOut, Tx};
@@ -88,11 +78,11 @@ const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
 const CBOR_TXAUX_OVERHEAD: usize = 51;
 impl SelectionAlgorithm for LinearFee {
     fn compute( &self
-                , policy: SelectionPolicy
-                , inputs: &Inputs
-                , outputs: &Outputs
-                , change_addr: &ExtendedAddr
-                )
+              , policy: SelectionPolicy
+              , inputs: &Inputs
+              , outputs: &Outputs
+              , change_addr: &ExtendedAddr
+              )
         -> Result<(Fee, Inputs, Coin)>
     {
         if inputs.is_empty() { return Err(Error::NoInputs); }
