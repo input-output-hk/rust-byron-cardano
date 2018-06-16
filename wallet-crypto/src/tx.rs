@@ -485,7 +485,7 @@ pub mod fee {
     }
 
     /// Algorithm trait for input selections
-    pub trait Algorithm {
+    pub trait SelectionAlgorithm {
         /// This takes from input:
         /// * Selection Policy
         /// * The tx inputs with at minimum 1 entry
@@ -524,7 +524,7 @@ pub mod fee {
 
     const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
     const CBOR_TXAUX_OVERHEAD: usize = 51;
-    impl Algorithm for LinearFee {
+    impl SelectionAlgorithm for LinearFee {
         fn compute( &self
                   , policy: SelectionPolicy
                   , inputs: &Inputs
