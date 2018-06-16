@@ -13,18 +13,19 @@ use config;
 use bip39;
 use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
-use tx::fee::SelectionAlgorithm;
+use fee;
+use fee::SelectionAlgorithm;
 
 use std::{result, fmt};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
-    FeeCalculationError(tx::fee::Error),
+    FeeCalculationError(fee::Error),
     AddressingError(bip44::Error),
     WalletError(hdwallet::Error)
 }
-impl From<tx::fee::Error> for Error {
-    fn from(j: tx::fee::Error) -> Self { Error::FeeCalculationError(j) }
+impl From<fee::Error> for Error {
+    fn from(j: fee::Error) -> Self { Error::FeeCalculationError(j) }
 }
 impl From<hdwallet::Error> for Error {
     fn from(j: hdwallet::Error) -> Self { Error::WalletError(j) }
@@ -56,12 +57,12 @@ pub struct Wallet {
     pub cached_root_key: hdwallet::XPrv,
 
     pub config: config::Config,
-    pub selection_policy: tx::fee::SelectionPolicy,
+    pub selection_policy: fee::SelectionPolicy,
     pub derivation_scheme: hdwallet::DerivationScheme,
 }
 
 impl Wallet {
-    pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: tx::fee::SelectionPolicy) -> Self {
+    pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: fee::SelectionPolicy) -> Self {
         Wallet {
             cached_root_key: cached_root_key,
             config: config,
@@ -80,7 +81,7 @@ impl Wallet {
         Wallet {
             cached_root_key: key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE),
             config: config::Config::default(),
-            selection_policy: tx::fee::SelectionPolicy::default(),
+            selection_policy: fee::SelectionPolicy::default(),
             derivation_scheme
         }
     }
@@ -132,9 +133,9 @@ impl Wallet {
                           , outputs: &tx::Outputs
                           , change_addr: &address::ExtendedAddr
                           )
-        -> Result<(tx::TxAux, tx::fee::Fee)>
+        -> Result<(tx::TxAux, fee::Fee)>
     {
-        let alg = tx::fee::LinearFee::default();
+        let alg = fee::LinearFee::default();
 
         let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr)?;
 

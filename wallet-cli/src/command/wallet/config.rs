@@ -9,7 +9,7 @@
 use wallet_crypto::{
     self,
     hdwallet::{XPrv, DerivationScheme},
-    tx::fee::{SelectionPolicy},
+    fee::{SelectionPolicy},
     wallet::{self, Wallet, Account},
     bip44
 };
