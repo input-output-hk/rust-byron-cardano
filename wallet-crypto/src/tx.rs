@@ -18,6 +18,7 @@ use coin::{Coin};
 // to hash a `Tx` by serializing it cbor first.
 pub type TxId = Blake2b256;
 
+/// Tx Output composed of an address and a coin value
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
@@ -56,6 +57,16 @@ type TODO = u8;
 type ValidatorScript = TODO;
 type RedeemerScript = TODO;
 
+/// Provide a witness to a specific transaction, generally by revealing
+/// all the hidden information from the tx and cryptographic signatures.
+///
+/// Witnesses are of types:
+/// * PkWitness: a simple witness for a PubKeyASD type, which is composed
+///              of the revealed XPub associated with the address and
+///              the associated signature of the tx.
+/// * ScriptWitness: a witness for ScriptASD.
+/// * RedeemWitness: a witness for RedeemASD type, similar to PkWitness
+///                  but for normal Public Key.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     /// signature of the `Tx` with the associated `XPub`
@@ -70,6 +81,7 @@ impl fmt::Display for TxInWitness {
     }
 }
 impl TxInWitness {
+
     /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
     pub fn new(cfg: &Config, key: &XPrv, txid: &TxId) -> Self {
         let vec = Serializer::new()
@@ -237,6 +249,7 @@ impl raw_cbor::de::Deserialize for TxIn {
     }
 }
 
+/// A Transaction containing tx inputs and tx outputs.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tx {
     pub inputs: Vec<TxIn>,
@@ -597,6 +610,7 @@ pub mod fee {
     }
 }
 
+/// Tx with the vector of witnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
