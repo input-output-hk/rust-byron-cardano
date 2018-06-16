@@ -798,7 +798,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        assert_eq!(txinwitness, TxInWitness::new(&cfg, &sk, &tx));
+        assert_eq!(txinwitness, TxInWitness::new(&cfg, &sk, &tx.id()));
     }
 
     #[test]
@@ -809,7 +809,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
 
         assert!(raw_cbor::test_encode_decode(&txinwitness).expect("encode/decode TxInWitness"));
     }
@@ -843,7 +843,7 @@ mod tests {
         // txout of this given transation
 
         // create a TxInWitness (i.e. sign the given transaction)
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));
