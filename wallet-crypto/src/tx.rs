@@ -284,6 +284,13 @@ impl Tx {
     pub fn add_output(&mut self, o: TxOut) {
         self.outputs.push(o)
     }
+    pub fn get_output_total(&self) -> Coin {
+        let mut total = Coin::zero();
+        for ref o in self.outputs.iter() {
+            total = (total + o.value).unwrap()
+        }
+        total
+    }
 }
 impl raw_cbor::se::Serialize for Tx {
     fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
