@@ -614,7 +614,7 @@ impl<'de, T> serde::Deserialize<'de> for Signature<T>
 
 pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
-type DerivationIndex = u32;
+pub type DerivationIndex = u32;
 
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
 enum DerivationType {
