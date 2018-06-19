@@ -143,7 +143,7 @@ impl Wallet {
 
         let mut tx = tx::Tx::new_with(
             selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
-            outputs.iter().cloned().collect()
+            outputs.clone()
         );
 
         match output_policy {

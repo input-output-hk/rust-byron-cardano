@@ -1,4 +1,4 @@
-use std::{fmt, ops, iter, vec, slice, convert};
+use std::{fmt};
 
 use hash::{Blake2b256};
 
@@ -8,7 +8,6 @@ use redeem;
 
 use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
-use coin;
 use coin::{Coin};
 
 // TODO: this seems to be the hash of the serialisation CBOR of a given Tx.

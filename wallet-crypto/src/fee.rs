@@ -1,5 +1,4 @@
 use std::{fmt, result};
-use address::{ExtendedAddr};
 use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx};
