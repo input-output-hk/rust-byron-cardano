@@ -106,51 +106,6 @@ impl<'a> IntoIterator for &'a Inputs {
     fn into_iter(self) -> Self::IntoIter { self.0.iter() }
 }
 
-/// Collection of `Output` that will be used for creating a `Tx` and fee stabilisation
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct Outputs(Vec<TxOut>);
-impl Outputs {
-    pub fn new() -> Self { Outputs(Vec::new()) }
-    pub fn as_slice(&self) -> &[TxOut] { self.0.as_slice() }
-    pub fn push(&mut self, i: TxOut) { self.0.push(i) }
-    pub fn len(&self) -> usize { self.0.len() }
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-    pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
-
-    pub fn total(&self) -> coin::Result<Coin> {
-        self.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))
-    }
-}
-impl convert::AsRef<Outputs> for Outputs {
-    fn as_ref(&self) -> &Self { self }
-}
-impl convert::AsRef<[TxOut]> for Outputs {
-    fn as_ref(&self) -> &[TxOut] { self.0.as_ref() }
-}
-impl ops::Deref for Outputs {
-    type Target = [TxOut];
-
-    fn deref(&self) -> &[TxOut] { self.0.deref() }
-}
-impl iter::FromIterator<TxOut> for Outputs {
-    fn from_iter<I: IntoIterator<Item = TxOut>>(iter: I) -> Outputs {
-        Outputs(iter::FromIterator::from_iter(iter))
-    }
-}
-impl iter::Extend<TxOut> for Outputs {
-    fn extend<I>(&mut self, i: I) where I: IntoIterator<Item=TxOut> {
-        self.0.extend(i)
-    }
-}
-impl IntoIterator for Outputs {
-    type Item = TxOut;
-    type IntoIter = vec::IntoIter<TxOut>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
-}
-impl<'a> IntoIterator for &'a Outputs {
-    type Item = &'a TxOut;
-    type IntoIter = slice::Iter<'a, TxOut>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+pub fn output_sum(txout: &Vec<TxOut>) -> coin::Result<Coin> {
+    txout.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))
 }

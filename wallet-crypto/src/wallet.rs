@@ -132,7 +132,7 @@ impl Wallet {
     ///
     pub fn new_transaction( &self
                           , inputs: &txutils::Inputs
-                          , outputs: &txutils::Outputs
+                          , outputs: &Vec<tx::TxOut>
                           , output_policy: &txutils::OutputPolicy
                           )
         -> Result<(tx::TxAux, fee::Fee)>
@@ -275,7 +275,7 @@ mod test {
     fn check_pk_witnesses_of_transaction() {
         let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
         let inputs : txutils::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
-        let outputs : txutils::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let outputs : Vec<tx::TxOut> = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
         let (aux, _) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
@@ -287,7 +287,7 @@ mod test {
     fn check_fee_transaction() {
         let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
         let inputs : txutils::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
-        let outputs : txutils::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let outputs : Vec<tx::TxOut> = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
         let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();

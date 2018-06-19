@@ -3,7 +3,7 @@ use address::{ExtendedAddr};
 use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx};
-use txutils::{Inputs, Outputs, OutputPolicy};
+use txutils::{Inputs, OutputPolicy, output_sum};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
@@ -50,7 +50,7 @@ pub trait SelectionAlgorithm {
     /// * The computed fee associated
     /// * The inputs selected
     /// * The number of coin remaining that will be associated to the extended address specified
-    fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &OutputPolicy) -> Result<(Fee, Inputs, Coin)>;
+    fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Vec<TxOut>, change_addr: &OutputPolicy) -> Result<(Fee, Inputs, Coin)>;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
@@ -81,7 +81,7 @@ impl SelectionAlgorithm for LinearFee {
     fn compute( &self
               , policy: SelectionPolicy
               , inputs: &Inputs
-              , outputs: &Outputs
+              , outputs: &Vec<TxOut>
               , output_policy: &OutputPolicy
               )
         -> Result<(Fee, Inputs, Coin)>
@@ -89,7 +89,7 @@ impl SelectionAlgorithm for LinearFee {
         if inputs.is_empty() { return Err(Error::NoInputs); }
         if outputs.is_empty() { return Err(Error::NoOutputs); }
 
-        let output_value = outputs.total()?;
+        let output_value = output_sum(outputs)?;
         let mut fee = self.estimate(0)?;
         let mut input_value = Coin::zero();
         let mut selected_inputs = Inputs::new();
