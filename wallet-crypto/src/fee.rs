@@ -2,7 +2,8 @@ use std::{fmt, result};
 use address::{ExtendedAddr};
 use coin;
 use coin::{Coin};
-use tx::{Inputs, Outputs, TxOut, Tx};
+use tx::{TxOut, Tx};
+use txutils::{Inputs, Outputs};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
