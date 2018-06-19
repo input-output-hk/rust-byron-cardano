@@ -10,6 +10,7 @@ use hdwallet;
 use address;
 use tx;
 use txutils;
+use txutils::OutputPolicy;
 use config;
 use bip39;
 use bip44;
@@ -132,20 +133,22 @@ impl Wallet {
     pub fn new_transaction( &self
                           , inputs: &txutils::Inputs
                           , outputs: &txutils::Outputs
-                          , change_addr: &address::ExtendedAddr
+                          , output_policy: &txutils::OutputPolicy
                           )
         -> Result<(tx::TxAux, fee::Fee)>
     {
         let alg = fee::LinearFee::default();
 
-        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr)?;
+        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, output_policy)?;
 
         let mut tx = tx::Tx::new_with(
             selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
             outputs.iter().cloned().collect()
         );
 
-        tx.add_output(tx::TxOut::new(change_addr.clone(), change));
+        match output_policy {
+            OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
+        };
 
         let witnesses = self.sign_tx(&tx, &selected_inputs);
 
@@ -275,7 +278,7 @@ mod test {
         let outputs : txutils::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
-        let (aux, _) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+        let (aux, _) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
 
         assert!(wallet.verify_transaction(&inputs, &aux));
     }
@@ -287,7 +290,7 @@ mod test {
         let outputs : txutils::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
-        let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+        let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
 
         let bytes = cbor!(&aux).unwrap();
 

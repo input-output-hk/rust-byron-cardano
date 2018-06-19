@@ -5,6 +5,7 @@ use hdwallet;
 use hdpayload;
 use coin::{Coin};
 use coin;
+use address::ExtendedAddr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TxInInfoAddr {
@@ -21,6 +22,15 @@ pub struct TxInInfo {
     pub txin: TxIn,
     pub value: Coin,
     pub address_identified: Option<TxInInfoAddr>,
+}
+
+/// Output Policy chosen.
+/// 
+/// For now this is just a placeholder of a single address,
+/// but adding a ratio driven list of addresses seems
+/// a useful flexibility to have
+pub enum OutputPolicy {
+    One(ExtendedAddr),
 }
 
 /// This is a Resolved version of a `TxIn`.

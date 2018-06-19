@@ -3,7 +3,7 @@ use address::{ExtendedAddr};
 use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx};
-use txutils::{Inputs, Outputs};
+use txutils::{Inputs, Outputs, OutputPolicy};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
@@ -50,7 +50,7 @@ pub trait SelectionAlgorithm {
     /// * The computed fee associated
     /// * The inputs selected
     /// * The number of coin remaining that will be associated to the extended address specified
-    fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
+    fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &OutputPolicy) -> Result<(Fee, Inputs, Coin)>;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
@@ -82,7 +82,7 @@ impl SelectionAlgorithm for LinearFee {
               , policy: SelectionPolicy
               , inputs: &Inputs
               , outputs: &Outputs
-              , change_addr: &ExtendedAddr
+              , output_policy: &OutputPolicy
               )
         -> Result<(Fee, Inputs, Coin)>
     {
@@ -118,7 +118,9 @@ impl SelectionAlgorithm for LinearFee {
             match output_value - input_value - estimated_fee.to_coin() {
                 None => {},
                 Some(change_value) => {
-                    tx.add_output(TxOut::new(change_addr.clone(), change_value))
+                    match output_policy {
+                        OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
+                    }
                 }
             };
 
