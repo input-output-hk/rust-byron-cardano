@@ -185,6 +185,14 @@ mod tests {
         let got = key.encrypt(&dat[..]);
         assert_eq!(&expected[..], &got[..])
     }
+
+    #[test]
+    fn unit2() {
+        let path = Path::new(vec![0,1]);
+        let expected = [0x9f, 0x00, 0x01, 0x0ff];
+        let cbor = path.cbor();
+        assert_eq!(&expected[..], &cbor[..])
+    }
 }
 
 #[cfg(test)]
