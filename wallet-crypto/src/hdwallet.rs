@@ -164,10 +164,11 @@ impl XPrv {
         Self::from_bytes(out)
     }
 
-    pub fn generate_from_daedalus_seed(seed: &Seed) -> Self {
-        // FIXME TEMPORARY double CBOR encoder present here, hence the slice starting at 2 on next line.
-        let bytes = raw_cbor::se::Serializer::new().write_bytes(&cbor!(seed.as_ref()).unwrap()).unwrap().finalize();
-        let mut mac = Hmac::new(Sha512::new(), &bytes[2..]);
+    /// for some unknown design reasons Daedalus seeds are encoded in cbor
+    /// We then expect the input here to be cbor encoded before hande.
+    ///
+    pub fn generate_from_daedalus_seed(bytes: &[u8]) -> Self {
+        let mut mac = Hmac::new(Sha512::new(), bytes);
 
         let mut iter = 1;
         let mut out = [0u8; XPRV_SIZE];
@@ -1078,7 +1079,7 @@ mod golden_tests {
     use super::*;
     use bip39;
     use rcw::{blake2b::Blake2b};
-    use cbor;
+    use raw_cbor;
 
 struct TestVector {
     /// BIP39 Seed
@@ -1102,9 +1103,7 @@ struct TestVector {
 }
 
     fn check_derivation(test_index: usize, test: &TestVector) {
-        // we ignore the 2 bytes that are from cbor serialisation
-        let seed = Seed::from_slice(&test.seed[2..]).expect("failed to read the seed slice from test");
-        let mut xprv = XPrv::generate_from_daedalus_seed(&seed);
+        let mut xprv = XPrv::generate_from_daedalus_seed(&test.seed);
 
         let scheme = match test.derivation_scheme {
             "derivation-scheme1" => DerivationScheme::V1,
@@ -1127,14 +1126,13 @@ struct TestVector {
     }
 
     fn check_mnemonics(test_index: usize, test: &TestVector) {
-        /*
         let mnemonics = bip39::Mnemonics::from_string(&bip39::dictionary::ENGLISH, test.words)
             .expect("retrieve the mnemonics from the string");
         let entropy = bip39::Entropy::from_mnemonics(&mnemonics)
             .expect("retrieve the entropy from the mnemonics");
 
-        let entropy_bytes = cbor::Value::Bytes(cbor::Bytes::new(Vec::from(entropy.as_ref())));
-        let entropy_cbor = cbor::encode_to_cbor(&entropy_bytes).expect("encode entropy in cbor");
+        let entropy_bytes = raw_cbor::Value::Bytes(Vec::from(entropy.as_ref()));
+        let entropy_cbor = cbor!(&entropy_bytes).expect("encode entropy in cbor");
         let seed = {
             let mut blake2b = Blake2b::new(32);
             Digest::input(&mut blake2b, &entropy_cbor);
@@ -1146,7 +1144,6 @@ struct TestVector {
         let seed_hex = hex::encode(seed.as_ref());
 
         assert_eq!(seed_ref_hex, seed_hex, "seed from test {}", test_index);
-        */
     }
 
     #[test]
