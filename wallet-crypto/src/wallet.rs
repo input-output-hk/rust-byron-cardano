@@ -10,13 +10,14 @@ use hdwallet;
 use address;
 use tx;
 use txutils;
-use txutils::OutputPolicy;
+use txutils::{OutputPolicy, TxInInfoAddr};
 use config;
 use bip39;
 use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use fee;
-use fee::SelectionAlgorithm;
+use fee::{SelectionAlgorithm, FeeAlgorithm};
+use coin;
 
 use std::{result, fmt};
 
@@ -24,7 +25,8 @@ use std::{result, fmt};
 pub enum Error {
     FeeCalculationError(fee::Error),
     AddressingError(bip44::Error),
-    WalletError(hdwallet::Error)
+    WalletError(hdwallet::Error),
+    CoinError(coin::Error),
 }
 impl From<fee::Error> for Error {
     fn from(j: fee::Error) -> Self { Error::FeeCalculationError(j) }
@@ -34,6 +36,9 @@ impl From<hdwallet::Error> for Error {
 }
 impl From<bip44::Error> for Error {
     fn from(e: bip44::Error) -> Self { Error::AddressingError(e) }
+}
+impl From<coin::Error> for Error {
+    fn from(j: coin::Error) -> Self { Error::CoinError(j) }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -46,6 +51,9 @@ impl fmt::Display for Error {
             },
             &Error::WalletError(err) => {
                 write!(f, "HD Wallet error: {}", err)
+            }
+            &Error::CoinError(err) => {
+                write!(f, "Coin error: {}", err)
             }
         }
     }
@@ -111,13 +119,39 @@ impl Wallet {
     /// for a specific already constructed Tx
     ///
     /// internal API
-    fn sign_tx(&self, tx: &tx::Tx, selected_inputs: &txutils::Inputs) -> Vec<tx::TxInWitness> {
+    fn sign_tx_old(&self, tx: &tx::Tx, selected_inputs: &txutils::Inputs) -> Vec<tx::TxInWitness> {
         let mut witnesses = vec![];
 
         let txid = tx.id();
 
         for input in selected_inputs {
             let key  = self.get_xprv(&input.addressing);
+
+            let txwitness = tx::TxInWitness::new(&self.config, &key, &txid);
+            witnesses.push(txwitness);
+        }
+        witnesses
+    }
+
+    /// Create all the witness associated with each selected inputs
+    /// for a specific already constructed Tx
+    ///
+    /// internal API
+    fn sign_tx(&self, tx: &tx::Tx, selected_inputs: &Vec<txutils::TxInInfo>) -> Vec<tx::TxInWitness> {
+        let mut witnesses = vec![];
+
+        let txid = tx.id();
+
+        for input in selected_inputs {
+            let key = match input.address_identified {
+                None => unimplemented!(),
+                Some(ref addr) => {
+                    match addr {
+                        TxInInfoAddr::Bip44(ref addressing) => self.get_xprv(addressing),
+                        TxInInfoAddr::Level2(ref addressing) => unimplemented!(),
+                    }
+                }
+            };
 
             let txwitness = tx::TxInWitness::new(&self.config, &key, &txid);
             witnesses.push(txwitness);
@@ -150,9 +184,51 @@ impl Wallet {
             OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
         };
 
-        let witnesses = self.sign_tx(&tx, &selected_inputs);
+        let witnesses = self.sign_tx_old(&tx, &selected_inputs);
 
         Ok((tx::TxAux::new(tx, witnesses), fee))
+    }
+
+
+    pub fn move_transaction(&self, inputs: &Vec<txutils::TxInInfo>, output_policy: &txutils::OutputPolicy) -> Result<(tx::TxAux, fee::Fee)> {
+        let alg = fee::LinearFee::default();
+
+        let total_input : coin::Coin = {
+            let mut total = coin::Coin::new(0)?;
+            for ref i in inputs.iter() {
+                let acc = total + i.value;
+                total = acc?
+            }
+            total
+        };
+
+        let tx_base = tx::Tx::new_with( inputs.iter().cloned().map(|input| input.txin).collect()
+                                      , vec![]);
+        let min_fee_for_inputs = alg.calculate_for_tx(&tx_base)?.to_coin();
+        let c = coin::Coin::new(0);
+        loop {
+            // TODO not finished
+            let mut tx = tx_base.clone();
+            let mut out_total = (total_input - min_fee_for_inputs).unwrap_or(coin::Coin::zero());
+            match output_policy {
+                OutputPolicy::One(change_addr) => {
+                    let txout = tx::TxOut::new(change_addr.clone(), out_total);
+                    tx.add_output(txout);
+                },
+            };
+
+            if false {
+                let witnesses = self.sign_tx(&tx, &inputs);
+                match total_input - tx.get_output_total() {
+                    None => {},
+                    Some(fee) => {
+                        let txaux = tx::TxAux::new(tx, witnesses);
+                        return Ok((txaux, fee::Fee::new(fee)))
+                    },
+                }
+            }
+
+        }
     }
 
     pub fn verify_transaction(&self, inputs: &txutils::Inputs, txaux: &tx::TxAux) -> bool {
