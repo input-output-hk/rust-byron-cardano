@@ -17,7 +17,7 @@ pub enum Error {
     NoInputs,
     NoOutputs,
     NotEnoughInput,
-    CoinError(coin::Error)
+    CoinError(coin::Error),
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
