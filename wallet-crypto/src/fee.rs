@@ -70,6 +70,18 @@ impl LinearFee {
         Ok(Fee(coin))
     }
 }
+
+pub trait FeeAlgorithm {
+    fn calculate_for_tx(&self, tx: &Tx) -> Result<Fee>;
+}
+
+impl FeeAlgorithm for LinearFee {
+    fn calculate_for_tx(&self, tx: &Tx) -> Result<Fee> {
+        let txbytes = cbor!(tx).unwrap();
+        self.estimate(txbytes.len())
+    }
+}
+
 impl Default for LinearFee {
     fn default() -> Self { LinearFee::new(155381.0, 43.946) }
 }
