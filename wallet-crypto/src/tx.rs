@@ -1,4 +1,4 @@
-use std::{fmt, ops, iter, vec, slice, convert};
+use std::{fmt};
 
 use hash::{Blake2b256};
 
@@ -8,9 +8,6 @@ use redeem;
 
 use hdwallet::{Signature, XPub, XPrv};
 use address::{ExtendedAddr, SpendingData};
-use hdpayload;
-use bip44::{Addressing};
-use coin;
 use coin::{Coin};
 
 // TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
@@ -18,6 +15,7 @@ use coin::{Coin};
 // to hash a `Tx` by serializing it cbor first.
 pub type TxId = Blake2b256;
 
+/// Tx Output composed of an address and a coin value
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
@@ -56,6 +54,16 @@ type TODO = u8;
 type ValidatorScript = TODO;
 type RedeemerScript = TODO;
 
+/// Provide a witness to a specific transaction, generally by revealing
+/// all the hidden information from the tx and cryptographic signatures.
+///
+/// Witnesses are of types:
+/// * PkWitness: a simple witness for a PubKeyASD type, which is composed
+///              of the revealed XPub associated with the address and
+///              the associated signature of the tx.
+/// * ScriptWitness: a witness for ScriptASD.
+/// * RedeemWitness: a witness for RedeemASD type, similar to PkWitness
+///                  but for normal Public Key.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     /// signature of the `Tx` with the associated `XPub`
@@ -70,12 +78,13 @@ impl fmt::Display for TxInWitness {
     }
 }
 impl TxInWitness {
-    /// create a TxInWitness from a given private key `XPrv` for the given transaction `Tx`.
-    pub fn new(cfg: &Config, key: &XPrv, tx: &Tx) -> Self {
+
+    /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
+    pub fn new(cfg: &Config, key: &XPrv, txid: &TxId) -> Self {
         let vec = Serializer::new()
             .write_unsigned_integer(1).expect("write byte 0x01")
             .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
-            .serialize(&tx.id()).expect("serialize Tx's Id")
+            .serialize(&txid).expect("serialize Tx's Id")
             .finalize();
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
     }
@@ -237,6 +246,7 @@ impl raw_cbor::de::Deserialize for TxIn {
     }
 }
 
+/// A Transaction containing tx inputs and tx outputs.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tx {
     pub inputs: Vec<TxIn>,
@@ -270,6 +280,13 @@ impl Tx {
     }
     pub fn add_output(&mut self, o: TxOut) {
         self.outputs.push(o)
+    }
+    pub fn get_output_total(&self) -> Coin {
+        let mut total = Coin::zero();
+        for ref o in self.outputs.iter() {
+            total = (total + o.value).unwrap()
+        }
+        total
     }
 }
 impl raw_cbor::se::Serialize for Tx {
@@ -324,267 +341,7 @@ impl raw_cbor::de::Deserialize for Tx {
     }
 }
 
-/// This is a Resolved version of a `TxIn`.
-///
-/// It contains the `TxIn` which is the value we need to put in the
-/// transaction to reference funds to input to the transation.
-///
-/// It also contains the `TxOut` the value present at the given
-/// `TxIn`'s `TxId` and _index_ in the block chain.
-///
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct Input {
-    pub ptr:   TxIn,
-    pub value: TxOut,
-    pub addressing: Addressing
-}
-impl Input {
-    pub fn new(ptr: TxIn, value: TxOut, addressing: Addressing) -> Self
-    { Input { ptr: ptr, value: value, addressing: addressing } }
-
-    pub fn value(&self) -> Coin { self.value.value }
-
-    pub fn get_derivation_path(&self, key: &hdpayload::HDKey) -> Option<hdpayload::Path> {
-        match &self.value.address.attributes.derivation_path {
-            &Some(ref payload) => { key.decrypt_path(payload) },
-            &None              => { None }
-        }
-    }
-}
-
-/// Collection of `Input` that will be used for creating a `Tx` and fee stabilisation
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct Inputs(Vec<Input>);
-impl Inputs {
-    pub fn new() -> Self { Inputs(Vec::new()) }
-    pub fn as_slice(&self) -> &[Input] { self.0.as_slice() }
-    pub fn push(&mut self, i: Input) { self.0.push(i) }
-    pub fn len(&self) -> usize { self.0.len() }
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-    pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
-}
-impl convert::AsRef<Inputs> for Inputs {
-    fn as_ref(&self) -> &Self { self }
-}
-impl convert::AsRef<[Input]> for Inputs {
-    fn as_ref(&self) -> &[Input] { self.0.as_ref() }
-}
-impl ops::Deref for Inputs {
-    type Target = [Input];
-
-    fn deref(&self) -> &[Input] { self.0.deref() }
-}
-impl iter::FromIterator<Input> for Inputs {
-    fn from_iter<I: IntoIterator<Item = Input>>(iter: I) -> Inputs {
-        Inputs(iter::FromIterator::from_iter(iter))
-    }
-}
-impl iter::Extend<Input> for Inputs {
-    fn extend<I>(&mut self, i: I) where I: IntoIterator<Item=Input> {
-        self.0.extend(i)
-    }
-}
-impl IntoIterator for Inputs {
-    type Item = Input;
-    type IntoIter = vec::IntoIter<Input>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
-}
-impl<'a> IntoIterator for &'a Inputs {
-    type Item = &'a Input;
-    type IntoIter = slice::Iter<'a, Input>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
-}
-
-/// Collection of `Input` that will be used for creating a `Tx` and fee stabilisation
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct Outputs(Vec<TxOut>);
-impl Outputs {
-    pub fn new() -> Self { Outputs(Vec::new()) }
-    pub fn as_slice(&self) -> &[TxOut] { self.0.as_slice() }
-    pub fn push(&mut self, i: TxOut) { self.0.push(i) }
-    pub fn len(&self) -> usize { self.0.len() }
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
-    pub fn append(&mut self, other: &mut Self) { self.0.append(&mut other.0)}
-
-    pub fn total(&self) -> coin::Result<Coin> {
-        self.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))
-    }
-}
-impl convert::AsRef<Outputs> for Outputs {
-    fn as_ref(&self) -> &Self { self }
-}
-impl convert::AsRef<[TxOut]> for Outputs {
-    fn as_ref(&self) -> &[TxOut] { self.0.as_ref() }
-}
-impl ops::Deref for Outputs {
-    type Target = [TxOut];
-
-    fn deref(&self) -> &[TxOut] { self.0.deref() }
-}
-impl iter::FromIterator<TxOut> for Outputs {
-    fn from_iter<I: IntoIterator<Item = TxOut>>(iter: I) -> Outputs {
-        Outputs(iter::FromIterator::from_iter(iter))
-    }
-}
-impl iter::Extend<TxOut> for Outputs {
-    fn extend<I>(&mut self, i: I) where I: IntoIterator<Item=TxOut> {
-        self.0.extend(i)
-    }
-}
-impl IntoIterator for Outputs {
-    type Item = TxOut;
-    type IntoIter = vec::IntoIter<TxOut>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
-}
-impl<'a> IntoIterator for &'a Outputs {
-    type Item = &'a TxOut;
-    type IntoIter = slice::Iter<'a, TxOut>;
-
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
-}
-
-pub mod fee {
-    //! fee stabilisation related algorithm
-
-    use std::{result, fmt};
-    use super::*;
-
-    /// fee
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
-    pub struct Fee(Coin);
-    impl Fee {
-        pub fn new(coin: Coin) -> Self { Fee(coin) }
-        pub fn to_coin(&self) -> Coin { self.0 }
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
-    pub enum Error {
-        NoInputs,
-        NoOutputs,
-        NotEnoughInput,
-        CoinError(coin::Error)
-    }
-    impl fmt::Display for Error {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            match self {
-                &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
-                &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
-                &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
-                &Error::CoinError(err) => write!(f, "Error on coin operations: {}", err)
-            }
-        }
-    }
-
-    type Result<T> = result::Result<T, Error>;
-
-    impl From<coin::Error> for Error {
-        fn from(e: coin::Error) -> Error { Error::CoinError(e) }
-    }
-
-    pub trait Algorithm {
-        fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Outputs, change_addr: &ExtendedAddr) -> Result<(Fee, Inputs, Coin)>;
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
-    pub struct LinearFee {
-        /// this is the minimal fee
-        constant: f64,
-        /// the transaction's size coefficient fee
-        coefficient: f64
-    }
-    impl LinearFee {
-        pub fn new(constant: f64, coefficient: f64) -> Self {
-            LinearFee { constant: constant, coefficient: coefficient }
-        }
-
-        pub fn estimate(&self, sz: usize) -> Result<Fee> {
-            let fee = self.constant + self.coefficient * (sz as f64);
-            let coin = Coin::new(fee as u64)?;
-            Ok(Fee(coin))
-        }
-    }
-    impl Default for LinearFee {
-        fn default() -> Self { LinearFee::new(155381.0, 43.946) }
-    }
-
-    const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
-    const CBOR_TXAUX_OVERHEAD: usize = 51;
-    impl Algorithm for LinearFee {
-        fn compute( &self
-                  , policy: SelectionPolicy
-                  , inputs: &Inputs
-                  , outputs: &Outputs
-                  , change_addr: &ExtendedAddr
-                  )
-            -> Result<(Fee, Inputs, Coin)>
-        {
-            if inputs.is_empty() { return Err(Error::NoInputs); }
-            if outputs.is_empty() { return Err(Error::NoOutputs); }
-
-            let output_value = outputs.total()?;
-            let mut fee = self.estimate(0)?;
-            let mut input_value = Coin::zero();
-            let mut selected_inputs = Inputs::new();
-
-            // create the Tx on the fly
-            let mut txins = Vec::new();
-            let     txouts : Vec<TxOut> = outputs.iter().cloned().collect();
-
-            // for now we only support this selection algorithm
-            // we need to remove this assert when we extend to more
-            // granulated selection policy
-            assert!(policy == SelectionPolicy::FirstMatchFirst);
-
-            for input in inputs.iter() {
-                input_value = (input_value + input.value())?;
-                selected_inputs.push(input.clone());
-                txins.push(input.ptr.clone());
-
-                // calculate fee from the Tx serialised + estimated size for signing
-                let mut tx = Tx::new_with(txins.clone(), txouts.clone());
-                let txbytes = cbor!(&tx).unwrap();
-
-                let estimated_fee = (self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len())))?;
-
-                // add the change in the estimated fee
-                match output_value - input_value - estimated_fee.to_coin() {
-                    None => {},
-                    Some(change_value) => {
-                        tx.add_output(TxOut::new(change_addr.clone(), change_value))
-                    }
-                };
-
-                let txbytes = cbor!(&tx).unwrap();
-                let corrected_fee = self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len()));
-
-                fee = corrected_fee?;
-
-                if Ok(input_value) >= (output_value + fee.to_coin()) { break; }
-            }
-
-            if Ok(input_value) < (output_value + fee.to_coin()) {
-                return Err(Error::NotEnoughInput);
-            }
-
-            Ok((fee, selected_inputs, (input_value - output_value - fee.to_coin()).unwrap()))
-        }
-    }
-
-    /// the input selection method.
-    ///
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
-    pub enum SelectionPolicy {
-        /// select the first inputs that matches, no optimisation
-        FirstMatchFirst
-    }
-    impl Default for SelectionPolicy {
-        fn default() -> Self { SelectionPolicy::FirstMatchFirst }
-    }
-}
-
+/// Tx with the vector of witnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
@@ -786,7 +543,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        assert_eq!(txinwitness, TxInWitness::new(&cfg, &sk, &tx));
+        assert_eq!(txinwitness, TxInWitness::new(&cfg, &sk, &tx.id()));
     }
 
     #[test]
@@ -797,7 +554,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
 
         assert!(raw_cbor::test_encode_decode(&txinwitness).expect("encode/decode TxInWitness"));
     }
@@ -831,7 +588,7 @@ mod tests {
         // txout of this given transation
 
         // create a TxInWitness (i.e. sign the given transaction)
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx);
+        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));

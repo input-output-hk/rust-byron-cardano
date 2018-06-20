@@ -9,22 +9,25 @@
 use hdwallet;
 use address;
 use tx;
+use txutils;
+use txutils::OutputPolicy;
 use config;
 use bip39;
 use bip44;
 use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
-use tx::fee::Algorithm;
+use fee;
+use fee::SelectionAlgorithm;
 
 use std::{result, fmt};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
-    FeeCalculationError(tx::fee::Error),
+    FeeCalculationError(fee::Error),
     AddressingError(bip44::Error),
     WalletError(hdwallet::Error)
 }
-impl From<tx::fee::Error> for Error {
-    fn from(j: tx::fee::Error) -> Self { Error::FeeCalculationError(j) }
+impl From<fee::Error> for Error {
+    fn from(j: fee::Error) -> Self { Error::FeeCalculationError(j) }
 }
 impl From<hdwallet::Error> for Error {
     fn from(j: hdwallet::Error) -> Self { Error::WalletError(j) }
@@ -56,12 +59,12 @@ pub struct Wallet {
     pub cached_root_key: hdwallet::XPrv,
 
     pub config: config::Config,
-    pub selection_policy: tx::fee::SelectionPolicy,
+    pub selection_policy: fee::SelectionPolicy,
     pub derivation_scheme: hdwallet::DerivationScheme,
 }
 
 impl Wallet {
-    pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: tx::fee::SelectionPolicy) -> Self {
+    pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: fee::SelectionPolicy) -> Self {
         Wallet {
             cached_root_key: cached_root_key,
             config: config,
@@ -80,7 +83,7 @@ impl Wallet {
         Wallet {
             cached_root_key: key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE),
             config: config::Config::default(),
-            selection_policy: tx::fee::SelectionPolicy::default(),
+            selection_policy: fee::SelectionPolicy::default(),
             derivation_scheme
         }
     }
@@ -104,42 +107,55 @@ impl Wallet {
         self.account(account)?.gen_addresses(addr_type, indices)
     }
 
+    /// Create all the witness associated with each selected inputs
+    /// for a specific already constructed Tx
+    ///
+    /// internal API
+    fn sign_tx(&self, tx: &tx::Tx, selected_inputs: &txutils::Inputs) -> Vec<tx::TxInWitness> {
+        let mut witnesses = vec![];
+
+        let txid = tx.id();
+
+        for input in selected_inputs {
+            let key  = self.get_xprv(&input.addressing);
+
+            let txwitness = tx::TxInWitness::new(&self.config, &key, &txid);
+            witnesses.push(txwitness);
+        }
+        witnesses
+    }
+
     /// function to create a ready to send transaction to the network
     ///
     /// it select the needed inputs, compute the fee and possible change
     /// signes every TxIn as needed.
     ///
     pub fn new_transaction( &self
-                          , inputs: &tx::Inputs
-                          , outputs: &tx::Outputs
-                          , change_addr: &address::ExtendedAddr
+                          , inputs: &txutils::Inputs
+                          , outputs: &Vec<tx::TxOut>
+                          , output_policy: &txutils::OutputPolicy
                           )
-        -> Result<(tx::TxAux, tx::fee::Fee)>
+        -> Result<(tx::TxAux, fee::Fee)>
     {
-        let alg = tx::fee::LinearFee::default();
+        let alg = fee::LinearFee::default();
 
-        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, change_addr)?;
+        let (fee, selected_inputs, change) = alg.compute(self.selection_policy, inputs, outputs, output_policy)?;
 
         let mut tx = tx::Tx::new_with(
             selected_inputs.iter().cloned().map(|input| input.ptr).collect(),
-            outputs.iter().cloned().collect()
+            outputs.clone()
         );
 
-        tx.add_output(tx::TxOut::new(change_addr.clone(), change));
+        match output_policy {
+            OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
+        };
 
-        let mut witnesses = vec![];
-
-        for input in selected_inputs {
-            let key  = self.get_xprv(&input.addressing);
-
-            let txwitness = tx::TxInWitness::new(&self.config, &key, &tx);
-            witnesses.push(txwitness);
-        }
+        let witnesses = self.sign_tx(&tx, &selected_inputs);
 
         Ok((tx::TxAux::new(tx, witnesses), fee))
     }
 
-    pub fn verify_transaction(&self, inputs: &tx::Inputs, txaux: &tx::TxAux) -> bool {
+    pub fn verify_transaction(&self, inputs: &txutils::Inputs, txaux: &tx::TxAux) -> bool {
         let tx = &txaux.tx;
 
         assert!(inputs.len() == txaux.witnesses.len());
@@ -213,6 +229,7 @@ mod test {
     use super::*;
     use address::ExtendedAddr;
     use tx;
+    use txutils;
     use coin;
     use serde_json;
 
@@ -257,11 +274,11 @@ mod test {
     #[test]
     fn check_pk_witnesses_of_transaction() {
         let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
-        let inputs : tx::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
-        let outputs : tx::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let inputs : txutils::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
+        let outputs : Vec<tx::TxOut> = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
-        let (aux, _) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+        let (aux, _) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
 
         assert!(wallet.verify_transaction(&inputs, &aux));
     }
@@ -269,11 +286,11 @@ mod test {
     #[test]
     fn check_fee_transaction() {
         let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
-        let inputs : tx::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
-        let outputs : tx::Outputs = serde_json::from_str(OUTPUTS_JSON).unwrap();
+        let inputs : txutils::Inputs = serde_json::from_str(INPUTS_JSON).unwrap();
+        let outputs : Vec<tx::TxOut> = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
-        let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+        let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
 
         let bytes = cbor!(&aux).unwrap();
 
