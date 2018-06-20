@@ -9,7 +9,7 @@ use self::rcw::pbkdf2::{pbkdf2};
 use std::{iter::repeat, ops::{Deref}};
 
 use hdwallet::{XPub};
-use raw_cbor::{self, Len, de::RawCbor, se::{self, Serializer}};
+use raw_cbor::{self, de::RawCbor, se::{self, Serializer}};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -34,20 +34,12 @@ impl Path {
 }
 impl raw_cbor::se::Serialize for Path {
     fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        se::serialize_fixed_array(self.0.iter(), serializer)
+        se::serialize_indefinite_array(self.0.iter(), serializer)
     }
 }
 impl raw_cbor::Deserialize for Path {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
-        if let Len::Len(len) = raw.array()? {
-            let mut elements = Vec::new();
-            for _ in 0..len as usize {
-                elements.push(raw.unsigned_integer()? as u32);
-            }
-            Ok(Path::new(elements))
-        } else {
-            Err(raw_cbor::Error::CustomError(format!("CBor derivation path does not support indefinite-length derivation path")))
-        }
+        Ok(Path(raw.deserialize()?))
     }
 }
 
@@ -192,6 +184,14 @@ mod tests {
         let expected = [0xda, 0xac, 0x4a, 0x55, 0xfc, 0xa7, 0x48, 0xf3, 0x2f, 0xfa, 0xf4, 0x9e, 0x2b, 0x41, 0xab, 0x86, 0xf3, 0x54, 0xdb, 0x96];
         let got = key.encrypt(&dat[..]);
         assert_eq!(&expected[..], &got[..])
+    }
+
+    #[test]
+    fn unit2() {
+        let path = Path::new(vec![0,1]);
+        let expected = [0x9f, 0x00, 0x01, 0x0ff];
+        let cbor = path.cbor();
+        assert_eq!(&expected[..], &cbor[..])
     }
 }
 
