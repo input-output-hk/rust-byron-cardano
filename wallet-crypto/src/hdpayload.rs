@@ -9,7 +9,7 @@ use self::rcw::pbkdf2::{pbkdf2};
 use std::{iter::repeat, ops::{Deref}};
 
 use hdwallet::{XPub};
-use raw_cbor::{self, Len, de::RawCbor, se::{self, Serializer}};
+use raw_cbor::{self, de::RawCbor, se::{self, Serializer}};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -34,20 +34,12 @@ impl Path {
 }
 impl raw_cbor::se::Serialize for Path {
     fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        se::serialize_fixed_array(self.0.iter(), serializer)
+        se::serialize_indefinite_array(self.0.iter(), serializer)
     }
 }
 impl raw_cbor::Deserialize for Path {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
-        if let Len::Len(len) = raw.array()? {
-            let mut elements = Vec::new();
-            for _ in 0..len as usize {
-                elements.push(raw.unsigned_integer()? as u32);
-            }
-            Ok(Path::new(elements))
-        } else {
-            Err(raw_cbor::Error::CustomError(format!("CBor derivation path does not support indefinite-length derivation path")))
-        }
+        Ok(Path(raw.deserialize()?))
     }
 }
 
