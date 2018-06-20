@@ -115,3 +115,6 @@ impl ops::Sub<Coin> for Option<Coin> {
     }
 }
 
+pub fn sum_coins(coins: &[Coin]) -> Result<Coin> {
+    coins.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
+}
