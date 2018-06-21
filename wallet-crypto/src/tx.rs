@@ -6,7 +6,7 @@ use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 use config::{Config};
 use redeem;
 
-use hdwallet::{Signature, XPub, XPrv};
+use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
 use address::{ExtendedAddr, SpendingData};
 use coin::{Coin};
 
@@ -78,6 +78,11 @@ impl fmt::Display for TxInWitness {
     }
 }
 impl TxInWitness {
+    /// this is used to create a fake signature useful for fee evaluation
+    pub fn fake() -> Self {
+        let fakesig = Signature::from_bytes([0u8;SIGNATURE_SIZE]);
+        TxInWitness::PkWitness(XPub::from_bytes([0u8;XPUB_SIZE]), fakesig)
+    }
 
     /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
     pub fn new(cfg: &Config, key: &XPrv, txid: &TxId) -> Self {
