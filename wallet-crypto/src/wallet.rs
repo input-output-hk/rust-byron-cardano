@@ -103,7 +103,7 @@ impl Wallet {
 
     pub fn account(&self, account_index: u32) -> Result<Account> {
         let account = bip44::Account::new(account_index)?;
-        let account_key = self.get_root_key().derive(self.derivation_scheme, account.get_scheme_value()).public();
+        let account_key = self.get_cached_key().derive(self.derivation_scheme, account.get_scheme_value()).public();
 
         Ok(Account::new(account, account_key, self.derivation_scheme))
     }
@@ -248,9 +248,7 @@ impl Wallet {
 
     /// retrieve the root extended private key from the wallet but pre
     /// derived for the purpose and coin type.
-    ///
-    /// TODO: this function is not meant to be public
-    fn get_root_key<'a>(&'a self) -> &'a hdwallet::XPrv {
+    fn get_cached_key<'a>(&'a self) -> &'a hdwallet::XPrv {
         &self.cached_root_key
     }
 
@@ -258,7 +256,7 @@ impl Wallet {
     ///
     /// TODO: this function is not meant to be public
     pub fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
-        self.get_root_key()
+        self.get_cached_key()
             .derive(self.derivation_scheme, addressing.account.get_scheme_value())
             .derive(self.derivation_scheme, addressing.change)
             .derive(self.derivation_scheme, addressing.index.get_scheme_value())
