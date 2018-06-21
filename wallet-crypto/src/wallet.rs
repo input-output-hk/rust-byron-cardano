@@ -125,7 +125,7 @@ impl Wallet {
         let txid = tx.id();
 
         for input in selected_inputs {
-            let key  = self.get_xprv(&input.addressing);
+            let key  = self.get_bip44_xprv(&input.addressing);
 
             let txwitness = tx::TxInWitness::new(&self.config, &key, &txid);
             witnesses.push(txwitness);
@@ -147,7 +147,7 @@ impl Wallet {
                 None => unimplemented!(),
                 Some(ref addr) => {
                     match addr {
-                        TxInInfoAddr::Bip44(ref addressing) => self.get_xprv(addressing),
+                        TxInInfoAddr::Bip44(ref addressing) => self.get_bip44_xprv(addressing),
                         TxInInfoAddr::Level2(ref addressing) => unimplemented!(),
                     }
                 }
@@ -255,7 +255,7 @@ impl Wallet {
     /// retrieve the key from the wallet and the given path
     ///
     /// TODO: this function is not meant to be public
-    pub fn get_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
+    pub fn get_bip44_xprv(&self, addressing: &Addressing) -> hdwallet::XPrv {
         self.get_cached_key()
             .derive(self.derivation_scheme, addressing.account.get_scheme_value())
             .derive(self.derivation_scheme, addressing.change)
