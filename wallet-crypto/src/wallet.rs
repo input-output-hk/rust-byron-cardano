@@ -153,7 +153,7 @@ impl Wallet {
                 Some(ref addr) => {
                     match addr {
                         TxInInfoAddr::Bip44(ref addressing) => self.get_bip44_xprv(addressing),
-                        TxInInfoAddr::Level2(ref addressing) => unimplemented!(),
+                        TxInInfoAddr::Level2(ref addressing) => self.get_2level_xprv(addressing),
                     }
                 }
             };
@@ -270,6 +270,12 @@ impl Wallet {
             .derive(self.derivation_scheme, addressing.account.get_scheme_value())
             .derive(self.derivation_scheme, addressing.change)
             .derive(self.derivation_scheme, addressing.index.get_scheme_value())
+    }
+
+    pub fn get_2level_xprv(&self, path: &[u32; 2]) -> hdwallet::XPrv {
+        self.get_root_key()
+            .derive(self.derivation_scheme, path[0])
+            .derive(self.derivation_scheme, path[1])
     }
 }
 
