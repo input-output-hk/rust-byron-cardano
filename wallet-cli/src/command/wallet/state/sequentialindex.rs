@@ -22,7 +22,7 @@ pub struct SequentialBip44Lookup {
 }
 
 fn wallet_get_address(wallet: &Wallet, addr: &bip44::Addressing) -> ExtendedAddr {
-    let xprv = wallet.get_xprv(&addr);
+    let xprv = wallet.get_bip44_xprv(&addr);
     let xpub = xprv.public();
     let a = ExtendedAddr::new_simple(xpub);
     a

@@ -86,11 +86,13 @@ impl Wallet {
 
     /// create a new wallet from the given seed
     pub fn new_from_seed(seed: &hdwallet::Seed) -> Self {
-        Self::new_from_root_xprv(hdwallet::XPrv::generate_from_seed(&seed))
+        Self::new_from_root_xprv(
+            hdwallet::XPrv::generate_from_seed(&seed),
+            hdwallet::DerivationScheme::default()
+        )
     }
 
-    pub fn new_from_root_xprv(key: hdwallet::XPrv) -> Self {
-        let derivation_scheme = hdwallet::DerivationScheme::default();
+    pub fn new_from_root_xprv(key: hdwallet::XPrv, derivation_scheme: hdwallet::DerivationScheme) -> Self {
         let cached = key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE);
         Wallet {
             root_key: key,
@@ -103,7 +105,10 @@ impl Wallet {
 
     /// create a new wallet from the given seed
     pub fn new_from_bip39(seed: &bip39::Seed) -> Self {
-        Self::new_from_root_xprv(hdwallet::XPrv::generate_from_bip39(&seed))
+        Self::new_from_root_xprv(
+            hdwallet::XPrv::generate_from_bip39(&seed),
+            hdwallet::DerivationScheme::default()
+        )
     }
 
     pub fn account(&self, account_index: u32) -> Result<Account> {
