@@ -19,7 +19,7 @@ use fee;
 use fee::{SelectionAlgorithm, FeeAlgorithm};
 use coin;
 
-use std::{result, fmt};
+use std::{result, fmt, iter};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
@@ -201,6 +201,11 @@ impl Wallet {
 
 
     pub fn move_transaction(&self, inputs: &Vec<txutils::TxInInfo>, output_policy: &txutils::OutputPolicy) -> Result<(tx::TxAux, fee::Fee)> {
+
+        if inputs.len() == 0 {
+            return Err(Error::FeeCalculationError(fee::Error::NoInputs));
+        }
+
         let alg = fee::LinearFee::default();
 
         let total_input : coin::Coin = {
@@ -214,12 +219,17 @@ impl Wallet {
 
         let tx_base = tx::Tx::new_with( inputs.iter().cloned().map(|input| input.txin).collect()
                                       , vec![]);
-        let min_fee_for_inputs = alg.calculate_for_tx(&tx_base)?.to_coin();
-        let c = coin::Coin::new(0);
+        let fake_witnesses : Vec<tx::TxInWitness> = iter::repeat(tx::TxInWitness::fake()).take(inputs.len()).collect();
+        let txaux_base = tx::TxAux::new(tx_base.clone(), fake_witnesses.clone());
+
+        let min_fee_for_inputs = alg.calculate_for_txaux(&txaux_base)?.to_coin();
+        let mut out_total = match total_input - min_fee_for_inputs {
+            None => return Err(Error::FeeCalculationError(fee::Error::NotEnoughInput)),
+            Some(c) => c, 
+        };
+        
         loop {
-            // TODO not finished
             let mut tx = tx_base.clone();
-            let mut out_total = (total_input - min_fee_for_inputs).unwrap_or(coin::Coin::zero());
             match output_policy {
                 OutputPolicy::One(change_addr) => {
                     let txout = tx::TxOut::new(change_addr.clone(), out_total);
@@ -227,14 +237,32 @@ impl Wallet {
                 },
             };
 
-            if false {
+            let current_diff = (total_input - tx.get_output_total()).unwrap_or(coin::Coin::zero());
+            let txaux = tx::TxAux::new(tx.clone(), fake_witnesses.clone());
+            let txaux_fee : fee::Fee = alg.calculate_for_txaux(&txaux)?;
+            println!("in total {} out total {} current diff {} txaux fee {}", total_input, out_total, current_diff, txaux_fee.to_coin());
+
+            if current_diff == txaux_fee.to_coin() {
                 let witnesses = self.sign_tx(&tx, &inputs);
                 match total_input - tx.get_output_total() {
                     None => {},
                     Some(fee) => {
+                        assert_eq!(witnesses.len(), fake_witnesses.len());
                         let txaux = tx::TxAux::new(tx, witnesses);
-                        return Ok((txaux, fee::Fee::new(fee)))
+                        return Ok((txaux, txaux_fee))
                     },
+                }
+            } else {
+                // already above..
+                if current_diff > txaux_fee.to_coin() {
+                    let r = (out_total + coin::Coin::new(1).unwrap())?;
+                    out_total = r
+                } else {
+                    // not enough fee, so reduce the output_total
+                    match out_total - coin::Coin::new(1).unwrap() {
+                        None => return Err(Error::FeeCalculationError(fee::Error::NotEnoughInput)),
+                        Some(o) => out_total = o,
+                    }
                 }
             }
 
@@ -327,6 +355,8 @@ mod test {
     use txutils;
     use coin;
     use serde_json;
+    use hash;
+    use bip44::{Addressing, AddrType};
 
     const WALLET_JSON : &str = "
 {
@@ -386,14 +416,58 @@ mod test {
         let outputs : Vec<tx::TxOut> = serde_json::from_str(OUTPUTS_JSON).unwrap();
         let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
 
+        let alg = fee::LinearFee::default();
+
         let (aux, fee) = wallet.new_transaction(&inputs, &outputs, &OutputPolicy::One(change_addr)).unwrap();
 
         let bytes = cbor!(&aux).unwrap();
 
-        let expected = coin::Coin::new(bytes.len() as u64 * 44 + 155381).unwrap();
+        let expected = alg.estimate(bytes.len()).unwrap();
 
-        println!("computed fee: {:?}", fee.to_coin());
+        println!("computed fee: {:?}", fee);
         println!("expected fee: {:?}", expected);
-        assert!(fee.to_coin() >= expected);
+        assert!(fee >= expected);
+    }
+
+    #[test]
+    fn check_move_transaction() {
+        let wallet : Wallet = serde_json::from_str(WALLET_JSON).unwrap();
+        let change_addr : ExtendedAddr = serde_json::from_str(CHANGE_ADDR_JSON).unwrap();
+        let all_inputs = vec![
+            txutils::TxInInfo {
+                txin: tx::TxIn::new(hash::Blake2b256::new(&[1]), 0),
+                value: coin::Coin::new(1000000).unwrap(),
+                address_identified: Some(txutils::TxInInfoAddr::Bip44(Addressing::new(1, AddrType::Internal).unwrap())),
+            },
+            txutils::TxInInfo {
+                txin: tx::TxIn::new(hash::Blake2b256::new(&[2]), 2),
+                value: coin::Coin::new(3003030).unwrap(),
+                address_identified: Some(txutils::TxInInfoAddr::Bip44(Addressing::new(2, AddrType::Internal).unwrap())),
+            },
+            txutils::TxInInfo {
+                txin: tx::TxIn::new(hash::Blake2b256::new(&[3]), 4),
+                value: coin::Coin::new(1003003030).unwrap(),
+                address_identified: Some(txutils::TxInInfoAddr::Bip44(Addressing::new(2, AddrType::Internal).unwrap())),
+            },
+            txutils::TxInInfo {
+                txin: tx::TxIn::new(hash::Blake2b256::new(&[4]), 6),
+                value: coin::Coin::new(339).unwrap(),
+                address_identified: Some(txutils::TxInInfoAddr::Bip44(Addressing::new(2, AddrType::Internal).unwrap())),
+            },
+            txutils::TxInInfo {
+                txin: tx::TxIn::new(hash::Blake2b256::new(&[5]), 9),
+                value: coin::Coin::new(23456789).unwrap(),
+                address_identified: Some(txutils::TxInInfoAddr::Bip44(Addressing::new(10, AddrType::Internal).unwrap())),
+            },
+        ];
+
+        for ti in 1..5 {
+            let inputs = all_inputs.iter().cloned().take(ti).collect();
+            let (aux, fee) = wallet.move_transaction(&inputs, &OutputPolicy::One(change_addr.clone())).unwrap(); 
+            // verify fee is correct
+            let alg = fee::LinearFee::default();
+            assert_eq!(alg.calculate_for_txaux(&aux).unwrap(), fee)
+        }
+
     }
 }
