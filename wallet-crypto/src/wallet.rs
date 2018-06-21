@@ -64,6 +64,7 @@ pub type Result<T> = result::Result<T, Error>;
 /// the Wallet object
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Wallet {
+    pub root_key: hdwallet::XPrv,
     pub cached_root_key: hdwallet::XPrv,
 
     pub config: config::Config,
@@ -72,8 +73,10 @@ pub struct Wallet {
 }
 
 impl Wallet {
+    #[deprecated]
     pub fn new(cached_root_key: hdwallet::XPrv, config: config::Config, policy: fee::SelectionPolicy) -> Self {
         Wallet {
+            root_key: unimplemented!(),
             cached_root_key: cached_root_key,
             config: config,
             selection_policy: policy,
@@ -88,8 +91,10 @@ impl Wallet {
 
     pub fn new_from_root_xprv(key: hdwallet::XPrv) -> Self {
         let derivation_scheme = hdwallet::DerivationScheme::default();
+        let cached = key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE);
         Wallet {
-            cached_root_key: key.derive(derivation_scheme, BIP44_PURPOSE).derive(derivation_scheme, BIP44_COIN_TYPE),
+            root_key: key,
+            cached_root_key: cached,
             config: config::Config::default(),
             selection_policy: fee::SelectionPolicy::default(),
             derivation_scheme
@@ -252,6 +257,11 @@ impl Wallet {
         &self.cached_root_key
     }
 
+    /// retrieve the root extended private key
+    fn get_root_key<'a>(&'a self) -> &'a hdwallet::XPrv {
+        &self.root_key
+    }
+
     /// retrieve the key from the wallet and the given path
     ///
     /// TODO: this function is not meant to be public
@@ -309,6 +319,7 @@ mod test {
 
     const WALLET_JSON : &str = "
 {
+  \"root_key\":        \"e006b83e6d823350bb8214db696b501b0b1545a953acf1dfde7e6e7e2434c245372ccc4f5e5788488fae9b5d4b8f6c1a6e74d6440949c02bac3238e4fffcc12de2cf47583ab3d30bc186db0b5ce47b91ed92090115775cb9b91532f28ca56875\",
   \"cached_root_key\": \"e006b83e6d823350bb8214db696b501b0b1545a953acf1dfde7e6e7e2434c245372ccc4f5e5788488fae9b5d4b8f6c1a6e74d6440949c02bac3238e4fffcc12de2cf47583ab3d30bc186db0b5ce47b91ed92090115775cb9b91532f28ca56875\",
   \"config\": {
     \"protocol_magic\": 633343913
