@@ -1,11 +1,11 @@
 use std::{fmt, result};
 use coin;
 use coin::{Coin};
-use tx::{TxOut, Tx};
+use tx::{TxOut, Tx, TxAux};
 use txutils::{Inputs, OutputPolicy, output_sum};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct Fee(Coin);
 impl Fee {
     pub fn new(coin: Coin) -> Self { Fee(coin) }
@@ -72,12 +72,12 @@ impl LinearFee {
 }
 
 pub trait FeeAlgorithm {
-    fn calculate_for_tx(&self, tx: &Tx) -> Result<Fee>;
+    fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee>;
 }
 
 impl FeeAlgorithm for LinearFee {
-    fn calculate_for_tx(&self, tx: &Tx) -> Result<Fee> {
-        let txbytes = cbor!(tx).unwrap();
+    fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee> {
+        let txbytes = cbor!(txaux).unwrap();
         self.estimate(txbytes.len())
     }
 }
