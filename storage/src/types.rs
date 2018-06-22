@@ -1,4 +1,4 @@
-use blockchain::HeaderHash;
+use cardano::block::HeaderHash;
 
 pub const HASH_SIZE : usize = 32;
 

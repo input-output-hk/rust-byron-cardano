@@ -3,7 +3,7 @@ use std::collections::btree_map;
 use std::fmt;
 use std::string::String;
 
-use blockchain::{genesis, normal, types, Block, SscProof, block::BlockDate};
+use cardano::block::{genesis, normal, types, Block, SscProof, block::BlockDate};
 use cardano::{address, config, hash, hdwallet, tx, vss, util::hex};
 use raw_cbor;
 

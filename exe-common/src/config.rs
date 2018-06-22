@@ -1,5 +1,5 @@
 pub mod net {
-    use blockchain::{HeaderHash,EpochId};
+    use cardano::block::{HeaderHash,EpochId};
     use cardano::config::{ProtocolMagic};
     use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}, ops::{Deref, DerefMut}};
     use storage::tmpfile::{TmpFile};

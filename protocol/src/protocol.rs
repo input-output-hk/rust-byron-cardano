@@ -445,12 +445,12 @@ pub mod command {
 
     #[derive(Debug)]
     pub struct GetBlockHeader {
-        from: Vec<blockchain::HeaderHash>,
-        to: Option<blockchain::HeaderHash>
+        from: Vec<cardano::block::HeaderHash>,
+        to: Option<cardano::block::HeaderHash>
     }
     impl GetBlockHeader {
         pub fn tip() -> Self { GetBlockHeader { from: vec![], to: None } }
-        pub fn range(from: &[blockchain::HeaderHash], to: blockchain::HeaderHash) -> Self {
+        pub fn range(from: &[cardano::block::HeaderHash], to: cardano::block::HeaderHash) -> Self {
             let mut vec = Vec::new();
             for f in from.iter() {
                 vec.push(f.clone());
@@ -460,7 +460,7 @@ pub mod command {
     }
 
     impl<W> Command<W> for GetBlockHeader where W: Read+Write {
-        type Output = blockchain::RawBlockHeaderMultiple;
+        type Output = cardano::block::RawBlockHeaderMultiple;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             let (get_header_id, get_header_dat) = packet::send_msg_getheaders(&self.from[..], &self.to);
             connection.send_bytes(id, &[get_header_id]).unwrap();
@@ -476,7 +476,7 @@ pub mod command {
                     if sumval == 0 {
                         let mut v = Vec::new();
                         v.extend_from_slice(dat);
-                        Ok(blockchain::RawBlockHeaderMultiple::from_dat(v))
+                        Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                     } else {
                         Err("message block decoder failed with something unexpected")
                     }
@@ -487,15 +487,15 @@ pub mod command {
 
     #[derive(Debug)]
     pub struct GetBlock {
-        from: blockchain::HeaderHash,
-        to:   blockchain::HeaderHash
+        from: cardano::block::HeaderHash,
+        to:   cardano::block::HeaderHash
     }
     impl GetBlock {
-        pub fn only(hh: &blockchain::HeaderHash) -> Self { GetBlock::from(&hh.clone(), &hh.clone()) }
-        pub fn from(from: &blockchain::HeaderHash, to: &blockchain::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
+        pub fn only(hh: &cardano::block::HeaderHash) -> Self { GetBlock::from(&hh.clone(), &hh.clone()) }
+        pub fn from(from: &cardano::block::HeaderHash, to: &cardano::block::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
     }
 
-    fn strip_msg_response(msg: &[u8]) -> Result<blockchain::RawBlock, &'static str> {
+    fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock, &'static str> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         match decode_sum_type(msg) {
             None => Err("message block decoder failed with something unexpected"),
@@ -503,7 +503,7 @@ pub mod command {
                 if sumval == 0 {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
-                    Ok(blockchain::RawBlock::from_dat(v))
+                    Ok(cardano::block::RawBlock::from_dat(v))
                 } else {
                     Err("message block decoder failed with something unexpected")
                 }
@@ -512,7 +512,7 @@ pub mod command {
     }
 
     impl<W> Command<W> for GetBlock where W: Read+Write {
-        type Output = Vec<blockchain::RawBlock>;
+        type Output = Vec<cardano::block::RawBlock>;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             // require the initial header
             let (get_header_id, get_header_dat) = packet::send_msg_getblocks(&self.from, &self.to);

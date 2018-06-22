@@ -1,5 +1,6 @@
 use std::{fmt};
-use cardano::{hash, hash::{HASH_SIZE, Blake2b256}};
+use hash;
+use hash::{HASH_SIZE, Blake2b256};
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]

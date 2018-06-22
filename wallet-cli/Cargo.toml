@@ -11,7 +11,6 @@ rcw = { path = "../rcw" }
 raw_cbor = { path = "../cbor" }
 cardano = { path = "../cardano" }
 protocol = { path = "../protocol" }
-blockchain = { path = "../blockchain" }
 storage = { path = "../storage" }
 exe-common = { path = "../exe-common" }
 rand = "0.4"

@@ -2,9 +2,9 @@ use std::{fmt};
 use std::cmp::{Ord, Ordering};
 
 use raw_cbor::{self, de::RawCbor};
-use types::{HeaderHash, SlotId, EpochId};
-use genesis;
-use normal;
+use super::types::{HeaderHash, SlotId, EpochId};
+use super::genesis;
+use super::normal;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);

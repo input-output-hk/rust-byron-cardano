@@ -1,6 +1,6 @@
 use std::path::{PathBuf};
 use std::{fs};
-use blockchain::EpochId;
+use cardano::block::EpochId;
 
 use cardano::util::hex;
 

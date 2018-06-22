@@ -1,6 +1,6 @@
 use std::{result, fmt, path::{Path, PathBuf}};
 use std::collections::BTreeMap;
-use blockchain::{Block, BlockDate, HeaderHash};
+use cardano::block::{Block, BlockDate, HeaderHash};
 use cardano::hdwallet;
 use cardano::hdpayload;
 use cardano::bip44;

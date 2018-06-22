@@ -17,7 +17,7 @@ pub fn write<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &[u8]) 
     tmp_file.render_permanent(&storage.config.get_tag_filepath(name)).unwrap();
 }
 
-pub fn write_hash<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &blockchain::HeaderHash) {
+pub fn write_hash<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &cardano::block::HeaderHash) {
     write(storage, name, content.as_ref())
 }
 
@@ -32,8 +32,8 @@ pub fn read<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<Vec<u8>
         .or(Some(content))
 }
 
-pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<blockchain::HeaderHash> {
-    read(storage, name).and_then(|v| blockchain::HeaderHash::from_slice(&v[..]).ok())
+pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<cardano::block::HeaderHash> {
+    read(storage, name).and_then(|v| cardano::block::HeaderHash::from_slice(&v[..]).ok())
 }
 
 pub fn exist<S: AsRef<str>>(storage: &super::Storage, name: &S) -> bool {

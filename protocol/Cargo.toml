@@ -11,5 +11,4 @@ keywords = [ "Cardano", "Protocol" ]
 [dependencies]
 raw_cbor = { path = "../cbor" }
 cardano = { path = "../cardano" }
-blockchain = { path = "../blockchain" }
 log = "0.4"

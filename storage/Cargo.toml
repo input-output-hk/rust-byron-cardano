@@ -1,12 +1,11 @@
 [package]
 name = "storage"
 version = "0.1.0"
-authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
 [dependencies]
 rcw = { path = "../rcw" }
 cardano = { path = "../cardano" }
-blockchain = { path = "../blockchain" }
 raw_cbor = { path = "../cbor" }
 log = "*"
 rand = "0.4"

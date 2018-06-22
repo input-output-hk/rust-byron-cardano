@@ -2,7 +2,7 @@ use config;
 use network::{native, Result, hermes};
 use network::api::{*};
 use cardano::config::{ProtocolMagic};
-use blockchain::{BlockHeader, Block, HeaderHash};
+use cardano::block::{BlockHeader, Block, HeaderHash};
 use storage::{Storage};
 
 /// network object to handle a peer connection and redirect to constructing

@@ -7,7 +7,7 @@ use blockchain;
 
 use super::{StorageConfig, PackHash, TmpFile, RefPack, pack::PackReader, header_to_blockhash};
 
-pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &RefPack, epochid: blockchain::EpochId) {
+pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &RefPack, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
     fs::create_dir_all(dir).unwrap();
 
@@ -19,12 +19,12 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 }
 
-pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: blockchain::EpochId) {
+pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano::block::EpochId) {
     // read the pack and append the block hash as we find them in the refpack.
     let mut rp = RefPack::new();
     let mut reader = PackReader::init(config, packref);
 
-    let mut current_slotid = blockchain::BlockDate::Genesis(epochid);
+    let mut current_slotid = cardano::block::BlockDate::Genesis(epochid);
     while let Some(rblk) = reader.get_next() {
         let blk = rblk.decode().unwrap();
         let hdr = blk.get_header();
@@ -56,7 +56,7 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: blockch
     super::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 }
 
-pub fn epoch_read_pack(config: &StorageConfig, epochid: blockchain::EpochId) -> io::Result<PackHash> {
+pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<PackHash> {
     let mut content = Vec::new();
 
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
@@ -70,7 +70,7 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: blockchain::EpochId) -> 
     Ok(ph)
 }
 
-pub fn epoch_read(config: &StorageConfig, epochid: blockchain::EpochId) -> io::Result<(PackHash, RefPack)> {
+pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<(PackHash, RefPack)> {
     match epoch_read_pack(config, epochid) {
         Err(e) => Err(e),
         Ok(ph) => {

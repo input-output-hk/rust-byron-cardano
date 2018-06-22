@@ -1,12 +1,12 @@
-use cardano::{address, tx, hdwallet, vss, hash::{Blake2b256}};
-use cardano::config::{ProtocolMagic};
+use {address, tx, hdwallet, vss, hash::{Blake2b256}};
+use config::{ProtocolMagic};
 use std::{fmt};
 use std::slice::{Iter};
 use std::collections::{BTreeMap, btree_map};
 
 use raw_cbor::{self, de::RawCbor, se::{Serializer}};
-use types;
-use types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
+use super::types;
+use super::types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {

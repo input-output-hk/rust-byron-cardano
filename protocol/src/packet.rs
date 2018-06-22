@@ -2,7 +2,7 @@ use std::collections::{BTreeMap};
 use std::{fmt};
 use cardano::config::{ProtocolMagic};
 use blockchain;
-use blockchain::{HeaderHash};
+use cardano::block::{HeaderHash};
 
 use raw_cbor::{self, se, de::{self, RawCbor}};
 
@@ -111,12 +111,12 @@ impl fmt::Display for HandlerSpecs {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Handshake {
     pub protocol_magic: ProtocolMagic,
-    pub version: blockchain::Version,
+    pub version: cardano::block::Version,
     pub in_handlers:  HandlerSpecs,
     pub out_handlers: HandlerSpecs
 }
 impl Handshake {
-    pub fn new(pm: ProtocolMagic, v: blockchain::Version, ins: HandlerSpecs, outs: HandlerSpecs) -> Self {
+    pub fn new(pm: ProtocolMagic, v: cardano::block::Version, ins: HandlerSpecs, outs: HandlerSpecs) -> Self {
         Handshake {
             protocol_magic: pm,
             version: v,
@@ -137,7 +137,7 @@ impl Default for Handshake {
     fn default() -> Self {
         Handshake::new(
             ProtocolMagic::default(),
-            blockchain::Version::default(),
+            cardano::block::Version::default(),
             HandlerSpecs::default_ins(),
             HandlerSpecs::default_outs(),
         )
@@ -194,7 +194,7 @@ pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     (0xe, dat)
 }
 
-pub fn send_msg_getheaders(froms: &[blockchain::HeaderHash], to: &Option<blockchain::HeaderHash>) -> Message {
+pub fn send_msg_getheaders(froms: &[cardano::block::HeaderHash], to: &Option<cardano::block::HeaderHash>) -> Message {
     let serializer = se::Serializer::new().write_array(raw_cbor::Len::Len(2)).unwrap();
     let serializer = se::serialize_indefinite_array(froms.iter(), serializer).unwrap();
     let serializer = match to {
@@ -218,7 +218,7 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
 
 #[derive(Debug)]
 pub enum BlockHeaderResponse {
-    Ok(Vec<blockchain::BlockHeader>),
+    Ok(Vec<cardano::block::BlockHeader>),
     Err(String)
 }
 impl fmt::Display for BlockHeaderResponse {
@@ -259,7 +259,7 @@ impl de::Deserialize for BlockHeaderResponse {
 
 #[derive(Debug)]
 pub enum BlockResponse {
-    Ok(blockchain::Block)
+    Ok(cardano::block::Block)
 }
 impl de::Deserialize for BlockResponse {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {

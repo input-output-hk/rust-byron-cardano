@@ -2,7 +2,7 @@ use cardano::{address::{ExtendedAddr}};
 use cardano::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
-use blockchain::{Block};
+use cardano::block::{Block};
 use raw_cbor::de::RawCbor;
 
 use super::util;

@@ -35,5 +35,6 @@ pub mod cbor;
 pub mod bip39;
 pub mod bip44;
 pub mod wallet;
+pub mod block;
 
 pub mod vss;

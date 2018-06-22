@@ -1,4 +1,4 @@
-use blockchain::{BlockHeader, Block, HeaderHash, EpochId};
+use cardano::block::{BlockHeader, Block, HeaderHash, EpochId};
 use storage::{Storage, types::{PackHash}};
 
 use network::{Result};

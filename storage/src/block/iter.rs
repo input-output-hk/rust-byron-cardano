@@ -5,7 +5,7 @@ use super::super::{Storage, StorageConfig, block_location, block_read_location};
 use super::super::tag;
 use super::super::epoch::epoch_read_pack;
 use super::super::pack::{PackReader};
-use blockchain::{HeaderHash, Block, RawBlock, EpochId};
+use cardano::block::{HeaderHash, Block, RawBlock, EpochId};
 
 use std::{iter, fs};
 

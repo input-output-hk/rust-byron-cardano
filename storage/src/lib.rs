@@ -3,7 +3,6 @@ extern crate log;
 extern crate rcw;
 extern crate raw_cbor;
 extern crate cardano;
-extern crate blockchain;
 extern crate rand;
 extern crate flate2;
 
@@ -26,7 +25,7 @@ pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
 use refpack::{RefPack};
-use blockchain::{HeaderHash, BlockDate, RawBlock};
+use cardano::block::{HeaderHash, BlockDate, RawBlock};
 
 use types::*;
 use tmpfile::*;
@@ -101,7 +100,7 @@ impl Storage {
     }
 
     /// create a block iterator starting from the given EpochId
-    pub fn iterate_from_epoch<'a>(&'a self, from: blockchain::EpochId) -> Result<block::Iter<'a>> {
+    pub fn iterate_from_epoch<'a>(&'a self, from: cardano::block::EpochId) -> Result<block::Iter<'a>> {
         Ok(block::Iter::new(&self.config, from)?)
     }
 
@@ -120,7 +119,7 @@ pub mod blob {
     use std::io::{Read};
     use super::{Result, Error};
     use compression;
-    use blockchain::RawBlock;
+    use cardano::block::RawBlock;
 
     pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
@@ -307,10 +306,10 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
-                    blockchain::BlockDate::Genesis(_) => {
+                    cardano::block::BlockDate::Genesis(_) => {
                         return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
                     },
-                    blockchain::BlockDate::Normal(ref slotid) => {
+                    cardano::block::BlockDate::Normal(ref slotid) => {
                         if slotid.epoch != current_epoch {
                             return Err(Error::EpochError(current_epoch, slotid.epoch));
                         }
@@ -374,10 +373,10 @@ fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: Heade
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
-                    blockchain::BlockDate::Genesis(_) => {
+                    cardano::block::BlockDate::Genesis(_) => {
                         return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
                     },
-                    blockchain::BlockDate::Normal(slotid) => {
+                    cardano::block::BlockDate::Normal(slotid) => {
                         if slotid.epoch != current_epoch {
                             return Err(Error::EpochError(current_epoch, slotid.epoch));
                         }

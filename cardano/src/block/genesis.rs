@@ -1,10 +1,10 @@
-use cardano::{address, hash::{Blake2b256}};
-use cardano::config::{ProtocolMagic};
+use {address, hash::{Blake2b256}};
+use config::{ProtocolMagic};
 use std::{fmt};
 
 use raw_cbor::{self, de::RawCbor};
-use types;
-use types::{HeaderHash, ChainDifficulty};
+use super::types;
+use super::types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof(Blake2b256);

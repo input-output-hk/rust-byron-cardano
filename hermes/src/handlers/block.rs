@@ -49,7 +49,7 @@ impl iron::Handler for Handler {
             None => hex::decode(&blockid).unwrap(),
             Some(t) => t
         };
-        let hh = blockchain::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
+        let hh = cardano::block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
         info!("querying block header: {}", hh);
 
         match block_location(&net.storage, hh.bytes()) {

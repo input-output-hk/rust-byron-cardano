@@ -1,6 +1,5 @@
 extern crate cardano;
 extern crate protocol;
-extern crate blockchain;
 extern crate raw_cbor;
 extern crate storage;
 extern crate rand;

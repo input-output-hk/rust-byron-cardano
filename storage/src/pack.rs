@@ -335,7 +335,7 @@ impl Index {
     }
 }
 
-pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<blockchain::RawBlock> {
+pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<cardano::block::RawBlock> {
     let mut sz_buf = [0u8;SIZE_SIZE];
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
@@ -346,13 +346,13 @@ pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<blockchain::RawBl
         let mut align = [0u8;4];
         file.read_exact(&mut align[0..to_align])?;
     }
-    Ok(blockchain::RawBlock::from_dat(v))
+    Ok(cardano::block::RawBlock::from_dat(v))
 }
 
-pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> io::Result<blockchain::RawBlock> {
+pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> io::Result<cardano::block::RawBlock> {
     file.seek(SeekFrom::Start(ofs))?;
     let v = read_block_raw_next(file)?;
-    Ok(blockchain::RawBlock::from_dat(compression::decompress_conditional(v.as_ref())))
+    Ok(cardano::block::RawBlock::from_dat(compression::decompress_conditional(v.as_ref())))
 }
 
 // A Writer for a specific pack that accumulate some numbers for reportings,
@@ -419,7 +419,7 @@ impl PackWriter {
 pub struct RawBufPackWriter {
     writer: PackWriter,
     buffer: Vec<u8>,
-    last: Option<blockchain::RawBlock>
+    last: Option<cardano::block::RawBlock>
 }
 impl RawBufPackWriter {
     #[deprecated]
@@ -443,7 +443,7 @@ impl RawBufPackWriter {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
                     Ok(rblock) => {
-                        let block = blockchain::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
+                        let block = cardano::block::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
                         let blk = block.decode().unwrap();
                         info!("  - block {}", blk.get_header().get_slotid());
                         self.writer.append(blk.get_header().compute_hash().bytes(), rblock.as_ref());
@@ -466,7 +466,7 @@ impl RawBufPackWriter {
         }
     }
     #[deprecated]
-    pub fn last(& self) -> Option<blockchain::Block> {
+    pub fn last(& self) -> Option<cardano::block::Block> {
         match &self.last {
             Some(rb) => rb.decode().ok(),
             None => None
@@ -507,7 +507,7 @@ impl<R: Read> From<R> for PackReader<R> {
     }
 }
 impl<R: Read> PackReader<R> {
-    pub fn get_next(&mut self) -> Option<blockchain::RawBlock> {
+    pub fn get_next(&mut self) -> Option<cardano::block::RawBlock> {
         match read_block_raw_next(&mut self.reader) {
             Err(err) => {
                 if err.kind() == ErrorKind::UnexpectedEof {
@@ -519,7 +519,7 @@ impl<R: Read> PackReader<R> {
             Ok(block_raw) => {
                 self.hash_context.input(block_raw.as_ref());
                 self.pos += 4 + align4(block_raw.as_ref().len() as u64);
-                Some(blockchain::RawBlock::from_dat(compression::decompress_conditional(block_raw.as_ref())))
+                Some(cardano::block::RawBlock::from_dat(compression::decompress_conditional(block_raw.as_ref())))
             },
         }
     }

@@ -157,9 +157,9 @@ pub fn get_native_peer(blockchain: String, cfg: &net::Config) -> Peer {
 // of blocks greater than the limit imposed by the node we're talking to.
 fn find_earliest_epoch(
     storage: &storage::Storage,
-    minimum_epochid: blockchain::EpochId,
-    start_epochid: blockchain::EpochId,
-) -> Option<(blockchain::EpochId, PackHash)> {
+    minimum_epochid: cardano::block::EpochId,
+    start_epochid: cardano::block::EpochId,
+) -> Option<(cardano::block::EpochId, PackHash)> {
     let mut epoch_id = start_epochid;
     loop {
         match storage::tag::read_hash(storage, &storage::tag::get_epoch_tag(epoch_id)) {
@@ -186,7 +186,7 @@ fn find_earliest_epoch(
 fn get_last_blockid(
     storage_config: &storage::config::StorageConfig,
     packref: &PackHash,
-) -> Option<blockchain::HeaderHash> {
+) -> Option<cardano::block::HeaderHash> {
     let mut reader = storage::pack::PackReader::init(&storage_config, packref);
     let mut last_blk_raw = None;
 

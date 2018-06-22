@@ -5,7 +5,7 @@ pub mod sequentialindex;
 pub mod accum;
 pub mod log;
 
-use blockchain::{BlockDate};
+use cardano::block::{BlockDate};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 
