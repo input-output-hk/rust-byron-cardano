@@ -1,7 +1,7 @@
 use config::{Networks};
 use storage::{tag, block_location, block_read_location};
 use cardano::util::{hex};
-use blockchain;
+use cardano::block;
 use std::sync::{Arc};
 
 use iron;
@@ -49,7 +49,7 @@ impl iron::Handler for Handler {
             None => hex::decode(&blockid).unwrap(),
             Some(t) => t
         };
-        let hh = cardano::block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
+        let hh = block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
         info!("querying block header: {}", hh);
 
         match block_location(&net.storage, hh.bytes()) {

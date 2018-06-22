@@ -22,7 +22,7 @@ use types::HASH_SIZE;
 use bloom;
 use types::BlockHash;
 use compression;
-use blockchain;
+use cardano;
 
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;

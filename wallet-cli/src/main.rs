@@ -11,7 +11,6 @@ extern crate serde_yaml;
 extern crate rcw;
 extern crate cardano;
 extern crate exe_common;
-extern crate blockchain;
 extern crate protocol;
 extern crate storage;
 extern crate rand;

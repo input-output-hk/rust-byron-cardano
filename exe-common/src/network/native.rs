@@ -140,7 +140,7 @@ impl Api for OpenPeer {
     }
 }
 
-fn network_get_blocks_headers(net: &mut OpenPeer, from: &cardano::block::HeaderHash, to: &cardano::block::HeaderHash) -> cardano::block::RawBlockHeaderMultiple {
+fn network_get_blocks_headers(net: &mut OpenPeer, from: &block::HeaderHash, to: &block::HeaderHash) -> block::RawBlockHeaderMultiple {
     let mbh = GetBlockHeader::range(&vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
     mbh
 }
@@ -155,7 +155,7 @@ fn download_epoch(storage: &Storage, net: &mut OpenPeer,
     let mut writer = storage::pack::PackWriter::init(&storage.config);
     let mut previous_headerhash = x_previous_headerhash.clone();
     let epoch_time_start = SystemTime::now();
-    let mut expected_slotid = cardano::block::BlockDate::Genesis(epoch_id);
+    let mut expected_slotid = block::BlockDate::Genesis(epoch_id);
 
     loop {
         info!("  ### slotid={} from={}", expected_slotid, start_hash);

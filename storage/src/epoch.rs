@@ -3,7 +3,7 @@ use std::io;
 use std::io::{Read};
 use cardano::util::{hex};
 
-use blockchain;
+use cardano;
 
 use super::{StorageConfig, PackHash, TmpFile, RefPack, pack::PackReader, header_to_blockhash};
 

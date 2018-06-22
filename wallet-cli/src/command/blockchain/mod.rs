@@ -6,7 +6,7 @@ use storage::{blob, tag, Storage};
 use storage::types::{PackHash};
 use storage::{pack_blobs, block_location, block_read_location, pack, PackParameters};
 //use storage::tag::{HEAD};
-use blockchain;
+use cardano::block;
 use config::{Config};
 use std::io::{Write, stdout};
 use raw_cbor::de::RawCbor;
@@ -145,7 +145,7 @@ impl HasCommand for Blockchain {
                 let config = resolv_network_by_name(&opts);
                 let hh_hex = value_t!(opts.value_of("blockid"), String).unwrap();
                 let hh_bytes = hex::decode(&hh_hex).unwrap();
-                let hh = cardano::block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
+                let hh = block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
                 let mut net = sync::get_native_peer(config.network.clone(), &net_cfg);
@@ -207,7 +207,7 @@ impl HasCommand for Blockchain {
                             .and_then(|s| Some(s.to_string()))
                             .unwrap();
                 //let epoch_id = values_t!(opts.value_of("epoch-id"), cardano::block::EpochId).unwrap_or_else(|_| 0);
-                let previoushash = cardano::block::HeaderHash::from_slice(&hex::decode(&previoushashhex).unwrap()[..]).unwrap();
+                let previoushash = block::HeaderHash::from_slice(&hex::decode(&previoushashhex).unwrap()[..]).unwrap();
                 let (result, lasthash) = pack_is_epoch(&config,
                                                        &packref_fromhex(&packrefhex),
                                                        &previoushash);
@@ -295,7 +295,7 @@ impl HasCommand for Blockchain {
                     None => hex::decode(&hh_hex).unwrap(),
                     Some(t) => t
                 };
-                let hh = cardano::block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
+                let hh = block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
 
                 match block_location(&storage, hh.bytes()) {
                     None => {
@@ -395,8 +395,8 @@ fn pack_debug(config: &Config,
 
 fn pack_is_epoch(config: &Config,
                  packref: &PackHash,
-                 start_previous_header: &cardano::block::HeaderHash)
-             -> (bool, cardano::block::HeaderHash) {
+                 start_previous_header: &block::HeaderHash)
+             -> (bool, block::HeaderHash) {
     let storage_config = config.get_storage_config();
     let mut reader = storage::pack::PackReader::init(&storage_config, packref);
     let mut known_prev_header = start_previous_header.clone();
@@ -404,7 +404,7 @@ fn pack_is_epoch(config: &Config,
         match reader.get_next() {
             None      => { return (true, known_prev_header.clone()); },
             Some(blk_raw) => {
-                let blk : cardano::block::Block = RawCbor::from(blk_raw.as_ref()).deserialize().unwrap();
+                let blk : block::Block = RawCbor::from(blk_raw.as_ref()).deserialize().unwrap();
                 let hdr = blk.get_header();
                 let hash = hdr.compute_hash();
                 let prev_hdr = hdr.get_previous_header();
@@ -425,6 +425,6 @@ fn packref_fromhex(s: &String) -> PackHash {
     packref
 }
 
-fn display_block(blk: &cardano::block::Block) {
+fn display_block(blk: &block::Block) {
     println!("{}", blk.to_pretty());
 }

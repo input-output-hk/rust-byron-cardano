@@ -12,7 +12,6 @@ extern crate router;
 
 extern crate storage;
 extern crate cardano;
-extern crate blockchain;
 extern crate exe_common;
 
 use std::path::{PathBuf};
