@@ -6,7 +6,7 @@
 /// # Example
 ///
 /// ```
-/// use wallet_crypto::bip44::{Account, Change, Addressing};
+/// use cardano::bip44::{Account, Change, Addressing};
 ///
 /// let scheme_value = Account::new(0).unwrap()
 ///     .external().unwrap()
@@ -268,7 +268,7 @@ impl Addressing {
     /// # example
     ///
     /// ```
-    /// use wallet_crypto::bip44::{Addressing, AddrType};
+    /// use cardano::bip44::{Addressing, AddrType};
     ///
     /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///
@@ -325,7 +325,7 @@ impl Addressing {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::bip44::{Addressing, AddrType, Index};
+    /// use cardano::bip44::{Addressing, AddrType, Index};
     ///
     /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///

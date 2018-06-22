@@ -1,6 +1,6 @@
 pub mod net {
     use blockchain::{HeaderHash,EpochId};
-    use wallet_crypto::config::{ProtocolMagic};
+    use cardano::config::{ProtocolMagic};
     use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}, ops::{Deref, DerefMut}};
     use storage::tmpfile::{TmpFile};
     use serde_yaml;

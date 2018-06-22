@@ -89,7 +89,7 @@ impl Seed {
     /// create a Seed by taking ownership of the given array
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{Seed, SEED_SIZE};
+    /// use cardano::hdwallet::{Seed, SEED_SIZE};
     ///
     /// let bytes = [0u8;SEED_SIZE];
     /// let seed  = Seed::from_bytes(bytes);
@@ -101,7 +101,7 @@ impl Seed {
     /// create a Seed by copying the given slice into a new array
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{Seed, SEED_SIZE};
+    /// use cardano::hdwallet::{Seed, SEED_SIZE};
     ///
     /// let bytes = [0u8;SEED_SIZE];
     /// let wrong = [0u8;31];
@@ -132,7 +132,7 @@ impl XPrv {
     /// same for the same given `Seed`.
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{Seed, SEED_SIZE, XPrv, XPRV_SIZE};
+    /// use cardano::hdwallet::{Seed, SEED_SIZE, XPrv, XPRV_SIZE};
     ///
     /// let seed = Seed::from_bytes([0u8; SEED_SIZE]);
     /// let expected_xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
@@ -220,7 +220,7 @@ impl XPrv {
     /// create a `XPrv` from a given hexadecimal string
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv};
+    /// use cardano::hdwallet::{XPrv};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12");
     ///
@@ -235,7 +235,7 @@ impl XPrv {
     /// get te associated `XPub`
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv, XPub};
+    /// use cardano::hdwallet::{XPrv, XPub};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     ///
@@ -252,7 +252,7 @@ impl XPrv {
     /// sign the given message with the `XPrv`.
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv, XPub, Signature};
+    /// use cardano::hdwallet::{XPrv, XPub, Signature};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     /// let msg = b"Some message...";
@@ -372,7 +372,7 @@ impl XPub {
     /// create a `XPrv` from a given hexadecimal string
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPub};
+    /// use cardano::hdwallet::{XPub};
     ///
     /// let xpub = XPub::from_hex("1c0c3ae1825e90b6ddda3f40a122c007e1008e83b2e102c142baefb721d72c1a5d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12");
     ///
@@ -387,7 +387,7 @@ impl XPub {
     /// verify a signature
     ///
     /// ```
-    /// use wallet_crypto::hdwallet::{XPrv, XPub, Signature};
+    /// use cardano::hdwallet::{XPrv, XPub, Signature};
     ///
     /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
     /// let xpub = xprv.public();

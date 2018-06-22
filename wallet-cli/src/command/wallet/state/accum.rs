@@ -1,4 +1,4 @@
-use wallet_crypto::tx::{TxIn, TxId, TxOut};
+use cardano::tx::{TxIn, TxId, TxOut};
 use super::lookup::{AddrLookup, Result, StatePtr, Utxo, WalletAddr};
 
 #[derive(Clone,Debug)]

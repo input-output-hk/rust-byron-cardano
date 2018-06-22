@@ -1,6 +1,6 @@
 use config::{Networks};
 use storage::{tag, block_location, block_read_location};
-use wallet_crypto::util::{hex};
+use cardano::util::{hex};
 use blockchain;
 use std::sync::{Arc};
 

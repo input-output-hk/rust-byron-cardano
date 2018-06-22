@@ -11,7 +11,7 @@ keywords = [ "Cardano", "BlockChain" ]
 [dependencies]
 rcw = { path = "../rcw" }
 raw_cbor = { path = "../cbor" }
-wallet-crypto = { path = "../wallet-crypto" }
+cardano = { path = "../cardano" }
 serde = "1.0"
 serde_derive = "1.0"
 

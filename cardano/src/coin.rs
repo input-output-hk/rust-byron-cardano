@@ -39,7 +39,7 @@ impl Coin {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::coin::{Coin};
+    /// use cardano::coin::{Coin};
     ///
     /// println!("{}", Coin::zero());
     /// ```
@@ -50,7 +50,7 @@ impl Coin {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::coin::{Coin};
+    /// use cardano::coin::{Coin};
     ///
     /// let coin = Coin::new(42);
     /// let invalid = Coin::new(45000000000000001);

@@ -1,6 +1,6 @@
 use types::{BlockHash};
 use std::{result, io};
-use wallet_crypto::{hash};
+use cardano::{hash};
 use raw_cbor;
 
 #[derive(Debug)]

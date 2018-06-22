@@ -321,9 +321,9 @@ impl ExtendedAddr {
     /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use wallet_crypto::hdwallet;
-    /// use wallet_crypto::hdpayload::{HDAddressPayload};
+    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
+    /// use cardano::hdwallet;
+    /// use cardano::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -351,9 +351,9 @@ impl ExtendedAddr {
     /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
     ///
     /// ```
-    /// use wallet_crypto::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use wallet_crypto::hdwallet;
-    /// use wallet_crypto::hdpayload::{HDAddressPayload};
+    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
+    /// use cardano::hdwallet;
+    /// use cardano::hdpayload::{HDAddressPayload};
     ///
     /// let seed = hdwallet::Seed::from_bytes([0;32]);
     /// let sk = hdwallet::XPrv::generate_from_seed(&seed);

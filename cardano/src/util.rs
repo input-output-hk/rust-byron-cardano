@@ -4,7 +4,7 @@ pub mod hex {
     //! # Example
     //!
     //! ```
-    //! use wallet_crypto::util::hex::{Error, encode, decode};
+    //! use cardano::util::hex::{Error, encode, decode};
     //!
     //! let example = b"some bytes";
     //!
@@ -39,7 +39,7 @@ pub mod hex {
     ///  # Example
     ///
     /// ```
-    /// use wallet_crypto::util::hex::{Error, encode};
+    /// use cardano::util::hex::{Error, encode};
     ///
     /// let example = b"some bytes";
     ///
@@ -62,7 +62,7 @@ pub mod hex {
     ///  # Example
     ///
     /// ```
-    /// use wallet_crypto::util::hex::{Error, decode};
+    /// use cardano::util::hex::{Error, decode};
     ///
     /// let example = r"736f6d65206279746573";
     ///
@@ -130,7 +130,7 @@ pub mod base58 {
     //! # Example
     //!
     //! ```
-    //! use wallet_crypto::util::base58;
+    //! use cardano::util::base58;
     //!
     //! let encoded = r"TcgsE5dzphUWfjcb9i5";
     //! let decoded = b"Hello World...";
@@ -164,7 +164,7 @@ pub mod base58 {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::util::base58;
+    /// use cardano::util::base58;
     ///
     /// let encoded = r"TcgsE5dzphUWfjcb9i5";
     /// let decoded = b"Hello World...";
@@ -180,7 +180,7 @@ pub mod base58 {
     /// # Example
     ///
     /// ```
-    /// use wallet_crypto::util::base58;
+    /// use cardano::util::base58;
     ///
     /// let encoded = r"TcgsE5dzphUWfjcb9i5";
     /// let decoded = b"Hello World...";

@@ -1,5 +1,5 @@
-use wallet_crypto::{address, hash::{Blake2b256}};
-use wallet_crypto::config::{ProtocolMagic};
+use cardano::{address, hash::{Blake2b256}};
+use cardano::config::{ProtocolMagic};
 use std::{fmt};
 
 use raw_cbor::{self, de::RawCbor};

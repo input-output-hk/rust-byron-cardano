@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap};
 use std::{fmt};
-use wallet_crypto::config::{ProtocolMagic};
+use cardano::config::{ProtocolMagic};
 use blockchain;
 use blockchain::{HeaderHash};
 

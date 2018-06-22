@@ -1,7 +1,7 @@
 use config;
 use network::{native, Result, hermes};
 use network::api::{*};
-use wallet_crypto::config::{ProtocolMagic};
+use cardano::config::{ProtocolMagic};
 use blockchain::{BlockHeader, Block, HeaderHash};
 use storage::{Storage};
 

@@ -1,7 +1,7 @@
-use wallet_crypto::hdwallet;
-use wallet_crypto::hdpayload;
-use wallet_crypto::address::ExtendedAddr;
-use wallet_crypto::tx::{TxIn, TxId, TxOut};
+use cardano::hdwallet;
+use cardano::hdpayload;
+use cardano::address::ExtendedAddr;
+use cardano::tx::{TxIn, TxId, TxOut};
 use super::lookup::{AddrLookup, Result, StatePtr, Utxo, WalletAddr};
 
 #[derive(Clone,Debug)]

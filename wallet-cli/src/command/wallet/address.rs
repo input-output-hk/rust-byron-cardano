@@ -1,5 +1,5 @@
-use wallet_crypto::{bip44,};
-use wallet_crypto::util::base58;
+use cardano::{bip44,};
+use cardano::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 use super::util::{create_new_account};

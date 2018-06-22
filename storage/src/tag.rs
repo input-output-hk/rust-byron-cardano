@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::{Write,Read};
-use wallet_crypto::util::{hex};
+use cardano::util::{hex};
 
 use blockchain;
 

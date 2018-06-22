@@ -6,7 +6,7 @@
 
 #![allow(dead_code)]
 
-use wallet_crypto::{
+use cardano::{
     self,
     hdwallet::{XPrv, DerivationScheme},
     fee::{SelectionPolicy},
@@ -114,7 +114,7 @@ impl Config {
     /// construct the wallet object from the wallet configuration
     pub fn wallet(&self) -> Result<Wallet> {
         let blockchain_config = self.blockchain_config()?;
-        let wallet_cfg = wallet_crypto::config::Config::new(blockchain_config.protocol_magic);
+        let wallet_cfg = cardano::config::Config::new(blockchain_config.protocol_magic);
         Ok(Wallet::new(self.cached_root_key.clone(), wallet_cfg, self.selection_fee_policy))
     }
 
@@ -215,7 +215,7 @@ impl Accounts {
 }
 
 pub mod account {
-    use wallet_crypto::{bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
+    use cardano::{bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
 
     pub static PREFIX : &'static str = "account-";
 

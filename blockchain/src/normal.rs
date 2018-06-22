@@ -1,5 +1,5 @@
-use wallet_crypto::{address, tx, hdwallet, vss, hash::{Blake2b256}};
-use wallet_crypto::config::{ProtocolMagic};
+use cardano::{address, tx, hdwallet, vss, hash::{Blake2b256}};
+use cardano::config::{ProtocolMagic};
 use std::{fmt};
 use std::slice::{Iter};
 use std::collections::{BTreeMap, btree_map};

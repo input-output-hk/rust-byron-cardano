@@ -1,4 +1,4 @@
-use wallet_crypto::{bip39, paperwallet, wallet};
+use cardano::{bip39, paperwallet, wallet};
 use rand;
 
 use termion::{style, color, clear, cursor};

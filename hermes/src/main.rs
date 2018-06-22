@@ -11,7 +11,7 @@ extern crate iron;
 extern crate router;
 
 extern crate storage;
-extern crate wallet_crypto;
+extern crate cardano;
 extern crate blockchain;
 extern crate exe_common;
 

@@ -156,7 +156,7 @@ impl<W: Sized+Write+Read> Connection<W> {
 
 pub mod protocol {
     use std::{fmt};
-    use wallet_crypto::util::{hex};
+    use cardano::util::{hex};
     const PROTOCOL_VERSION : u32 = 0x00000000;
 
     #[derive(Debug)]

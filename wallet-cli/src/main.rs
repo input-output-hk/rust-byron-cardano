@@ -9,7 +9,7 @@ extern crate raw_cbor;
 extern crate env_logger;
 extern crate serde_yaml;
 extern crate rcw;
-extern crate wallet_crypto;
+extern crate cardano;
 extern crate exe_common;
 extern crate blockchain;
 extern crate protocol;

@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::io::{Read};
-use wallet_crypto::util::{hex};
+use cardano::util::{hex};
 
 use blockchain;
 

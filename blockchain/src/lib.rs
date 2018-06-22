@@ -1,7 +1,7 @@
 #![cfg_attr(feature = "with-bench", feature(test))]
 
 extern crate rcw;
-extern crate wallet_crypto;
+extern crate cardano;
 
 #[cfg(test)]
 #[cfg(feature = "with-bench")]

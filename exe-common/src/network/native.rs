@@ -1,6 +1,6 @@
 use protocol;
 use mstream::{MStream, MetricStart, MetricStats};
-use wallet_crypto::{config::{ProtocolMagic}, util::{hex}};
+use cardano::{config::{ProtocolMagic}, util::{hex}};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
 use blockchain::{self, BlockHeader, Block, HeaderHash, EpochId, BlockDate, SlotId};

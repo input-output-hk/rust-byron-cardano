@@ -1,6 +1,6 @@
 use storage;
 use storage::{tag};
-use wallet_crypto::util::{hex};
+use cardano::util::{hex};
 use std::sync::{Arc};
 use config::{Networks};
 

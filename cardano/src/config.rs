@@ -15,7 +15,7 @@ use std::fmt;
 /// The default value is set to the mainnet
 ///
 /// ```
-/// use wallet_crypto::config::{ProtocolMagic};
+/// use cardano::config::{ProtocolMagic};
 ///
 /// assert_eq!(ProtocolMagic::default(), ProtocolMagic::new(0x2D964A09));
 /// ```

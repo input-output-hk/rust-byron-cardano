@@ -1,10 +1,10 @@
 [package]
-name = "wallet-crypto"
+name = "cardano"
 version = "0.1.0"
-authors = ["vincent.hanquez@iohk.io"]
+authors = ["vincent.hanquez@iohk.io", "nicolas.diprima@iohk.io"]
 license = "MIT"
-description = "A Rust implementation of cardano wallet"
-keywords = [ "Cardano", "Wallet" ]
+description = "A Rust implementation of cardano types and wallet"
+keywords = [ "Cardano", "Wallet", "Crypto" ]
 
 [build-dependencies]
 

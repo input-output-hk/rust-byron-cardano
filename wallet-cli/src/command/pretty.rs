@@ -4,7 +4,7 @@ use std::fmt;
 use std::string::String;
 
 use blockchain::{genesis, normal, types, Block, SscProof, block::BlockDate};
-use wallet_crypto::{address, config, hash, hdwallet, tx, vss, util::hex};
+use cardano::{address, config, hash, hdwallet, tx, vss, util::hex};
 use raw_cbor;
 
 use ansi_term::Colour;

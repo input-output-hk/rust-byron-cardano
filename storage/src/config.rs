@@ -2,7 +2,7 @@ use std::path::{PathBuf};
 use std::{fs};
 use blockchain::EpochId;
 
-use wallet_crypto::util::hex;
+use cardano::util::hex;
 
 use types::*;
 

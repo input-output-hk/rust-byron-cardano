@@ -3,7 +3,7 @@ use clap::{ArgMatches, Arg, App};
 
 use super::util::{recover_paperwallet, recover_entropy};
 use super::config;
-use wallet_crypto::wallet;
+use cardano::wallet;
 
 pub struct Recover;
 

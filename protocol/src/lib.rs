@@ -1,4 +1,4 @@
-extern crate wallet_crypto;
+extern crate cardano;
 extern crate blockchain;
 #[macro_use]
 extern crate log;

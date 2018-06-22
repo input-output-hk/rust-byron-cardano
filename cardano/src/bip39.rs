@@ -10,8 +10,8 @@
 //!
 //! ```
 //! extern crate rand;
-//! extern crate wallet_crypto;
-//! use wallet_crypto::bip39::{Entropy, MnemonicString, Type::{*}, dictionary};
+//! extern crate cardano;
+//! use cardano::bip39::{Entropy, MnemonicString, Type::{*}, dictionary};
 //! use rand::{random};
 //!
 //! let entropy = Entropy::generate(Type12Words, || random());
@@ -225,7 +225,7 @@ impl Seed {
     /// create a Seed by taking ownership of the given array
     ///
     /// ```
-    /// use wallet_crypto::bip39::{Seed, SEED_SIZE};
+    /// use cardano::bip39::{Seed, SEED_SIZE};
     ///
     /// let bytes = [0u8;SEED_SIZE];
     /// let seed  = Seed::from_bytes(bytes);
@@ -237,7 +237,7 @@ impl Seed {
     /// create a Seed by copying the given slice into a new array
     ///
     /// ```
-    /// use wallet_crypto::bip39::{Seed, SEED_SIZE};
+    /// use cardano::bip39::{Seed, SEED_SIZE};
     ///
     /// let bytes = [0u8;SEED_SIZE];
     /// let wrong = [0u8;31];

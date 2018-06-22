@@ -1,5 +1,5 @@
-use wallet_crypto::{address::{ExtendedAddr}};
-use wallet_crypto::util::base58;
+use cardano::{address::{ExtendedAddr}};
+use cardano::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 use blockchain::{Block};

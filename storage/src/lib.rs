@@ -2,7 +2,7 @@
 extern crate log;
 extern crate rcw;
 extern crate raw_cbor;
-extern crate wallet_crypto;
+extern crate cardano;
 extern crate blockchain;
 extern crate rand;
 extern crate flate2;

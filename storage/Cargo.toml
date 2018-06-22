@@ -5,7 +5,7 @@ authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
 [dependencies]
 rcw = { path = "../rcw" }
-wallet-crypto = { path = "../wallet-crypto" }
+cardano = { path = "../cardano" }
 blockchain = { path = "../blockchain" }
 raw_cbor = { path = "../cbor" }
 log = "*"

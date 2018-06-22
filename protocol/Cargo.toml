@@ -10,6 +10,6 @@ keywords = [ "Cardano", "Protocol" ]
 
 [dependencies]
 raw_cbor = { path = "../cbor" }
-wallet-crypto = { path = "../wallet-crypto" }
+cardano = { path = "../cardano" }
 blockchain = { path = "../blockchain" }
 log = "0.4"
