@@ -1,4 +1,4 @@
-use std::{fmt, result};
+use std::{fmt, result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx, TxAux};
@@ -53,20 +53,53 @@ pub trait SelectionAlgorithm {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+pub struct Milli (pub u64);
+impl Milli {
+    pub fn new(i: u64, f: u64) -> Self { Milli(i * 1000 + f % 1000) }
+    pub fn integral(i: u64) -> Self { Milli(i*1000) }
+    pub fn to_integral(self) -> u64 { self.0 / 1000 }
+}
+
+impl Add for Milli {
+    type Output = Milli;
+    fn add(self, other: Self) -> Self {
+        Milli(self.0 + other.0)
+    }
+}
+impl Mul for Milli {
+    type Output = Milli;
+    fn mul(self, other: Self) -> Self {
+        let v = self.0 as u128 * other.0 as u128;
+        Milli((v / 1000) as u64)
+        /*
+        let ai = self.integral * other.integral;
+        let af = self.floating * other.floating;
+        let a1 = self.integral * NANO_MASK * other.floating;
+        let a2 = self.floating * NANO_MASK * other.integral;
+        Nano {
+            integral: ai * NANO_MASK + af / NANO_MASK + a1 / NANO_MASK + a2 / NANO_MASK,
+            floating: af % NANO_MASK + a1 % NANO_MASK + a2 % NANO_MASK,
+        }
+        */
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub struct LinearFee {
     /// this is the minimal fee
-    constant: f64,
+    constant: Milli,
     /// the transaction's size coefficient fee
-    coefficient: f64
+    coefficient: Milli,
 }
 impl LinearFee {
-    pub fn new(constant: f64, coefficient: f64) -> Self {
+    pub fn new(constant: Milli, coefficient: Milli) -> Self {
         LinearFee { constant: constant, coefficient: coefficient }
     }
 
     pub fn estimate(&self, sz: usize) -> Result<Fee> {
-        let fee = self.constant + self.coefficient * (sz as f64);
-        let coin = Coin::new(fee as u64)?;
+        let msz = Milli::integral(sz as u64);
+        let fee = self.constant + self.coefficient * msz;
+        let coin = Coin::new(fee.to_integral())?;
         Ok(Fee(coin))
     }
 }
@@ -83,7 +116,7 @@ impl FeeAlgorithm for LinearFee {
 }
 
 impl Default for LinearFee {
-    fn default() -> Self { LinearFee::new(155381.0, 43.946) }
+    fn default() -> Self { LinearFee::new(Milli::integral(155381), Milli::new(43,946)) }
 }
 
 const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
@@ -160,4 +193,42 @@ pub enum SelectionPolicy {
 }
 impl Default for SelectionPolicy {
     fn default() -> Self { SelectionPolicy::FirstMatchFirst }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn test_milli_add_eq(v1: u64, v2: u64) {
+        let v = v1 + v2;
+        let n1 = Milli::new(v1 / 1000, v1 % 1000);
+        let n2 = Milli::new(v2 / 1000, v2 % 1000);
+        let n = n1 + n2;
+        assert_eq!(v / 1000, n.to_integral());
+    }
+
+    fn test_milli_mul_eq(v1: u64, v2: u64) {
+        let v = v1 as u128 * v2 as u128;
+        let n1 = Milli::new(v1 / 1000, v1 % 1000);
+        let n2 = Milli::new(v2 / 1000, v2 % 1000);
+        let n = n1 * n2;
+        assert_eq!((v / 1000000) as u64, n.to_integral());
+    }
+
+    #[test]
+    fn check_fee_add() {
+        test_milli_add_eq(10124128_192, 802_504);
+        test_milli_add_eq( 1124128_915, 124802_192);
+        test_milli_add_eq(         241, 900001_901);
+        test_milli_add_eq(         241,        407);
+    }
+
+    #[test]
+    fn check_fee_mul() {
+        test_milli_mul_eq(10124128_192, 802_192);
+        test_milli_mul_eq( 1124128_192, 124802_192);
+        test_milli_mul_eq(         241, 900001_900);
+        test_milli_mul_eq(         241,        400);
+    }
 }
