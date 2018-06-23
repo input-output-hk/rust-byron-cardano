@@ -61,6 +61,7 @@ impl Milli {
         // note that we want the ceiling
         if self.0 % 1000 == 0 { self.0 / 1000 } else { (self.0 / 1000) + 1 }
     }
+    pub fn to_integral_trunc(self) -> u64 { self.0 / 1000 }
 }
 
 impl Add for Milli {
@@ -208,7 +209,7 @@ mod test {
         let n1 = Milli::new(v1 / 1000, v1 % 1000);
         let n2 = Milli::new(v2 / 1000, v2 % 1000);
         let n = n1 + n2;
-        assert_eq!(v / 1000, n.to_integral());
+        assert_eq!(v / 1000, n.to_integral_trunc());
     }
 
     fn test_milli_mul_eq(v1: u64, v2: u64) {
@@ -216,7 +217,7 @@ mod test {
         let n1 = Milli::new(v1 / 1000, v1 % 1000);
         let n2 = Milli::new(v2 / 1000, v2 % 1000);
         let n = n1 * n2;
-        assert_eq!((v / 1000000) as u64, n.to_integral());
+        assert_eq!((v / 1000000) as u64, n.to_integral_trunc());
     }
 
     #[test]
