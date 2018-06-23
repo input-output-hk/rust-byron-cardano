@@ -57,7 +57,10 @@ pub struct Milli (pub u64);
 impl Milli {
     pub fn new(i: u64, f: u64) -> Self { Milli(i * 1000 + f % 1000) }
     pub fn integral(i: u64) -> Self { Milli(i*1000) }
-    pub fn to_integral(self) -> u64 { self.0 / 1000 }
+    pub fn to_integral(self) -> u64 {
+        // note that we want the ceiling
+        if self.0 % 1000 == 0 { self.0 / 1000 } else { (self.0 / 1000) + 1 }
+    }
 }
 
 impl Add for Milli {
