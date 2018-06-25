@@ -27,12 +27,29 @@ pub const SIGNATURE_SIZE: usize = 64;
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
+/// HDWallet errors
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Error {
+    /// the given seed is of invalid size, the parameter is given the given size
+    ///
+    /// See `SEED_SIZE` for details about the expected size.
     InvalidSeedSize(usize),
+    /// the given extended private key is of invalid size. The parameter is the given size.
+    ///
+    /// See `XPRV_SIZE` for the expected size.
     InvalidXPrvSize(usize),
+    /// the given extended public key is of invalid size. The parameter is the given size.
+    ///
+    /// See `XPUB_SIZE`
     InvalidXPubSize(usize),
+    /// the given siganture is of invalid size. The parameter is the given size.
+    ///
+    /// See `SIGNATURE_SIZE` for the expected size.
     InvalidSignatureSize(usize),
+    /// The given extended private key is of invalid format for our usage of ED25519.
+    ///
+    /// This is not a problem of the size, see `Error::InvalidXPrvSize`
+    InvalidXPrv,
     HexadecimalError(hex::Error),
     ExpectedSoftDerivation,
     InvalidDerivation
@@ -52,6 +69,9 @@ impl fmt::Display for Error {
             },
             &Error::InvalidSignatureSize(sz) => {
                write!(f, "Invalid Signature Size, expected {} bytes, but received {} bytes.", SIGNATURE_SIZE, sz)
+            },
+            &Error::InvalidXPrv => {
+               write!(f, "Invalid XPrv")
             },
             &Error::HexadecimalError(err) => {
                write!(f, "Invalid hexadecimal: {}.", err)
@@ -162,6 +182,7 @@ impl XPrv {
         }
 
         Self::from_bytes(out)
+            .expect("this should be valid, we just generated it.")
     }
 
     /// for some unknown design reasons Daedalus seeds are encoded in cbor
@@ -189,6 +210,7 @@ impl XPrv {
         }
 
         Self::from_bytes(out)
+            .expect("this should be valid, we just generated it.")
     }
 
     pub fn generate_from_bip39(bytes: &bip39::Seed) -> Self {
@@ -199,11 +221,14 @@ impl XPrv {
         out[64..96].clone_from_slice(&bytes.as_ref()[32..64]);
 
         Self::from_bytes(out)
+            .expect("this should be valid, we just generated it.")
     }
 
     /// create a `XPrv` by taking ownership of the given array
     ///
-    pub fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Self { XPrv(bytes) }
+    pub fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Result<Self> {
+        Ok(XPrv(bytes))
+    }
 
     /// create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
     /// otherwise it will return `Result`.
@@ -214,7 +239,7 @@ impl XPrv {
         }
         let mut buf = [0u8;XPRV_SIZE];
         buf[..].clone_from_slice(bytes);
-        Ok(XPrv::from_bytes(buf))
+        XPrv::from_bytes(buf)
     }
 
     /// create a `XPrv` from a given hexadecimal string
@@ -354,7 +379,6 @@ impl<'de> serde::Deserialize<'de> for XPrv
 pub struct XPub([u8; XPUB_SIZE]);
 impl XPub {
     /// create a `XPub` by taking ownership of the given array
-    ///
     pub fn from_bytes(bytes: [u8;XPUB_SIZE]) -> Self { XPub(bytes) }
 
     /// create a `XPub` from the given slice. This slice must be of size `XPUB_SIZE`
@@ -821,6 +845,7 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex, scheme: DerivationScheme)
     zmac.reset();
 
     XPrv::from_bytes(out)
+        .expect("this should be valid, we just generated it.")
 }
 
 fn point_of_trunc28_mul8(sk: &[u8], scheme: DerivationScheme) -> [u8;32] {
@@ -954,7 +979,7 @@ mod tests {
 
     #[test]
     fn xprv_derive() {
-        let prv = XPrv::from_bytes(D1);
+        let prv = XPrv::from_bytes(D1).unwrap();
         derive_xprv_eq(&prv, 0x80000000, D1_H0);
     }
 
@@ -985,7 +1010,7 @@ mod tests {
     #[test]
     fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
-        let prv = XPrv::from_bytes(D1);
+        let prv = XPrv::from_bytes(D1).unwrap();
         let xpub = prv.public();
         let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
         let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
@@ -994,7 +1019,7 @@ mod tests {
 
     #[test]
     fn xprv_sign() {
-        let prv = XPrv::from_bytes(D1_H0);
+        let prv = XPrv::from_bytes(D1_H0).unwrap();
         do_sign(&prv, &D1_H0_SIGNATURE);
     }
 
