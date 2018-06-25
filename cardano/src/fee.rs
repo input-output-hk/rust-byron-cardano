@@ -135,7 +135,6 @@ impl SelectionAlgorithm for LinearFee {
         -> Result<(Fee, Inputs, Coin)>
     {
         if inputs.is_empty() { return Err(Error::NoInputs); }
-        if outputs.is_empty() { return Err(Error::NoOutputs); }
 
         let output_value = output_sum(outputs)?;
         let mut fee = self.estimate(0)?;
@@ -166,8 +165,10 @@ impl SelectionAlgorithm for LinearFee {
             match output_value - input_value - estimated_fee.to_coin() {
                 None => {},
                 Some(change_value) => {
-                    match output_policy {
-                        OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
+                    if change_value > Coin::zero() {
+                        match output_policy {
+                            OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
+                        }
                     }
                 }
             };

@@ -190,9 +190,11 @@ impl Wallet {
             outputs.clone()
         );
 
-        match output_policy {
-            OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
-        };
+        if change > Coin::zero() {
+            match output_policy {
+                OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
+            };
+        }
 
         let witnesses = self.sign_tx_old(&tx, &selected_inputs);
 
