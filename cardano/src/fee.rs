@@ -1,8 +1,9 @@
 use std::{fmt, result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
-use tx::{TxOut, Tx, TxAux};
+use tx::{TxOut, Tx, TxInWitness, TxAux, txaux_serialize};
 use txutils::{Inputs, OutputPolicy, output_sum};
+use raw_cbor;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -110,11 +111,17 @@ impl LinearFee {
 
 pub trait FeeAlgorithm {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee>;
+    fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee>;
 }
 
 impl FeeAlgorithm for LinearFee {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee> {
         let txbytes = cbor!(txaux).unwrap();
+        self.estimate(txbytes.len())
+    }
+    fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee> {
+        let ser = raw_cbor::se::Serializer::new();
+        let txbytes = txaux_serialize(tx, witnesses, ser).unwrap().finalize();
         self.estimate(txbytes.len())
     }
 }
@@ -135,7 +142,6 @@ impl SelectionAlgorithm for LinearFee {
         -> Result<(Fee, Inputs, Coin)>
     {
         if inputs.is_empty() { return Err(Error::NoInputs); }
-        if outputs.is_empty() { return Err(Error::NoOutputs); }
 
         let output_value = output_sum(outputs)?;
         let mut fee = self.estimate(0)?;
@@ -166,8 +172,10 @@ impl SelectionAlgorithm for LinearFee {
             match output_value - input_value - estimated_fee.to_coin() {
                 None => {},
                 Some(change_value) => {
-                    match output_policy {
-                        OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
+                    if change_value > Coin::zero() {
+                        match output_policy {
+                            OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
+                        }
                     }
                 }
             };

@@ -18,6 +18,7 @@ use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use fee;
 use fee::{SelectionAlgorithm, FeeAlgorithm};
 use coin;
+use coin::Coin;
 
 use std::{result, fmt, iter};
 
@@ -190,9 +191,11 @@ impl Wallet {
             outputs.clone()
         );
 
-        match output_policy {
-            OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
-        };
+        if change > Coin::zero() {
+            match output_policy {
+                OutputPolicy::One(change_addr) => tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
+            };
+        }
 
         let witnesses = self.sign_tx_old(&tx, &selected_inputs);
 
@@ -220,9 +223,8 @@ impl Wallet {
         let tx_base = tx::Tx::new_with( inputs.iter().cloned().map(|input| input.txin).collect()
                                       , vec![]);
         let fake_witnesses : Vec<tx::TxInWitness> = iter::repeat(tx::TxInWitness::fake()).take(inputs.len()).collect();
-        let txaux_base = tx::TxAux::new(tx_base.clone(), fake_witnesses.clone());
 
-        let min_fee_for_inputs = alg.calculate_for_txaux(&txaux_base)?.to_coin();
+        let min_fee_for_inputs = alg.calculate_for_txaux_component(&tx_base, &fake_witnesses)?.to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
             None => return Err(Error::FeeCalculationError(fee::Error::NotEnoughInput)),
             Some(c) => c, 
@@ -238,9 +240,7 @@ impl Wallet {
             };
 
             let current_diff = (total_input - tx.get_output_total()).unwrap_or(coin::Coin::zero());
-            let txaux = tx::TxAux::new(tx.clone(), fake_witnesses.clone());
-            let txaux_fee : fee::Fee = alg.calculate_for_txaux(&txaux)?;
-            println!("in total {} out total {} current diff {} txaux fee {}", total_input, out_total, current_diff, txaux_fee.to_coin());
+            let txaux_fee : fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
 
             if current_diff == txaux_fee.to_coin() {
                 let witnesses = self.sign_tx(&tx, &inputs);

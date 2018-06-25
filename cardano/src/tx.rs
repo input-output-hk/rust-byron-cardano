@@ -388,10 +388,15 @@ impl raw_cbor::de::Deserialize for TxAux {
 }
 impl raw_cbor::se::Serialize for TxAux {
     fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?
-                .serialize(&self.tx)?;
-        raw_cbor::se::serialize_fixed_array(self.witnesses.iter(), serializer)
+        txaux_serialize(&self.tx, &self.witnesses, serializer)
     }
+}
+
+pub fn txaux_serialize(tx: &Tx, witnesses: &Vec<TxInWitness>, serializer: Serializer)
+    -> raw_cbor::Result<Serializer> {
+    let serializer = serializer.write_array(raw_cbor::Len::Len(2))?
+                .serialize(tx)?;
+    raw_cbor::se::serialize_fixed_array(witnesses.iter(), serializer)
 }
 
 #[derive(Debug, Clone)]
