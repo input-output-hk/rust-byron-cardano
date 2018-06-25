@@ -16,15 +16,15 @@ pub fn net_sync_fast(network: String, mut storage: storage::Storage) {
     let network_tip = mbh.compute_hash();
     let network_slotid = mbh.get_blockdate();
 
-    println!("Configured genesis   : {}", net_cfg.genesis);
-    println!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    println!("Network TIP is       : {}", network_tip);
-    println!("Network TIP slotid   : {}", network_slotid);
+    info!("Configured genesis   : {}", net_cfg.genesis);
+    info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+    info!("Network TIP is       : {}", network_tip);
+    info!("Network TIP slotid   : {}", network_slotid);
 
     // start from our tip towards network tip
     /*
     if &network_tip == &our_tip {
-        println!("Qapla ! already synchronised");
+        info!("Qapla ! already synchronised");
         return ();
     }
     */
@@ -43,7 +43,7 @@ pub fn net_sync_fast(network: String, mut storage: storage::Storage) {
                 get_last_blockid(&storage.config, &packhash).unwrap(),
             ),
         };
-    println!(
+    info!(
         "latest known epoch {} hash={:?}",
         latest_known_epoch_id, mstart_hash
     );
@@ -53,7 +53,7 @@ pub fn net_sync_fast(network: String, mut storage: storage::Storage) {
     let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
 
     while download_epoch_id < network_slotid.get_epochid() {
-        println!(
+        info!(
             "downloading epoch {} {}",
             download_epoch_id, download_start_hash
         );
@@ -77,8 +77,8 @@ pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 
-    println!("Configured genesis   : {}", net_cfg.genesis);
-    println!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+    info!("Configured genesis   : {}", net_cfg.genesis);
+    info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
 
     // find the earliest epoch we know about starting from network_slotid
     let (latest_known_epoch_id, mstart_hash, prev_hash) =
@@ -95,7 +95,7 @@ pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
                 get_last_blockid(&storage.config, &packhash).unwrap(),
             ),
         };
-    println!(
+    info!(
         "latest known epoch {} hash={:?}",
         latest_known_epoch_id, mstart_hash
     );
@@ -105,7 +105,7 @@ pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
     let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
 
     while download_epoch_id < 46 {
-        println!(
+        info!(
             "downloading epoch {} {}",
             download_epoch_id, download_start_hash
         );
