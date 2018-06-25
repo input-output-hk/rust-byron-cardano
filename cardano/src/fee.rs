@@ -1,8 +1,9 @@
 use std::{fmt, result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
-use tx::{TxOut, Tx, TxAux};
+use tx::{TxOut, Tx, TxInWitness, TxAux, txaux_serialize};
 use txutils::{Inputs, OutputPolicy, output_sum};
+use raw_cbor;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -110,11 +111,17 @@ impl LinearFee {
 
 pub trait FeeAlgorithm {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee>;
+    fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee>;
 }
 
 impl FeeAlgorithm for LinearFee {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee> {
         let txbytes = cbor!(txaux).unwrap();
+        self.estimate(txbytes.len())
+    }
+    fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee> {
+        let ser = raw_cbor::se::Serializer::new();
+        let txbytes = txaux_serialize(tx, witnesses, ser).unwrap().finalize();
         self.estimate(txbytes.len())
     }
 }
