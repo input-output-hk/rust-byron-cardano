@@ -77,6 +77,10 @@ pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
 
     //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
 
+    // recover TIP of the network
+    let mbh = net.get_tip().unwrap();
+    let network_slotid = mbh.get_blockdate();
+
     info!("Configured genesis   : {}", net_cfg.genesis);
     info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
 
@@ -104,7 +108,7 @@ pub fn net_sync_faster(network: String, mut storage: storage::Storage) {
     let mut download_prev_hash = prev_hash.clone();
     let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
 
-    while download_epoch_id < 46 {
+    while block::BlockDate::Genesis(download_epoch_id) <= network_slotid {
         info!(
             "downloading epoch {} {}",
             download_epoch_id, download_start_hash
