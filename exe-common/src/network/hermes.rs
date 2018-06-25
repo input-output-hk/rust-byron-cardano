@@ -1,4 +1,4 @@
-use cardano::block::{BlockHeader, Block, HeaderHash};
+use cardano::block::{block, BlockHeader, Block, HeaderHash};
 use storage::{self, Storage, tmpfile::{TmpFile}};
 use std::io::{Write, Seek, SeekFrom};
 use std::time::{SystemTime};
@@ -32,7 +32,25 @@ impl HermesEndPoint {
 
 impl Api for HermesEndPoint {
     fn get_tip(&mut self) -> Result<BlockHeader> {
-        unimplemented!()
+        let uri = self.uri("tip").as_str().parse().unwrap();
+        info!("querying uri: {}", uri);
+
+        let mut bh_bytes = Vec::with_capacity(4096);
+        {
+            let client = Client::new(&self.core.handle());
+            let work = client.get(uri).and_then(|res| {
+                res.body().for_each(|chunk| {
+                    bh_bytes.write_all(&chunk).map_err(From::from)
+                })
+            });
+            let now = SystemTime::now();
+            self.core.run(work)?;
+            let time_elapsed = now.elapsed().unwrap();
+            info!("Downloaded TIP in {}sec", time_elapsed.as_secs());
+        }
+
+        let bh_raw = block::RawBlockHeader::from_dat(bh_bytes);
+        Ok(bh_raw.decode()?)
     }
 
     fn get_block(&mut self, _hash: HeaderHash) -> Result<Block> {

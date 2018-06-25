@@ -22,6 +22,7 @@ fn start_http_server(cfg: &Config, networks: Arc<Networks>) -> iron::Listening {
     handlers::block::Handler::new(networks.clone()).route(&mut router);
     handlers::pack::Handler::new(networks.clone()).route(&mut router);
     handlers::epoch::Handler::new(networks.clone()).route(&mut router);
+    handlers::tip::Handler::new(networks.clone()).route(&mut router);
     info!("listenting to port {}", cfg.port);
     iron::Iron::new(router)
         .http(format!("0.0.0.0:{}", cfg.port))
