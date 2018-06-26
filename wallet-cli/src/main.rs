@@ -37,11 +37,13 @@ fn main() {
         .about(crate_description!())
         .subcommand(command::Wallet::mk_command())
         .subcommand(command::Blockchain::mk_command())
+        .subcommand(command::Debug::mk_command())
         .get_matches();
 
     match matches.subcommand() {
         (command::Wallet::COMMAND,     Some(sub_matches)) => command::Wallet::run((), sub_matches),
         (command::Blockchain::COMMAND, Some(sub_matches)) => command::Blockchain::run((), sub_matches),
+        (command::Debug::COMMAND,      Some(sub_matches)) => command::Debug::run((), sub_matches),
         _ => {
             println!("{}", matches.usage());
             ::std::process::exit(1);

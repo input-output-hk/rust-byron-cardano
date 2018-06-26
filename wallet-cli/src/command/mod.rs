@@ -1,9 +1,11 @@
 mod blockchain;
 mod pretty;
 mod wallet;
+mod debug;
 
 pub use self::blockchain::{*};
 pub use self::wallet::{*}; 
+pub use self::debug::{*};
 
 use clap::{ArgMatches, App, SubCommand};
 
