@@ -6,10 +6,12 @@ use self::rcw::hmac::{Hmac};
 use self::rcw::sha2::{Sha512};
 use self::rcw::pbkdf2::{pbkdf2};
 
-use std::{iter::repeat, ops::{Deref}};
+use std::{iter::repeat, ops::{Deref}, fmt};
 
 use hdwallet::{XPub};
 use raw_cbor::{self, de::RawCbor, se::{self, Serializer}};
+
+use util::hex;
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -113,7 +115,7 @@ impl HDKey {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HDAddressPayload(Vec<u8>);
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
@@ -139,6 +141,11 @@ impl raw_cbor::de::Deserialize for HDAddressPayload {
 impl Deref for HDAddressPayload {
     type Target = [u8];
     fn deref(&self) -> &Self::Target { self.0.as_ref() }
+}
+impl fmt::Debug for HDAddressPayload {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.as_ref()))
+    }
 }
 
 #[cfg(test)]
