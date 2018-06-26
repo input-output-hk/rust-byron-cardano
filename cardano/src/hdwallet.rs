@@ -209,7 +209,7 @@ impl XPrv {
     ///
     /// This function may returns an error if it does not have the expected
     /// format.
-    pub fn verified_from_bytes(bytes: [u8;XPRV_SIZE]) -> Result<Self> {
+    pub fn from_bytes_verified(bytes: [u8;XPRV_SIZE]) -> Result<Self> {
         let scalar = &bytes[0..32];
         let last   = scalar[31];
         let first  = scalar[0];
@@ -967,7 +967,7 @@ mod tests {
 
     #[test]
     fn xprv_derive() {
-        let prv = XPrv::verified_from_bytes(D1).unwrap();
+        let prv = XPrv::from_bytes_verified(D1).unwrap();
         derive_xprv_eq(&prv, 0x80000000, D1_H0);
     }
 
@@ -998,7 +998,7 @@ mod tests {
     #[test]
     fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
-        let prv = XPrv::verified_from_bytes(D1).unwrap();
+        let prv = XPrv::from_bytes_verified(D1).unwrap();
         let xpub = prv.public();
         let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
         let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
@@ -1007,7 +1007,7 @@ mod tests {
 
     #[test]
     fn xprv_sign() {
-        let prv = XPrv::verified_from_bytes(D1_H0).unwrap();
+        let prv = XPrv::from_bytes_verified(D1_H0).unwrap();
         do_sign(&prv, &D1_H0_SIGNATURE);
     }
 
