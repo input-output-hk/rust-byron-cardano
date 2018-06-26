@@ -21,7 +21,7 @@ use coin;
 
 use std::{result, fmt, iter};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Debug, PartialEq, Eq, Clone)]
 pub enum Error {
     FeeCalculationError(fee::Error),
     AddressingError(bip44::Error),
@@ -225,9 +225,9 @@ impl Wallet {
         let min_fee_for_inputs = alg.calculate_for_txaux(&txaux_base)?.to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
             None => return Err(Error::FeeCalculationError(fee::Error::NotEnoughInput)),
-            Some(c) => c, 
+            Some(c) => c,
         };
-        
+
         loop {
             let mut tx = tx_base.clone();
             match output_policy {
@@ -463,7 +463,7 @@ mod test {
 
         for ti in 1..5 {
             let inputs = all_inputs.iter().cloned().take(ti).collect();
-            let (aux, fee) = wallet.move_transaction(&inputs, &OutputPolicy::One(change_addr.clone())).unwrap(); 
+            let (aux, fee) = wallet.move_transaction(&inputs, &OutputPolicy::One(change_addr.clone())).unwrap();
             // verify fee is correct
             let alg = fee::LinearFee::default();
             assert_eq!(alg.calculate_for_txaux(&aux).unwrap(), fee)

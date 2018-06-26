@@ -28,7 +28,7 @@ pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
 /// HDWallet errors
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Error {
     /// the given seed is of invalid size, the parameter is given the given size
     ///
@@ -49,7 +49,7 @@ pub enum Error {
     /// The given extended private key is of invalid format for our usage of ED25519.
     ///
     /// This is not a problem of the size, see `Error::InvalidXPrvSize`
-    InvalidXPrv,
+    InvalidXPrv(&'static str),
     HexadecimalError(hex::Error),
     ExpectedSoftDerivation,
     InvalidDerivation
@@ -70,8 +70,8 @@ impl fmt::Display for Error {
             &Error::InvalidSignatureSize(sz) => {
                write!(f, "Invalid Signature Size, expected {} bytes, but received {} bytes.", SIGNATURE_SIZE, sz)
             },
-            &Error::InvalidXPrv => {
-               write!(f, "Invalid XPrv")
+            &Error::InvalidXPrv(ref err) => {
+               write!(f, "Invalid XPrv: {}", err)
             },
             &Error::HexadecimalError(err) => {
                write!(f, "Invalid hexadecimal: {}.", err)
@@ -155,34 +155,11 @@ impl XPrv {
     /// use cardano::hdwallet::{Seed, SEED_SIZE, XPrv, XPRV_SIZE};
     ///
     /// let seed = Seed::from_bytes([0u8; SEED_SIZE]);
-    /// let expected_xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
-    ///
-    /// assert_eq!(expected_xprv, XPrv::generate_from_seed(&seed));
+    /// let xprv = XPrv::generate_from_seed(&seed);
     /// ```
     ///
     pub fn generate_from_seed(seed: &Seed) -> Self {
-        let mut mac = Hmac::new(Sha512::new(), seed.as_ref());
-
-        let mut iter = 1;
-        let mut out = [0u8; XPRV_SIZE];
-
-        loop {
-            let s = format!("Root Seed Chain {}", iter);
-            mac.reset();
-            mac.input(s.as_bytes());
-            let mut block = [0u8; 64];
-            mac.raw_result(&mut block);
-            mk_ed25519_extended(&mut out[0..64], &block[0..32]);
-
-            if (out[31] & 0x20) == 0 {
-                out[64..96].clone_from_slice(&block[32..64]);
-                break;
-            }
-            iter = iter + 1;
-        }
-
-        Self::from_bytes(out)
-            .expect("this should be valid, we just generated it.")
+        Self::generate_from_daedalus_seed(seed.as_ref())
     }
 
     /// for some unknown design reasons Daedalus seeds are encoded in cbor
@@ -210,7 +187,6 @@ impl XPrv {
         }
 
         Self::from_bytes(out)
-            .expect("this should be valid, we just generated it.")
     }
 
     pub fn generate_from_bip39(bytes: &bip39::Seed) -> Self {
@@ -221,38 +197,48 @@ impl XPrv {
         out[64..96].clone_from_slice(&bytes.as_ref()[32..64]);
 
         Self::from_bytes(out)
-            .expect("this should be valid, we just generated it.")
     }
+
+    // create a XPrv from the given bytes.
+    //
+    // This function does not perform any validity check and should not be used outside
+    // of this module.
+    fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Self { XPrv(bytes) }
 
     /// create a `XPrv` by taking ownership of the given array
     ///
-    pub fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Result<Self> {
+    /// This function may returns an error if it does not have the expected
+    /// format.
+    pub fn verified_from_bytes(bytes: [u8;XPRV_SIZE]) -> Result<Self> {
+        let scalar = &bytes[0..32];
+        let last   = scalar[31];
+        let first  = scalar[0];
+
+        if (last & 0b1110_0000) != 0b0100_0000 {
+            return Err(Error::InvalidXPrv("expected 3 highest bits to be 0b010"))
+        }
+        if (first & 0b0000_0111) != 0b0000_0000 {
+            return Err(Error::InvalidXPrv("expected 3 lowest bits to be 0b000"))
+        }
+
         Ok(XPrv(bytes))
     }
 
     /// create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
     /// otherwise it will return `Result`.
     ///
-    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
+    fn from_slice(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != XPRV_SIZE {
             return Err(Error::InvalidXPrvSize(bytes.len()));
         }
         let mut buf = [0u8;XPRV_SIZE];
         buf[..].clone_from_slice(bytes);
-        XPrv::from_bytes(buf)
+        Ok(XPrv::from_bytes(buf))
     }
 
     /// create a `XPrv` from a given hexadecimal string
     ///
-    /// ```
-    /// use cardano::hdwallet::{XPrv};
-    ///
-    /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12");
-    ///
-    /// assert!(xprv.is_ok());
-    /// ```
-    ///
-    pub fn from_hex(hex: &str) -> Result<Self> {
+    fn from_hex(hex: &str) -> Result<Self> {
         let input = hex::decode(hex)?;
         Self::from_slice(&input)
     }
@@ -260,9 +246,10 @@ impl XPrv {
     /// get te associated `XPub`
     ///
     /// ```
-    /// use cardano::hdwallet::{XPrv, XPub};
+    /// use cardano::hdwallet::{XPrv, XPub, Seed};
     ///
-    /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
+    /// let seed = Seed::from_bytes([0;32]) ;
+    /// let xprv = XPrv::generate_from_seed(&seed);
     ///
     /// let xpub = xprv.public();
     /// ```
@@ -277,9 +264,10 @@ impl XPrv {
     /// sign the given message with the `XPrv`.
     ///
     /// ```
-    /// use cardano::hdwallet::{XPrv, XPub, Signature};
+    /// use cardano::hdwallet::{XPrv, XPub, Signature, Seed};
     ///
-    /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
+    /// let seed = Seed::from_bytes([0;32]) ;
+    /// let xprv = XPrv::generate_from_seed(&seed);
     /// let msg = b"Some message...";
     ///
     /// let signature : Signature<String> = xprv.sign(msg);
@@ -411,9 +399,10 @@ impl XPub {
     /// verify a signature
     ///
     /// ```
-    /// use cardano::hdwallet::{XPrv, XPub, Signature};
+    /// use cardano::hdwallet::{XPrv, XPub, Seed, Signature};
     ///
-    /// let xprv = XPrv::from_hex("301604045de9138b8b23b6730495f7e34b5151d29ba3456bc9b332f6f084a551d646bc30cf126fa8ed776c05a8932a5ab35c8bac41eb01bb9a16cfe229b94b405d3661deb9064f2d0e03fe85d68070b2fe33b4916059658e28ac7f7f91ca4b12").unwrap();
+    /// let seed = Seed::from_bytes([0;32]);
+    /// let xprv = XPrv::generate_from_seed(&seed);
     /// let xpub = xprv.public();
     /// let msg = b"Some message...";
     ///
@@ -845,7 +834,6 @@ fn derive_private(xprv: &XPrv, index: DerivationIndex, scheme: DerivationScheme)
     zmac.reset();
 
     XPrv::from_bytes(out)
-        .expect("this should be valid, we just generated it.")
 }
 
 fn point_of_trunc28_mul8(sk: &[u8], scheme: DerivationScheme) -> [u8;32] {
@@ -979,7 +967,7 @@ mod tests {
 
     #[test]
     fn xprv_derive() {
-        let prv = XPrv::from_bytes(D1).unwrap();
+        let prv = XPrv::verified_from_bytes(D1).unwrap();
         derive_xprv_eq(&prv, 0x80000000, D1_H0);
     }
 
@@ -1010,7 +998,7 @@ mod tests {
     #[test]
     fn xpub_derive_v2()  {
         let derivation_index = 0x10000000;
-        let prv = XPrv::from_bytes(D1).unwrap();
+        let prv = XPrv::verified_from_bytes(D1).unwrap();
         let xpub = prv.public();
         let child_prv = prv.derive(DerivationScheme::V2, derivation_index);
         let child_xpub = xpub.derive(DerivationScheme::V2, derivation_index).unwrap();
@@ -1019,7 +1007,7 @@ mod tests {
 
     #[test]
     fn xprv_sign() {
-        let prv = XPrv::from_bytes(D1_H0).unwrap();
+        let prv = XPrv::verified_from_bytes(D1_H0).unwrap();
         do_sign(&prv, &D1_H0_SIGNATURE);
     }
 
