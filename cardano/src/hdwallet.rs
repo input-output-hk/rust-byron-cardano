@@ -742,6 +742,9 @@ fn add_28_mul8_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
         r[i] = v as u8;
         carry = v >> 8;
     }
+    if carry > 0 {
+        r[32] = carry as u8;
+    }
     sc_reduce(&mut r);
     r32.clone_from_slice(&r[0..32]);
     r32
