@@ -693,8 +693,8 @@ fn add_256bits_v1(x: &[u8], y: &[u8]) -> [u8; 32] {
 
     let mut out = [0u8; 32];
     for i in 0..32 {
-        let r = x[i] as u16 + y[i] as u16;
-        out[i] = r as u8;
+        let r = x[i].wrapping_add(y[i]);
+        out[i] = r;
     }
     out
 }
