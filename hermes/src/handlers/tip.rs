@@ -22,7 +22,7 @@ impl Handler {
         }
     }
     pub fn route(self, router: &mut Router) -> &mut Router {
-        router.get(":network/tip", self, "block")
+        router.get(":network/tip", self, "tip")
     }
 }
 
