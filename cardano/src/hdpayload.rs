@@ -63,7 +63,7 @@ impl HDKey {
 
     /// create a `HDKey` by taking ownership of the given bytes
     pub fn from_bytes(bytes: [u8;HDKEY_SIZE]) -> Self { HDKey(bytes) }
-    /// create a `HDKey` fromt the given slice
+    /// create a `HDKey` from the given slice
     pub fn from_slice(bytes: &[u8]) -> Option<Self> {
         if bytes.len() == HDKEY_SIZE {
             let mut v = [0u8;HDKEY_SIZE];
