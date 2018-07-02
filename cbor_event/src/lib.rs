@@ -23,7 +23,7 @@ const CBOR_PAYLOAD_LENGTH_U32 : u8 = 26;
 const CBOR_PAYLOAD_LENGTH_U64 : u8 = 27;
 
 pub fn test_encode_decode<V: Sized+PartialEq+Serialize+Deserialize>(v: &V) -> Result<bool> {
-    let bytes = Serialize::serialize(v, se::Serializer::new())?.finalize();
+    let bytes = Serialize::serialize(v, se::Serializer::new_vec())?.finalize();
 
     let mut raw = de::RawCbor::from(&bytes);
     let v_ = Deserialize::deserialize(&mut raw)?;

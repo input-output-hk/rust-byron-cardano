@@ -16,7 +16,7 @@ use len::Len;
 use de::*;
 use se::*;
 
-use std::collections::{BTreeMap};
+use std::{collections::{BTreeMap}, io::Write};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ObjectKey {
@@ -34,7 +34,7 @@ impl ObjectKey {
     }
 }
 impl Serialize for ObjectKey {
-    fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         match self {
             ObjectKey::Integer(ref v) => serializer.write_unsigned_integer(*v),
             ObjectKey::Bytes(ref v) => serializer.write_bytes(v),
@@ -68,7 +68,7 @@ pub enum Value {
 }
 
 impl Serialize for Value {
-    fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         match self {
             Value::U64(ref v) => serializer.write_unsigned_integer(*v),
             Value::I64(ref v) => serializer.write_negative_integer(*v),
