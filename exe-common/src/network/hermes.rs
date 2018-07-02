@@ -26,7 +26,7 @@ impl HermesEndPoint {
     }
 
     pub fn uri(& mut self, path: &str) -> String {
-        format!("{}/{}/{}", self.url, self.blockchain, path)
+        format!("{}/{}", self.url, path)
     }
 }
 
