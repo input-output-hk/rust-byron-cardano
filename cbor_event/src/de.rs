@@ -87,7 +87,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// the way the user expects some specific type.
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -96,7 +96,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// ```
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -110,14 +110,14 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// a reference and binds its lifetime to the owner of that slice.
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0,1,2,3];
 /// let raw = RawCbor::from(&vec);
 /// ```
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// // here the integer takes ownership of its own data as this is a
 /// // simple enough type
@@ -135,7 +135,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// of the `RawCbor` object.
 ///
 /// ```compile_fail
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// // here this won't compile because the bytes's lifetime is bound
 /// // to the parent RawCbor (variable `raw`, which is bound to `vec`).
@@ -204,7 +204,7 @@ impl<'a> RawCbor<'a> {
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de::*, Type};
+    /// use cbor_event::{de::*, Type};
     ///
     /// let vec = vec![0x18, 0x40];
     /// let mut raw = RawCbor::from(&vec);
@@ -242,7 +242,7 @@ impl<'a> RawCbor<'a> {
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de::*, Len};
+    /// use cbor_event::{de::*, Len};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
     /// let mut raw = RawCbor::from(&vec);
@@ -286,7 +286,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x18, 0x40];
     /// let mut raw = RawCbor::from(&vec);
@@ -297,7 +297,7 @@ impl<'a> RawCbor<'a> {
     /// ```
     ///
     /// ```should_panic
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
     /// let mut raw = RawCbor::from(&vec);
@@ -324,7 +324,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x38, 0x29];
     /// let mut raw = RawCbor::from(&vec);
@@ -352,7 +352,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x52, 0x73, 0x6F, 0x6D, 0x65, 0x20, 0x72, 0x61, 0x6E, 0x64, 0x6F, 0x6D, 0x20, 0x73, 0x74, 0x72, 0x69, 0x6E, 0x67];
     /// let mut raw = RawCbor::from(&vec);
@@ -381,7 +381,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x64, 0x74, 0x65, 0x78, 0x74];
     /// let mut raw = RawCbor::from(&vec);
@@ -413,7 +413,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0x86, 0,1,2,3,4,5];
     /// let mut raw = RawCbor::from(&vec);
@@ -438,7 +438,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0xA2, 0x00, 0x64, 0x74, 0x65, 0x78, 0x74, 0x01, 0x18, 0x2A];
     /// let mut raw = RawCbor::from(&vec);
@@ -462,7 +462,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0xD8, 0x18, 0x64, 0x74, 0x65, 0x78, 0x74];
     /// let mut raw = RawCbor::from(&vec);
@@ -704,4 +704,3 @@ mod test {
         assert!(crc as u32 == 0x71AD5836);
     }
 }
-

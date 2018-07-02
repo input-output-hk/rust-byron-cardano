@@ -18,14 +18,12 @@ use se::*;
 
 use std::collections::{BTreeMap};
 
-#[deprecated]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ObjectKey {
     Integer(u64),
     Bytes(Vec<u8>),
     Text(String),
 }
-#[allow(deprecated)]
 impl ObjectKey {
     pub fn value(self) -> Value {
         match self {
@@ -35,7 +33,6 @@ impl ObjectKey {
         }
     }
 }
-#[allow(deprecated)]
 impl Serialize for ObjectKey {
     fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
         match self {
@@ -45,7 +42,6 @@ impl Serialize for ObjectKey {
         }
     }
 }
-#[allow(deprecated)]
 impl Deserialize for ObjectKey {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         match raw.cbor_type()? {
@@ -57,7 +53,6 @@ impl Deserialize for ObjectKey {
     }
 }
 
-#[deprecated]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     U64(u64),
@@ -72,7 +67,6 @@ pub enum Value {
     Special(Special)
 }
 
-#[allow(deprecated)]
 impl Serialize for Value {
     fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
         match self {
@@ -117,7 +111,6 @@ impl Serialize for Value {
         }
     }
 }
-#[allow(deprecated)]
 impl Deserialize for Value {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         match raw.cbor_type()? {

@@ -99,7 +99,7 @@ pub fn serialize_indefinite_array<'a, C, T>(data: C, serializer: Serializer) -> 
 /// This function is a more efficient version of:
 ///
 /// ```
-/// # use raw_cbor::se::{Serializer, Serialize};
+/// # use cbor_event::se::{Serializer, Serialize};
 /// let serializer = Serializer::new();
 /// let bytes = Serialize::serialize(& 0u32, Serializer::new()).unwrap().finalize();
 /// serializer.write_bytes(&bytes).unwrap();
@@ -130,7 +130,7 @@ impl Serializer {
     /// create a new serializer.
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     /// ```
@@ -140,7 +140,7 @@ impl Serializer {
     /// finalize the serializer, returning the serializer bytes
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     ///
@@ -219,7 +219,7 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer.write_unsigned_integer(0x12)
@@ -237,7 +237,7 @@ impl Serializer {
     /// This function fails if one tries to write a non negative value.
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer.write_negative_integer(-12)
@@ -253,7 +253,7 @@ impl Serializer {
     /// write the given object as bytes
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer.write_bytes(vec![0,1,2,3])
@@ -271,7 +271,7 @@ impl Serializer {
     /// write the given object as text
     ///
     /// ```
-    /// use raw_cbor::se::{Serializer};
+    /// use cbor_event::se::{Serializer};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer.write_text(r"hello world")
@@ -299,7 +299,7 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len};
+    /// use cbor_event::{se::{Serializer}, Len};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
@@ -312,7 +312,7 @@ impl Serializer {
     /// ```
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len, Special};
+    /// use cbor_event::{se::{Serializer}, Len, Special};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
@@ -349,7 +349,7 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len};
+    /// use cbor_event::{se::{Serializer}, Len};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
@@ -364,7 +364,7 @@ impl Serializer {
     /// ```
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len, Special};
+    /// use cbor_event::{se::{Serializer}, Len, Special};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
@@ -394,7 +394,7 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len};
+    /// use cbor_event::{se::{Serializer}, Len};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
@@ -414,7 +414,7 @@ impl Serializer {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{se::{Serializer}, Len, Special};
+    /// use cbor_event::{se::{Serializer}, Len, Special};
     ///
     /// let serializer = Serializer::new();
     /// let serializer = serializer
