@@ -9,7 +9,7 @@ use futures::{Future, Stream};
 use hyper::Client;
 use tokio_core::reactor::Core;
 
-use network::{Result};
+use network::{Result, Error};
 use network::api::{Api, FetchEpochParams, FetchEpochResult};
 
 
@@ -26,20 +26,26 @@ impl HermesEndPoint {
     }
 
     pub fn uri(& mut self, path: &str) -> String {
-        format!("{}/{}/{}", self.url, self.blockchain, path)
+        format!("{}/{}", self.url, path)
     }
 }
 
 impl Api for HermesEndPoint {
     fn get_tip(&mut self) -> Result<BlockHeader> {
-        let uri = self.uri("tip").as_str().parse().unwrap();
+        let uri = self.uri("tip");
         info!("querying uri: {}", uri);
+
+        let mut err = None;
 
         let mut bh_bytes = Vec::with_capacity(4096);
         {
             let client = Client::new(&self.core.handle());
-            let work = client.get(uri).and_then(|res| {
-                res.body().for_each(|chunk| {
+            let work = client.get(uri.parse().unwrap()).from_err::<Error>()
+                .and_then(|res| {
+                if !res.status().is_success() {
+                    err = Some(Error::HttpError(uri, res.status().clone()));
+                };
+                res.body().from_err::<Error>().for_each(|chunk| {
                     bh_bytes.write_all(&chunk).map_err(From::from)
                 })
             });
@@ -48,6 +54,8 @@ impl Api for HermesEndPoint {
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded TIP in {}sec", time_elapsed.as_secs());
         }
+
+        if let Some(err) = err { return Err(err) };
 
         let bh_raw = block::RawBlockHeader::from_dat(bh_bytes);
         Ok(bh_raw.decode()?)

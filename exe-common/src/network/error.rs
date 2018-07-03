@@ -11,6 +11,7 @@ pub enum Error {
     CborError(raw_cbor::Error),
     HyperError(hyper::Error),
     ConnectionTimedOut,
+    HttpError(String, hyper::StatusCode),
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
