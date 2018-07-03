@@ -60,10 +60,11 @@ impl From<u8> for Type {
 /// a function which takes a [`[u8]`] by using an ampersand (`&`):
 ///
 /// ```
+/// use cbor_event::{Bytes};
 /// fn take_slice(slice: &[u8]) { /* ... */ }
 ///
-/// let original_source = vec![0,1,2];
-/// let bytes = Bytes::from(&original_source);
+/// let original_source : &'static [u8] = &[0u8,1u8,2u8];
+/// let bytes = Bytes::from(original_source);
 /// take_slice(&bytes);
 /// ```
 ///
