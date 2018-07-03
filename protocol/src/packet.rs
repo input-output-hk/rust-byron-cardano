@@ -4,7 +4,7 @@ use cardano::config::{ProtocolMagic};
 use cardano::block;
 use cardano::block::{HeaderHash};
 
-use raw_cbor::{self, se, de::{self, RawCbor}};
+use cbor_event::{self, se, de::{self, RawCbor}};
 
 type MessageCode = u32;
 
@@ -19,26 +19,28 @@ impl fmt::Display for HandlerSpec {
     }
 }
 impl se::Serialize for HandlerSpec {
-    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(2))?
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        serializer.write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?
             .write_tag(24)?
-            .write_bytes(se::Serializer::new().write_unsigned_integer(self.0 as u64)?.finalize())
+            .write_bytes(se::Serializer::new_vec().write_unsigned_integer(self.0 as u64)?.finalize())
     }
 }
 impl de::Deserialize for HandlerSpec {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid HandlerSpec: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid HandlerSpec: recieved array of {:?} elements", len)));
         }
         let t = raw.unsigned_integer()?;
         if t != 0 {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid value, expected 0, received {}", t)));
+            return Err(cbor_event::Error::CustomError(format!("Invalid value, expected 0, received {}", t)));
         }
         let tag = raw.tag()?;
         if tag != 24 {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid tag, expected 24, received {}", tag)));
+            return Err(cbor_event::Error::CustomError(format!("Invalid tag, expected 24, received {}", tag)));
         }
         let v = RawCbor::from(&raw.bytes()?).unsigned_integer()? as u16;
         Ok(HandlerSpec(v))
@@ -90,12 +92,14 @@ impl HandlerSpecs {
     }
 }
 impl se::Serialize for HandlerSpecs {
-    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
         se::serialize_fixed_map(self.0.iter(), serializer)
     }
 }
 impl de::Deserialize for HandlerSpecs {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Ok(HandlerSpecs(raw.deserialize()?))
     }
 }
@@ -144,19 +148,21 @@ impl Default for Handshake {
     }
 }
 impl se::Serialize for Handshake {
-    fn serialize(&self, serializer: se::Serializer) -> raw_cbor::Result<se::Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(4))?
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        serializer.write_array(cbor_event::Len::Len(4))?
             .serialize(&self.protocol_magic)?
             .serialize(&self.version)?
             .serialize(&self.in_handlers)?
             .serialize(&self.out_handlers)
     }
 }
-impl raw_cbor::de::Deserialize for Handshake {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Handshake {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(4) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid Handshake: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(4) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid Handshake: recieved array of {:?} elements", len)));
         }
         let pm   = raw.deserialize()?;
         let v    = raw.deserialize()?;
@@ -190,17 +196,17 @@ impl MsgType {
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     let value = if keep_alive { 43 } else { 42 };
-    let dat = se::Serializer::new().write_unsigned_integer(value).unwrap().finalize();
+    let dat = se::Serializer::new_vec().write_unsigned_integer(value).unwrap().finalize();
     (0xe, dat)
 }
 
 pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::HeaderHash>) -> Message {
-    let serializer = se::Serializer::new().write_array(raw_cbor::Len::Len(2)).unwrap();
+    let serializer = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap();
     let serializer = se::serialize_indefinite_array(froms.iter(), serializer).unwrap();
     let serializer = match to {
-        &None    => serializer.write_array(raw_cbor::Len::Len(0)).unwrap(),
+        &None    => serializer.write_array(cbor_event::Len::Len(0)).unwrap(),
         &Some(ref h) => {
-            serializer.write_array(raw_cbor::Len::Len(1)).unwrap()
+            serializer.write_array(cbor_event::Len::Len(1)).unwrap()
                 .serialize(h).unwrap()
         }
     };
@@ -209,7 +215,7 @@ pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::Heade
 }
 
 pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
-    let dat = se::Serializer::new().write_array(raw_cbor::Len::Len(2)).unwrap()
+    let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
         .serialize(from).unwrap()
         .serialize(to).unwrap()
         .finalize();
@@ -237,10 +243,10 @@ impl fmt::Display for BlockHeaderResponse {
     }
 }
 impl de::Deserialize for BlockHeaderResponse {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
         }
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
@@ -251,7 +257,7 @@ impl de::Deserialize for BlockHeaderResponse {
                 Ok(BlockHeaderResponse::Err(raw.text()?))
             },
             _ => {
-                return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
+                return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
             }
         }
     }
@@ -262,10 +268,10 @@ pub enum BlockResponse {
     Ok(block::Block)
 }
 impl de::Deserialize for BlockResponse {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
         }
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
@@ -273,7 +279,7 @@ impl de::Deserialize for BlockResponse {
                 Ok(BlockResponse::Ok(raw.deserialize()?))
             },
             _ => {
-                return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
+                return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved sumtype of {}", sum_type)));
             }
         }
     }
@@ -282,7 +288,7 @@ impl de::Deserialize for BlockResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use raw_cbor::{de::{RawCbor}};
+    use cbor_event::{de::{RawCbor}};
 
     const GET_BLOCK_HEADER_BYTES : &'static [u8] = &[
           0x82, 0x00, 0x9f, 0x82, 0x01, 0x85, 0x1a, 0x2d

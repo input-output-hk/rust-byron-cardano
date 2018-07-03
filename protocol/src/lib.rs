@@ -2,7 +2,7 @@ extern crate cardano;
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate raw_cbor;
+extern crate cbor_event;
 
 pub mod ntt;
 pub mod packet;
