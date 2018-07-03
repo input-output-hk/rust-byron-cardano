@@ -2,10 +2,10 @@
 //!
 //! While it is handy to be able to construct into the intermediate value
 //! type it is also not recommended to use it as an intermediate type
-//! before deserialising concret type:
+//! before deserialising concrete type:
 //!
 //! - it is slow and bloated;
-//! - it takes a lot dynamic memory and may not be compatible with the targetted environment;
+//! - it takes a lot dynamic memory and may not be compatible with the targeted environment;
 //!
 //! This is why all the objects here are marked as deprecated
 
@@ -16,17 +16,18 @@ use len::Len;
 use de::*;
 use se::*;
 
-use std::collections::{BTreeMap};
+use std::{collections::{BTreeMap}, io::Write};
 
-#[deprecated]
+/// CBOR Object key, represents the possible supported values for
+/// a CBOR key in a CBOR Map.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ObjectKey {
     Integer(u64),
     Bytes(Vec<u8>),
     Text(String),
 }
-#[allow(deprecated)]
 impl ObjectKey {
+    /// convert the given `ObjectKey` into a CBOR [`Value`](./struct.Value.html)
     pub fn value(self) -> Value {
         match self {
             ObjectKey::Integer(v) => Value::U64(v),
@@ -35,9 +36,8 @@ impl ObjectKey {
         }
     }
 }
-#[allow(deprecated)]
 impl Serialize for ObjectKey {
-    fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         match self {
             ObjectKey::Integer(ref v) => serializer.write_unsigned_integer(*v),
             ObjectKey::Bytes(ref v) => serializer.write_bytes(v),
@@ -45,7 +45,6 @@ impl Serialize for ObjectKey {
         }
     }
 }
-#[allow(deprecated)]
 impl Deserialize for ObjectKey {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         match raw.cbor_type()? {
@@ -57,7 +56,12 @@ impl Deserialize for ObjectKey {
     }
 }
 
-#[deprecated]
+/// All possible CBOR supported values.
+///
+/// We advise not to use these objects as an intermediary representation before
+/// retrieving custom types as it is a slow and not memory efficient way to do
+/// so. However it is handy for debugging or reverse a given protocol.
+///
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     U64(u64),
@@ -72,9 +76,8 @@ pub enum Value {
     Special(Special)
 }
 
-#[allow(deprecated)]
 impl Serialize for Value {
-    fn serialize(&self, serializer: Serializer) -> Result<Serializer> {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         match self {
             Value::U64(ref v) => serializer.write_unsigned_integer(*v),
             Value::I64(ref v) => serializer.write_negative_integer(*v),
@@ -117,7 +120,6 @@ impl Serialize for Value {
         }
     }
 }
-#[allow(deprecated)]
 impl Deserialize for Value {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         match raw.cbor_type()? {

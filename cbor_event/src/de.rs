@@ -1,3 +1,5 @@
+//! CBOR deserialisation tooling
+
 use std::{fmt, ops::{Deref}, collections::BTreeMap};
 use error::Error;
 use result::Result;
@@ -75,19 +77,25 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
     }
 }
 
-/// Raw Cbor
+/// [`Deserialize`]: ./trait.Deserialize.html
+/// [`Error`]: ../enum.Error.html
+/// [`Type`]: ../enum.Type.html
+/// [`Bytes`]: ../struct.Bytes.html
+/// [`cbor_type`]: #method.cbor_type
+/// [`cbor_len`]: #method.cbor_len
+/// [`Len`]: ../enum.Len.html
 ///
-/// represents a chunk of bytes believed to be cbor object
+/// `RawCbor` represents a chunk of bytes believed to be cbor object.
 /// The validity of the cbor bytes is known only when trying
-/// to get meaningful cbor objects.
+/// to get meaningful cbor objects from it.
 ///
 /// # Examples
 ///
-/// From it you can get one of the special type of the RawCbor but it works
-/// the way the user expects some specific type.
+/// If you already know the CBOR Primary [`Type`] you are expecting, you
+/// can efficiently use the appropriate commands:
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -96,7 +104,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// ```
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0x18, 0x40];
 /// let mut raw = RawCbor::from(&vec);
@@ -104,20 +112,23 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// assert!(raw.array().is_err());
 /// ```
 ///
+/// If you don't know the [`Type`] and are only analyzing the structure, you
+/// can use [`cbor_type`] to get the type of the next object to parse.
+///
 /// # Ownership
 ///
-/// RawCbor does not take ownership of the underlying slice. It takes
+/// [`RawCbor`] does not take ownership of the underlying slice. It takes
 /// a reference and binds its lifetime to the owner of that slice.
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// let vec = vec![0,1,2,3];
 /// let raw = RawCbor::from(&vec);
 /// ```
 ///
 /// ```
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
 /// // here the integer takes ownership of its own data as this is a
 /// // simple enough type
@@ -131,13 +142,13 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 ///
 /// ```
 ///
-/// But here the returned `Bytes` object's lifetime is bound to the lifetime
+/// But here the returned [`Bytes`] object's lifetime is bound to the lifetime
 /// of the `RawCbor` object.
 ///
 /// ```compile_fail
-/// use raw_cbor::de::*;
+/// use cbor_event::de::*;
 ///
-/// // here this won't compile because the bytes's lifetime is bound
+/// // here this won't compile because the bytes' lifetime is bound
 /// // to the parent RawCbor (variable `raw`, which is bound to `vec`).
 /// let bytes = {
 ///     let vec = vec![0x43, 0x01, 0x02, 0x03];
@@ -148,6 +159,25 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 ///
 /// This is in order to allow fast skipping of cbor value to reach to desired
 /// specific data.
+///
+/// # Error
+///
+/// When deserialising from `RawCbor` it is possible to see the following
+/// [`Error`]s:
+///
+/// - `Error::NotEnough(current_size, needed_size)`: meaning we are expecting
+///   a more bytes to parse the CBOR properly;
+/// - `Error::Expected(expected_type, current_type)`: the current cbor primary
+///   [`Type`] is different from the expected [`Type`];
+/// - `Error::UnknownLenType(byte)`: the CBOR is serialized in an unknown
+///   or unsupported format;
+/// - `Error::IndefiniteLenUnsupported(t)`: the Indefinite length is not
+///   supported for the given [`Type`] `t`;
+/// - `Error::IoError(io_error)`: error due relating to buffer management;
+///
+/// # Panic
+///
+/// There is no explicit `panic!` in this code, except a few `unreachable!`.
 ///
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct RawCbor<'a>(&'a [u8]);
@@ -201,10 +231,12 @@ impl<'a> RawCbor<'a> {
 
     /// function to extract the type of the given `RawCbor`.
     ///
+    /// This function does not consume the underlying buffer.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de::*, Type};
+    /// use cbor_event::{de::*, Type};
     ///
     /// let vec = vec![0x18, 0x40];
     /// let mut raw = RawCbor::from(&vec);
@@ -229,20 +261,25 @@ impl<'a> RawCbor<'a> {
     /// function to extract the get the length parameter of
     /// the given cbor object. The returned tuple contains
     ///
-    /// * the `Len`;
+    /// [`Type`]: ../enum.Type.html
+    /// [`Len`]: ../enum.Len.html
+    ///
+    /// * the [`Len`];
     /// * the size of the encoded length (the number of bytes the data was encoded in).
     ///   `0` means the length is `< 24` and was encoded along the `Type`.
     ///
-    /// If you are expecting a Type `UnsignedInteger` or `NegativeInteger` the meaning of
+    /// If you are expecting a `Type` `UnsignedInteger` or `NegativeInteger` the meaning of
     /// the length is slightly different:
     ///
     /// * `Len::Indefinite` is an error;
     /// * `Len::Len(len)` is the read value of the integer.
     ///
+    /// This function does not consume the underlying buffer.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use raw_cbor::{de::*, Len};
+    /// use cbor_event::{de::*, Len};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
     /// let mut raw = RawCbor::from(&vec);
@@ -270,8 +307,10 @@ impl<'a> RawCbor<'a> {
         }
     }
 
+    /// consume the given `len` from the underlying buffer. Skipped bytes are
+    /// then lost, they cannot be retrieved for future references.
     #[inline]
-    fn advance(&mut self, len: usize) -> Result<()> {
+    pub fn advance(&mut self, len: usize) -> Result<()> {
         if self.0.len() < len {
             Err(Error::NotEnough(self.len(), len))
         } else {
@@ -286,7 +325,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x18, 0x40];
     /// let mut raw = RawCbor::from(&vec);
@@ -297,7 +336,7 @@ impl<'a> RawCbor<'a> {
     /// ```
     ///
     /// ```should_panic
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x83, 0x01, 0x02, 0x03];
     /// let mut raw = RawCbor::from(&vec);
@@ -324,7 +363,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x38, 0x29];
     /// let mut raw = RawCbor::from(&vec);
@@ -352,7 +391,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x52, 0x73, 0x6F, 0x6D, 0x65, 0x20, 0x72, 0x61, 0x6E, 0x64, 0x6F, 0x6D, 0x20, 0x73, 0x74, 0x72, 0x69, 0x6E, 0x67];
     /// let mut raw = RawCbor::from(&vec);
@@ -381,7 +420,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::de::{*};
+    /// use cbor_event::de::{*};
     ///
     /// let vec = vec![0x64, 0x74, 0x65, 0x78, 0x74];
     /// let mut raw = RawCbor::from(&vec);
@@ -413,7 +452,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0x86, 0,1,2,3,4,5];
     /// let mut raw = RawCbor::from(&vec);
@@ -438,7 +477,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0xA2, 0x00, 0x64, 0x74, 0x65, 0x78, 0x74, 0x01, 0x18, 0x2A];
     /// let mut raw = RawCbor::from(&vec);
@@ -462,7 +501,7 @@ impl<'a> RawCbor<'a> {
     /// # Example
     ///
     /// ```
-    /// use raw_cbor::{de::{*}, Len};
+    /// use cbor_event::{de::{*}, Len};
     ///
     /// let vec = vec![0xD8, 0x18, 0x64, 0x74, 0x65, 0x78, 0x74];
     /// let mut raw = RawCbor::from(&vec);
@@ -704,4 +743,3 @@ mod test {
         assert!(crc as u32 == 0x71AD5836);
     }
 }
-

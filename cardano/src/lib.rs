@@ -6,16 +6,13 @@ extern crate serde;
 #[cfg(test)]
 extern crate serde_json;
 
-#[macro_use]
-extern crate log;
-
 #[cfg(test)]
 #[cfg(feature = "with-bench")]
 extern crate test;
 
 extern crate rcw;
 #[macro_use]
-extern crate raw_cbor;
+extern crate cbor_event;
 
 mod crc32;
 pub mod util;

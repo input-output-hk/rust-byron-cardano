@@ -6,20 +6,20 @@ use packet;
 use packet::{Handshake};
 use ntt;
 
-use raw_cbor::{self, de::{RawCbor}};
+use cbor_event::{self, de::{RawCbor}};
 
 #[derive(Debug)]
 pub enum Error {
     NttError(ntt::Error),
     IOError(io::Error),
-    ByteEncodingError(raw_cbor::Error),
+    ByteEncodingError(cbor_event::Error),
     ServerCreatedLightIdTwice(LightId),
     UnsupportedControl(ntt::protocol::ControlHeader),
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
 }
-impl From<raw_cbor::Error> for Error {
-    fn from(e: raw_cbor::Error) -> Self { Error::ByteEncodingError(e) }
+impl From<cbor_event::Error> for Error {
+    fn from(e: cbor_event::Error) -> Self { Error::ByteEncodingError(e) }
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IOError(e) }

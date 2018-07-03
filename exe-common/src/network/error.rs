@@ -1,14 +1,14 @@
 use std::{io};
 use protocol::{self, ntt};
 use hyper;
-use raw_cbor;
+use cbor_event;
 
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
     NttError(ntt::Error),
     ProtocolError(protocol::Error),
-    CborError(raw_cbor::Error),
+    CborError(cbor_event::Error),
     HyperError(hyper::Error),
     ConnectionTimedOut,
     HttpError(String, hyper::StatusCode),
@@ -25,6 +25,6 @@ impl From<hyper::Error> for Error {
 impl From<ntt::Error> for Error {
     fn from(e: ntt::Error) -> Self { Error::NttError(e) }
 }
-impl From<raw_cbor::Error> for Error {
-    fn from(e: raw_cbor::Error) -> Self { Error::CborError(e) }
+impl From<cbor_event::Error> for Error {
+    fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
 }

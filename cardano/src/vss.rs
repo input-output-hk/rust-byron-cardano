@@ -1,4 +1,4 @@
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use std::{fmt, result};
 use util::hex;
 
@@ -25,13 +25,13 @@ pub type Result<T> = result::Result<T, Error>;
 // TODO: decode to 35 bytes public-key http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublicKey(Vec<u8>);
-impl raw_cbor::se::Serialize for PublicKey {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for PublicKey {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(&self.0)
     }
 }
-impl raw_cbor::de::Deserialize for PublicKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for PublicKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
         Ok(PublicKey(Vec::from(bytes.as_ref())))
     }
@@ -75,19 +75,19 @@ impl AsRef<[u8]> for Signature {
         &self.0
     }
 }
-impl raw_cbor::se::Serialize for Signature {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for Signature {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
-impl raw_cbor::de::Deserialize for Signature {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Signature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         match Self::from_slice(raw.bytes()?.as_ref()) {
             Ok(sig) => Ok(sig),
             Err(Error::InvalidSignatureSize(sz)) => {
-                Err(raw_cbor::Error::NotEnough(SIGNATURE_SIZE, sz))
+                Err(cbor_event::Error::NotEnough(SIGNATURE_SIZE, sz))
             },
-            // Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {}", err))),
+            // Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {}", err))),
         }
     }
 }

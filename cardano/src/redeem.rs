@@ -9,7 +9,7 @@
 
 use rcw::{ed25519};
 use util::{hex};
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use serde;
 
 use std::{fmt, result, cmp};
@@ -176,47 +176,47 @@ impl Ord for Signature {
 //                                      CBOR
 // ---------------------------------------------------------------------------
 
-impl raw_cbor::se::Serialize for PublicKey {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for PublicKey {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
-impl raw_cbor::de::Deserialize for PublicKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for PublicKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         match PublicKey::from_slice(&raw.bytes()?) {
             Ok(digest) => Ok(digest),
-            Err(Error::InvalidPublicKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PUBLICKEY_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidPublicKeySize(sz)) => Err(cbor_event::Error::NotEnough(sz, PUBLICKEY_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }
 
-impl raw_cbor::se::Serialize for PrivateKey {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for PrivateKey {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
-impl raw_cbor::de::Deserialize for PrivateKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for PrivateKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         match PrivateKey::from_slice(&raw.bytes()?) {
             Ok(digest) => Ok(digest),
-            Err(Error::InvalidPrivateKeySize(sz)) => Err(raw_cbor::Error::NotEnough(sz, PRIVATEKEY_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidPrivateKeySize(sz)) => Err(cbor_event::Error::NotEnough(sz, PRIVATEKEY_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }
 
-impl raw_cbor::se::Serialize for Signature {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for Signature {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
-impl raw_cbor::de::Deserialize for Signature {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Signature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         match Signature::from_slice(&raw.bytes()?) {
             Ok(digest) => Ok(digest),
-            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidSignatureSize(sz)) => Err(cbor_event::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }

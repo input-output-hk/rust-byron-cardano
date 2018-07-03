@@ -15,7 +15,7 @@ use std::{fmt, result};
 use std::marker::PhantomData;
 use util::{hex};
 
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor, se::{Serializer}};
 
 use serde;
 
@@ -434,18 +434,18 @@ impl fmt::Debug for XPub {
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
-impl raw_cbor::se::Serialize for XPub {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for XPub {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
-impl raw_cbor::de::Deserialize for XPub {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for XPub {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
         match XPub::from_slice(&bytes) {
             Ok(pk) => Ok(pk),
-            Err(Error::InvalidXPubSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, XPUB_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidXPubSize(sz)) => Err(cbor_event::Error::NotEnough(sz, XPUB_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }
@@ -554,18 +554,18 @@ impl<T> fmt::Debug for Signature<T> {
 impl<T> AsRef<[u8]> for Signature<T> {
     fn as_ref(&self) -> &[u8] { &self.bytes }
 }
-impl<T> raw_cbor::se::Serialize for Signature<T> {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl<T> cbor_event::se::Serialize for Signature<T> {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
-impl<T> raw_cbor::de::Deserialize for Signature<T> {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl<T> cbor_event::de::Deserialize for Signature<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
         match Signature::from_slice(&bytes) {
             Ok(signature) => Ok(signature),
-            Err(Error::InvalidSignatureSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, SIGNATURE_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidSignatureSize(sz)) => Err(cbor_event::Error::NotEnough(sz, SIGNATURE_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }
@@ -1095,7 +1095,7 @@ mod golden_tests {
     use super::*;
     use bip39;
     use rcw::{blake2b::Blake2b};
-    use raw_cbor;
+    use cbor_event;
 
 struct TestVector {
     /// BIP39 Seed
@@ -1147,7 +1147,7 @@ struct TestVector {
         let entropy = bip39::Entropy::from_mnemonics(&mnemonics)
             .expect("retrieve the entropy from the mnemonics");
 
-        let entropy_bytes = raw_cbor::Value::Bytes(Vec::from(entropy.as_ref()));
+        let entropy_bytes = cbor_event::Value::Bytes(Vec::from(entropy.as_ref()));
         let entropy_cbor = cbor!(&entropy_bytes).expect("encode entropy in cbor");
         let seed = {
             let mut blake2b = Blake2b::new(32);

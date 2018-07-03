@@ -1,7 +1,7 @@
 use std::{fmt};
 use std::cmp::{Ord, Ordering};
 
-use raw_cbor::{self, de::RawCbor};
+use cbor_event::{self, de::RawCbor};
 use super::types::{HeaderHash, SlotId, EpochId};
 use super::genesis;
 use super::normal;
@@ -17,18 +17,18 @@ pub struct RawBlock(pub Vec<u8>);
 
 impl RawBlockHeaderMultiple {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeaderMultiple(dat) }
-    pub fn decode(&self) -> raw_cbor::Result<Vec<BlockHeader>> {
+    pub fn decode(&self) -> cbor_event::Result<Vec<BlockHeader>> {
         RawCbor::from(&self.0).deserialize()
     }
 }
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
-    pub fn decode(&self) -> raw_cbor::Result<BlockHeader> { RawCbor::from(&self.0[..]).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<BlockHeader> { RawCbor::from(&self.0[..]).deserialize() }
     pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0) }
 }
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
-    pub fn decode(&self) -> raw_cbor::Result<Block> { RawCbor::from(&self.0).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<Block> { RawCbor::from(&self.0).deserialize() }
     pub fn to_header(&self) -> RawBlockHeader {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode().unwrap();
@@ -198,9 +198,9 @@ impl fmt::Display for Block {
 // CBOR implementations
 // **************************************************************************
 
-impl raw_cbor::se::Serialize for Block {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?;
+impl cbor_event::se::Serialize for Block {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
             &Block::GenesisBlock(ref gbh) => {
                 serializer.write_unsigned_integer(0)?.serialize(gbh)
@@ -211,32 +211,32 @@ impl raw_cbor::se::Serialize for Block {
         }
     }
 }
-impl raw_cbor::de::Deserialize for Block {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Block {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
-                let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::GenesisBlock(blk))
             },
             1 => {
-                let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::MainBlock(blk))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported Block: {}", sum_type_idx)))
+                Err(cbor_event::Error::CustomError(format!("Unsupported Block: {}", sum_type_idx)))
             }
         }
     }
 }
 
-impl raw_cbor::se::Serialize for BlockHeader {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        let serializer = serializer.write_array(raw_cbor::Len::Len(2))?;
+impl cbor_event::se::Serialize for BlockHeader {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
             &BlockHeader::GenesisBlockHeader(ref gbh) => {
                 serializer.write_unsigned_integer(0)?.serialize(gbh)
@@ -247,24 +247,24 @@ impl raw_cbor::se::Serialize for BlockHeader {
         }
     }
 }
-impl raw_cbor::de::Deserialize for BlockHeader {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for BlockHeader {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
-                let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::GenesisBlockHeader(blk))
             },
             1 => {
-                let blk = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::MainBlockHeader(blk))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported BlockHeader: {}", sum_type_idx)))
+                Err(cbor_event::Error::CustomError(format!("Unsupported BlockHeader: {}", sum_type_idx)))
             }
         }
     }
@@ -272,7 +272,7 @@ impl raw_cbor::de::Deserialize for BlockHeader {
 
 #[cfg(test)]
 mod test {
-    use raw_cbor::{de::{RawCbor}};
+    use cbor_event::{de::{RawCbor}};
     use util::hex;
     const MAINBLOCK_HEX : [u8;408] =
         [ 0x82, 0x01, 0x85, 0x00, 0x58, 0x20, 0xc4, 0xe0, 0xfc, 0x3a, 0x4f, 0xfb, 0x31, 0x91, 0xf8, 0x8b
@@ -336,7 +336,7 @@ mod test {
 mod bench {
     use super::{HeaderHash, Block};
     use test;
-    use raw_cbor::{self, de::RawCbor};
+    use cbor_event::{self, de::RawCbor};
 
     const BLOCK : &'static [u8] = &[130, 1, 131, 133, 26, 45, 150, 74, 9, 88, 32, 62, 112, 94, 154, 162, 127, 229, 78, 44, 102, 42, 10, 90, 168, 12, 54, 11, 212, 124, 226, 75, 185, 66, 157, 250, 79, 223, 23, 12, 45, 237, 129, 132, 131, 3, 88, 32, 10, 86, 22, 140, 149, 198, 120, 31, 227, 126, 104, 83, 155, 108, 239, 136, 206, 225, 180, 114, 225, 210, 154, 123, 227, 237, 73, 121, 41, 194, 156, 61, 88, 32, 79, 163, 255, 228, 159, 194, 53, 158, 174, 181, 226, 78, 112, 192, 122, 233, 82, 0, 12, 57, 201, 15, 166, 113, 149, 40, 182, 171, 39, 208, 57, 63, 130, 3, 88, 32, 211, 106, 38, 25, 166, 114, 73, 70, 4, 225, 27, 180, 71, 203, 207, 82, 49, 233, 242, 186, 37, 194, 22, 145, 119, 237, 201, 65, 189, 80, 173, 108, 88, 32, 175, 192, 218, 100, 24, 59, 242, 102, 79, 61, 78, 236, 114, 56, 213, 36, 186, 96, 127, 174, 234, 178, 79, 193, 0, 235, 134, 29, 186, 105, 151, 27, 88, 32, 78, 102, 40, 12, 217, 77, 89, 16, 114, 52, 155, 236, 10, 48, 144, 165, 58, 169, 69, 86, 46, 251, 109, 8, 213, 110, 83, 101, 75, 14, 64, 152, 132, 130, 1, 25, 55, 178, 88, 64, 27, 201, 122, 47, 224, 44, 41, 120, 128, 206, 142, 207, 217, 151, 254, 76, 30, 192, 158, 225, 15, 238, 238, 159, 104, 103, 96, 22, 107, 5, 40, 29, 98, 131, 70, 143, 253, 147, 190, 203, 12, 149, 108, 205, 221, 100, 45, 249, 177, 36, 76, 145, 89, 17, 24, 95, 164, 147, 85, 246, 242, 43, 250, 185, 129, 25, 139, 254, 130, 2, 130, 132, 0, 88, 64, 27, 201, 122, 47, 224, 44, 41, 120, 128, 206, 142, 207, 217, 151, 254, 76, 30, 192, 158, 225, 15, 238, 238, 159, 104, 103, 96, 22, 107, 5, 40, 29, 98, 131, 70, 143, 253, 147, 190, 203, 12, 149, 108, 205, 221, 100, 45, 249, 177, 36, 76, 145, 89, 17, 24, 95, 164, 147, 85, 246, 242, 43, 250, 185, 88, 64, 97, 38, 26, 149, 183, 97, 62, 230, 191, 32, 103, 218, 215, 123, 112, 52, 151, 41, 176, 197, 13, 87, 188, 28, 243, 13, 224, 219, 74, 30, 115, 168, 133, 208, 5, 74, 247, 194, 63, 198, 195, 121, 25, 219, 164, 28, 96, 42, 87, 226, 208, 249, 50, 154, 121, 84, 184, 103, 51, 141, 111, 178, 201, 69, 88, 64, 224, 62, 98, 240, 131, 223, 85, 118, 54, 14, 96, 163, 46, 34, 187, 176, 123, 60, 141, 244, 252, 171, 128, 121, 241, 214, 246, 26, 243, 149, 77, 36, 43, 168, 160, 101, 22, 195, 149, 147, 159, 36, 9, 111, 61, 241, 78, 16, 58, 125, 156, 43, 128, 166, 138, 147, 99, 207, 31, 39, 199, 164, 227, 7, 88, 64, 42, 100, 242, 153, 199, 254, 84, 67, 51, 137, 202, 116, 199, 207, 142, 44, 53, 255, 70, 58, 54, 18, 240, 140, 181, 106, 206, 181, 158, 252, 117, 219, 71, 72, 173, 124, 18, 247, 65, 137, 253, 229, 115, 105, 145, 72, 224, 252, 249, 120, 242, 145, 208, 193, 222, 166, 247, 245, 217, 138, 12, 177, 27, 5, 132, 131, 0, 0, 0, 130, 106, 99, 97, 114, 100, 97, 110, 111, 45, 115, 108, 1, 160, 88, 32, 75, 169, 42, 163, 32, 198, 10, 204, 154, 215, 185, 166, 79, 46, 218, 85, 196, 210, 236, 40, 230, 4, 250, 241, 134, 112, 139, 79, 12, 78, 142, 223, 132, 159, 130, 131, 159, 130, 0, 216, 24, 88, 36, 130, 88, 32, 196, 201, 143, 96, 200, 75, 77, 220, 200, 197, 238, 183, 77, 246, 208, 230, 58, 170, 131, 97, 127, 141, 150, 72, 27, 66, 38, 76, 115, 159, 62, 152, 1, 255, 159, 130, 130, 216, 24, 88, 66, 131, 88, 28, 109, 41, 37, 255, 14, 12, 164, 98, 33, 206, 227, 159, 180, 245, 102, 218, 174, 143, 145, 218, 231, 243, 166, 197, 27, 62, 176, 105, 161, 1, 88, 30, 88, 28, 156, 233, 149, 81, 19, 219, 223, 184, 26, 202, 202, 89, 7, 131, 173, 125, 28, 221, 19, 150, 254, 144, 90, 50, 43, 6, 46, 42, 0, 26, 132, 103, 17, 249, 27, 0, 0, 0, 2, 115, 156, 125, 31, 130, 130, 216, 24, 88, 66, 131, 88, 28, 198, 65, 169, 229, 147, 191, 175, 29, 108, 155, 53, 49, 126, 7, 55, 98, 103, 184, 234, 16, 227, 110, 150, 26, 14, 82, 238, 70, 161, 1, 88, 30, 88, 28, 202, 62, 85, 60, 156, 99, 197, 85, 63, 78, 15, 67, 192, 251, 32, 17, 249, 167, 65, 253, 190, 50, 79, 220, 219, 107, 108, 118, 0, 26, 85, 144, 176, 113, 27, 0, 0, 0, 7, 115, 89, 64, 0, 255, 160, 129, 130, 0, 216, 24, 88, 133, 130, 88, 64, 52, 33, 34, 217, 196, 36, 81, 143, 53, 26, 6, 104, 73, 172, 143, 127, 82, 47, 14, 92, 238, 235, 183, 157, 91, 219, 210, 229, 195, 239, 106, 129, 194, 10, 146, 48, 16, 248, 89, 121, 19, 60, 81, 167, 56, 39, 239, 167, 204, 54, 186, 230, 48, 7, 199, 49, 166, 61, 229, 28, 205, 153, 88, 151, 88, 64, 185, 100, 27, 141, 91, 107, 2, 249, 90, 103, 122, 45, 68, 15, 249, 66, 194, 175, 190, 156, 30, 207, 74, 146, 17, 80, 210, 145, 249, 144, 1, 199, 112, 93, 142, 235, 71, 241, 179, 88, 21, 156, 169, 97, 55, 68, 226, 174, 162, 166, 164, 195, 143, 123, 193, 189, 172, 32, 135, 145, 102, 251, 150, 13, 130, 131, 159, 130, 0, 216, 24, 88, 36, 130, 88, 32, 254, 249, 136, 177, 233, 204, 49, 255, 41, 187, 1, 103, 73, 165, 67, 240, 118, 89, 173, 97, 230, 119, 102, 61, 159, 29, 117, 241, 94, 249, 108, 155, 0, 255, 159, 130, 130, 216, 24, 88, 66, 131, 88, 28, 253, 232, 220, 241, 35, 230, 18, 203, 65, 245, 5, 98, 140, 94, 242, 66, 119, 141, 108, 102, 86, 53, 183, 246, 7, 162, 109, 54, 161, 1, 88, 30, 88, 28, 202, 62, 85, 60, 156, 99, 197, 54, 189, 86, 50, 67, 221, 70, 75, 55, 45, 223, 197, 30, 135, 48, 245, 33, 52, 83, 215, 212, 0, 26, 24, 39, 231, 206, 27, 0, 0, 68, 42, 61, 49, 72, 182, 130, 130, 216, 24, 88, 66, 131, 88, 28, 164, 97, 148, 87, 168, 130, 95, 44, 96, 48, 61, 203, 225, 14, 55, 237, 114, 162, 20, 215, 22, 208, 80, 228, 196, 56, 148, 92, 161, 1, 88, 30, 88, 28, 202, 62, 85, 60, 156, 99, 197, 127, 196, 34, 34, 67, 116, 107, 58, 95, 49, 200, 247, 77, 85, 7, 56, 21, 66, 246, 127, 127, 0, 26, 196, 69, 157, 80, 26, 0, 149, 137, 64, 255, 160, 129, 130, 0, 216, 24, 88, 133, 130, 88, 64, 155, 184, 74, 86, 173, 97, 208, 223, 214, 4, 126, 202, 70, 59, 110, 105, 26, 139, 232, 220, 6, 77, 0, 78, 92, 155, 121, 117, 33, 85, 182, 121, 10, 167, 156, 202, 239, 176, 76, 171, 95, 99, 108, 212, 143, 127, 147, 149, 146, 109, 86, 95, 231, 127, 215, 36, 197, 237, 231, 220, 62, 35, 150, 220, 88, 64, 35, 117, 37, 48, 190, 106, 102, 239, 185, 196, 100, 118, 185, 43, 127, 201, 118, 155, 180, 45, 51, 210, 22, 138, 191, 235, 42, 194, 88, 249, 50, 63, 179, 81, 60, 152, 42, 13, 78, 131, 156, 226, 150, 18, 165, 110, 168, 172, 166, 55, 169, 13, 135, 99, 93, 217, 37, 254, 29, 110, 149, 228, 107, 2, 130, 131, 159, 130, 0, 216, 24, 88, 36, 130, 88, 32, 199, 231, 1, 92, 250, 75, 68, 18, 224, 185, 52, 234, 204, 157, 167, 1, 160, 181, 154, 237, 242, 130, 41, 43, 77, 47, 164, 45, 158, 112, 122, 97, 0, 255, 159, 130, 130, 216, 24, 88, 66, 131, 88, 28, 163, 218, 5, 111, 245, 194, 8, 14, 101, 50, 34, 31, 29, 115, 41, 218, 45, 53, 104, 161, 65, 111, 93, 157, 220, 88, 50, 119, 161, 1, 88, 30, 88, 28, 212, 214, 100, 87, 247, 230, 137, 18, 233, 14, 67, 83, 249, 72, 243, 110, 203, 204, 34, 103, 73, 150, 185, 178, 143, 128, 107, 78, 0, 26, 181, 179, 13, 99, 27, 0, 0, 0, 75, 49, 142, 246, 128, 130, 130, 216, 24, 88, 66, 131, 88, 28, 6, 251, 79, 181, 192, 149, 80, 229, 54, 76, 214, 94, 36, 111, 110, 21, 71, 201, 75, 12, 182, 244, 84, 255, 253, 170, 124, 24, 161, 1, 88, 30, 88, 28, 202, 62, 85, 60, 156, 99, 197, 120, 165, 214, 82, 67, 73, 247, 123, 106, 164, 183, 94, 5, 188, 198, 45, 79, 156, 4, 67, 62, 0, 26, 125, 51, 214, 184, 27, 0, 0, 1, 27, 15, 159, 21, 146, 255, 160, 129, 130, 0, 216, 24, 88, 133, 130, 88, 64, 38, 89, 182, 201, 162, 103, 59, 81, 234, 18, 97, 102, 246, 232, 45, 127, 221, 63, 182, 36, 193, 177, 115, 84, 201, 172, 245, 43, 114, 161, 80, 197, 102, 139, 116, 190, 240, 163, 235, 16, 61, 190, 118, 12, 43, 129, 109, 238, 119, 3, 78, 105, 197, 20, 30, 186, 112, 158, 24, 1, 27, 208, 240, 201, 88, 64, 50, 40, 38, 231, 87, 89, 38, 206, 149, 84, 138, 12, 206, 233, 146, 156, 60, 39, 6, 111, 20, 177, 185, 25, 145, 135, 65, 46, 153, 206, 183, 141, 72, 223, 211, 154, 88, 187, 246, 84, 170, 54, 124, 84, 116, 144, 130, 40, 237, 254, 121, 108, 212, 242, 177, 213, 162, 150, 34, 1, 145, 220, 229, 1, 255, 130, 3, 217, 1, 2, 128, 159, 255, 130, 128, 159, 255, 129, 160];
 
@@ -344,7 +344,7 @@ mod bench {
     fn decode_block_cbor_raw(b: &mut test::Bencher) {
         b.iter(|| {
             let mut raw = RawCbor::from(BLOCK);
-            let _ : Block = raw_cbor::Deserialize::deserialize(&mut raw).unwrap();
+            let _ : Block = cbor_event::Deserialize::deserialize(&mut raw).unwrap();
         })
     }
 

@@ -5,7 +5,7 @@ use std::string::String;
 
 use cardano::block::{genesis, normal, types, Block, SscProof, block::BlockDate};
 use cardano::{address, config, hash, hdwallet, tx, vss, util::hex};
-use raw_cbor;
+use cbor_event;
 
 use ansi_term::Colour;
 
@@ -146,7 +146,7 @@ impl<'a> fmt::Display for Val<'a> {
 // the rest of the file is `impl` and `test`
 
 // XXX: eventually there should be no uses of this
-impl Pretty for raw_cbor::Value {
+impl Pretty for cbor_event::Value {
     fn to_pretty(&self) -> Val {
         from_debug(self)
     }

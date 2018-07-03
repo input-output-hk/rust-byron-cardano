@@ -2,20 +2,20 @@ use {address, hash::{Blake2b256}};
 use config::{ProtocolMagic};
 use std::{fmt};
 
-use raw_cbor::{self, de::RawCbor};
+use cbor_event::{self, de::RawCbor};
 use super::types;
 use super::types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof(Blake2b256);
 
-impl raw_cbor::se::Serialize for BodyProof {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+impl cbor_event::se::Serialize for BodyProof {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
-impl raw_cbor::de::Deserialize for BodyProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for BodyProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Ok(BodyProof(raw.deserialize()?))
     }
 }
@@ -24,24 +24,24 @@ impl raw_cbor::de::Deserialize for BodyProof {
 pub struct Body {
     pub slot_leaders: Vec<address::StakeholderId>,
 }
-impl raw_cbor::se::Serialize for Body {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        raw_cbor::se::serialize_indefinite_array(self.slot_leaders.iter(), serializer)
+impl cbor_event::se::Serialize for Body {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        cbor_event::se::serialize_indefinite_array(self.slot_leaders.iter(), serializer)
     }
 }
-impl raw_cbor::de::Deserialize for Body {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Body {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        assert_eq!(len, raw_cbor::Len::Indefinite);
+        assert_eq!(len, cbor_event::Len::Indefinite);
         let mut slot_leaders = Vec::new();
         while {
             let t = raw.cbor_type()?;
-            if t == raw_cbor::Type::Special {
+            if t == cbor_event::Type::Special {
                 let special = raw.special()?;
-                assert_eq!(special, raw_cbor::Special::Break);
+                assert_eq!(special, cbor_event::Special::Break);
                 false
             } else {
-                slot_leaders.push(raw_cbor::de::Deserialize::deserialize(raw)?);
+                slot_leaders.push(cbor_event::de::Deserialize::deserialize(raw)?);
                 true
             }
         } {}
@@ -77,9 +77,9 @@ impl BlockHeader {
         }
     }
 }
-impl raw_cbor::se::Serialize for BlockHeader {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(5))?
+impl cbor_event::se::Serialize for BlockHeader {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(5))?
             .serialize(&self.protocol_magic)?
             .serialize(&self.previous_header)?
             .serialize(&self.body_proof)?
@@ -87,17 +87,17 @@ impl raw_cbor::se::Serialize for BlockHeader {
             .serialize(&self.extra_data)
     }
 }
-impl raw_cbor::de::Deserialize for BlockHeader {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for BlockHeader {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(5) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(5) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
         }
-        let p_magic    = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let prv_header = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let body_proof = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let consensus  = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let extra_data = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let p_magic    = cbor_event::de::Deserialize::deserialize(raw)?;
+        let prv_header = cbor_event::de::Deserialize::deserialize(raw)?;
+        let body_proof = cbor_event::de::Deserialize::deserialize(raw)?;
+        let consensus  = cbor_event::de::Deserialize::deserialize(raw)?;
+        let extra_data = cbor_event::de::Deserialize::deserialize(raw)?;
 
         Ok(BlockHeader::new(p_magic, prv_header, body_proof, consensus, extra_data))
     }
@@ -107,7 +107,7 @@ impl raw_cbor::de::Deserialize for BlockHeader {
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
-    pub extra: raw_cbor::Value
+    pub extra: cbor_event::Value
 }
 
 impl fmt::Display for Block {
@@ -116,19 +116,19 @@ impl fmt::Display for Block {
         write!(f, "{:?}", self.body)
     }
 }
-impl raw_cbor::se::Serialize for Block {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(3))?
+impl cbor_event::se::Serialize for Block {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(3))?
             .serialize(&self.header)?
             .serialize(&self.body)?
             .serialize(&self.extra)
     }
 }
-impl raw_cbor::de::Deserialize for Block {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Block {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(3) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(3) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
         }
         let header = raw.deserialize()?;
         let body   = raw.deserialize()?;
@@ -142,21 +142,21 @@ pub struct Consensus {
     pub epoch: types::EpochId,
     pub chain_difficulty: ChainDifficulty,
 }
-impl raw_cbor::se::Serialize for Consensus {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(2))?
+impl cbor_event::se::Serialize for Consensus {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(self.epoch as u64)?
             .serialize(&self.chain_difficulty)
     }
 }
-impl raw_cbor::de::Deserialize for Consensus {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Consensus {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
         }
         let epoch = raw.unsigned_integer()? as u32;
-        let chain_difficulty = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let chain_difficulty = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(Consensus { epoch, chain_difficulty })
     }
 }

@@ -4,7 +4,7 @@ use rcw::digest::Digest;
 use rcw::blake2b::Blake2b;
 
 use util::hex;
-use raw_cbor::{self, de::RawCbor};
+use cbor_event::{self, de::RawCbor};
 
 use serde;
 
@@ -75,18 +75,18 @@ impl fmt::Display for Blake2b256 {
         write!(f, "{}", hex::encode(&self.0[..]))
     }
 }
-impl raw_cbor::de::Deserialize for Blake2b256 {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Blake2b256 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
         match Blake2b256::from_slice(&bytes) {
             Ok(digest) => Ok(digest),
-            Err(Error::InvalidHashSize(sz)) => Err(raw_cbor::Error::NotEnough(sz, HASH_SIZE)),
-            Err(err) => Err(raw_cbor::Error::CustomError(format!("unexpected error: {:?}", err))),
+            Err(Error::InvalidHashSize(sz)) => Err(cbor_event::Error::NotEnough(sz, HASH_SIZE)),
+            Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
         }
     }
 }
-impl raw_cbor::se::Serialize for Blake2b256 {
-    fn serialize(&self, serializer: raw_cbor::se::Serializer) -> raw_cbor::Result<raw_cbor::se::Serializer> {
+impl cbor_event::se::Serialize for Blake2b256 {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.write_bytes(&self.0)
     }
 }
@@ -148,10 +148,10 @@ impl<'de> serde::Deserialize<'de> for Blake2b256
 #[cfg(test)]
 mod test {
     use super::*;
-    use raw_cbor::{self};
+    use cbor_event::{self};
 
     #[test]
     fn encode_decode() {
-        assert!(raw_cbor::test_encode_decode(&Blake2b256::new([0;32].as_ref())).unwrap())
+        assert!(cbor_event::test_encode_decode(&Blake2b256::new([0;32].as_ref())).unwrap())
     }
 }
