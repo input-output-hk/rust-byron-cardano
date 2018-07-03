@@ -61,7 +61,7 @@ pub mod util {
         #[bench]
         fn encode_crc32_with_cbor_event(b: &mut test::Bencher) {
             b.iter(|| {
-                let _ = encode_with_crc32_(&Test(BYTES), Serializer::new()).unwrap();
+                let _ = encode_with_crc32_(&Test(BYTES), Serializer::new_vec()).unwrap();
             })
         }
 
@@ -75,7 +75,9 @@ pub mod util {
 
         struct Test(&'static [u8]);
         impl Serialize for Test {
-            fn serialize(&self, serializer: Serializer) -> cbor_event::Result<Serializer> {
+            fn serialize<W>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>>
+                where W: ::std::io::Write
+            {
                 serializer.write_bytes(self.0)
             }
         }
