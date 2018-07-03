@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate rcw;
-extern crate raw_cbor;
+extern crate cbor_event;
 extern crate cardano;
 extern crate rand;
 extern crate flate2;
@@ -36,7 +36,7 @@ const USE_COMPRESSION : bool = true;
 pub enum Error {
     IoError(io::Error),
     BlockError(block::Error),
-    CborBlockError(raw_cbor::Error),
+    CborBlockError(cbor_event::Error),
     // ** RefPack creation errors
     RefPackError(refpack::Error),
     RefPackUnexpectedGenesis(u32),
@@ -55,8 +55,8 @@ impl From<block::Error> for Error {
 impl From<refpack::Error> for Error {
     fn from(e: refpack::Error) -> Self { Error::RefPackError(e) }
 }
-impl From<raw_cbor::Error> for Error {
-    fn from(e: raw_cbor::Error) -> Self { Error::CborBlockError(e) }
+impl From<cbor_event::Error> for Error {
+    fn from(e: cbor_event::Error) -> Self { Error::CborBlockError(e) }
 }
 
 pub type Result<T> = result::Result<T, Error>;

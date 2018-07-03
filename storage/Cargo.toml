@@ -6,7 +6,7 @@ authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicol
 [dependencies]
 rcw = { path = "../rcw" }
 cardano = { path = "../cardano" }
-raw_cbor = { path = "../cbor" }
+cbor_event = { path = "../cbor_event" }
 log = "*"
 rand = "0.4"
 flate2 = "1.0.1"
