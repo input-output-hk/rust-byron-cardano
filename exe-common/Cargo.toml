@@ -8,7 +8,7 @@ rcw = { path = "../rcw" }
 cardano = { path = "../cardano" }
 storage = { path = "../storage" }
 protocol = { path = "../protocol" }
-raw_cbor = { path = "../cbor" }
+cbor_event = { path = "../cbor_event" }
 log = "*"
 rand = "0.4"
 serde = "1.0"

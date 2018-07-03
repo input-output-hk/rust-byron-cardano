@@ -7,7 +7,7 @@ use cardano::block::{self, BlockHeader, Block, HeaderHash, EpochId, BlockDate, S
 use storage::{self, Storage, types::{PackHash}};
 use protocol::command::*;
 use std::time::{SystemTime, Duration};
-use raw_cbor::{de::{RawCbor}};
+use cbor_event::{de::{RawCbor}};
 
 use config::net;
 use network::{Error, Result};

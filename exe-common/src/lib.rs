@@ -1,6 +1,6 @@
 extern crate cardano;
 extern crate protocol;
-extern crate raw_cbor;
+extern crate cbor_event;
 extern crate storage;
 extern crate rand;
 #[macro_use]
