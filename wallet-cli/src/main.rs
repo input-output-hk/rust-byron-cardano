@@ -15,8 +15,10 @@ extern crate protocol;
 extern crate storage;
 extern crate rand;
 extern crate ansi_term;
-extern crate termion;
 extern crate flate2;
+
+extern crate console;
+extern crate dialoguer;
 
 mod command;
 mod config;
