@@ -3,7 +3,7 @@ use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx, TxInWitness, TxAux, txaux_serialize};
 use txutils::{Inputs, OutputPolicy, output_sum};
-use raw_cbor;
+use cbor_event;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -120,7 +120,7 @@ impl FeeAlgorithm for LinearFee {
         self.estimate(txbytes.len())
     }
     fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee> {
-        let ser = raw_cbor::se::Serializer::new();
+        let ser = cbor_event::se::Serializer::new_vec();
         let txbytes = txaux_serialize(tx, witnesses, ser).unwrap().finalize();
         self.estimate(txbytes.len())
     }

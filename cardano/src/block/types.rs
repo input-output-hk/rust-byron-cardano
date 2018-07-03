@@ -1,7 +1,7 @@
 use std::{fmt};
 use hash;
 use hash::{HASH_SIZE, Blake2b256};
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -86,7 +86,7 @@ impl Default for SoftwareVersion {
 }
 
 #[derive(Debug, Clone)]
-pub struct BlockHeaderAttributes(raw_cbor::Value);
+pub struct BlockHeaderAttributes(cbor_event::Value);
 
 #[derive(Debug, Clone)]
 pub struct HeaderExtraData {
@@ -146,19 +146,19 @@ impl fmt::Display for SlotId {
 // **************************************************************************
 // CBOR implementations
 // **************************************************************************
-impl raw_cbor::se::Serialize for Version {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(3))?
+impl cbor_event::se::Serialize for Version {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(3))?
             .write_unsigned_integer(self.major as u64)?
             .write_unsigned_integer(self.minor as u64)?
             .write_unsigned_integer(self.revision as u64)
     }
 }
-impl raw_cbor::de::Deserialize for Version {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Version {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(3) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid Version: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(3) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid Version: recieved array of {:?} elements", len)));
         }
         let major = raw.unsigned_integer()? as u32;
         let minor = raw.unsigned_integer()? as u32;
@@ -168,19 +168,19 @@ impl raw_cbor::de::Deserialize for Version {
     }
 }
 
-impl raw_cbor::se::Serialize for BlockVersion {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(3))?
+impl cbor_event::se::Serialize for BlockVersion {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(3))?
             .write_unsigned_integer(self.0 as u64)?
             .write_unsigned_integer(self.1 as u64)?
             .write_unsigned_integer(self.2 as u64)
     }
 }
-impl raw_cbor::de::Deserialize for BlockVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for BlockVersion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(3) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid BlockVersion: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(3) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockVersion: recieved array of {:?} elements", len)));
         }
         let major = raw.unsigned_integer()? as u16;
         let minor = raw.unsigned_integer()? as u16;
@@ -190,18 +190,18 @@ impl raw_cbor::de::Deserialize for BlockVersion {
     }
 }
 
-impl raw_cbor::se::Serialize for SoftwareVersion {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(2))?
+impl cbor_event::se::Serialize for SoftwareVersion {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?
             .write_text(&self.application_name)?
             .write_unsigned_integer(self.application_version as u64)
     }
 }
-impl raw_cbor::de::Deserialize for SoftwareVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for SoftwareVersion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid SoftwareVersion: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid SoftwareVersion: recieved array of {:?} elements", len)));
         }
         let name  = raw.text()?;
         let version = raw.unsigned_integer()? as u32;
@@ -210,142 +210,142 @@ impl raw_cbor::de::Deserialize for SoftwareVersion {
     }
 }
 
-impl raw_cbor::se::Serialize for HeaderHash {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for HeaderHash {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
-impl raw_cbor::de::Deserialize for HeaderHash {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
-        raw_cbor::de::Deserialize::deserialize(raw).map(|h| HeaderHash(h))
+impl cbor_event::de::Deserialize for HeaderHash {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        cbor_event::de::Deserialize::deserialize(raw).map(|h| HeaderHash(h))
     }
 }
 
-impl raw_cbor::se::Serialize for BlockHeaderAttributes {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for BlockHeaderAttributes {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
-impl raw_cbor::de::Deserialize for BlockHeaderAttributes {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for BlockHeaderAttributes {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Ok(BlockHeaderAttributes(raw.deserialize()?))
     }
 }
 
-impl raw_cbor::se::Serialize for HeaderExtraData {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(4))?
+impl cbor_event::se::Serialize for HeaderExtraData {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(4))?
             .serialize(&self.block_version)?
             .serialize(&self.software_version)?
             .serialize(&self.attributes)?
             .serialize(&self.extra_data_proof)
     }
 }
-impl raw_cbor::de::Deserialize for HeaderExtraData {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for HeaderExtraData {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(4) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid HeaderExtraData: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(4) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid HeaderExtraData: recieved array of {:?} elements", len)));
         }
-        let block_version    = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let software_version = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let attributes       = raw_cbor::de::Deserialize::deserialize(raw)?;
-        let extra_data_proof = raw_cbor::de::Deserialize::deserialize(raw)?;
+        let block_version    = cbor_event::de::Deserialize::deserialize(raw)?;
+        let software_version = cbor_event::de::Deserialize::deserialize(raw)?;
+        let attributes       = cbor_event::de::Deserialize::deserialize(raw)?;
+        let extra_data_proof = cbor_event::de::Deserialize::deserialize(raw)?;
 
         Ok(HeaderExtraData::new(block_version, software_version, attributes, extra_data_proof))
     }
 }
 
-impl raw_cbor::se::Serialize for SscProof {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for SscProof {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         match self {
             &SscProof::Commitments(ref commhash, ref vss) => {
-                serializer.write_array(raw_cbor::Len::Len(3))?
+                serializer.write_array(cbor_event::Len::Len(3))?
                     .write_unsigned_integer(0)?
                     .serialize(commhash)?
                     .serialize(vss)
             },
             &SscProof::Openings(ref commhash, ref vss) => {
-                serializer.write_array(raw_cbor::Len::Len(3))?
+                serializer.write_array(cbor_event::Len::Len(3))?
                     .write_unsigned_integer(1)?
                     .serialize(commhash)?
                     .serialize(vss)
             },
             &SscProof::Shares(ref commhash, ref vss) => {
-                serializer.write_array(raw_cbor::Len::Len(3))?
+                serializer.write_array(cbor_event::Len::Len(3))?
                     .write_unsigned_integer(2)?
                     .serialize(commhash)?
                     .serialize(vss)
             },
             &SscProof::Certificate(ref cert) => {
-                serializer.write_array(raw_cbor::Len::Len(2))?
+                serializer.write_array(cbor_event::Len::Len(2))?
                     .write_unsigned_integer(3)?
                     .serialize(cert)
             },
         }
     }
 }
-impl raw_cbor::de::Deserialize for SscProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for SscProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) && len != raw_cbor::Len::Len(3) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid SscProof: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) && len != cbor_event::Len::Len(3) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid SscProof: recieved array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
-                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
-                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let commhash = cbor_event::de::Deserialize::deserialize(raw)?;
+                let vss      = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(SscProof::Commitments(commhash, vss))
             },
             1 => {
-                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
-                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let commhash = cbor_event::de::Deserialize::deserialize(raw)?;
+                let vss      = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(SscProof::Openings(commhash, vss))
             },
             2 => {
-                let commhash = raw_cbor::de::Deserialize::deserialize(raw)?;
-                let vss      = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let commhash = cbor_event::de::Deserialize::deserialize(raw)?;
+                let vss      = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(SscProof::Shares(commhash, vss))
             },
             3 => {
-                let cert = raw_cbor::de::Deserialize::deserialize(raw)?;
+                let cert = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(SscProof::Certificate(cert))
             },
             _ => {
-                Err(raw_cbor::Error::CustomError(format!("Unsupported SccProof: {}", sum_type_idx)))
+                Err(cbor_event::Error::CustomError(format!("Unsupported SccProof: {}", sum_type_idx)))
             }
         }
     }
 }
 
-impl raw_cbor::se::Serialize for ChainDifficulty {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(1))?.write_unsigned_integer(self.0)
+impl cbor_event::se::Serialize for ChainDifficulty {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(1))?.write_unsigned_integer(self.0)
     }
 }
-impl raw_cbor::de::Deserialize for ChainDifficulty {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for ChainDifficulty {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(1) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid ChainDifficulty: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(1) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid ChainDifficulty: recieved array of {:?} elements", len)));
         }
         Ok(ChainDifficulty(raw.unsigned_integer()?))
     }
 }
 
-impl raw_cbor::se::Serialize for SlotId {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
-        serializer.write_array(raw_cbor::Len::Len(2))?
+impl cbor_event::se::Serialize for SlotId {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(self.epoch as u64)?
             .write_unsigned_integer(self.slotid as u64)
     }
 }
-impl raw_cbor::de::Deserialize for SlotId {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for SlotId {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
-        if len != raw_cbor::Len::Len(2) {
-            return Err(raw_cbor::Error::CustomError(format!("Invalid SlotId: recieved array of {:?} elements", len)));
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid SlotId: recieved array of {:?} elements", len)));
         }
         let epoch  = raw.unsigned_integer()? as u32;
         let slotid = raw.unsigned_integer()? as u32;

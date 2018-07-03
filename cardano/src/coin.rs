@@ -4,7 +4,7 @@
 //! such as a min bound of 0 and a max bound of `MAX_COIN`.
 //!
 
-use raw_cbor::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use std::{ops, fmt, result};
 
 /// maximum value of a Lovelace.
@@ -67,16 +67,16 @@ impl fmt::Display for Coin {
         write!(f, "{}", self.0)
     }
 }
-impl raw_cbor::se::Serialize for Coin {
-    fn serialize(&self, serializer: Serializer) -> raw_cbor::Result<Serializer> {
+impl cbor_event::se::Serialize for Coin {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_unsigned_integer(self.0)
     }
 }
-impl raw_cbor::de::Deserialize for Coin {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> raw_cbor::Result<Self> {
+impl cbor_event::de::Deserialize for Coin {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Coin::new(raw.unsigned_integer()?).map_err(|err| {
             match err {
-                Error::OutOfBound(v) => raw_cbor::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN))
+                Error::OutOfBound(v) => cbor_event::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN))
             }
         })
     }

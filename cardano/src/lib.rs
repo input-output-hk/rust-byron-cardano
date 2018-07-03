@@ -15,7 +15,7 @@ extern crate test;
 
 extern crate rcw;
 #[macro_use]
-extern crate raw_cbor;
+extern crate cbor_event;
 
 mod crc32;
 pub mod util;
