@@ -411,7 +411,7 @@ impl<W: Write+Sized> Serializer<W> {
     /// write a tag
     ///
     /// in cbor a tag should be followed by a tagged object. You are responsible
-    /// to making sur you are writting the tagged object just after this
+    /// to making sur you are writing the tagged object just after this
     ///
     /// # Example
     ///

@@ -148,7 +148,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// ```compile_fail
 /// use cbor_event::de::*;
 ///
-/// // here this won't compile because the bytes's lifetime is bound
+/// // here this won't compile because the bytes' lifetime is bound
 /// // to the parent RawCbor (variable `raw`, which is bound to `vec`).
 /// let bytes = {
 ///     let vec = vec![0x43, 0x01, 0x02, 0x03];
@@ -169,8 +169,8 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 ///   a more bytes to parse the CBOR properly;
 /// - `Error::Expected(expected_type, current_type)`: the current cbor primary
 ///   [`Type`] is different from the expected [`Type`];
-/// - `Error::UnknownLenType(byte)`: the CBOR is serialised in an unknown
-///   or unsuported format;
+/// - `Error::UnknownLenType(byte)`: the CBOR is serialized in an unknown
+///   or unsupported format;
 /// - `Error::IndefiniteLenUnsupported(t)`: the Indefinite length is not
 ///   supported for the given [`Type`] `t`;
 /// - `Error::IoError(io_error)`: error due relating to buffer management;

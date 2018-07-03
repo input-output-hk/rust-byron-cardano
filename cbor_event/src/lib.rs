@@ -22,7 +22,7 @@
 //!
 //! ## Raw deserialisation: [`RawCbor`]
 //!
-//! Deserialisation works by consumming a `RawCbor` content. To avoid
+//! Deserialisation works by consuming a `RawCbor` content. To avoid
 //! performance issues some objects use a reference to the original
 //! source [`RawCbor`] internal buffer. They are then linked to the object
 //! by an associated lifetime, this is true for `Bytes`.

@@ -1,7 +1,7 @@
 /// macro to efficiently serialise the given structure into
 /// cbor binary.
 ///
-/// This performes an in memory serialisation and returns the
+/// This performs an in memory serialisation and returns the
 /// buffer wrapped in a [`Result`](../enum.Result.html).
 ///
 #[macro_export]

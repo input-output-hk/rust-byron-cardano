@@ -2,10 +2,10 @@
 //!
 //! While it is handy to be able to construct into the intermediate value
 //! type it is also not recommended to use it as an intermediate type
-//! before deserialising concret type:
+//! before deserialising concrete type:
 //!
 //! - it is slow and bloated;
-//! - it takes a lot dynamic memory and may not be compatible with the targetted environment;
+//! - it takes a lot dynamic memory and may not be compatible with the targeted environment;
 //!
 //! This is why all the objects here are marked as deprecated
 
@@ -58,7 +58,7 @@ impl Deserialize for ObjectKey {
 
 /// All possible CBOR supported values.
 ///
-/// We advise not to use these objects as an intermediar representation before
+/// We advise not to use these objects as an intermediary representation before
 /// retrieving custom types as it is a slow and not memory efficient way to do
 /// so. However it is handy for debugging or reverse a given protocol.
 ///
