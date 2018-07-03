@@ -8,7 +8,7 @@ keywords = [ "Cardano", "Wallet", "cli" ]
 
 [dependencies]
 rcw = { path = "../rcw" }
-raw_cbor = { path = "../cbor" }
+cbor_event = { path = "../cbor_event" }
 cardano = { path = "../cardano" }
 protocol = { path = "../protocol" }
 storage = { path = "../storage" }

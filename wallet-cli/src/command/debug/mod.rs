@@ -4,7 +4,7 @@ use clap::{ArgMatches, Arg, SubCommand, App};
 use cardano::block;
 use config::{Config};
 use std::io::{Write, stdout};
-use raw_cbor::de::RawCbor;
+use cbor_event::de::RawCbor;
 
 use exe_common::{config::{net}, network::{api::{*}}, sync};
 

@@ -3,7 +3,7 @@ use cardano::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 use cardano::block::{Block};
-use raw_cbor::de::RawCbor;
+use cbor_event::de::RawCbor;
 
 use super::util;
 
