@@ -1,3 +1,5 @@
+//! CBOR deserialisation tooling
+
 use std::{fmt, ops::{Deref}, collections::BTreeMap};
 use error::Error;
 use result::Result;
@@ -75,16 +77,22 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
     }
 }
 
-/// Raw Cbor
+/// [`Deserialize`]: ./trait.Deserialize.html
+/// [`Error`]: ../enum.Error.html
+/// [`Type`]: ../enum.Type.html
+/// [`Bytes`]: ../struct.Bytes.html
+/// [`cbor_type`]: #method.cbor_type
+/// [`cbor_len`]: #method.cbor_len
+/// [`Len`]: ../enum.Len.html
 ///
-/// represents a chunk of bytes believed to be cbor object
+/// `RawCbor` represents a chunk of bytes believed to be cbor object.
 /// The validity of the cbor bytes is known only when trying
-/// to get meaningful cbor objects.
+/// to get meaningful cbor objects from it.
 ///
 /// # Examples
 ///
-/// From it you can get one of the special type of the RawCbor but it works
-/// the way the user expects some specific type.
+/// If you already know the CBOR Primary [`Type`] you are expecting, you
+/// can efficiently use the appropriate commands:
 ///
 /// ```
 /// use cbor_event::de::*;
@@ -104,9 +112,12 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 /// assert!(raw.array().is_err());
 /// ```
 ///
+/// If you don't know the [`Type`] and are only analyzing the structure, you
+/// can use [`cbor_type`] to get the type of the next object to parse.
+///
 /// # Ownership
 ///
-/// RawCbor does not take ownership of the underlying slice. It takes
+/// [`RawCbor`] does not take ownership of the underlying slice. It takes
 /// a reference and binds its lifetime to the owner of that slice.
 ///
 /// ```
@@ -131,7 +142,7 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 ///
 /// ```
 ///
-/// But here the returned `Bytes` object's lifetime is bound to the lifetime
+/// But here the returned [`Bytes`] object's lifetime is bound to the lifetime
 /// of the `RawCbor` object.
 ///
 /// ```compile_fail
@@ -148,6 +159,25 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
 ///
 /// This is in order to allow fast skipping of cbor value to reach to desired
 /// specific data.
+///
+/// # Error
+///
+/// When deserialising from `RawCbor` it is possible to see the following
+/// [`Error`]s:
+///
+/// - `Error::NotEnough(current_size, needed_size)`: meaning we are expecting
+///   a more bytes to parse the CBOR properly;
+/// - `Error::Expected(expected_type, current_type)`: the current cbor primary
+///   [`Type`] is different from the expected [`Type`];
+/// - `Error::UnknownLenType(byte)`: the CBOR is serialised in an unknown
+///   or unsuported format;
+/// - `Error::IndefiniteLenUnsupported(t)`: the Indefinite length is not
+///   supported for the given [`Type`] `t`;
+/// - `Error::IoError(io_error)`: error due relating to buffer management;
+///
+/// # Panic
+///
+/// There is no explicit `panic!` in this code, except a few `unreachable!`.
 ///
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct RawCbor<'a>(&'a [u8]);
@@ -201,6 +231,8 @@ impl<'a> RawCbor<'a> {
 
     /// function to extract the type of the given `RawCbor`.
     ///
+    /// This function does not consume the underlying buffer.
+    ///
     /// # Examples
     ///
     /// ```
@@ -229,15 +261,20 @@ impl<'a> RawCbor<'a> {
     /// function to extract the get the length parameter of
     /// the given cbor object. The returned tuple contains
     ///
-    /// * the `Len`;
+    /// [`Type`]: ../enum.Type.html
+    /// [`Len`]: ../enum.Len.html
+    ///
+    /// * the [`Len`];
     /// * the size of the encoded length (the number of bytes the data was encoded in).
     ///   `0` means the length is `< 24` and was encoded along the `Type`.
     ///
-    /// If you are expecting a Type `UnsignedInteger` or `NegativeInteger` the meaning of
+    /// If you are expecting a `Type` `UnsignedInteger` or `NegativeInteger` the meaning of
     /// the length is slightly different:
     ///
     /// * `Len::Indefinite` is an error;
     /// * `Len::Len(len)` is the read value of the integer.
+    ///
+    /// This function does not consume the underlying buffer.
     ///
     /// # Examples
     ///
@@ -270,8 +307,10 @@ impl<'a> RawCbor<'a> {
         }
     }
 
+    /// consume the given `len` from the underlying buffer. Skipped bytes are
+    /// then lost, they cannot be retrieved for future references.
     #[inline]
-    fn advance(&mut self, len: usize) -> Result<()> {
+    pub fn advance(&mut self, len: usize) -> Result<()> {
         if self.0.len() < len {
             Err(Error::NotEnough(self.len(), len))
         } else {

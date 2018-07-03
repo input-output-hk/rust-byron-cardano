@@ -48,13 +48,31 @@ impl From<u8> for Type {
     fn from(byte: u8) -> Type { Type::from_byte(byte) }
 }
 
-/// CBOR Raw bytes
+/// Raw bytes as a slice of given length of the original buffer.
 ///
-/// Simply a slice of a given length of the original buffer.
+/// [`Deref`]: https://doc.rust-lang.org/std/ops/trait.Deref.html
+/// [`[u8]`]: https://doc.rust-lang.org/nightly/std/primitive.slice.html
+///
+/// # Deref
+///
+/// `Bytes` implements [`Deref`]`<Target = [u8]>` and so inherits all of
+/// [`[u8]`]'s methods. In addition it means that you can pass a `Bytes` to
+/// a function which takes a [`[u8]`] by using an ampersand (`&`):
+///
+/// ```
+/// fn take_slice(slice: &[u8]) { /* ... */ }
+///
+/// let original_source = vec![0,1,2];
+/// let bytes = Bytes::from(&original_source);
+/// take_slice(&bytes);
+/// ```
 ///
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Bytes<'a>(&'a [u8]);
 impl<'a> Bytes<'a> {
+    /// handy function to explicitely access the underlying slice
+    /// but bound to the original lifetime, not the lifetime of
+    /// the `Bytes` itself.
     pub fn bytes<'b>(&'b self) -> &'a [u8] { self.0 }
 }
 impl<'a> From<&'a [u8]> for Bytes<'a> { fn from(v: &'a[u8]) -> Self { Bytes(v) } }
@@ -66,6 +84,7 @@ impl<'a> AsRef<[u8]> for Bytes<'a> {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
+/// CBOR special (as in Special Primary Type).
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum Special {
     Bool(bool),
@@ -74,6 +93,8 @@ pub enum Special {
     /// Free to use values within: `[0..=13]` and `[24..=31]`
     Unassigned(u8),
 
+    /// Float is not fully supported in this library and it is advised
+    /// to avoid using it for now.
     #[warn()]
     Float(f64),
     /// mark the stop of a given indefinite-length item
@@ -136,7 +157,7 @@ mod tests {
 
     #[test]
     fn major_type_byte_encoding() {
-        for i in 0b0000_0000..0b0001_1111 {
+        for i in 0b0000_0000..=0b0001_1111 {
             assert!(Type::UnsignedInteger == Type::from_byte(Type::to_byte(Type::UnsignedInteger, i)));
             assert!(Type::NegativeInteger == Type::from_byte(Type::to_byte(Type::NegativeInteger, i)));
             assert!(Type::Bytes           == Type::from_byte(Type::to_byte(Type::Bytes,           i)));

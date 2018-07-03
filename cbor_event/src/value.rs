@@ -18,6 +18,8 @@ use se::*;
 
 use std::{collections::{BTreeMap}, io::Write};
 
+/// CBOR Object key, represents the possible supported values for
+/// a CBOR key in a CBOR Map.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ObjectKey {
     Integer(u64),
@@ -25,6 +27,7 @@ pub enum ObjectKey {
     Text(String),
 }
 impl ObjectKey {
+    /// convert the given `ObjectKey` into a CBOR [`Value`](./struct.Value.html)
     pub fn value(self) -> Value {
         match self {
             ObjectKey::Integer(v) => Value::U64(v),
@@ -53,6 +56,12 @@ impl Deserialize for ObjectKey {
     }
 }
 
+/// All possible CBOR supported values.
+///
+/// We advise not to use these objects as an intermediar representation before
+/// retrieving custom types as it is a slow and not memory efficient way to do
+/// so. However it is handy for debugging or reverse a given protocol.
+///
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     U64(u64),

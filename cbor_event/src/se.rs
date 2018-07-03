@@ -1,3 +1,4 @@
+//! CBOR serialisation tooling
 use std::io::{Write};
 
 use result::Result;
@@ -45,7 +46,7 @@ impl<'a, A, B, C> Serialize for (&'a A, &'a B, &'a C)
     }
 }
 
-/// helper function to serialise a collection of T as a fixed number of element
+/// helper function to serialise a map of fixed size.
 ///
 /// i.e. the size must be known ahead of time
 ///
@@ -77,6 +78,22 @@ pub fn serialize_fixed_array<'a, C, T, W>(data: C, serializer: Serializer<W>) ->
         serializer = Serialize::serialize(element, serializer)?
     }
     Ok(serializer)
+}
+
+/// helper function to serialise a map of indefinite number of elements.
+///
+pub fn serialize_indefinite_map<'a, C, K, V, W>(data: C, serializer: Serializer<W>) -> Result<Serializer<W>>
+    where K: 'a + Serialize
+        , V: 'a + Serialize
+        , C: Iterator<Item = (&'a K, &'a V)>
+        , W: Write+Sized
+{
+    let mut serializer = serializer.write_map(Len::Indefinite)?;
+    for element in data {
+        serializer = Serialize::serialize(element.0, serializer)?;
+        serializer = Serialize::serialize(element.1, serializer)?;
+    }
+    serializer.write_special(Special::Break)
 }
 
 /// helper function to serialise a collection of T as a indefinite number of element
@@ -121,12 +138,8 @@ pub fn serialize_cbor_in_cbor<T, W>(data: T, serializer: Serializer<W>) -> Resul
 // every _reserve_ calls.
 const DEFAULT_CAPACITY : usize = 512;
 
-/// simple CBOR serializer into in-memory bytes
-///
-/// Here we have chosen to limit ourselves for in-memory serialisation because
-/// most of the serialised objects will be used to perform other cryptographic
-/// operation before storing them to a file. This is mostly because of the design
-/// of the cardano block serialisation format.
+/// simple CBOR serializer into any
+/// [`std::io::Write`](https://doc.rust-lang.org/std/io/trait.Write.html).
 ///
 #[derive(Debug)]
 pub struct Serializer<W: Write+Sized>(W);
