@@ -6,9 +6,6 @@ extern crate serde;
 #[cfg(test)]
 extern crate serde_json;
 
-#[macro_use]
-extern crate log;
-
 #[cfg(test)]
 #[cfg(feature = "with-bench")]
 extern crate test;
