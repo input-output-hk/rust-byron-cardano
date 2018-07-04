@@ -6,3 +6,4 @@ rls
 .idea
 *.swp
 npm-debug.log
+.vscode
