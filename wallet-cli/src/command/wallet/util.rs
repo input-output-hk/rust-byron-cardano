@@ -51,17 +51,10 @@ const NO_MORE_WORDS : &'static str = "No more words";
 
  // own receive napkin fame episode mimic hard crucial river vintage cool average source grow wash
  // shielded entropy: unfold foil explain tackle idea name upon jacket gentle cover fold march raccoon pledge survey coach juice fossil cake notice hope
-#[cfg(unix)]
-fn read_word(index: usize) -> String {
-    let prompt = format!("mnemonic {}", index);
-    let word = PasswordInput::new(&prompt).default(NO_MORE_WORDS).interact_on(&Term::stdout()).unwrap();
-    Term::stdout().clear_line().unwrap();
-    word
-}
-#[cfg(windows)]
 fn read_word(index: usize) -> String {
     let prompt = format!("mnemonic {}", index);
     let word = Input::new(&prompt).default(NO_MORE_WORDS).interact_on(&Term::stdout()).unwrap();
+    Term::stdout().clear_last_lines(1).unwrap();
     word
 }
 
