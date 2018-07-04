@@ -6,14 +6,6 @@ pub mod util {
     use cbor_event::{self, Len, de::{RawCbor}, Bytes};
     use crc32::{crc32};
 
-    pub fn decode_sum_type(input: &[u8]) -> Option<(u8, &[u8])> {
-        if input.len() > 2 && input[0] == 0x82 && input[1] < 23 {
-            Some((input[1], &input[2..]))
-        } else {
-            None
-        }
-    }
-
     pub fn encode_with_crc32_<T, W>(t: &T, s: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>>
         where T: cbor_event::Serialize
             , W: ::std::io::Write + Sized
