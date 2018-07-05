@@ -244,7 +244,7 @@ impl <T> WriteExt for T where T: io::Write {
     }
 }
 
-/// symm_enc_or_dec() implements the necessary functionality to turn a SynchronousStreamCipher into
+/// `symm_enc_or_dec()` implements the necessary functionality to turn a `SynchronousStreamCipher` into
 /// an Encryptor or Decryptor
 pub fn symm_enc_or_dec<S: SynchronousStreamCipher, R: ReadBuffer, W: WriteBuffer>(
         c: &mut S,
@@ -266,7 +266,7 @@ fn to_bits(x: u64) -> (u64, u64) {
     (x >> 61, x << 3)
 }
 
-/// Adds the specified number of bytes to the bit count. panic!() if this would cause numeric
+/// Adds the specified number of bytes to the bit count. `panic!()` if this would cause numeric
 /// overflow.
 pub fn add_bytes_to_bits(bits: u64, bytes: u64) -> u64 {
     let (new_high_bits, new_low_bits) = to_bits(bytes);
@@ -279,7 +279,7 @@ pub fn add_bytes_to_bits(bits: u64, bytes: u64) -> u64 {
 }
 
 /// Adds the specified number of bytes to the bit count, which is a tuple where the first element is
-/// the high order value. panic!() if this would cause numeric overflow.
+/// the high order value. `panic!()` if this would cause numeric overflow.
 pub fn add_bytes_to_bits_tuple
         (bits: (u64, u64), bytes: u64) -> (u64, u64) {
     let (new_high_bits, new_low_bits) = to_bits(bytes);
@@ -322,8 +322,8 @@ pub fn add_bytes_to_bits_tuple
 }
 
 
-/// A FixedBuffer, likes its name implies, is a fixed size buffer. When the buffer becomes full, it
-/// must be processed. The input() method takes care of processing and then clearing the buffer
+/// A `FixedBuffer`, likes its name implies, is a fixed size buffer. When the buffer becomes full, it
+/// must be processed. The `input()` method takes care of processing and then clearing the buffer
 /// automatically. However, other methods do not and require the caller to process the buffer. Any
 /// method that modifies the buffer directory or provides the caller with bytes that can be modifies
 /// results in those bytes being marked as used by the buffer.
@@ -482,7 +482,7 @@ impl FixedBuffer128 {
 impl_fixed_buffer!(FixedBuffer128, 128);
 
 
-/// The StandardPadding trait adds a method useful for various hash algorithms to a FixedBuffer
+/// The `StandardPadding` trait adds a method useful for various hash algorithms to a `FixedBuffer`
 /// struct.
 pub trait StandardPadding {
     /// Add standard padding to the buffer. The buffer must not be full when this method is called

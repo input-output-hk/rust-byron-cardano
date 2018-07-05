@@ -1,0 +1,13 @@
+[package]
+name = "cryptoxide"
+version = "0.1.0"
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT/Apache-2.0"
+homepage = "https://github.com/vincenthz/cryptoxide/"
+repository = "https://github.com/vincenthz/cryptoxide/"
+description = "A pure-Rust implementation of various common cryptographic algorithms."
+keywords = [ "Crypto", "Cryptography", "Sha2", "Sha3", "Blake2", "HMAC", "HKDF", "Curve25519", "Ed25519", "ChaCha", "Poly1305", "ChaChaPoly1305" ]
+
+[build-dependencies]
+
+[dependencies]

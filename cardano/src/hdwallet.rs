@@ -1,13 +1,13 @@
-extern crate rcw;
+extern crate cryptoxide;
 
-use self::rcw::digest::Digest;
-use self::rcw::sha2::Sha512;
-use self::rcw::hmac::Hmac;
-use self::rcw::mac::Mac;
-use self::rcw::curve25519::{GeP3, ge_scalarmult_base, sc_reduce};
-use self::rcw::ed25519::signature_extended;
-use self::rcw::ed25519;
-use self::rcw::util::fixed_time_eq;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha2::Sha512;
+use self::cryptoxide::hmac::Hmac;
+use self::cryptoxide::mac::Mac;
+use self::cryptoxide::curve25519::{GeP3, ge_scalarmult_base, sc_reduce};
+use self::cryptoxide::ed25519::signature_extended;
+use self::cryptoxide::ed25519;
+use self::cryptoxide::util::fixed_time_eq;
 
 use bip39;
 
@@ -1094,7 +1094,7 @@ mod bench {
 mod golden_tests {
     use super::*;
     use bip39;
-    use rcw::{blake2b::Blake2b};
+    use cryptoxide::{blake2b::Blake2b};
     use cbor_event;
 
 struct TestVector {

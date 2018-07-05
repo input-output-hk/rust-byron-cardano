@@ -7,7 +7,7 @@
 //! On the **mainnet** you can use the redeem keys to claim redeem addresses.
 //!
 
-use rcw::{ed25519};
+use cryptoxide::{ed25519};
 use util::{hex};
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use serde;

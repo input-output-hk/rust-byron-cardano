@@ -1,10 +1,10 @@
-extern crate rcw;
+extern crate cryptoxide;
 
-use self::rcw::chacha20poly1305::{ChaCha20Poly1305};
-use self::rcw::aead::{AeadEncryptor, AeadDecryptor};
-use self::rcw::hmac::{Hmac};
-use self::rcw::sha2::{Sha512};
-use self::rcw::pbkdf2::{pbkdf2};
+use self::cryptoxide::chacha20poly1305::{ChaCha20Poly1305};
+use self::cryptoxide::aead::{AeadEncryptor, AeadDecryptor};
+use self::cryptoxide::hmac::{Hmac};
+use self::cryptoxide::sha2::{Sha512};
+use self::cryptoxide::pbkdf2::{pbkdf2};
 
 use std::{iter::repeat, ops::{Deref}, fmt};
 

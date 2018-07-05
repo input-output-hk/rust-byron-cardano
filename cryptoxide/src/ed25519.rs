@@ -11,6 +11,8 @@ static L: [u8; 32] =
         0x58, 0x12, 0x63, 0x1a, 0x5c, 0xf5, 0xd3, 0xed ];
 
 pub fn keypair(seed: &[u8]) -> ([u8; 64], [u8; 32]) {
+    assert!(seed.len() == 32, "Seed should be 32 bytes long!");
+
     let mut secret: [u8; 64] = {
         let mut hash_output: [u8; 64] = [0; 64];
         let mut hasher = Sha512::new();

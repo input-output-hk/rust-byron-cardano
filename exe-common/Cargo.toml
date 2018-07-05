@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
 [dependencies]
-rcw = { path = "../rcw" }
+cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
 storage = { path = "../storage" }
 protocol = { path = "../protocol" }

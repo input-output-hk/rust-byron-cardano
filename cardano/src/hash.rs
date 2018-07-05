@@ -1,7 +1,7 @@
 use std::{fmt, result};
 
-use rcw::digest::Digest;
-use rcw::blake2b::Blake2b;
+use cryptoxide::digest::Digest;
+use cryptoxide::blake2b::Blake2b;
 
 use util::hex;
 use cbor_event::{self, de::RawCbor};

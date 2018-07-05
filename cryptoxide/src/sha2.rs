@@ -29,8 +29,8 @@ values, and truncated to different digest bit lengths.
 An example of using `Sha256` is:
 
 ```rust
-use self::rcw::digest::Digest;
-use self::rcw::sha2::Sha256;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha2::Sha256;
 
 // create a Sha256 object
 let mut hasher = Sha256::new();
@@ -49,8 +49,8 @@ assert_eq!(hex,
 An example of using `Sha512` is:
 
 ```rust
-use self::rcw::digest::Digest;
-use self::rcw::sha2::Sha512;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha2::Sha512;
 
 // create a Sha512 object
 let mut hasher = Sha512::new();

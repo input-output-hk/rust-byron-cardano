@@ -28,8 +28,8 @@ Based on an [implementation by Sébastien Martini](https://github.com/seb-m/cryp
 An example of using `SHA3-256` is:
 
 ```rust
-use self::rcw::digest::Digest;
-use self::rcw::sha3::Sha3;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha3::Sha3;
 
 // create a SHA3-256 object
 let mut hasher = Sha3::sha3_256();
@@ -289,7 +289,7 @@ impl Sha3 {
         };
 
         fn set_domain_sep(out_len: usize, buf: &mut [u8]) {
-            assert!(buf.len() > 0);
+            assert!(!buf.is_empty());
             if out_len != 0 {
                 // 01...
                 buf[0] &= 0xfe;

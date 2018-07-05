@@ -113,7 +113,7 @@ impl OwnedReadBuffer {
             pos: 0
         }
     }
-    pub fn new_with_len<'a>(buff: Vec<u8>, len: usize) -> OwnedReadBuffer {
+    pub fn new_with_len(buff: Vec<u8>, len: usize) -> OwnedReadBuffer {
         OwnedReadBuffer {
             buff: buff,
             len: len,
@@ -176,7 +176,7 @@ impl <'a> WriteBuffer for RefWriteBuffer<'a> {
     fn reset(&mut self) { self.pos = 0; }
 
     fn peek_read_buffer(&mut self) -> RefReadBuffer {
-        RefReadBuffer::new(&mut self.buff[..self.pos])
+        RefReadBuffer::new(&self.buff[..self.pos])
     }
 
     fn take_next(&mut self, count: usize) -> &mut [u8] {
@@ -185,7 +185,7 @@ impl <'a> WriteBuffer for RefWriteBuffer<'a> {
         r
     }
     fn take_read_buffer(&mut self) -> RefReadBuffer {
-        let r = RefReadBuffer::new(&mut self.buff[..self.pos]);
+        let r = RefReadBuffer::new(&self.buff[..self.pos]);
         self.pos = 0;
         r
     }
