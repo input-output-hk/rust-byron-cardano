@@ -206,8 +206,8 @@ impl Entropy {
     }
 
     fn hash(&self) -> [u8;32] {
-        use rcw::digest::Digest;
-        use rcw::sha2::Sha256;
+        use cryptoxide::digest::Digest;
+        use cryptoxide::sha2::Sha256;
         let mut hasher = Sha256::new();
         let mut res = [0u8;32];
         hasher.input(self.as_ref());
