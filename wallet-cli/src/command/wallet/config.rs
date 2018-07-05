@@ -11,7 +11,7 @@ use cardano::{
     hdwallet::{XPrv, DerivationScheme},
     fee::{SelectionPolicy},
     wallet::{self, Wallet, Account},
-    bip44
+    bip::bip44
 };
 use exe_common::config::{net};
 use std::{io, slice::{Iter}, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
@@ -215,7 +215,7 @@ impl Accounts {
 }
 
 pub mod account {
-    use cardano::{bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
+    use cardano::{bip::bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
 
     pub static PREFIX : &'static str = "account-";
 

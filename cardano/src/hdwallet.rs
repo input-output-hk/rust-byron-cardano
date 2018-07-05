@@ -7,7 +7,7 @@ use cryptoxide::ed25519::signature_extended;
 use cryptoxide::ed25519;
 use cryptoxide::util::fixed_time_eq;
 
-use bip39;
+use bip::bip39;
 
 use std::{fmt, result};
 use std::marker::PhantomData;
@@ -1091,7 +1091,7 @@ mod bench {
 #[cfg(test)]
 mod golden_tests {
     use super::*;
-    use bip39;
+    use bip::bip39;
     use cryptoxide::{blake2b::Blake2b};
     use cbor_event;
 

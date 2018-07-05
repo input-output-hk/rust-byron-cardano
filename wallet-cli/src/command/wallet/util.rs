@@ -1,4 +1,4 @@
-use cardano::{bip39, paperwallet, wallet};
+use cardano::{bip::bip39, paperwallet, wallet};
 use rand;
 
 use std::io::{Write, stdout, stdin};
@@ -58,7 +58,7 @@ fn read_word(index: usize) -> String {
     word
 }
 
-pub fn get_mnemonic_word<D>(index: usize, dic: &D) -> Option<bip39::Mnemonic>
+pub fn get_mnemonic_word<D>(index: usize, dic: &D) -> Option<bip39::MnemonicIndex>
     where D: bip39::dictionary::Language
 {
     let mut mnemonic = None;
@@ -71,7 +71,7 @@ pub fn get_mnemonic_word<D>(index: usize, dic: &D) -> Option<bip39::Mnemonic>
                 .interact_on(&Term::stdout()).unwrap();
             if done { break; }
         } else {
-            match bip39::Mnemonic::from_word(dic, word.as_str()) {
+            match bip39::MnemonicIndex::from_word(dic, word.as_str()) {
                 Ok(mne) => { mnemonic = Some(mne); break; },
                 Err(err) => {
                     println!("Invalid mnemonic: {}", err);

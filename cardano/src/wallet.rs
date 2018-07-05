@@ -12,9 +12,8 @@ use tx;
 use txutils;
 use txutils::{OutputPolicy, TxInInfoAddr};
 use config;
-use bip39;
-use bip44;
-use bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
+use bip::{bip39, bip44};
+use bip::bip44::{Addressing, AddrType, BIP44_PURPOSE, BIP44_COIN_TYPE};
 use fee;
 use fee::{SelectionAlgorithm, FeeAlgorithm};
 use coin;
@@ -356,7 +355,7 @@ mod test {
     use coin;
     use serde_json;
     use hash;
-    use bip44::{Addressing, AddrType};
+    use bip::bip44::{Addressing, AddrType};
 
     const WALLET_JSON : &str = "
 {
