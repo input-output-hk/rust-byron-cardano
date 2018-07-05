@@ -29,8 +29,8 @@ values, and truncated to different digest bit lengths.
 An example of using `Sha256` is:
 
 ```rust
-use self::rcw::digest::Digest;
-use self::rcw::sha2::Sha256;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha2::Sha256;
 
 // create a Sha256 object
 let mut hasher = Sha256::new();
@@ -49,8 +49,8 @@ assert_eq!(hex,
 An example of using `Sha512` is:
 
 ```rust
-use self::rcw::digest::Digest;
-use self::rcw::sha2::Sha512;
+use self::cryptoxide::digest::Digest;
+use self::cryptoxide::sha2::Sha512;
 
 // create a Sha512 object
 let mut hasher = Sha512::new();
@@ -113,7 +113,7 @@ fn sha256msg1(v0: u32x4, v1: u32x4) -> u32x4 {
 fn sha256msg2(v4: u32x4, v3: u32x4) -> u32x4 {
 
     macro_rules! sigma1 {
-        ($a:expr) => (($a.rotate_right(17) ^ $a.rotate_right(19) ^ ($a >> 10)))
+        ($a:expr) => ($a.rotate_right(17) ^ $a.rotate_right(19) ^ ($a >> 10))
     }
 
     let u32x4(x3, x2, x1, x0) = v4;
@@ -143,7 +143,7 @@ pub fn sha256_digest_round_x2(cdgh: u32x4, abef: u32x4, wk: u32x4) -> u32x4 {
         ($a:expr) => (($a.rotate_right(6) ^ $a.rotate_right(11) ^ $a.rotate_right(25)))
     }
     macro_rules! bool3ary_202 {
-        ($a:expr, $b:expr, $c:expr) => (($c ^ ($a & ($b ^ $c))))
+        ($a:expr, $b:expr, $c:expr) => ($c ^ ($a & ($b ^ $c)))
     } // Choose, MD5F, SHA1C
     macro_rules! bool3ary_232 {
         ($a:expr, $b:expr, $c:expr) => (($a & $b) ^ ($a & $c) ^ ($b & $c))
@@ -395,7 +395,7 @@ pub fn sha512_digest_round(ae: u64x2, bf: u64x2, cg: u64x2, dh: u64x2, wk0: u64)
         ($a:expr) => (($a.rotate_right(14) ^ $a.rotate_right(18) ^ $a.rotate_right(41)))
     }
     macro_rules! bool3ary_202 {
-        ($a:expr, $b:expr, $c:expr) => (($c ^ ($a & ($b ^ $c))))
+        ($a:expr, $b:expr, $c:expr) => ($c ^ ($a & ($b ^ $c)))
     } // Choose, MD5F, SHA1C
     macro_rules! bool3ary_232 {
         ($a:expr, $b:expr, $c:expr) => (($a & $b) ^ ($a & $c) ^ ($b & $c))

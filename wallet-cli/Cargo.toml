@@ -7,7 +7,7 @@ description = "Wallet CLI interface"
 keywords = [ "Cardano", "Wallet", "cli" ]
 
 [dependencies]
-rcw = { path = "../rcw" }
+cryptoxide = { path = "../cryptoxide" }
 cbor_event = { path = "../cbor_event" }
 cardano = { path = "../cardano" }
 protocol = { path = "../protocol" }

@@ -1,5 +1,5 @@
 use std::ops::{Add, Sub, Mul};
-use std::cmp::{Eq, PartialEq,min};
+use std::cmp::{Eq, PartialEq, min};
 use util::{fixed_time_eq};
 use step_by::RangeExt;
 

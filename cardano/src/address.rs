@@ -1,9 +1,9 @@
 use std::fmt;
 use serde;
 
-use rcw::digest::Digest;
-use rcw::blake2b::Blake2b;
-use rcw::sha3::Sha3;
+use cryptoxide::digest::Digest;
+use cryptoxide::blake2b::Blake2b;
+use cryptoxide::sha3::Sha3;
 
 use redeem;
 use util::{base58};

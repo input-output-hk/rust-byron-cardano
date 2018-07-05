@@ -4,9 +4,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-/// This module just implements a simple verison of step_by() since
-/// the function from the standard library is currently unstable.
-/// This should be removed once that function becomes stable.
+//! This module just implements a simple verison of `step_by()` since
+//! the function from the standard library is currently unstable.
+//! This should be removed once that function becomes stable.
 
 use std::ops::{Add, Range};
 

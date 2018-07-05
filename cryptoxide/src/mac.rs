@@ -5,13 +5,13 @@
 // except according to those terms.
 
 /*!
- * The mac module defines the Message Authentication Code (Mac) trait.
+ * The mac module defines the Message Authentication Code (`Mac`) trait.
  */
 
 use util::fixed_time_eq;
 
 /**
- * The Mac trait defines methods for a Message Authentication function.
+ * The `Mac` trait defines methods for a Message Authentication function.
  */
 pub trait Mac {
     /**
@@ -29,7 +29,7 @@ pub trait Mac {
     fn reset(&mut self);
 
     /**
-     * Obtain the result of a Mac computation as a MacResult.
+     * Obtain the result of a Mac computation as a `MacResult`.
      */
     fn result(&mut self) -> MacResult;
 
@@ -47,7 +47,7 @@ pub trait Mac {
 }
 
 /**
- * A MacResult wraps a Mac code and provides a safe Eq implementation that runs in fixed time.
+ * A `MacResult` wraps a Mac code and provides a safe Eq implementation that runs in fixed time.
  */
 pub struct MacResult {
     code: Vec<u8>
@@ -55,7 +55,7 @@ pub struct MacResult {
 
 impl MacResult {
     /**
-     * Create a new MacResult.
+     * Create a new `MacResult`.
      */
     pub fn new(code: &[u8]) -> MacResult {
         MacResult {
@@ -64,7 +64,7 @@ impl MacResult {
     }
 
     /**
-     * Create a new MacResult taking ownership of the specified code value.
+     * Create a new `MacResult` taking ownership of the specified code value.
      */
     pub fn new_from_owned(code: Vec<u8>) -> MacResult {
         MacResult {

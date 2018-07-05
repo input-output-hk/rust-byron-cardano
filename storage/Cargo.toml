@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
 [dependencies]
-rcw = { path = "../rcw" }
+cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
 cbor_event = { path = "../cbor_event" }
 log = "*"

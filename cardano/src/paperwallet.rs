@@ -1,7 +1,7 @@
-extern crate rcw;
-use self::rcw::sha2::Sha512;
-use self::rcw::hmac::Hmac;
-use self::rcw::pbkdf2::{pbkdf2};
+extern crate cryptoxide;
+use self::cryptoxide::sha2::Sha512;
+use self::cryptoxide::hmac::Hmac;
+use self::cryptoxide::pbkdf2::{pbkdf2};
 
 const ITERS : u32 = 10000;
 pub const IV_SIZE: usize = 8;

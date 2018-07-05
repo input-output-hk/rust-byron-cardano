@@ -19,9 +19,9 @@
 //! let mnemonic_phrase = entropy.to_mnemonics().to_string(&dictionary::ENGLISH);
 //! ```
 
-use rcw::hmac::{Hmac};
-use rcw::sha2::{Sha512};
-use rcw::pbkdf2::{pbkdf2};
+use cryptoxide::hmac::{Hmac};
+use cryptoxide::sha2::{Sha512};
+use cryptoxide::pbkdf2::{pbkdf2};
 use std::{fmt, result, str};
 use util::{hex};
 
@@ -131,8 +131,8 @@ impl Entropy {
     }
 
     fn hash(&self) -> [u8;32] {
-        use rcw::digest::Digest;
-        use rcw::sha2::Sha256;
+        use cryptoxide::digest::Digest;
+        use cryptoxide::sha2::Sha256;
         let mut hasher = Sha256::new();
         let mut res = [0u8;32];
         hasher.input(self.as_ref());

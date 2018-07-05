@@ -8,7 +8,7 @@ extern crate log;
 extern crate cbor_event;
 extern crate env_logger;
 extern crate serde_yaml;
-extern crate rcw;
+extern crate cryptoxide;
 extern crate cardano;
 extern crate exe_common;
 extern crate protocol;

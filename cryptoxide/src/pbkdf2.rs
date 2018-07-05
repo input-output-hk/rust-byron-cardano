@@ -6,30 +6,20 @@
 
 /*!
  * This module implements the PBKDF2 Key Derivation Function as specified by
- * http://tools.ietf.org/html/rfc2898.
+ * <http://tools.ietf.org/html/rfc2898>.
  */
 
 use std::iter::repeat;
-//use std::io;
-use cryptoutil::copy_memory;
-
-// use rand::{OsRng, Rng};
-//use serialize::base64;
-//use serialize::base64::{FromBase64, ToBase64};
-
-use cryptoutil::{read_u32_be, write_u32_be};
-//use hmac::Hmac;
+use cryptoutil::{copy_memory, write_u32_be};
 use mac::Mac;
-use sha2::Sha256;
-use util::fixed_time_eq;
 
 // Calculate a block of the output of size equal to the output_bytes of the underlying Mac function
-// mac - The Mac function to use
-// salt - the salt value to use
-// c - the iteration count
-// idx - the 1 based index of the block
-// scratch - a temporary variable the same length as the block
-// block - the block of the output to calculate
+// `mac` - The Mac function to use
+// `salt` - the salt value to use
+// `c` - the iteration count
+// `idx` - the 1 based index of the block
+// `scratch` - a temporary variable the same length as the block
+// `block` - the block of the output to calculate
 fn calculate_block<M: Mac>(
         mac: &mut M,
         salt: &[u8],
@@ -74,11 +64,11 @@ fn calculate_block<M: Mac>(
  * should consider using that function instead.
  *
  * # Arguments
- * * mac - The Pseudo Random Function to use.
- * * salt - The salt value to use.
- * * c - The iteration count. Users should carefully determine this value as it is the primary
+ * * `mac` - The Pseudo Random Function to use.
+ * * `salt` - The salt value to use.
+ * * `c` - The iteration count. Users should carefully determine this value as it is the primary
  *       factor in determining the security of the derived key.
- * * output - The output buffer to fill with the derived key value.
+ * * `output` - The output buffer to fill with the derived key value.
  *
  */
 pub fn pbkdf2<M: Mac>(mac: &mut M, salt: &[u8], c: u32, output: &mut [u8]) {

@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate log;
-extern crate rcw;
+extern crate cryptoxide;
 extern crate cbor_event;
 extern crate cardano;
 extern crate rand;
