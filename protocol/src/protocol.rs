@@ -411,7 +411,6 @@ impl<T: Write+Read> Connection<T> {
 pub mod command {
     use std::io::{Read, Write};
     use super::{LightId, Connection};
-    use cardano::cbor::hs::util::decode_sum_type;
     use cardano;
     use packet;
 
@@ -532,4 +531,12 @@ pub mod command {
         }
     }
 
+
+    fn decode_sum_type(input: &[u8]) -> Option<(u8, &[u8])> {
+        if input.len() > 2 && input[0] == 0x82 && input[1] < 23 {
+            Some((input[1], &input[2..]))
+        } else {
+            None
+        }
+    }
 }

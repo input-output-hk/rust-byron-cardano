@@ -17,6 +17,7 @@ cbor_event = { path = "../cbor_event" }
 [dev-dependencies]
 rand = "0.4"
 serde_json = "*"
+unicode-normalization = "0.1.7"
 
 [features]
 with-bench = []

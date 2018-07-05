@@ -1,6 +1,6 @@
 use std::{ops, iter, vec, slice, convert};
 use tx::*;
-use bip44;
+use bip::bip44;
 use hdwallet;
 use hdpayload;
 use coin::{Coin};
@@ -25,7 +25,7 @@ pub struct TxInInfo {
 }
 
 /// Output Policy chosen.
-/// 
+///
 /// For now this is just a placeholder of a single address,
 /// but adding a ratio driven list of addresses seems
 /// a useful flexibility to have

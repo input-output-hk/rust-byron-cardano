@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use cardano::block::{Block, BlockDate, HeaderHash};
 use cardano::hdwallet;
 use cardano::hdpayload;
-use cardano::bip44;
+use cardano::bip::bip44;
 use cardano::util::hex;
 use cardano::tx::{TxIn, TxId, TxOut};
 use cardano::coin::Coin;

@@ -1,15 +1,13 @@
-extern crate cryptoxide;
+use cryptoxide::digest::Digest;
+use cryptoxide::sha2::Sha512;
+use cryptoxide::hmac::Hmac;
+use cryptoxide::mac::Mac;
+use cryptoxide::curve25519::{GeP3, ge_scalarmult_base, sc_reduce};
+use cryptoxide::ed25519::signature_extended;
+use cryptoxide::ed25519;
+use cryptoxide::util::fixed_time_eq;
 
-use self::cryptoxide::digest::Digest;
-use self::cryptoxide::sha2::Sha512;
-use self::cryptoxide::hmac::Hmac;
-use self::cryptoxide::mac::Mac;
-use self::cryptoxide::curve25519::{GeP3, ge_scalarmult_base, sc_reduce};
-use self::cryptoxide::ed25519::signature_extended;
-use self::cryptoxide::ed25519;
-use self::cryptoxide::util::fixed_time_eq;
-
-use bip39;
+use bip::bip39;
 
 use std::{fmt, result};
 use std::marker::PhantomData;
@@ -1093,7 +1091,7 @@ mod bench {
 #[cfg(test)]
 mod golden_tests {
     use super::*;
-    use bip39;
+    use bip::bip39;
     use cryptoxide::{blake2b::Blake2b};
     use cbor_event;
 

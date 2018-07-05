@@ -1,10 +1,8 @@
-extern crate cryptoxide;
-
-use self::cryptoxide::chacha20poly1305::{ChaCha20Poly1305};
-use self::cryptoxide::aead::{AeadEncryptor, AeadDecryptor};
-use self::cryptoxide::hmac::{Hmac};
-use self::cryptoxide::sha2::{Sha512};
-use self::cryptoxide::pbkdf2::{pbkdf2};
+use cryptoxide::chacha20poly1305::{ChaCha20Poly1305};
+use cryptoxide::aead::{AeadEncryptor, AeadDecryptor};
+use cryptoxide::hmac::{Hmac};
+use cryptoxide::sha2::{Sha512};
+use cryptoxide::pbkdf2::{pbkdf2};
 
 use std::{iter::repeat, ops::{Deref}, fmt};
 

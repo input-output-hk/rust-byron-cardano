@@ -1,19 +1,20 @@
-/// BIP44 addressing
-///
-/// provides all the logic to create safe sequential addresses
-/// using BIP44 specification.
-///
-/// # Example
-///
-/// ```
-/// use cardano::bip44::{Account, Change, Addressing};
-///
-/// let scheme_value = Account::new(0).unwrap()
-///     .external().unwrap()
-///     .get_scheme_value();
-///
-/// assert!(scheme_value == 0);
-/// ```
+//! BIP44 addressing
+//!
+//! provides all the logic to create safe sequential addresses
+//! using BIP44 specification.
+//!
+//! # Example
+//!
+//! ```
+//! # extern crate cardano;
+//! use cardano::bip::bip44::{Account, Change, Addressing};
+//!
+//! let scheme_value = Account::new(0).unwrap()
+//!     .external().unwrap()
+//!     .get_scheme_value();
+//!
+//! assert!(scheme_value == 0);
+//! ```
 
 use hdpayload::{Path};
 use std::{fmt, result};
@@ -268,7 +269,7 @@ impl Addressing {
     /// # example
     ///
     /// ```
-    /// use cardano::bip44::{Addressing, AddrType};
+    /// use cardano::bip::bip44::{Addressing, AddrType};
     ///
     /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///
@@ -325,7 +326,7 @@ impl Addressing {
     /// # Example
     ///
     /// ```
-    /// use cardano::bip44::{Addressing, AddrType, Index};
+    /// use cardano::bip::bip44::{Addressing, AddrType, Index};
     ///
     /// let addr = Addressing::new(0, AddrType::External).unwrap();
     ///

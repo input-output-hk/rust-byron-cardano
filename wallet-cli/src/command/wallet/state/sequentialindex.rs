@@ -1,4 +1,4 @@
-use cardano::bip44;
+use cardano::bip::bip44;
 use cardano::wallet::Wallet;
 use std::collections::BTreeMap;
 use cardano::address::ExtendedAddr;

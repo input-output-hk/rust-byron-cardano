@@ -1,4 +1,4 @@
-use cardano::{bip44,};
+use cardano::{bip::bip44,};
 use cardano::util::base58;
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
