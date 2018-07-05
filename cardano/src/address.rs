@@ -477,7 +477,11 @@ impl cbor_event::se::Serialize for SpendingData {
                           .write_unsigned_integer(SPENDING_DATA_TAG_PUBKEY)?
                           .serialize(pk)
             },
-            &SpendingData::ScriptASD(_)      => unimplemented!(),
+            &SpendingData::ScriptASD(_)      => {
+                serializer.write_array(cbor_event::Len::Len(2))?
+                          .write_unsigned_integer(SPENDING_DATA_TAG_SCRIPT)?;
+                unimplemented!()
+            }
             &SpendingData::RedeemASD(ref pk) => {
                 serializer.write_array(cbor_event::Len::Len(2))?
                           .write_unsigned_integer(SPENDING_DATA_TAG_REDEEM)?

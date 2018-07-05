@@ -242,15 +242,17 @@ impl Wallet {
             let txaux_fee : fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
 
             if current_diff == txaux_fee.to_coin() {
-                let witnesses = self.sign_tx(&tx, &inputs);
+                /*
                 match total_input - tx.get_output_total() {
                     None => {},
-                    Some(fee) => {
-                        assert_eq!(witnesses.len(), fake_witnesses.len());
-                        let txaux = tx::TxAux::new(tx, witnesses);
-                        return Ok((txaux, txaux_fee))
+                    Some(fee) => assert_eq!(fee, txaux_fee)
                     },
                 }
+                */
+                let witnesses = self.sign_tx(&tx, &inputs);
+                assert_eq!(witnesses.len(), fake_witnesses.len());
+                let txaux = tx::TxAux::new(tx, witnesses);
+                return Ok((txaux, txaux_fee))
             } else {
                 // already above..
                 if current_diff > txaux_fee.to_coin() {
