@@ -10,13 +10,8 @@
  */
 
 use std::iter::repeat;
-use cryptoutil::copy_memory;
-
-
-use cryptoutil::{read_u32_be, write_u32_be};
+use cryptoutil::{copy_memory, write_u32_be};
 use mac::Mac;
-use sha2::Sha256;
-use util::fixed_time_eq;
 
 // Calculate a block of the output of size equal to the output_bytes of the underlying Mac function
 // `mac` - The Mac function to use

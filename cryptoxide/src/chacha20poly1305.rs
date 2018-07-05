@@ -101,11 +101,11 @@ impl AeadDecryptor for ChaCha20Poly1305 {
 }
 #[cfg(test)]
 mod test {
+  /*
   use std::iter::repeat;
 
   use chacha20poly1305::ChaCha20Poly1305;
   use aead::{AeadEncryptor,AeadDecryptor};
-  /*
   struct TestVector {
     key:   [u8; 32],
     nonce: [u8; 8],

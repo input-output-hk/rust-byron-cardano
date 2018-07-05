@@ -164,6 +164,7 @@ pub fn read_u32_le(input: &[u8]) -> u32 {
     }
 }
 
+/*
 /// Read the value of a vector of bytes as a u32 value in big-endian format.
 pub fn read_u32_be(input: &[u8]) -> u32 {
     assert!(input.len() == 4);
@@ -173,6 +174,7 @@ pub fn read_u32_be(input: &[u8]) -> u32 {
         u32::from_be(tmp)
     }
 }
+*/
 
 /// XOR plaintext and keystream, storing the result in dst.
 pub fn xor_keystream(dst: &mut[u8], plaintext: &[u8], keystream: &[u8]) {
