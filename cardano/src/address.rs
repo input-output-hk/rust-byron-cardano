@@ -1,3 +1,4 @@
+//! Address creation and parsing
 use std::fmt;
 use serde;
 

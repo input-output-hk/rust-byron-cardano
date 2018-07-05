@@ -1,3 +1,13 @@
+//! HD Payload
+//!
+//! The HD Payload is an Address attribute stored along the address
+//! in encrypted form.
+//!
+//! This use chacha20poly1305 to auth-encrypt a BIP39 derivation
+//! path, which is then stored in the address. The owner of the
+//! symmetric key used to encrypt, can then decrypt the address
+//! payload and find the derivation path associated with it.
+//!
 use cryptoxide::chacha20poly1305::{ChaCha20Poly1305};
 use cryptoxide::aead::{AeadEncryptor, AeadDecryptor};
 use cryptoxide::hmac::{Hmac};
@@ -15,6 +25,7 @@ const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
 const TAG_LEN : usize = 16;
 
+/// A derivation path of HD wallet derivation indices which uses a CBOR encoding
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Path(Vec<u32>);
 impl AsRef<[u32]> for Path {
@@ -44,12 +55,14 @@ impl cbor_event::Deserialize for Path {
 
 pub const HDKEY_SIZE : usize = 32;
 
+/// The key to encrypt and decrypt HD payload
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HDKey([u8;HDKEY_SIZE]);
 impl AsRef<[u8]> for HDKey {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 impl HDKey {
+    /// Create a new `HDKey` from an extended public key
     pub fn new(root_pub: &XPub) -> Self {
         let mut mac = Hmac::new(Sha512::new(), root_pub.as_ref());
         let mut result = [0;HDKEY_SIZE];
@@ -112,6 +125,10 @@ impl HDKey {
     }
 }
 
+/// The address attributes payload, that should contains an encrypted derivation path with a MAC tag
+///
+/// It's however possible to store anything in this attributes, including
+/// non encrypted information.
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HDAddressPayload(Vec<u8>);
 impl AsRef<[u8]> for HDAddressPayload {

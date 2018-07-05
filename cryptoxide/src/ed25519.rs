@@ -1,3 +1,15 @@
+//! ED25519 Signature Scheme
+//!
+//! ```
+//! use self::cryptoxide::ed25519;
+//!
+//! let message = "messages".as_bytes();
+//! let (secret, public) = ed25519::keypair([0u8;32]);
+//! let signature = ed25519::signature(message, secret);
+//! ed25519::verify(message, public, signature);
+//! ```
+//!
+
 use digest::Digest;
 use sha2::{Sha512};
 use curve25519::{GeP2, GeP3, ge_scalarmult_base, sc_reduce, sc_muladd, curve25519, Fe};
@@ -10,6 +22,7 @@ static L: [u8; 32] =
         0x14, 0xde, 0xf9, 0xde, 0xa2, 0xf7, 0x9c, 0xd6,
         0x58, 0x12, 0x63, 0x1a, 0x5c, 0xf5, 0xd3, 0xed ];
 
+/// Create a keypair of secret key and public key
 pub fn keypair(seed: &[u8]) -> ([u8; 64], [u8; 32]) {
     assert!(seed.len() == 32, "Seed should be 32 bytes long!");
 
@@ -35,6 +48,7 @@ pub fn keypair(seed: &[u8]) -> ([u8; 64], [u8; 32]) {
     (secret, public_key)
 }
 
+/// Generate a signature for the given message using a normal ED25519 secret key
 pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; 64] {
     let seed = &secret_key[0..32];
     let public_key = &secret_key[32..64];
@@ -81,12 +95,14 @@ pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; 64] {
     signature
 }
 
+/// generate the public key associated with an extended secret key
 pub fn to_public(extended_secret: &[u8]) -> [u8;32] {
     let a = ge_scalarmult_base(&extended_secret[0..32]);
     let public_key = a.to_bytes();
     public_key
 }
 
+/// Generate a signature for the given message using an extended ED25519 secret key
 pub fn signature_extended(message: &[u8], extended_secret: &[u8]) -> [u8; 64] {
     let public_key = to_public(extended_secret);
 
@@ -142,6 +158,7 @@ fn check_s_lt_l(s: &[u8]) -> bool
     c == 0
 }
 
+/// Verify that a signature is valid for a given message for an associated public key
 pub fn verify(message: &[u8], public_key: &[u8], signature: &[u8]) -> bool {
     if check_s_lt_l(&signature[32..64]) {
         return false;
@@ -173,6 +190,7 @@ pub fn verify(message: &[u8], public_key: &[u8], signature: &[u8]) -> bool {
     fixed_time_eq(rcheck.as_ref(), &signature[0..32])
 }
 
+/// Curve25519 DH (Diffie Hellman) between a curve25519 public key and a ed25519 private key
 pub fn exchange(public_key: &[u8], private_key: &[u8]) -> [u8; 32] {
     let ed_y = Fe::from_bytes(&public_key);
     // Produce public key in Montgomery form.
