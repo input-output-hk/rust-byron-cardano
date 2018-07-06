@@ -8,10 +8,9 @@
 
 use cardano::{
     self,
-    hdwallet::{XPrv, DerivationScheme},
+    hdwallet::{XPrv, XPub},
     fee::{SelectionPolicy},
-    wallet::{self, Wallet, Account},
-    bip::bip44
+    wallet::{bip44::{self, CoinLevel, AccountLevel}, scheme::{Wallet}},
 };
 use exe_common::config::{net};
 use std::{io, slice::{Iter}, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
@@ -23,11 +22,10 @@ use serde_yaml;
 pub enum Error {
     IoError(io::Error),
     VarError(VarError),
-    WalletError(wallet::Error),
-    Bip44Error(bip44::Error),
+    //WalletError(wallet::Error),
     YamlError(serde_yaml::Error),
     ParseIntError(ParseIntError),
-    AccountIndexNotFound(bip44::Account),
+    AccountIndexNotFound,
     StorageError(storage::Error),
     AccountAliasNotFound(String),
     BlockchainConfigError(&'static str)
@@ -41,12 +39,11 @@ impl From<ParseIntError> for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error { Error::IoError(e) }
 }
+/*
 impl From<wallet::Error> for Error {
     fn from(e: wallet::Error) -> Error { Error::WalletError(e) }
 }
-impl From<bip44::Error> for Error {
-    fn from(e: bip44::Error) -> Error { Error::Bip44Error(e) }
-}
+*/
 impl From<serde_yaml::Error> for Error {
     fn from(e: serde_yaml::Error) -> Error { Error::YamlError(e) }
 }
@@ -80,11 +77,11 @@ pub struct Config {
 impl Config {
     /// construct a wallet configuration from the given wallet and blockchain name
     ///
-    pub fn from_wallet<P: Into<PathBuf>>(wallet: Wallet, blockchain: P, epoch_start: Option<u32>) -> Self {
+    pub fn from_wallet<P: Into<PathBuf>>(wallet: bip44::Wallet, blockchain: P, selection_policy: SelectionPolicy, epoch_start: Option<u32>) -> Self {
         Config {
             blockchain: blockchain.into(),
-            selection_fee_policy: wallet.selection_policy,
-            cached_root_key: wallet.cached_root_key,
+            selection_fee_policy: selection_policy,
+            cached_root_key: (**wallet.as_ref()).clone(),
             epoch_start: epoch_start.unwrap_or(0),
         }
     }
@@ -112,10 +109,11 @@ impl Config {
     }
 
     /// construct the wallet object from the wallet configuration
-    pub fn wallet(&self) -> Result<Wallet> {
+    pub fn wallet(&self) -> Result<bip44::Wallet> {
         let blockchain_config = self.blockchain_config()?;
         let wallet_cfg = cardano::config::Config::new(blockchain_config.protocol_magic);
-        Ok(Wallet::new(self.cached_root_key.clone(), wallet_cfg, self.selection_fee_policy))
+        let cached_key = CoinLevel::from(self.cached_root_key.clone());
+        Ok(bip44::Wallet::from_cached_key(cached_key, wallet_cfg))
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
@@ -139,26 +137,29 @@ pub struct Accounts(Vec<account::Config>);
 impl Accounts {
     pub fn new() -> Self { Accounts(Vec::new()) }
 
-    pub fn new_account(&mut self, wallet: &Wallet, alias: Option<String>) -> Result<Account> {
+    pub fn new_account(&mut self, wallet: &mut bip44::Wallet, alias: Option<String>) -> Result<AccountLevel<XPub>> {
         let account_index = self.0.len() as u32;
-        let account = wallet.account(account_index)?;
-        let account_cfg = account::Config::from_account(account.clone(), alias);
+        let account = if let &Some(ref alias) = &alias {
+            wallet.create_account(alias, account_index).public()
+        } else {
+            let alias = format!("{}", account_index);
+            wallet.create_account(&alias, account_index).public()
+        };
+        let account_cfg = account::Config::from_account(&account, alias);
         self.0.push(account_cfg);
         Ok(account)
     }
 
     pub fn iter(&self) -> Iter<account::Config> { self.0.iter() }
 
-    pub fn get_account_index(&self, account_index: u32) -> Result<Account> {
-        let account = bip44::Account::new(account_index)?;
-
+    pub fn get_account_index(&self, account_index: u32) -> Result<AccountLevel<XPub>> {
         match self.0.get(account_index as usize) {
-            None => Err(Error::AccountIndexNotFound(account)),
-            Some(cfg) => Ok(Account::new(account, cfg.cached_root_key.clone(), DerivationScheme::V2)),
+            None      => Err(Error::AccountIndexNotFound),
+            Some(cfg) => Ok(AccountLevel::from(cfg.cached_root_key))
         }
     }
 
-    pub fn get_account_alias(&self, alias: &str) -> Result<Account> {
+    pub fn get_account_alias(&self, alias: &str) -> Result<AccountLevel<XPub>> {
         let alias_ = Some(alias.to_owned());
         match self.iter().position(|cfg| cfg.alias == alias_) {
             None => Err(Error::AccountAliasNotFound(alias.to_owned())),
@@ -171,11 +172,10 @@ impl Accounts {
         fs::DirBuilder::new().recursive(true).create(dir.clone())?;
         for index in 0..self.0.len() {
             let account_cfg = &self.0[index];
-            let account = bip44::Account::new(index as u32)?;
 
             let mut tmpfile = TmpFile::create(dir.clone())?;
             serde_yaml::to_writer(&mut tmpfile, account_cfg)?;
-            tmpfile.render_permanent(&dir.join(format!("{}{}.yml", account::PREFIX, account)))?;
+            tmpfile.render_permanent(&dir.join(format!("{}{}.yml", account::PREFIX, index)))?;
         }
         Ok(())
     }
@@ -215,7 +215,8 @@ impl Accounts {
 }
 
 pub mod account {
-    use cardano::{bip::bip44, coin::Coin, wallet::{Account}, hdwallet::{XPub}};
+    use cardano::{bip::bip44, coin::Coin, hdwallet::{XPub}};
+    use cardano::wallet::bip44::AccountLevel;
 
     pub static PREFIX : &'static str = "account-";
 
@@ -227,12 +228,12 @@ pub mod account {
         pub cached_root_key: XPub
     }
     impl Config {
-        pub fn from_account(account: Account, alias: Option<String>) -> Self {
+        pub fn from_account(account: &AccountLevel<XPub>, alias: Option<String>) -> Self {
             Config {
                 alias: alias,
                 addresses: Vec::new(),
                 balance: Coin::zero(),
-                cached_root_key: account.cached_account_key
+                cached_root_key: (**account).clone()
             }
         }
     }

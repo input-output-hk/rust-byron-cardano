@@ -18,7 +18,6 @@
 
 use hdpayload::{Path};
 use std::{fmt, result};
-use std::ops::Deref;
 use serde;
 
 /// the BIP44 derivation path has a specific length
@@ -358,25 +357,4 @@ impl Addressing {
         }
         Ok(v)
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccountLevel<T>(pub T);
-impl <T> Deref for AccountLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.0 }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChangeLevel<T>(pub T);
-impl <T> Deref for ChangeLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.0 }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexLevel<T>(pub T);
-impl <T> Deref for IndexLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.0 }
 }

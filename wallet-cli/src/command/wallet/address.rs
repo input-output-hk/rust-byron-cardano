@@ -1,5 +1,4 @@
-use cardano::{bip::bip44,};
-use cardano::util::base58;
+use cardano::{util::base58, wallet::{bip44, scheme::Account}};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 use super::util::{create_new_account};
@@ -52,7 +51,8 @@ impl HasCommand for Generate {
             }
         };
 
-        let addresses = account.gen_addresses(addr_type, indices).unwrap();
+        let indices : Vec<_> = indices.into_iter().map(|i| (addr_type, i)).collect();
+        let addresses = account.generate_addresses(indices.iter());
         for addr in addresses {
             println!("{}", base58::encode(&addr.to_bytes()));
         };

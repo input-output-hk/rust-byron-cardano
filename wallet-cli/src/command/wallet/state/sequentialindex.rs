@@ -1,14 +1,12 @@
-use cardano::bip::bip44;
-use cardano::wallet::Wallet;
+use cardano::wallet::bip44;
 use std::collections::BTreeMap;
 use cardano::address::ExtendedAddr;
 use cardano::tx::{TxIn, TxId, TxOut};
 use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo};
 
-#[derive(Clone,Debug)]
 pub struct SequentialBip44Lookup {
     // cryptographic wallet
-    wallet: Wallet,
+    wallet: bip44::Wallet,
     // all the known expected addresses, that includes
     // all different accounts, and also the next not yet live
     // account's addresses
@@ -21,15 +19,17 @@ pub struct SequentialBip44Lookup {
     gap_limit: u32,
 }
 
-fn wallet_get_address(wallet: &Wallet, addr: &bip44::Addressing) -> ExtendedAddr {
-    let xprv = wallet.get_bip44_xprv(&addr);
+fn wallet_get_address(wallet: &bip44::Wallet, addr: &bip44::Addressing) -> ExtendedAddr {
+    let xprv = wallet.as_ref().account(addr.account.get_scheme_value())
+                    .change(addr.address_type())
+                    .index(addr.index.get_scheme_value()); //.get_bip44_xprv(&addr);
     let xpub = xprv.public();
-    let a = ExtendedAddr::new_simple(xpub);
+    let a = ExtendedAddr::new_simple(*xpub);
     a
 }
 
 impl SequentialBip44Lookup {
-    pub fn new(wallet: Wallet) -> Self {
+    pub fn new(wallet: bip44::Wallet) -> Self {
         SequentialBip44Lookup {
             wallet: wallet,
             expected: BTreeMap::new(),

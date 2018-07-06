@@ -3,7 +3,7 @@ use clap::{ArgMatches, Arg, App};
 
 use super::util::{recover_paperwallet, recover_entropy};
 use super::config;
-use cardano::wallet;
+use cardano::wallet::bip44;
 
 pub struct Recover;
 
@@ -59,9 +59,11 @@ impl HasCommand for Recover {
         } else {
             recover_entropy(language, password)
         };
-        let wallet = wallet::Wallet::new_from_bip39(&seed);
+        // TODO, use the Protocol magic from the blockchain
+        let wallet = bip44::Wallet::from_bip39_seed(&seed, Default::default());
 
-        let config = config::Config::from_wallet(wallet, blockchain, epoch_start);
+        // TODO, shall we have a default for the fee selection policy?
+        let config = config::Config::from_wallet(wallet, blockchain, Default::default(), epoch_start);
 
         config.to_file(&name).unwrap();
     }

@@ -1,4 +1,4 @@
-use cardano::{bip::bip39, wallet};
+use cardano::{bip::bip39, wallet::bip44};
 use command::{HasCommand};
 use clap::{ArgMatches, Arg, App};
 
@@ -65,9 +65,12 @@ impl HasCommand for CommandNewWallet {
         let epoch_start = value_t!(args.value_of("EPOCH START"), u32).ok();
         let without_paper_wallet = args.is_present("NO PAPER WALLET");
         let seed = generate_entropy(language, password, mnemonic_sz, without_paper_wallet);
-        let wallet = wallet::Wallet::new_from_bip39(&seed);
 
-        let config = config::Config::from_wallet(wallet, blockchain, epoch_start);
+        // TODO, use the Protocol magic from the blockchain
+        let wallet = bip44::Wallet::from_bip39_seed(&seed, Default::default());
+
+        // TODO, shall we have a default for the fee selection policy?
+        let config = config::Config::from_wallet(wallet, blockchain, Default::default(), epoch_start);
 
         config.to_file(&name).unwrap();
     }

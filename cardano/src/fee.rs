@@ -4,7 +4,7 @@ use std::{fmt, result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
 use tx::{TxOut, Tx, TxInWitness, TxAux, txaux_serialize};
-use txutils::{Inputs, OutputPolicy, output_sum};
+use txutils::{Input, OutputPolicy, output_sum};
 use cbor_event;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
@@ -33,7 +33,7 @@ impl fmt::Display for Error {
     }
 }
 
-type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 impl From<coin::Error> for Error {
     fn from(e: coin::Error) -> Error { Error::CoinError(e) }
@@ -52,7 +52,17 @@ pub trait SelectionAlgorithm {
     /// * The computed fee associated
     /// * The inputs selected
     /// * The number of coin remaining that will be associated to the extended address specified
-    fn compute(&self, policy: SelectionPolicy, inputs: &Inputs, outputs: &Vec<TxOut>, change_addr: &OutputPolicy) -> Result<(Fee, Inputs, Coin)>;
+    fn compute<'a, 'b, I, O, Addressing>( &self
+                                        , policy: SelectionPolicy
+                                        , inputs: I
+                                        , outputs: O
+                                        , output_policy: &OutputPolicy
+                                        )
+            -> Result<(Fee, Vec<&'a Input<Addressing>>, Coin)>
+        where I : 'a + Iterator<Item = &'a Input<Addressing>> + ExactSizeIterator
+            , O : 'b + Iterator<Item = &'b TxOut> + Clone
+            , Addressing: 'a
+    ;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
@@ -137,33 +147,36 @@ impl Default for LinearFee {
 const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
 const CBOR_TXAUX_OVERHEAD: usize = 51;
 impl SelectionAlgorithm for LinearFee {
-    fn compute( &self
-              , policy: SelectionPolicy
-              , inputs: &Inputs
-              , outputs: &Vec<TxOut>
-              , output_policy: &OutputPolicy
-              )
-        -> Result<(Fee, Inputs, Coin)>
+    fn compute<'a, 'b, I, O, Addressing>( &self
+                                        , policy: SelectionPolicy
+                                        , inputs: I
+                                        , outputs: O
+                                        , output_policy: &OutputPolicy
+                                        )
+            -> Result<(Fee, Vec<&'a Input<Addressing>>, Coin)>
+        where I : 'a + Iterator<Item = &'a Input<Addressing>> + ExactSizeIterator
+            , O : 'b + Iterator<Item = &'b TxOut> + Clone
+            , Addressing: 'a
     {
-        if inputs.is_empty() { return Err(Error::NoInputs); }
+        if inputs.len() == 0 { return Err(Error::NoInputs); }
 
-        let output_value = output_sum(outputs)?;
+        let output_value = output_sum(outputs.clone())?;
         let mut fee = self.estimate(0)?;
         let mut input_value = Coin::zero();
-        let mut selected_inputs = Inputs::new();
+        let mut selected_inputs = Vec::new();
 
         // create the Tx on the fly
         let mut txins = Vec::new();
-        let     txouts : Vec<TxOut> = outputs.iter().cloned().collect();
+        let     txouts : Vec<TxOut> = outputs.cloned().collect();
 
         // for now we only support this selection algorithm
         // we need to remove this assert when we extend to more
         // granulated selection policy
         assert!(policy == SelectionPolicy::FirstMatchFirst);
 
-        for input in inputs.iter() {
+        for input in inputs {
             input_value = (input_value + input.value())?;
-            selected_inputs.push(input.clone());
+            selected_inputs.push(input);
             txins.push(input.ptr.clone());
 
             // calculate fee from the Tx serialised + estimated size for signing
