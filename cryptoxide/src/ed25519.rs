@@ -4,9 +4,10 @@
 //! use self::cryptoxide::ed25519;
 //!
 //! let message = "messages".as_bytes();
-//! let (secret, public) = ed25519::keypair([0u8;32]);
-//! let signature = ed25519::signature(message, secret);
-//! ed25519::verify(message, public, signature);
+//! let seed = [0u8;32]; // seed only for example !
+//! let (secret, public) = ed25519::keypair(&seed[..]);
+//! let signature = ed25519::signature(message, &secret[..]);
+//! ed25519::verify(message, &public[..], &signature[..]);
 //! ```
 //!
 
