@@ -1,3 +1,11 @@
+//! Transaction types
+//! 
+//! `TxIn` : Input
+//! `TxOut` : Output
+//! `Tx` : Input + Output
+//! `TxInWitness`: Witness providing for TxIn (e.g. cryptographic signature)
+//! `TxAux` : Signed Tx (Tx + Witness)
+//! 
 use std::{fmt};
 
 use hash::{Blake2b256};

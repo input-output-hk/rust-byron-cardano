@@ -1,3 +1,5 @@
+//! Fee calculation and fee algorithms
+
 use std::{fmt, result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
@@ -89,6 +91,7 @@ impl Mul for Milli {
     }
 }
 
+/// Linear fee using the basic affine formula `A * bytes(txaux) + CONSTANT`
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub struct LinearFee {
     /// this is the minimal fee
@@ -109,6 +112,7 @@ impl LinearFee {
     }
 }
 
+/// Calculation of fees for a specific chosen algorithm
 pub trait FeeAlgorithm {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee>;
     fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee>;

@@ -1,3 +1,13 @@
+//! Hierarchical Deterministic (HD) Wallet
+//!
+//! Follow the Ed25519-BIP32 paper
+//!
+//! Supports:
+//! * Transform Seed to Extended Private key
+//! * Hard and Soft derivation using 32 bits indices
+//! * Derivation Scheme V2
+//! * Derivation Scheme V1 (don't use for new code, only for compat)
+//!
 use cryptoxide::digest::Digest;
 use cryptoxide::sha2::Sha512;
 use cryptoxide::hmac::Hmac;
@@ -140,8 +150,9 @@ impl AsRef<[u8]> for Seed {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
 
-/// HDWallet private key
+/// HDWallet extended private key
 ///
+/// Effectively this is ed25519 extended secret key (64 bytes) followed by a chain code (32 bytes)
 pub struct XPrv([u8; XPRV_SIZE]);
 impl XPrv {
     /// create the Root private key `XPrv` of the HDWallet associated to this `Seed`
@@ -197,13 +208,13 @@ impl XPrv {
         Self::from_bytes(out)
     }
 
-    // create a XPrv from the given bytes.
+    // Create a XPrv from the given bytes.
     //
     // This function does not perform any validity check and should not be used outside
     // of this module.
     fn from_bytes(bytes: [u8;XPRV_SIZE]) -> Self { XPrv(bytes) }
 
-    /// create a `XPrv` by taking ownership of the given array
+    /// Create a `XPrv` by taking ownership of the given array
     ///
     /// This function may returns an error if it does not have the expected
     /// format.
@@ -222,7 +233,7 @@ impl XPrv {
         Ok(XPrv(bytes))
     }
 
-    /// create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
+    /// Create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
     /// otherwise it will return `Result`.
     ///
     fn from_slice(bytes: &[u8]) -> Result<Self> {
@@ -234,14 +245,14 @@ impl XPrv {
         Ok(XPrv::from_bytes(buf))
     }
 
-    /// create a `XPrv` from a given hexadecimal string
+    /// Create a `XPrv` from a given hexadecimal string
     ///
     fn from_hex(hex: &str) -> Result<Self> {
         let input = hex::decode(hex)?;
         Self::from_slice(&input)
     }
 
-    /// get te associated `XPub`
+    /// Get the associated `XPub`
     ///
     /// ```
     /// use cardano::hdwallet::{XPrv, XPub, Seed};
@@ -361,6 +372,7 @@ impl<'de> serde::Deserialize<'de> for XPrv
     }
 }
 
+/// Extended Public Key (Point + ChainCode)
 #[derive(Clone, Copy)]
 pub struct XPub([u8; XPUB_SIZE]);
 impl XPub {

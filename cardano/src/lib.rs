@@ -1,3 +1,18 @@
+//! Cardano Basic types and manipulation functions
+//!
+//! Features:
+//!
+//! * Address generation and parsing
+//! * Block types and parsing
+//! * HDWallet (ED25519-BIP32)
+//! * BIP39 codec (Including dictionaries: English, Japanese, French, Spanish, Chinese)
+//! * BIP44 wallet addressing scheme
+//! * Paperwallet V1
+//! * Transaction creation, parsing, signing
+//! * Fee calculation
+//! * Redeem Key
+//! * Wallet abstraction
+//!
 #![cfg_attr(feature = "with-bench", feature(test))]
 
 #[macro_use]
