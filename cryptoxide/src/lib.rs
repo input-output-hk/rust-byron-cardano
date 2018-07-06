@@ -41,5 +41,4 @@ pub mod poly1305;
 pub mod sha2;
 pub mod sha3;
 mod simd;
-mod step_by;
 pub mod util;
