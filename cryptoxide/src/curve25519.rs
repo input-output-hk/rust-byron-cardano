@@ -1473,7 +1473,7 @@ pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
     /* each es[i] is between -8 and 8 */
 
     let mut h = GeP3::zero();
-    for j in (0..32) {
+    for j in 0..32 {
         let i = j * 2 + 1;
         t = GePrecomp::select(j, es[i]);
         r = h + t;
@@ -1485,7 +1485,7 @@ pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
     r = s.dbl(); s = r.to_p2();
     r = s.dbl(); h = r.to_p3();
 
-    for j in (0..32) {
+    for j in 0..32 {
         let i = j * 2;
         t = GePrecomp::select(j, es[i]);
         r = h + t;
