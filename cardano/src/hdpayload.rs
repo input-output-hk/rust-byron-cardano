@@ -9,7 +9,6 @@
 //! payload and find the derivation path associated with it.
 //!
 use cryptoxide::chacha20poly1305::{ChaCha20Poly1305};
-use cryptoxide::aead::{AeadEncryptor, AeadDecryptor};
 use cryptoxide::hmac::{Hmac};
 use cryptoxide::sha2::{Sha512};
 use cryptoxide::pbkdf2::{pbkdf2};
