@@ -1,4 +1,4 @@
-/// Daedalus Wallet
+/// 2 Level of randomly chosen hard derivation indexes Wallet
 ///
 
 use std::{ops::Deref, iter};
@@ -21,22 +21,11 @@ pub const DERIVATION_SCHEME : DerivationScheme = DerivationScheme::V1;
 
 pub type Addressing = (u32, u32);
 
-/// Implementation of daedalus wallet
+/// Implementation of 2 level randomly chosen derivation index wallet
 ///
-/// This is for compatibility purpose with the existing Daedalus
-/// wallet. However, it is not recommended to continue to create
-/// new daedalus wallets (see below).
-///
-/// # Considerations
-///
-/// 1. Daedalus recovery phrase are 12 words long;
-/// 2. Daedalus wallets are not password protected: no possible deniability;
-/// 3. Daedalus addresses are longer than needed as they store extra
-///    metadata in the address;
-/// 4. Daedalus addresses uses only hard derivation from the Root Key, no
-///    possible public derivation here;
-/// 5. Daedalus uses derivation scheme V1 which is deprecated due to lake
-///    to potential security issues.
+/// This is for compatibility purpose with the existing 2 Level of
+/// randomly chosen hard derivation indexes
+/// wallet.
 ///
 pub struct Wallet {
     root_key: RootKey,
@@ -47,11 +36,9 @@ impl Wallet {
         Wallet { root_key, config }
     }
 
-    /// Generating the root public key of a Daedalus wallet is not
-    /// a straight forward process, we provide this helper to facilitate
-    /// its construction.
+    /// Compatibility with daedalus mnemonic addresses
     ///
-    /// > Daedalus wallets uses the bip39 mnemonics but do not follow
+    /// > 2 Level of randomly chosen hard derivation indexes wallets uses the bip39 mnemonics but do not follow
     /// > the whole BIP39 specifications;
     ///
     /// 1. the mnemonic words are used to retrieve the entropy;
@@ -63,16 +50,16 @@ impl Wallet {
     /// There are many things that can go wrong when implementing this
     /// process, it is all done correctly by this function: prefer using
     /// this function.
-    pub fn from_mnemonics<D>(dic: &D, mnemonics_phrase: String, config: Config) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(dic: &D, mnemonics_phrase: String, config: Config) -> Result<Self>
         where D: bip39::dictionary::Language
     {
-        let root_key = RootKey::from_mnemonics(dic, mnemonics_phrase)?;
+        let root_key = RootKey::from_daedalus_mnemonics(dic, mnemonics_phrase)?;
         Ok(Wallet::from_root_key(root_key, config))
     }
 
     /// test that the given address belongs to the wallet.
     ///
-    /// This only possible because daedalus addresses contain
+    /// This only possible because addresses from this wallet contain
     /// a special metadata, the derivation path encrypted with
     /// the Wallet root public key.
     ///
@@ -82,7 +69,7 @@ impl Wallet {
     {
         let hdkey = hdpayload::HDKey::new(&self.root_key.public());
 
-        // daedalus has only one account
+        // This wallet has has only one account
         let account : &RootKey = scheme::Wallet::list_accounts(self);
         if let &Some(ref hdpa) = &address.attributes.derivation_path {
             if let Some(path) = hdkey.decrypt_path(hdpa) {
@@ -181,11 +168,11 @@ impl Wallet {
     }
 }
 impl scheme::Wallet for Wallet {
-    /// Daedalus does not support Account model. Only one account: the root key.
+    /// 2 Level of randomly chosen hard derivation indexes does not support Account model. Only one account: the root key.
     type Account     = RootKey;
-    /// Daedalus does not support Account model. Only one account: the root key.
+    /// 2 Level of randomly chosen hard derivation indexes does not support Account model. Only one account: the root key.
     type Accounts    = Self::Account;
-    /// Daedalus derivation consists of 2 level of hard derivation, this is why
+    /// 2 Level of randomly chosen hard derivation indexes derivation consists of 2 level of hard derivation, this is why
     /// it is not possible to have a public key account like in the bip44 model.
     type Addressing  = Addressing;
 
@@ -250,7 +237,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 #[derive(Clone)]
 pub struct RootKey(XPrv);
 impl RootKey {
-    fn from_mnemonics<D>(dic: &D, mnemonics_phrase: String) -> Result<Self>
+    fn from_daedalus_mnemonics<D>(dic: &D, mnemonics_phrase: String) -> Result<Self>
         where D: bip39::dictionary::Language
     {
         let mnemonics = bip39::Mnemonics::from_string(dic, &mnemonics_phrase)?;

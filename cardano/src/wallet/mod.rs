@@ -1,3 +1,3 @@
 pub mod bip44;
-pub mod daedalus;
+pub mod randomly_indexed_2levels;
 pub mod scheme;
