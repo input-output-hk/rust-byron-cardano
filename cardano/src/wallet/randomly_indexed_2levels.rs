@@ -17,8 +17,6 @@ use config::Config;
 
 use super::scheme::{self};
 
-pub const DERIVATION_SCHEME : DerivationScheme = DerivationScheme::V1;
-
 pub type Addressing = (u32, u32);
 
 /// Implementation of 2 level randomly chosen derivation index wallet
@@ -30,10 +28,12 @@ pub type Addressing = (u32, u32);
 pub struct Wallet {
     root_key: RootKey,
     config: Config,
+
+    derivation_scheme: DerivationScheme
 }
 impl Wallet {
-    pub fn from_root_key(root_key: RootKey, config: Config) -> Self {
-        Wallet { root_key, config }
+    pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey, config: Config,) -> Self {
+        Wallet { root_key, config, derivation_scheme }
     }
 
     /// Compatibility with daedalus mnemonic addresses
@@ -50,11 +50,11 @@ impl Wallet {
     /// There are many things that can go wrong when implementing this
     /// process, it is all done correctly by this function: prefer using
     /// this function.
-    pub fn from_daedalus_mnemonics<D>(dic: &D, mnemonics_phrase: String, config: Config) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String, config: Config) -> Result<Self>
         where D: bip39::dictionary::Language
     {
-        let root_key = RootKey::from_daedalus_mnemonics(dic, mnemonics_phrase)?;
-        Ok(Wallet::from_root_key(root_key, config))
+        let root_key = RootKey::from_daedalus_mnemonics(derivation_scheme, dic, mnemonics_phrase)?;
+        Ok(Wallet::from_root_key(derivation_scheme, root_key, config))
     }
 
     /// test that the given address belongs to the wallet.
@@ -187,8 +187,8 @@ impl scheme::Wallet for Wallet {
 
         for addressing in addresses {
             let key = self.root_key
-                          .derive(DERIVATION_SCHEME, addressing.0)
-                          .derive(DERIVATION_SCHEME, addressing.1);
+                          .derive(self.derivation_scheme, addressing.0)
+                          .derive(self.derivation_scheme, addressing.1);
 
             let tx_witness = TxInWitness::new(&self.config, &key, txid);
             witnesses.push(tx_witness);
@@ -208,9 +208,10 @@ impl scheme::Account for RootKey {
         let hdkey = hdpayload::HDKey::new(&self.public());
 
         for addressing in addresses {
-            let key = self.derive(DERIVATION_SCHEME, addressing.0)
-                          .derive(DERIVATION_SCHEME, addressing.1)
+            let key = self.derive(self.derivation_scheme, addressing.0)
+                          .derive(self.derivation_scheme, addressing.1)
                           .public();
+
             let payload = hdkey.encrypt_path(&hdpayload::Path::new(vec![addressing.0, addressing.1]));
             let attributes = Attributes::new_bootstrap_era(Some(payload));
             let addr = ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes);
@@ -235,9 +236,12 @@ impl From<cbor_event::Error> for Error {
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Clone)]
-pub struct RootKey(XPrv);
+pub struct RootKey {
+    root_key: XPrv,
+    derivation_scheme: DerivationScheme
+}
 impl RootKey {
-    fn from_daedalus_mnemonics<D>(dic: &D, mnemonics_phrase: String) -> Result<Self>
+    fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
         where D: bip39::dictionary::Language
     {
         let mnemonics = bip39::Mnemonics::from_string(dic, &mnemonics_phrase)?;
@@ -254,13 +258,10 @@ impl RootKey {
         };
 
         let xprv = XPrv::generate_from_daedalus_seed(&seed);
-        Ok(RootKey(xprv))
+        Ok(RootKey { root_key: xprv, derivation_scheme })
     }
-}
-impl From<XPrv> for RootKey {
-    fn from(xprv: XPrv) -> Self { RootKey(xprv) }
 }
 impl Deref for RootKey {
     type Target = XPrv;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target { &self.root_key }
 }
