@@ -32,7 +32,7 @@ impl HasCommand for Update {
 
         // retrieve the associated blockchain and its storage
         let blockchain_cfg = wallet_cfg.blockchain_config().unwrap();
-        let mut storage    = wallet_cfg.blockchain_storage().unwrap();
+        let storage        = wallet_cfg.blockchain_storage().unwrap();
 
         // 1. we need to retrieve what is the new tip of the network
         //    so we know when if we need to perform an update and we

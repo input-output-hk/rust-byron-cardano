@@ -60,7 +60,7 @@ impl HasCommand for Recover {
             recover_entropy(language, password)
         };
         // TODO, use the Protocol magic from the blockchain
-        let wallet = bip44::Wallet::from_bip39_seed(&seed, Default::default());
+        let wallet = bip44::Wallet::from_bip39_seed(&seed, Default::default(), Default::default());
 
         // TODO, shall we have a default for the fee selection policy?
         let config = config::Config::from_wallet(wallet, blockchain, Default::default(), epoch_start);

@@ -67,10 +67,13 @@ impl HasCommand for CommandNewWallet {
         let seed = generate_entropy(language, password, mnemonic_sz, without_paper_wallet);
 
         // TODO, use the Protocol magic from the blockchain
-        let wallet = bip44::Wallet::from_bip39_seed(&seed, Default::default());
+        let config = Default::default();
+        let derivation_scheme = Default::default();
+        let wallet = bip44::Wallet::from_bip39_seed(&seed, derivation_scheme, config);
 
         // TODO, shall we have a default for the fee selection policy?
-        let config = config::Config::from_wallet(wallet, blockchain, Default::default(), epoch_start);
+        let selection_policy = Default::default();
+        let config = config::Config::from_wallet(wallet, blockchain, selection_policy, epoch_start);
 
         config.to_file(&name).unwrap();
     }

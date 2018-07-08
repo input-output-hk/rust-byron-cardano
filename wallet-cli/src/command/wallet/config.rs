@@ -8,9 +8,9 @@
 
 use cardano::{
     self,
-    hdwallet::{XPrv, XPub},
+    hdwallet::{XPrv, XPub, DerivationScheme},
     fee::{SelectionPolicy},
-    wallet::{bip44::{self, CoinLevel, AccountLevel}, scheme::{Wallet}},
+    wallet::{bip44::{self, CoinLevel, Account}, scheme::{Wallet}},
 };
 use exe_common::config::{net};
 use std::{io, slice::{Iter}, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
@@ -81,7 +81,7 @@ impl Config {
         Config {
             blockchain: blockchain.into(),
             selection_fee_policy: selection_policy,
-            cached_root_key: (**wallet.as_ref()).clone(),
+            cached_root_key: (**wallet).clone(),
             epoch_start: epoch_start.unwrap_or(0),
         }
     }
@@ -113,7 +113,10 @@ impl Config {
         let blockchain_config = self.blockchain_config()?;
         let wallet_cfg = cardano::config::Config::new(blockchain_config.protocol_magic);
         let cached_key = CoinLevel::from(self.cached_root_key.clone());
-        Ok(bip44::Wallet::from_cached_key(cached_key, wallet_cfg))
+
+        // TODO: derivation scheme to be set in the config file
+        let derivation_scheme = DerivationScheme::V2;
+        Ok(bip44::Wallet::from_cached_key(cached_key, derivation_scheme, wallet_cfg))
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {
@@ -137,14 +140,15 @@ pub struct Accounts(Vec<account::Config>);
 impl Accounts {
     pub fn new() -> Self { Accounts(Vec::new()) }
 
-    pub fn new_account(&mut self, wallet: &mut bip44::Wallet, alias: Option<String>) -> Result<AccountLevel<XPub>> {
+    pub fn new_account(&mut self, wallet: &mut bip44::Wallet, alias: Option<String>) -> Result<Account<XPub>> {
         let account_index = self.0.len() as u32;
         let account = if let &Some(ref alias) = &alias {
-            wallet.create_account(alias, account_index).public()
+            wallet.create_account(alias, account_index)
         } else {
             let alias = format!("{}", account_index);
-            wallet.create_account(&alias, account_index).public()
+            wallet.create_account(&alias, account_index)
         };
+        let account = Account::from(&account);
         let account_cfg = account::Config::from_account(&account, alias);
         self.0.push(account_cfg);
         Ok(account)
@@ -152,14 +156,14 @@ impl Accounts {
 
     pub fn iter(&self) -> Iter<account::Config> { self.0.iter() }
 
-    pub fn get_account_index(&self, account_index: u32) -> Result<AccountLevel<XPub>> {
+    pub fn get_account_index(&self, account_index: u32) -> Result<Account<XPub>> {
         match self.0.get(account_index as usize) {
             None      => Err(Error::AccountIndexNotFound),
-            Some(cfg) => Ok(AccountLevel::from(cfg.cached_root_key))
+            Some(cfg) => Ok(Account::new(From::from(cfg.cached_root_key), DerivationScheme::V2))
         }
     }
 
-    pub fn get_account_alias(&self, alias: &str) -> Result<AccountLevel<XPub>> {
+    pub fn get_account_alias(&self, alias: &str) -> Result<Account<XPub>> {
         let alias_ = Some(alias.to_owned());
         match self.iter().position(|cfg| cfg.alias == alias_) {
             None => Err(Error::AccountAliasNotFound(alias.to_owned())),
@@ -215,8 +219,7 @@ impl Accounts {
 }
 
 pub mod account {
-    use cardano::{bip::bip44, coin::Coin, hdwallet::{XPub}};
-    use cardano::wallet::bip44::AccountLevel;
+    use cardano::{bip::bip44, coin::Coin, wallet, hdwallet::{XPub}};
 
     pub static PREFIX : &'static str = "account-";
 
@@ -228,12 +231,12 @@ pub mod account {
         pub cached_root_key: XPub
     }
     impl Config {
-        pub fn from_account(account: &AccountLevel<XPub>, alias: Option<String>) -> Self {
+        pub fn from_account(account: &wallet::bip44::Account<XPub>, alias: Option<String>) -> Self {
             Config {
                 alias: alias,
                 addresses: Vec::new(),
                 balance: Coin::zero(),
-                cached_root_key: (**account).clone()
+                cached_root_key: (***account).clone()
             }
         }
     }

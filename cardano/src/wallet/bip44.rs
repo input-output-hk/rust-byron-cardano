@@ -2,7 +2,7 @@
 ///
 
 use hdwallet::{Result, XPrv, XPub, DerivationScheme, DerivationIndex};
-use bip::bip44::{self, BIP44_PURPOSE, BIP44_COIN_TYPE, BIP44_SOFT_UPPER_BOUND};
+use bip::bip44::{BIP44_PURPOSE, BIP44_COIN_TYPE, BIP44_SOFT_UPPER_BOUND};
 use bip::bip39;
 use tx::{TxId, TxInWitness};
 use address::{ExtendedAddr};
@@ -11,9 +11,7 @@ use std::{ops::Deref, collections::{BTreeMap}};
 
 use super::scheme::{self};
 
-pub use self::bip44::{AddrType, Addressing, Account, Change, Index};
-
-pub const DERIVATION_SCHEME : DerivationScheme = DerivationScheme::V2;
+pub use bip::bip44::{self, AddrType, Addressing, Change, Index};
 
 /// BIP44 based wallet, i.e. using sequential indexing.
 ///
@@ -22,8 +20,9 @@ pub const DERIVATION_SCHEME : DerivationScheme = DerivationScheme::V2;
 ///
 pub struct Wallet {
     cached_root_key: CoinLevel<XPrv>,
-    accounts: BTreeMap<String, AccountLevel<XPrv>>,
+    accounts: BTreeMap<String, Account<XPrv>>,
     config: Config,
+    derivation_scheme: DerivationScheme,
 }
 impl Wallet {
     /// load a wallet from a cached root key
@@ -32,12 +31,13 @@ impl Wallet {
     /// state (beware that the cached root key would need to be stored
     /// in a secure manner though).
     ///
-    pub fn from_cached_key(cached_root_key: CoinLevel<XPrv>, config: Config) -> Self {
+    pub fn from_cached_key(cached_root_key: CoinLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
         let accounts = BTreeMap::new();
         Wallet {
             cached_root_key,
             accounts,
-            config
+            config,
+            derivation_scheme
         }
     }
 
@@ -47,9 +47,9 @@ impl Wallet {
     /// [`Wallet::from_bip39_mnemonics`](./struct.Wallet.html#method.from_bip39_mnemonics)
     /// constructor.
     ///
-    pub fn from_root_key(root_key: RootLevel<XPrv>, config: Config) -> Self {
-        let cached_root_key = root_key.bip44().ada();
-        Wallet::from_cached_key(cached_root_key, config)
+    pub fn from_root_key(root_key: RootLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
+        let cached_root_key = root_key.bip44(derivation_scheme).ada(derivation_scheme);
+        Wallet::from_cached_key(cached_root_key, derivation_scheme, config)
     }
 
     /// helper to create a wallet from BIP39 Seed
@@ -58,12 +58,13 @@ impl Wallet {
     /// so we don't have to handle error in this constructor.
     ///
     pub fn from_bip39_seed( seed: &bip39::Seed
+                          , derivation_scheme: DerivationScheme
                           , config: Config
                           ) -> Self
     {
         let xprv = XPrv::generate_from_bip39(seed);
 
-        Wallet::from_root_key(RootLevel::from(xprv), config)
+        Wallet::from_root_key(RootLevel::from(xprv), derivation_scheme, config)
     }
 
     /// helper to create a wallet from BIP39 mnemonics
@@ -73,24 +74,29 @@ impl Wallet {
     ///
     pub fn from_bip39_mnemonics( mnemonics_phrase: &bip39::MnemonicString
                                , password: &[u8]
+                               , derivation_scheme: DerivationScheme
                                , config: Config
                                ) -> Self
     {
         let seed = bip39::Seed::from_mnemonic_string(mnemonics_phrase, password);
 
-        Wallet::from_bip39_seed(&seed, config)
+        Wallet::from_bip39_seed(&seed, derivation_scheme, config)
     }
+
+    pub fn derivation_scheme(&self) -> DerivationScheme { self.derivation_scheme }
 }
-impl AsRef<CoinLevel<XPrv>> for Wallet {
-    fn as_ref(&self) -> &CoinLevel<XPrv> { &self.cached_root_key }
+impl Deref for Wallet {
+    type Target = CoinLevel<XPrv>;
+    fn deref(&self) -> &Self::Target { &self.cached_root_key }
 }
 impl scheme::Wallet for Wallet {
-    type Account     = AccountLevel<XPrv>;
+    type Account     = Account<XPrv>;
     type Accounts    = BTreeMap<String, Self::Account>;
     type Addressing  = Addressing;
 
     fn create_account(&mut self, alias: &str, id: u32) -> Self::Account {
-        let account = self.cached_root_key.account(id);
+        let account = self.cached_root_key.account(self.derivation_scheme, id);
+        let account = Account { cached_root_key: account, derivation_scheme: self.derivation_scheme };
         self.accounts.insert(alias.to_owned(), account.clone());
         account
     }
@@ -102,9 +108,9 @@ impl scheme::Wallet for Wallet {
 
         for addressing in addresses {
             let key = self.cached_root_key
-                          .account(addressing.account.get_scheme_value())
-                          .change(addressing.address_type())
-                          .index(addressing.index.get_scheme_value());
+                          .account(self.derivation_scheme, addressing.account.get_scheme_value())
+                          .change(self.derivation_scheme, addressing.address_type())
+                          .index(self.derivation_scheme, addressing.index.get_scheme_value());
 
             let tx_witness = TxInWitness::new(&self.config, &key, txid);
             witnesses.push(tx_witness);
@@ -112,7 +118,34 @@ impl scheme::Wallet for Wallet {
         witnesses
     }
 }
-impl scheme::Account for AccountLevel<XPub> {
+
+#[derive(Clone)]
+pub struct Account<K> {
+    cached_root_key: AccountLevel<K>,
+    derivation_scheme: DerivationScheme
+}
+impl<K> Account<K> {
+    pub fn new(cached_root_key: AccountLevel<K>, derivation_scheme: DerivationScheme) -> Self {
+        Account { cached_root_key, derivation_scheme }
+    }
+}
+impl<'a> From<&'a Account<XPrv>> for Account<XPub> {
+    fn from(prv: &'a Account<XPrv>) -> Self {
+        Account {
+            cached_root_key: prv.public(),
+            derivation_scheme: prv.derivation_scheme
+        }
+    }
+}
+impl Deref for Account<XPrv> {
+    type Target = AccountLevel<XPrv>;
+    fn deref(&self) -> &Self::Target { &self.cached_root_key }
+}
+impl Deref for Account<XPub> {
+    type Target = AccountLevel<XPub>;
+    fn deref(&self) -> &Self::Target { &self.cached_root_key }
+}
+impl scheme::Account for Account<XPub> {
     type Addressing = (bip44::AddrType, u32);
 
     fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
@@ -122,8 +155,9 @@ impl scheme::Account for AccountLevel<XPub> {
         let mut vec = Vec::with_capacity(hint_max.unwrap_or(hint_low));
 
         for addressing in addresses {
-            let key = self.change(addressing.0).expect("cannot fail")
-                          .index(addressing.1).unwrap();
+            let key = self.cached_root_key
+                          .change(self.derivation_scheme, addressing.0).expect("cannot fail")
+                          .index(self.derivation_scheme, addressing.1).unwrap();
             let addr = ExtendedAddr::new_simple(key.0);
             vec.push(addr);
         }
@@ -131,7 +165,7 @@ impl scheme::Account for AccountLevel<XPub> {
         vec
     }
 }
-impl scheme::Account for AccountLevel<XPrv> {
+impl scheme::Account for Account<XPrv> {
     type Addressing = (bip44::AddrType, u32);
 
     fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
@@ -141,8 +175,9 @@ impl scheme::Account for AccountLevel<XPrv> {
         let mut vec = Vec::with_capacity(hint_max.unwrap_or(hint_low));
 
         for addressing in addresses {
-            let key = self.change(addressing.0)
-                          .index(addressing.1)
+            let key = self.cached_root_key
+                          .change(self.derivation_scheme, addressing.0)
+                          .index(self.derivation_scheme, addressing.1)
                           .public();
             let addr = ExtendedAddr::new_simple(key.0);
             vec.push(addr);
@@ -155,8 +190,8 @@ impl scheme::Account for AccountLevel<XPrv> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootLevel<T>(T);
 impl RootLevel<XPrv> {
-    pub fn bip44(&self) -> PurposeLevel<XPrv> {
-        PurposeLevel::from(self.0.derive(DERIVATION_SCHEME, BIP44_PURPOSE))
+    pub fn bip44(&self, derivation_scheme: DerivationScheme) -> PurposeLevel<XPrv> {
+        PurposeLevel::from(self.0.derive(derivation_scheme, BIP44_PURPOSE))
     }
 }
 impl<T> Deref for RootLevel<T> {
@@ -170,8 +205,8 @@ impl From<XPrv> for RootLevel<XPrv> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PurposeLevel<T>(T);
 impl PurposeLevel<XPrv> {
-    pub fn ada(&self) -> CoinLevel<XPrv> {
-        CoinLevel::from(self.0.derive(DERIVATION_SCHEME, BIP44_COIN_TYPE))
+    pub fn ada(&self, derivation_scheme: DerivationScheme) -> CoinLevel<XPrv> {
+        CoinLevel::from(self.0.derive(derivation_scheme, BIP44_COIN_TYPE))
     }
 }
 impl<T> Deref for PurposeLevel<T> {
@@ -185,10 +220,10 @@ impl From<XPrv> for PurposeLevel<XPrv> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoinLevel<T>(T);
 impl CoinLevel<XPrv> {
-    pub fn account(&self, id: u32) -> AccountLevel<XPrv>
+    pub fn account(&self, derivation_scheme: DerivationScheme, id: u32) -> AccountLevel<XPrv>
     {
         assert!(id < BIP44_SOFT_UPPER_BOUND);
-        AccountLevel::from(self.0.derive(DERIVATION_SCHEME, BIP44_SOFT_UPPER_BOUND | id))
+        AccountLevel::from(self.0.derive(derivation_scheme, BIP44_SOFT_UPPER_BOUND | id))
     }
 }
 impl<T> Deref for CoinLevel<T> {
@@ -202,16 +237,16 @@ impl From<XPrv> for CoinLevel<XPrv> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountLevel<T>(T);
 impl AccountLevel<XPrv> {
-    pub fn external(&self) -> ChangeLevel<XPrv> {
-        ChangeLevel::from(self.0.derive(DERIVATION_SCHEME, 0))
+    pub fn external(&self, derivation_scheme: DerivationScheme) -> ChangeLevel<XPrv> {
+        ChangeLevel::from(self.0.derive(derivation_scheme, 0))
     }
-    pub fn internal(&self) -> ChangeLevel<XPrv> {
-        ChangeLevel::from(self.0.derive(DERIVATION_SCHEME, 1))
+    pub fn internal(&self, derivation_scheme: DerivationScheme) -> ChangeLevel<XPrv> {
+        ChangeLevel::from(self.0.derive(derivation_scheme, 1))
     }
-    pub fn change(&self, addr_type: AddrType) -> ChangeLevel<XPrv> {
+    pub fn change(&self, derivation_scheme:DerivationScheme, addr_type: AddrType) -> ChangeLevel<XPrv> {
         match addr_type {
-            AddrType::Internal => self.internal(),
-            AddrType::External => self.external(),
+            AddrType::Internal => self.internal(derivation_scheme),
+            AddrType::External => self.external(derivation_scheme),
         }
     }
     pub fn public(&self) -> AccountLevel<XPub> {
@@ -222,16 +257,16 @@ impl From<XPrv> for AccountLevel<XPrv> {
     fn from(xprv: XPrv) -> Self { AccountLevel(xprv) }
 }
 impl AccountLevel<XPub> {
-    pub fn internal(&self) -> Result<ChangeLevel<XPub>> {
-        Ok(ChangeLevel::from(self.0.derive(DERIVATION_SCHEME, 1)?))
+    pub fn internal(&self, derivation_scheme: DerivationScheme) -> Result<ChangeLevel<XPub>> {
+        Ok(ChangeLevel::from(self.0.derive(derivation_scheme, 1)?))
     }
-    pub fn external(&self) -> Result<ChangeLevel<XPub>> {
-        Ok(ChangeLevel::from(self.0.derive(DERIVATION_SCHEME, 0)?))
+    pub fn external(&self, derivation_scheme: DerivationScheme) -> Result<ChangeLevel<XPub>> {
+        Ok(ChangeLevel::from(self.0.derive(derivation_scheme, 0)?))
     }
-    pub fn change(&self, addr_type: AddrType) -> Result<ChangeLevel<XPub>> {
+    pub fn change(&self, derivation_scheme: DerivationScheme, addr_type: AddrType) -> Result<ChangeLevel<XPub>> {
         match addr_type {
-            AddrType::Internal => self.internal(),
-            AddrType::External => self.external(),
+            AddrType::Internal => self.internal(derivation_scheme),
+            AddrType::External => self.external(derivation_scheme),
         }
     }
 }
@@ -246,10 +281,10 @@ impl<T> Deref for AccountLevel<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeLevel<T>(T);
 impl ChangeLevel<XPrv> {
-    pub fn index(&self, index: DerivationIndex) -> IndexLevel<XPrv>
+    pub fn index(&self, derivation_scheme: DerivationScheme, index: DerivationIndex) -> IndexLevel<XPrv>
     {
         assert!(index < BIP44_SOFT_UPPER_BOUND);
-        IndexLevel::from(self.0.derive(DERIVATION_SCHEME, index))
+        IndexLevel::from(self.0.derive(derivation_scheme, index))
     }
     pub fn public(&self) -> ChangeLevel<XPub> {
         ChangeLevel::from(self.0.public())
@@ -259,10 +294,10 @@ impl From<XPrv> for ChangeLevel<XPrv> {
     fn from(xprv: XPrv) -> Self { ChangeLevel(xprv) }
 }
 impl ChangeLevel<XPub> {
-    pub fn index(&self, index: DerivationIndex) -> Result<IndexLevel<XPub>>
+    pub fn index(&self, derivation_scheme: DerivationScheme, index: DerivationIndex) -> Result<IndexLevel<XPub>>
     {
         assert!(index < BIP44_SOFT_UPPER_BOUND);
-        Ok(IndexLevel::from(self.0.derive(DERIVATION_SCHEME, index)?))
+        Ok(IndexLevel::from(self.0.derive(derivation_scheme, index)?))
     }
 }
 impl From<XPub> for ChangeLevel<XPub> {

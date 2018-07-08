@@ -201,7 +201,7 @@ pub fn recover_entropy(language: String, opt_pwd: Option<String>) -> bip39::Seed
     bip39::Seed::from_mnemonic_string(&mnemonics_str, pwd.as_bytes())
 }
 
-pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: String) -> bip44::AccountLevel<XPub> {
+pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: String) -> bip44::Account<XPub> {
     let known_accounts : Vec<String> = accounts.iter().filter(|acc| acc.alias.is_some()).map(|acc| acc.alias.clone().unwrap()).collect();
     println!("No account named or indexed {} in your wallet", alias);
     println!("We are about to create a new wallet account.");
