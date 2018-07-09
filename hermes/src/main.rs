@@ -35,8 +35,8 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
         .subcommand(
-            SubCommand::with_name("init")
-                .about("init hermes environment")
+            SubCommand::with_name("start")
+                .about("start explorer server")
                 .arg(Arg::with_name("PORT NUMBER")
                     .long("port")
                     .takes_value(true)
@@ -52,16 +52,12 @@ fn main() {
                     .required(false)
                 )
         )
-        .subcommand(
-            SubCommand::with_name("start")
-                .about("start explorer server")
-        )
         .get_matches();
 
     let mut cfg = Config::open().unwrap_or(Config::default());
 
     match matches.subcommand() {
-        ("init", Some(args)) => {
+        ("start", Some(args)) => {
             cfg.port = value_t!(args.value_of("PORT NUMBER"), u16)
                 .or_else(|err| match err {
                     clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.port),
@@ -75,12 +71,8 @@ fn main() {
                     err => Err(err),
                 })
                 .unwrap();
-            let loc = cfg.save().expect("save hermes config");
-            info!("Saved config to {:?}", loc);
             ::std::fs::create_dir_all(cfg.root_dir.clone()).expect("create networks directory");
             info!("Created networks directory {:?}", cfg.root_dir);
-        },
-        ("start", _) => {
             info!("Starting {}-{}", crate_name!(), crate_version!());
             service::start(cfg);
         },
