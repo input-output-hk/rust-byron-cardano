@@ -3,5 +3,8 @@ name = "cardano-c"
 version = "0.1.0"
 authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
+[lib]
+crate-type = ["staticlib", "dylib"]
+
 [dependencies]
 cardano = { path = "../cardano" }
