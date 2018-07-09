@@ -137,6 +137,39 @@ impl Account<XPrv> {
             derivation_scheme: self.derivation_scheme
         }
     }
+
+    /// create an [`AddressGenerator`](./struct.AddressGenerator.html) iterator.
+    ///
+    /// an address iterator starts from the given index, and stop when
+    /// the last soft derivation is reached
+    /// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use cardano::wallet::{bip44::{self, AddrType}, scheme::{Wallet}};
+    /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
+    /// # use cardano::address::ExtendedAddr;
+    /// # use cardano::util::base58;
+    ///
+    /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
+    ///
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let account = wallet.create_account("account 1", 0);
+    ///
+    /// // print only every two address (20 times)
+    /// for (idx, xprv) in account.address_generator(AddrType::External, 0)
+    ///                           .enumerate()
+    ///                           .filter(|(idx, _)| idx % 2 == 0)
+    ///                           .take(20)
+    /// {
+    ///   let address = ExtendedAddr::new_simple(*xprv.public());
+    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    /// }
+    ///
+    /// ```
+    ///
     pub fn address_generator(&self, addr_type: AddrType, from: u32) -> AddressGenerator<XPrv> {
         AddressGenerator {
             cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type),
@@ -146,6 +179,37 @@ impl Account<XPrv> {
     }
 }
 impl Account<XPub> {
+    /// create an [`AddressGenerator`](./struct.AddressGenerator.html) iterator.
+    ///
+    /// an address iterator starts from the given index, and stop when
+    /// the last soft derivation is reached
+    /// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use cardano::wallet::{bip44::{self, AddrType}, scheme::{Wallet}};
+    /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
+    /// # use cardano::address::ExtendedAddr;
+    /// # use cardano::util::base58;
+    ///
+    /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
+    ///
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let account = wallet.create_account("account 1", 0).public();
+    ///
+    /// // print first 10 addresses from index 10000
+    /// for (idx, xpub) in account.address_generator(AddrType::Internal, 10000).unwrap()
+    ///                           .take(10)
+    ///                           .enumerate()
+    /// {
+    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap());
+    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    /// }
+    ///
+    /// ```
+    ///
     pub fn address_generator(&self, addr_type: AddrType, from: u32) -> Result<AddressGenerator<XPub>> {
         Ok(AddressGenerator {
             cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type)?,
@@ -204,6 +268,16 @@ impl scheme::Account for Account<XPrv> {
     }
 }
 
+/// create an `AddressGenerator`
+///
+/// an address iterator starts from the given index, and stop when
+/// the last soft derivation is reached
+/// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+///
+/// see [`Account<XPrv>::address_generator`](./struct.Account.html#method.address_generator)
+/// and [`Account<XPub>::address_generator`](./struct.Account.html#method.address_generator-1)
+/// for example of use.
+///
 pub struct AddressGenerator<K> {
     cached_root_key: ChangeLevel<K>,
     derivation_scheme: DerivationScheme,
