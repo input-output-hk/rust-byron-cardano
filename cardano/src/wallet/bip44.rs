@@ -137,6 +137,22 @@ impl Account<XPrv> {
             derivation_scheme: self.derivation_scheme
         }
     }
+    pub fn address_generator(&self, addr_type: AddrType, from: u32) -> AddressGenerator<XPrv> {
+        AddressGenerator {
+            cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type),
+            derivation_scheme: self.derivation_scheme,
+            index: from
+        }
+    }
+}
+impl Account<XPub> {
+    pub fn address_generator(&self, addr_type: AddrType, from: u32) -> Result<AddressGenerator<XPub>> {
+        Ok(AddressGenerator {
+            cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type)?,
+            derivation_scheme: self.derivation_scheme,
+            index: from
+        })
+    }
 }
 impl Deref for Account<XPrv> {
     type Target = AccountLevel<XPrv>;
@@ -185,6 +201,36 @@ impl scheme::Account for Account<XPrv> {
         }
 
         vec
+    }
+}
+
+pub struct AddressGenerator<K> {
+    cached_root_key: ChangeLevel<K>,
+    derivation_scheme: DerivationScheme,
+    index: u32
+}
+impl Iterator for AddressGenerator<XPrv> {
+    type Item = IndexLevel<XPrv>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= BIP44_SOFT_UPPER_BOUND { return None; }
+        let index = self.index;
+        self.index += 1;
+
+        let index = self.cached_root_key.index(self.derivation_scheme, index);
+        Some(index)
+    }
+}
+impl Iterator for AddressGenerator<XPub> {
+    type Item = Result<IndexLevel<XPub>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= BIP44_SOFT_UPPER_BOUND { return None; }
+        let index = self.index;
+        self.index += 1;
+
+        let index = self.cached_root_key.index(self.derivation_scheme, index);
+        Some(index)
     }
 }
 
