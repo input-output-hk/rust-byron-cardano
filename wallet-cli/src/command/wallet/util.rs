@@ -1,8 +1,9 @@
-use cardano::{bip::bip39, paperwallet, wallet};
+use cardano::{bip::bip39, paperwallet, wallet::bip44, hdwallet::XPub};
 use rand;
 
-use std::io::{Write, stdout, stdin};
-use dialoguer::{PasswordInput, Input, Confirmation};
+#[cfg(unix)]
+use dialoguer::{PasswordInput};
+use dialoguer::{Input, Confirmation};
 use console::{Term};
 
 use super::config;
@@ -200,7 +201,7 @@ pub fn recover_entropy(language: String, opt_pwd: Option<String>) -> bip39::Seed
     bip39::Seed::from_mnemonic_string(&mnemonics_str, pwd.as_bytes())
 }
 
-pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: String) -> wallet::Account {
+pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Config, alias: String) -> bip44::Account<XPub> {
     let known_accounts : Vec<String> = accounts.iter().filter(|acc| acc.alias.is_some()).map(|acc| acc.alias.clone().unwrap()).collect();
     println!("No account named or indexed {} in your wallet", alias);
     println!("We are about to create a new wallet account.");
@@ -214,5 +215,7 @@ pub fn create_new_account(accounts: &mut config::Accounts, wallet: &config::Conf
     let choice = Confirmation::new(&prompt).default(true).interact_on(&Term::stdout()).unwrap();
     if ! choice { ::std::process::exit(0)}
 
-    accounts.new_account(&wallet.wallet().unwrap(), Some(alias)).unwrap()
+    let mut wallet = wallet.wallet().unwrap();
+
+    accounts.new_account(&mut wallet, Some(alias)).unwrap()
 }
