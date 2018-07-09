@@ -10,7 +10,7 @@ use cardano::{
     self,
     hdwallet::{XPrv, XPub, DerivationScheme},
     fee::{SelectionPolicy},
-    wallet::{bip44::{self, CoinLevel, Account}, scheme::{Wallet}},
+    wallet::{bip44::{self, RootLevel, Account}, scheme::{Wallet}},
 };
 use exe_common::config::{net};
 use std::{io, slice::{Iter}, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
@@ -112,7 +112,7 @@ impl Config {
     pub fn wallet(&self) -> Result<bip44::Wallet> {
         let blockchain_config = self.blockchain_config()?;
         let wallet_cfg = cardano::config::Config::new(blockchain_config.protocol_magic);
-        let cached_key = CoinLevel::from(self.cached_root_key.clone());
+        let cached_key = RootLevel::from(self.cached_root_key.clone());
 
         // TODO: derivation scheme to be set in the config file
         let derivation_scheme = DerivationScheme::V2;

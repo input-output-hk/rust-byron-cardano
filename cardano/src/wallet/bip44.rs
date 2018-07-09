@@ -19,7 +19,7 @@ pub use bip::bip44::{self, AddrType, Addressing, Change, Index};
 /// specifications for more details.
 ///
 pub struct Wallet {
-    cached_root_key: CoinLevel<XPrv>,
+    cached_root_key: RootLevel<XPrv>,
     accounts: BTreeMap<String, Account<XPrv>>,
     config: Config,
     derivation_scheme: DerivationScheme,
@@ -31,7 +31,7 @@ impl Wallet {
     /// state (beware that the cached root key would need to be stored
     /// in a secure manner though).
     ///
-    pub fn from_cached_key(cached_root_key: CoinLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
+    pub fn from_cached_key(cached_root_key: RootLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
         let accounts = BTreeMap::new();
         Wallet {
             cached_root_key,
@@ -47,9 +47,10 @@ impl Wallet {
     /// [`Wallet::from_bip39_mnemonics`](./struct.Wallet.html#method.from_bip39_mnemonics)
     /// constructor.
     ///
-    pub fn from_root_key(root_key: RootLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
-        let cached_root_key = root_key.bip44(derivation_scheme).ada(derivation_scheme);
-        Wallet::from_cached_key(cached_root_key, derivation_scheme, config)
+    pub fn from_root_key(root_key: XPrv, derivation_scheme: DerivationScheme, config: Config) -> Self {
+        let cached_root_key = root_key.derive(derivation_scheme, BIP44_PURPOSE)
+                                      .derive(derivation_scheme, BIP44_COIN_TYPE);
+        Wallet::from_cached_key(RootLevel::from(cached_root_key), derivation_scheme, config)
     }
 
     /// helper to create a wallet from BIP39 Seed
@@ -64,7 +65,7 @@ impl Wallet {
     {
         let xprv = XPrv::generate_from_bip39(seed);
 
-        Wallet::from_root_key(RootLevel::from(xprv), derivation_scheme, config)
+        Wallet::from_root_key(xprv, derivation_scheme, config)
     }
 
     /// helper to create a wallet from BIP39 mnemonics
@@ -86,7 +87,7 @@ impl Wallet {
     pub fn derivation_scheme(&self) -> DerivationScheme { self.derivation_scheme }
 }
 impl Deref for Wallet {
-    type Target = CoinLevel<XPrv>;
+    type Target = RootLevel<XPrv>;
     fn deref(&self) -> &Self::Target { &self.cached_root_key }
 }
 impl scheme::Wallet for Wallet {
@@ -190,8 +191,10 @@ impl scheme::Account for Account<XPrv> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootLevel<T>(T);
 impl RootLevel<XPrv> {
-    pub fn bip44(&self, derivation_scheme: DerivationScheme) -> PurposeLevel<XPrv> {
-        PurposeLevel::from(self.0.derive(derivation_scheme, BIP44_PURPOSE))
+    pub fn account(&self, derivation_scheme: DerivationScheme, id: u32) -> AccountLevel<XPrv>
+    {
+        assert!(id < BIP44_SOFT_UPPER_BOUND);
+        AccountLevel::from(self.0.derive(derivation_scheme, BIP44_SOFT_UPPER_BOUND | id))
     }
 }
 impl<T> Deref for RootLevel<T> {
@@ -200,38 +203,6 @@ impl<T> Deref for RootLevel<T> {
 }
 impl From<XPrv> for RootLevel<XPrv> {
     fn from(xprv: XPrv) -> Self { RootLevel(xprv) }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PurposeLevel<T>(T);
-impl PurposeLevel<XPrv> {
-    pub fn ada(&self, derivation_scheme: DerivationScheme) -> CoinLevel<XPrv> {
-        CoinLevel::from(self.0.derive(derivation_scheme, BIP44_COIN_TYPE))
-    }
-}
-impl<T> Deref for PurposeLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.0 }
-}
-impl From<XPrv> for PurposeLevel<XPrv> {
-    fn from(xprv: XPrv) -> Self { PurposeLevel(xprv) }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoinLevel<T>(T);
-impl CoinLevel<XPrv> {
-    pub fn account(&self, derivation_scheme: DerivationScheme, id: u32) -> AccountLevel<XPrv>
-    {
-        assert!(id < BIP44_SOFT_UPPER_BOUND);
-        AccountLevel::from(self.0.derive(derivation_scheme, BIP44_SOFT_UPPER_BOUND | id))
-    }
-}
-impl<T> Deref for CoinLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.0 }
-}
-impl From<XPrv> for CoinLevel<XPrv> {
-    fn from(xprv: XPrv) -> Self { CoinLevel(xprv) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
