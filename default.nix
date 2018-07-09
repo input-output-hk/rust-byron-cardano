@@ -1,11 +1,13 @@
-{ nixpkgs ? fetchTarball channel:nixos-unstable }:
+{ nixpkgs ? fetchTarball channel:nixos-unstable
+, pkgs ? import nixpkgs {}
+}:
 
-with import nixpkgs {};
+with pkgs;
 
 rustPlatform.buildRustPackage {
   name = "rust-cardano";
 
   src = fetchGit ./.;
 
-  cargoSha256 = "0d910by4siv5glw0j89mrj3ysn16w9g9kq1wxzrr46wm053m2nyl";
+  cargoSha256 = "1spxgxh6xbhn7828a30hd74dxwc7j3m7y1isb15n6zm4jxrvj6wx";
 }
