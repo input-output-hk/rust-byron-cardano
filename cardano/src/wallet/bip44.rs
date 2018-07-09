@@ -130,11 +130,11 @@ impl<K> Account<K> {
         Account { cached_root_key, derivation_scheme }
     }
 }
-impl<'a> From<&'a Account<XPrv>> for Account<XPub> {
-    fn from(prv: &'a Account<XPrv>) -> Self {
+impl Account<XPrv> {
+    pub fn public(&self) -> Account<XPub> {
         Account {
-            cached_root_key: prv.public(),
-            derivation_scheme: prv.derivation_scheme
+            cached_root_key: self.cached_root_key.public(),
+            derivation_scheme: self.derivation_scheme
         }
     }
 }

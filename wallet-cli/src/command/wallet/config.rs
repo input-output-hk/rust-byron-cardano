@@ -148,7 +148,7 @@ impl Accounts {
             let alias = format!("{}", account_index);
             wallet.create_account(&alias, account_index)
         };
-        let account = Account::from(&account);
+        let account = account.public();
         let account_cfg = account::Config::from_account(&account, alias);
         self.0.push(account_cfg);
         Ok(account)
