@@ -6,11 +6,23 @@ let
 
   build = import ./. { /* inherit pkgs; */ };
 
+  cfg = config.services.hermes;
+
 in
 
 {
 
   options = {
+
+    services.hermes = {
+
+      port = mkOption {
+        type = types.int;
+        default = 3080;
+        description = "The TCP port on which Hermes listens for HTTP connections.";
+      };
+
+    };
 
   };
 
@@ -37,7 +49,7 @@ in
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         User = "hermes";
-        ExecStart = "${build}/bin/hermes start --port 3080 --networks-dir /var/lib/hermes/networks";
+        ExecStart = "${build}/bin/hermes start --port ${toString cfg.port} --networks-dir /var/lib/hermes/networks";
       };
     };
 
