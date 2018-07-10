@@ -21,7 +21,8 @@ mod config;
 mod handlers;
 mod service;
 
-use config::Config;
+use config::{Config, hermes_path};
+use exe_common::config::net;
 
 fn main() {
     use clap::{App, Arg, SubCommand};
@@ -43,6 +44,7 @@ fn main() {
                     .value_name("PORT NUMBER")
                     .help("set the port number to listen to")
                     .required(false)
+                    .default_value("80")
                 )
                 .arg(Arg::with_name("NETWORKS DIRECTORY")
                     .long("networks-dir")
@@ -51,28 +53,47 @@ fn main() {
                     .help("the relative or absolute directory of the networks to server")
                     .required(false)
                 )
+                .arg(Arg::with_name("TEMPLATE")
+                    .long("template")
+                    .takes_value(true)
+                    .value_name("TEMPLATE")
+                    .help("either 'mainnet' or 'testnet'; may be given multiple times")
+                    .required(false)
+                    .multiple(true)
+                    .default_value("mainnet")
+                )
         )
         .get_matches();
 
-    let mut cfg = Config::open().unwrap_or(Config::default());
-
     match matches.subcommand() {
         ("start", Some(args)) => {
-            cfg.port = value_t!(args.value_of("PORT NUMBER"), u16)
-                .or_else(|err| match err {
-                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.port),
-                    err => Err(err),
-                })
-                .unwrap();
-            cfg.root_dir = value_t!(args.value_of("NETWORKS DIRECTORY"), String)
-                .map(PathBuf::from)
-                .or_else(|err| match err {
-                    clap::Error{ kind:clap::ErrorKind::ArgumentNotFound, .. } => Ok(cfg.root_dir.clone()),
-                    err => Err(err),
-                })
-                .unwrap();
+
+            let mut cfg = Config::new(
+                PathBuf::from(
+                    value_t!(args.value_of("NETWORKS DIRECTORY"), String)
+                    .unwrap_or(
+                        hermes_path().unwrap().join("networks")
+                            .to_str().unwrap().to_string())),
+                value_t!(args.value_of("PORT NUMBER"), u16).unwrap());
+
             ::std::fs::create_dir_all(cfg.root_dir.clone()).expect("create networks directory");
             info!("Created networks directory {:?}", cfg.root_dir);
+
+            for template in args.values_of("TEMPLATE").unwrap() {
+                let net_cfg = match template {
+                    "mainnet" => { net::Config::mainnet() },
+                    "testnet" => { net::Config::testnet() },
+                    _         => {
+                        // we do not support custom template yet.
+                        // in the mean while the error is handled by clap
+                        // (possible_values)
+                        panic!("unknown template '{}'", template)
+                    }
+                };
+
+                cfg.add_network(template, &net_cfg).unwrap();
+            }
+
             info!("Starting {}-{}", crate_name!(), crate_version!());
             service::start(cfg);
         },

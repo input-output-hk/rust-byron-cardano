@@ -1,6 +1,6 @@
 use serde_yaml;
 
-use storage::{self, tmpfile::{TmpFile}};
+use storage::{self, Storage};
 use storage::config::StorageConfig;
 use exe_common::config::{net};
 use std::{io, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
@@ -55,16 +55,6 @@ impl Config {
         }
     }
 
-    pub fn open() -> Result<Self> {
-        let p = hermes_path()?.join("config.yml");
-        Self::from_file(p)
-    }
-
-    pub fn save(&self) -> Result<PathBuf> {
-        let p = hermes_path()?.join("config.yml");
-        self.to_file(p)
-    }
-
     pub fn get_networks_dir(&self) -> PathBuf { self.root_dir.clone() }
 
     pub fn get_networks(&self) -> Result<Networks> {
@@ -99,35 +89,28 @@ impl Config {
         }
     }
 
+    pub fn add_network(&self, name: &str, netcfg: &net::Config) -> Result<()> {
+        let netcfg_dir = self.get_networks_dir().join(name);
+
+        if netcfg_dir.exists() { return Ok(()) }
+
+        let storage_config = self.get_storage_config(name);
+        let _ = Storage::init(&storage_config)?;
+
+        let network_file = storage_config.get_config_file();
+        netcfg.to_file(network_file);
+
+        info!("Added network {}", name);
+        Ok(())
+    }
+
     pub fn get_storage_config<P: AsRef<Path>>(&self, name: P) -> StorageConfig {
         StorageConfig::new(&self.get_networks_dir().join(name))
     }
+
     pub fn get_storage<P: AsRef<Path>>(&self, name: P) -> Result<storage::Storage> {
         let cfg = storage::Storage::init(&self.get_storage_config(name))?;
         Ok(cfg)
-    }
-
-    /// read the file associated to the given filepath, if the file does not exists
-    /// this function creates the default `Config`;
-    ///
-    pub fn from_file<P: AsRef<Path>>(p: P) -> Result<Self> {
-        use std::fs::{File};
-
-        let path = p.as_ref();
-        let mut file = File::open(path)?;
-        Ok(serde_yaml::from_reader(&mut file)?)
-    }
-
-    /// write the config in the given file
-    ///
-    /// if the file already exists it will erase the original data.
-    pub fn to_file<P: AsRef<Path>>(&self, p: P) -> Result<P> {
-        let dir = p.as_ref().parent().unwrap().to_path_buf();
-        fs::DirBuilder::new().recursive(true).create(dir.clone())?;
-        let mut file = TmpFile::create(dir)?;
-        serde_yaml::to_writer(&mut file, &self)?;
-        file.render_permanent(&p.as_ref().to_path_buf())?;
-        Ok(p)
     }
 }
 
