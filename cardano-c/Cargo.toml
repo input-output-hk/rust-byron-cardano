@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 
 [lib]
-crate-type = ["staticlib", "dylib"]
+crate-type = ["staticlib" ]
 
 [dependencies]
 cardano = { path = "../cardano" }
