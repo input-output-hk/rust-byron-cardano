@@ -33,7 +33,7 @@ impl PeerPool {
             match Connection::new(sockaddr, protocol_magic) {
                 Ok(connection) => connections.push(connection),
                 Err(Error::ConnectionTimedOut) => {
-                    warn!("connection peer `{}' address {} timedout, ignoring for now.", name, sockaddr)
+                    warn!("connection peer `{}' address {} timed out, ignoring for now.", name, sockaddr)
                 },
                 Err(err) => {
                     error!("connection peer `{}' address {} failed: {:?}", name, sockaddr, err);
