@@ -1,3 +1,5 @@
+//! Blake2B hash function
+
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -38,6 +40,7 @@ const BLAKE2B_KEYBYTES : usize = 64;
 const BLAKE2B_SALTBYTES : usize = 16;
 const BLAKE2B_PERSONALBYTES : usize = 16;
 
+/// Blake2b Context
 #[derive(Copy)]
 pub struct Blake2b {
     h: [u64; 8],
@@ -180,6 +183,9 @@ impl Blake2b {
         }
     }
 
+    /// Create a new Blake2b context with a specific output size in bytes
+    ///
+    /// the size need to be between 0 (non included) and 64 bytes (included)
     pub fn new(outlen: usize) -> Blake2b {
         assert!(outlen > 0 && outlen <= BLAKE2B_OUTBYTES);
         Blake2b::init_param(Blake2b::default_param(outlen as u8), &[])
@@ -192,6 +198,8 @@ impl Blake2b {
         secure_memset(&mut block[..], 0);
     }
 
+    /// Similar to `new` but also takes a variable size key
+    /// to tweak the context initialization
     pub fn new_keyed(outlen: usize, key: &[u8] ) -> Blake2b {
         assert!(outlen > 0 && outlen <= BLAKE2B_OUTBYTES);
         assert!(!key.is_empty() && key.len() <= BLAKE2B_KEYBYTES);
@@ -306,6 +314,7 @@ impl Blake2b {
         copy_memory(&self.buf[0..outlen], out);
     }
 
+    /// Reset the context to the state after calling `new`
     pub fn reset(&mut self) {
         for (h_elem, iv_elem) in self.h.iter_mut().zip(IV.iter()) {
             *h_elem = *iv_elem;

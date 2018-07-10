@@ -1,3 +1,7 @@
+//! Poly1305 Message Authentication Code (MAC)
+//!
+//! Defined in [Spec](https://cr.yp.to/mac/poly1305-20050329.pdf)
+
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -12,6 +16,9 @@ use std::cmp::min;
 use cryptoutil::{read_u32_le, write_u32_le};
 use mac::{Mac, MacResult};
 
+/// `Poly1305` Context
+///
+/// Use the `Mac` traits for interaction
 #[derive(Clone, Copy)]
 pub struct Poly1305 {
     r         : [u32; 5],
@@ -23,7 +30,8 @@ pub struct Poly1305 {
 }
 
 impl Poly1305 {
-    pub fn new(key: &[u8]) -> Poly1305 {
+    /// Create a new `Poly1305` context using the key (32 bytes)
+    pub fn new(key: &[u8]) -> Self {
         assert!(key.len() == 32);
         let mut poly = Poly1305{ r: [0u32; 5], h: [0u32; 5], pad: [0u32; 4], leftover: 0, buffer: [0u8; 16], finalized: false };
 

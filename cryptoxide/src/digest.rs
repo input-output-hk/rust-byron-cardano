@@ -1,3 +1,17 @@
+//! Cryptographic Hash abstraction definition
+//!
+//! ```rust
+//! use self::cryptoxide::digest::Digest;
+//! use self::cryptoxide::sha2::Sha512;
+//!
+//! // create a Sha512 object
+//! let mut hasher = Sha512::new();
+//!
+//! // write input message
+//! hasher.input_str("hello world");
+//! let hex = hasher.result_str();
+//! ```
+
 // Copyright 2012-2013 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
 // http://rust-lang.org/COPYRIGHT.

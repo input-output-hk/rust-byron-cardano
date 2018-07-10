@@ -4,25 +4,25 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// A pure-rust implementation of various cryptographic algorithms, which no dependencies
-// and no foreign code (specially C or assembly).
-//
-// Our goals is to support rust cryptography in various constrained environment like embedded devices and web assembly
-//
-// This is a fork of [Rust-Crypto by DaGenix](https://github.com/DaGenix/rust-crypto),
-// which we owe a debt of gratitude for starting some good quality pure rust implementations
-// of various cryptographic algorithms.
-//
-// Notable Differences with the original sources:
-//
-// * Maintained
-// * Extended ED25519 support for extended secret key (64 bytes) support
-// * Proper implementation of ChaChaPoly1305
-// * Many cryptographic algorithms removed: AES, Blowfish, Fortuna, RC4, RIPEMD160, Whirlpool, MD5, SHA1.
-//
-// As with everything cryptographic implementations, please make sure it suits your security requirements,
-// and review and audit before using.
-//
+//! A pure-rust implementation of various cryptographic algorithms, which no dependencies
+//! and no foreign code (specially C or assembly).
+//!
+//! Our goals is to support rust cryptography in various constrained environment like embedded devices and web assembly
+//!
+//! This is a fork of [Rust-Crypto by DaGenix](https://github.com/DaGenix/rust-crypto),
+//! which we owe a debt of gratitude for starting some good quality pure rust implementations
+//! of various cryptographic algorithms.
+//!
+//! Notable Differences with the original sources:
+//!
+//! * Maintained
+//! * Extended ED25519 support for extended secret key (64 bytes) support
+//! * Proper implementation of ChaChaPoly1305
+//! * Many cryptographic algorithms removed: AES, Blowfish, Fortuna, RC4, RIPEMD160, Whirlpool, MD5, SHA1.
+//!
+//! As with everything cryptographic implementations, please make sure it suits your security requirements,
+//! and review and audit before using.
+//!
 pub mod blake2b;
 pub mod blake2s;
 pub mod buffer;

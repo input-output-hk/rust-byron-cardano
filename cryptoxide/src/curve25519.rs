@@ -1,3 +1,5 @@
+//! Curve25519 elliptic curve
+
 use std::ops::{Add, Sub, Mul};
 use std::cmp::{Eq, PartialEq, min};
 use util::{fixed_time_eq};
