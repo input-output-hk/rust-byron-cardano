@@ -22,6 +22,13 @@ in
         description = "The TCP port on which Hermes listens for HTTP connections.";
       };
 
+      networks = mkOption {
+        type = types.listOf types.str;
+        default = [ "mainnet" ];
+        example = [ "testnet" ];
+        description = "The networks to support.";
+      };
+
     };
 
   };
@@ -49,7 +56,7 @@ in
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         User = "hermes";
-        ExecStart = "${build}/bin/hermes start --port ${toString cfg.port} --networks-dir /var/lib/hermes/networks";
+        ExecStart = "${build}/bin/hermes start --port ${toString cfg.port} --networks-dir /var/lib/hermes/networks --template ${toString cfg.networks}";
       };
     };
 
