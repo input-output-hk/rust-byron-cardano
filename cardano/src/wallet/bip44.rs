@@ -130,12 +130,92 @@ impl<K> Account<K> {
         Account { cached_root_key, derivation_scheme }
     }
 }
-impl<'a> From<&'a Account<XPrv>> for Account<XPub> {
-    fn from(prv: &'a Account<XPrv>) -> Self {
+impl Account<XPrv> {
+    pub fn public(&self) -> Account<XPub> {
         Account {
-            cached_root_key: prv.public(),
-            derivation_scheme: prv.derivation_scheme
+            cached_root_key: self.cached_root_key.public(),
+            derivation_scheme: self.derivation_scheme
         }
+    }
+
+    /// create an [`AddressGenerator`](./struct.AddressGenerator.html) iterator.
+    ///
+    /// an address iterator starts from the given index, and stop when
+    /// the last soft derivation is reached
+    /// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use cardano::wallet::{bip44::{self, AddrType}, scheme::{Wallet}};
+    /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
+    /// # use cardano::address::ExtendedAddr;
+    /// # use cardano::util::base58;
+    ///
+    /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
+    ///
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let account = wallet.create_account("account 1", 0);
+    ///
+    /// // print only every two address (20 times)
+    /// for (idx, xprv) in account.address_generator(AddrType::External, 0)
+    ///                           .enumerate()
+    ///                           .filter(|(idx, _)| idx % 2 == 0)
+    ///                           .take(20)
+    /// {
+    ///   let address = ExtendedAddr::new_simple(*xprv.public());
+    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    /// }
+    ///
+    /// ```
+    ///
+    pub fn address_generator(&self, addr_type: AddrType, from: u32) -> AddressGenerator<XPrv> {
+        AddressGenerator {
+            cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type),
+            derivation_scheme: self.derivation_scheme,
+            index: from
+        }
+    }
+}
+impl Account<XPub> {
+    /// create an [`AddressGenerator`](./struct.AddressGenerator.html) iterator.
+    ///
+    /// an address iterator starts from the given index, and stop when
+    /// the last soft derivation is reached
+    /// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// # use cardano::wallet::{bip44::{self, AddrType}, scheme::{Wallet}};
+    /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
+    /// # use cardano::address::ExtendedAddr;
+    /// # use cardano::util::base58;
+    ///
+    /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
+    ///
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let account = wallet.create_account("account 1", 0).public();
+    ///
+    /// // print first 10 addresses from index 10000
+    /// for (idx, xpub) in account.address_generator(AddrType::Internal, 10000).unwrap()
+    ///                           .take(10)
+    ///                           .enumerate()
+    /// {
+    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap());
+    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    /// }
+    ///
+    /// ```
+    ///
+    pub fn address_generator(&self, addr_type: AddrType, from: u32) -> Result<AddressGenerator<XPub>> {
+        Ok(AddressGenerator {
+            cached_root_key: self.cached_root_key.change(self.derivation_scheme, addr_type)?,
+            derivation_scheme: self.derivation_scheme,
+            index: from
+        })
     }
 }
 impl Deref for Account<XPrv> {
@@ -185,6 +265,46 @@ impl scheme::Account for Account<XPrv> {
         }
 
         vec
+    }
+}
+
+/// create an `AddressGenerator`
+///
+/// an address iterator starts from the given index, and stop when
+/// the last soft derivation is reached
+/// ([`BIP44_SOFT_UPPER_BOUND`](../../bip/bip44/constant.BIP44_SOFT_UPPER_BOUND.html)).
+///
+/// see [`Account<XPrv>::address_generator`](./struct.Account.html#method.address_generator)
+/// and [`Account<XPub>::address_generator`](./struct.Account.html#method.address_generator-1)
+/// for example of use.
+///
+pub struct AddressGenerator<K> {
+    cached_root_key: ChangeLevel<K>,
+    derivation_scheme: DerivationScheme,
+    index: u32
+}
+impl Iterator for AddressGenerator<XPrv> {
+    type Item = IndexLevel<XPrv>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= BIP44_SOFT_UPPER_BOUND { return None; }
+        let index = self.index;
+        self.index += 1;
+
+        let index = self.cached_root_key.index(self.derivation_scheme, index);
+        Some(index)
+    }
+}
+impl Iterator for AddressGenerator<XPub> {
+    type Item = Result<IndexLevel<XPub>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= BIP44_SOFT_UPPER_BOUND { return None; }
+        let index = self.index;
+        self.index += 1;
+
+        let index = self.cached_root_key.index(self.derivation_scheme, index);
+        Some(index)
     }
 }
 
