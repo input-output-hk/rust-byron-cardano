@@ -4,8 +4,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use aead::{AeadEncryptor,AeadDecryptor};
-
 use chacha20::ChaCha20;
 use symmetriccipher::SynchronousStreamCipher;
 use poly1305::Poly1305;
@@ -32,32 +30,40 @@ fn pad16(mac: &mut Poly1305, len: u64) {
 
 
 impl ChaCha20Poly1305 {
-  pub fn new(key: &[u8], nonce: &[u8], aad: &[u8]) -> ChaCha20Poly1305 {
-      assert!(key.len() == 16 || key.len() == 32);
-      assert!(nonce.len() == 8 || nonce.len() == 12);
+    /// Create a new ChaCha20Poly1305
+    /// 
+    /// key needs to be 16 or 32 bytes
+    /// nonce needs to be 8 or 12 bytes
+    pub fn new(key: &[u8], nonce: &[u8], aad: &[u8]) -> ChaCha20Poly1305 {
+        assert!(key.len() == 16 || key.len() == 32);
+        assert!(nonce.len() == 8 || nonce.len() == 12);
 
-      let mut cipher = ChaCha20::new(key, nonce);
-      let mut mac_key = [0u8; 64];
-      let zero_key = [0u8; 64];
-      cipher.process(&zero_key, &mut mac_key);
+        let mut cipher = ChaCha20::new(key, nonce);
+        let mut mac_key = [0u8; 64];
+        let zero_key = [0u8; 64];
+        cipher.process(&zero_key, &mut mac_key);
 
-      let mut mac = Poly1305::new(&mac_key[..32]);
-      mac.input(aad);
-      pad16(&mut mac, aad.len() as u64);
-      ChaCha20Poly1305 {
-        cipher: cipher,
-        mac: mac,
-        finished: false,
-        aad_len: aad.len() as u64,
-        data_len: 0,
-      }
-  }
-}
+        let mut mac = Poly1305::new(&mac_key[..32]);
+        mac.input(aad);
+        pad16(&mut mac, aad.len() as u64);
+        ChaCha20Poly1305 {
+            cipher: cipher,
+            mac: mac,
+            finished: false,
+            aad_len: aad.len() as u64,
+            data_len: 0,
+        }
+    }
 
-impl AeadEncryptor for ChaCha20Poly1305 {
-    fn encrypt(&mut self, input: &[u8], output: &mut [u8], out_tag: &mut [u8]) {
+    /// Encrypt input buffer to output buffer, and write an authenticated tag to out_tag.
+    ///
+    /// Output buffer need to be the same size as the input buffer
+    /// Out_tag mutable slice need to 16 bytes exactly.
+    pub fn encrypt(&mut self, input: &[u8], output: &mut [u8], out_tag: &mut [u8]) {
         assert!(input.len() == output.len());
         assert!(self.finished == false);
+        assert!(out_tag.len() == 16);
+
         self.cipher.process(input, output);
         self.data_len += input.len() as u64;
         self.mac.input(output);
@@ -69,10 +75,13 @@ impl AeadEncryptor for ChaCha20Poly1305 {
         self.mac.input(&len_buf);
         self.mac.raw_result(out_tag);
     }
-}
 
-impl AeadDecryptor for ChaCha20Poly1305 {
-    fn decrypt(&mut self, input: &[u8], output: &mut [u8], tag: &[u8]) -> bool {
+    /// Decrypt the input to the output buffer
+    ///
+    /// if the calculated tag during decryption doesn't match
+    /// the tag in parameter, then the function return False
+    pub fn decrypt(&mut self, input: &[u8], output: &mut [u8], tag: &[u8]) -> bool {
+        assert!(tag.len() == 16);
         assert!(input.len() == output.len());
         assert!(self.finished == false);
 
@@ -99,6 +108,7 @@ impl AeadDecryptor for ChaCha20Poly1305 {
         }
     }
 }
+
 #[cfg(test)]
 mod test {
   /*
@@ -759,17 +769,17 @@ mod bench {
 
     #[bench]
     pub fn chacha20poly1305_10(bh: & mut Bencher) {
-      let input = [1u8; 10];
-      let aad = [3u8; 10];
-      bh.iter( || {
-          let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
-          let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+        let input = [1u8; 10];
+        let aad = [3u8; 10];
+        bh.iter( || {
+            let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+            let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
 
-          let mut output = [0u8; 10];
-          let mut tag = [0u8; 16];
-          let mut output2 = [0u8; 10];
-          cipher.encrypt(&input, &mut output, &mut tag);
-          decipher.decrypt(&output, &mut output2, &tag);
+            let mut output = [0u8; 10];
+            let mut tag = [0u8; 16];
+            let mut output2 = [0u8; 10];
+            cipher.encrypt(&input, &mut output, &mut tag);
+            decipher.decrypt(&output, &mut output2, &tag);
 
         });
         bh.bytes = 10u64;
@@ -778,40 +788,38 @@ mod bench {
 
     #[bench]
     pub fn chacha20poly1305_1k(bh: & mut Bencher) {
-      let input = [1u8; 1024];
-      let aad = [3u8; 1024];
-      bh.iter( || {
-        let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
-        let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+        let input = [1u8; 1024];
+        let aad = [3u8; 1024];
+        bh.iter( || {
+            let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+            let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
 
-        let mut output = [0u8; 1024];
-        let mut tag = [0u8; 16];
-        let mut output2 = [0u8; 1024];
+            let mut output = [0u8; 1024];
+            let mut tag = [0u8; 16];
+            let mut output2 = [0u8; 1024];
 
-        cipher.encrypt(&input, &mut output, &mut tag);
-        decipher.decrypt(&output, &mut output2, &tag);
+            cipher.encrypt(&input, &mut output, &mut tag);
+            decipher.decrypt(&output, &mut output2, &tag);
         });
-      bh.bytes = 1024u64;
-
+        bh.bytes = 1024u64;
     }
 
     #[bench]
     pub fn chacha20poly1305_64k(bh: & mut Bencher) {
-      let input = [1u8; 65536];
-      let aad = [3u8; 65536];
+        let input = [1u8; 65536];
+        let aad = [3u8; 65536];
         bh.iter( || {
-          let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
-          let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+            let mut cipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
+            let mut decipher = ChaCha20Poly1305::new(&[0; 32], &[0; 8], &aad);
 
-          let mut output = [0u8; 65536];
-          let mut tag = [0u8; 16];
-          let mut output2 = [0u8; 65536];
+            let mut output = [0u8; 65536];
+            let mut tag = [0u8; 16];
+            let mut output2 = [0u8; 65536];
 
-          cipher.encrypt(&input, &mut output, &mut tag);
-          decipher.decrypt(&output, &mut output2, &tag);
+            cipher.encrypt(&input, &mut output, &mut tag);
+            decipher.decrypt(&output, &mut output2, &tag);
 
         });
-         bh.bytes = 65536u64;
-
+        bh.bytes = 65536u64;
     }
 }

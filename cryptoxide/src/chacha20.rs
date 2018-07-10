@@ -1,3 +1,11 @@
+//! ChaCha20 Stream Cipher
+//!
+//! Implementation of [ChaCha spec](https://cr.yp.to/chacha/chacha-20080128.pdf),
+//! which is a fast and lean stream cipher.
+//!
+//! Along with the standard ChaCha20, there is support for the
+//! XChaCha20 variant with extended nonce.
+
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -18,6 +26,7 @@ struct ChaChaState {
   d: u32x4
 }
 
+/// ChaCha Context
 #[derive(Copy)]
 pub struct ChaCha20 {
     state  : ChaChaState,
@@ -85,6 +94,10 @@ static S8:u32x4 = u32x4(8, 8, 8, 8);
 static S7:u32x4 = u32x4(7, 7, 7, 7);
 
 impl ChaCha20 {
+    /// Create a new ChaCha20 context.
+    ///
+    /// * The key must be 16 or 32 bytes
+    /// * The nonce must be 8 or 12 bytes
     pub fn new(key: &[u8], nonce: &[u8]) -> ChaCha20 {
         assert!(key.len() == 16 || key.len() == 32);
         assert!(nonce.len() == 8 || nonce.len() == 12);
@@ -92,6 +105,9 @@ impl ChaCha20 {
         ChaCha20{ state: ChaCha20::expand(key, nonce), output: [0u8; 64], offset: 64 }
     }
 
+    /// Create a new XChaCha20 context.
+    ///
+    /// Key must be 32 bytes and the nonce 24 bytes.
     pub fn new_xchacha20(key: &[u8], nonce: &[u8]) -> ChaCha20 {
         assert!(key.len() == 32);
         assert!(nonce.len() == 24);
