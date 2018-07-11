@@ -61,6 +61,7 @@ fn main() {
                     .required(false)
                     .multiple(true)
                     .default_value("mainnet")
+                    .possible_values(&["mainnet", "testnet"])
                 )
         )
         .get_matches();
