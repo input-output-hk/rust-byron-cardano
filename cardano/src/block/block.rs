@@ -1,3 +1,6 @@
+//! Abstraction of either genesis or normal blocks
+//!
+//! The main types are `Header` and `Block`
 use std::{fmt};
 use std::cmp::{Ord, Ordering};
 
@@ -39,12 +42,14 @@ impl RawBlock {
 impl AsRef<[u8]> for RawBlockHeader { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 
+/// Block Header of either a genesis header or a normal header
 #[derive(Debug, Clone)]
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
 }
 
+/// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
     Genesis(EpochId),
@@ -156,6 +161,7 @@ impl fmt::Display for BlockHeader {
     }
 }
 
+/// Block of either a genesis block or a normal block
 #[derive(Debug)]
 pub enum Block {
     GenesisBlock(genesis::Block),

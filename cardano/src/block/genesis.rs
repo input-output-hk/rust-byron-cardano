@@ -20,6 +20,7 @@ impl cbor_event::de::Deserialize for BodyProof {
     }
 }
 
+/// Genesis block body
 #[derive(Debug, Clone)]
 pub struct Body {
     pub slot_leaders: Vec<address::StakeholderId>,
