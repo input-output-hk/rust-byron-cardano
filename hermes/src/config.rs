@@ -1,10 +1,11 @@
 use serde_yaml;
 
-use storage::{self, tmpfile::{TmpFile}};
+use storage::{self, Storage};
 use storage::config::StorageConfig;
 use exe_common::config::{net};
-use std::{io, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}, fs};
+use std::{io, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}};
 use std::{num::{ParseIntError}, collections::{BTreeMap}, sync::{Arc}};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub enum Error {
@@ -37,7 +38,8 @@ type Result<T> = result::Result<T, Error>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub root_dir: PathBuf,
-    pub port: u16
+    pub port: u16,
+    pub network_names: HashSet<String>
 }
 
 impl Default for Config {
@@ -51,38 +53,26 @@ impl Config {
     pub fn new(root_dir: PathBuf, port: u16) -> Self {
         Config {
             root_dir: root_dir,
-            port: port
+            port: port,
+            network_names: HashSet::new()
         }
-    }
-
-    pub fn open() -> Result<Self> {
-        let p = hermes_path()?.join("config.yml");
-        Self::from_file(p)
-    }
-
-    pub fn save(&self) -> Result<PathBuf> {
-        let p = hermes_path()?.join("config.yml");
-        self.to_file(p)
     }
 
     pub fn get_networks_dir(&self) -> PathBuf { self.root_dir.clone() }
 
     pub fn get_networks(&self) -> Result<Networks> {
-        let dir = self.get_networks_dir();
         let mut networks = Networks::new();
 
-        for entry in fs::read_dir(dir.clone()).expect("read the networks-dir") {
-            let entry = entry?;
-            if ! entry.file_type()?.is_dir() { continue; }
-            let name = entry.file_name();
-            if let Some(name) = name.to_str() {
-                let network = Network {
-                    path: entry.path().to_path_buf(),
-                    config: self.get_network_config(name)?,
-                    storage: Arc::new(self.get_storage(name)?)
-                };
-                networks.insert(name.to_owned(), network);
-            }
+        for name in &self.network_names {
+            let netcfg_dir = self.get_networks_dir().join(name);
+
+            let network = Network {
+                path: netcfg_dir,
+                config: self.get_network_config(name)?,
+                storage: Arc::new(self.get_storage(name)?)
+            };
+
+            networks.insert(name.to_owned(), network);
         }
 
         Ok(networks)
@@ -99,35 +89,32 @@ impl Config {
         }
     }
 
+    pub fn add_network(&mut self, name: &str, netcfg: &net::Config) -> Result<()> {
+        let netcfg_dir = self.get_networks_dir().join(name);
+
+        if netcfg_dir.exists() {
+            self.network_names.insert(name.to_string());
+            return Ok(())
+        }
+
+        let storage_config = self.get_storage_config(name);
+        let _ = Storage::init(&storage_config)?;
+
+        let network_file = storage_config.get_config_file();
+        netcfg.to_file(network_file);
+
+        info!("Added network {}", name);
+        self.network_names.insert(name.to_string());
+        Ok(())
+    }
+
     pub fn get_storage_config<P: AsRef<Path>>(&self, name: P) -> StorageConfig {
         StorageConfig::new(&self.get_networks_dir().join(name))
     }
+
     pub fn get_storage<P: AsRef<Path>>(&self, name: P) -> Result<storage::Storage> {
         let cfg = storage::Storage::init(&self.get_storage_config(name))?;
         Ok(cfg)
-    }
-
-    /// read the file associated to the given filepath, if the file does not exists
-    /// this function creates the default `Config`;
-    ///
-    pub fn from_file<P: AsRef<Path>>(p: P) -> Result<Self> {
-        use std::fs::{File};
-
-        let path = p.as_ref();
-        let mut file = File::open(path)?;
-        Ok(serde_yaml::from_reader(&mut file)?)
-    }
-
-    /// write the config in the given file
-    ///
-    /// if the file already exists it will erase the original data.
-    pub fn to_file<P: AsRef<Path>>(&self, p: P) -> Result<P> {
-        let dir = p.as_ref().parent().unwrap().to_path_buf();
-        fs::DirBuilder::new().recursive(true).create(dir.clone())?;
-        let mut file = TmpFile::create(dir)?;
-        serde_yaml::to_writer(&mut file, &self)?;
-        file.render_permanent(&p.as_ref().to_path_buf())?;
-        Ok(p)
     }
 }
 
@@ -136,6 +123,7 @@ pub struct Network {
     pub config: net::Config,
     pub storage: Arc<storage::Storage>,
 }
+
 pub type Networks = BTreeMap<String, Network>;
 
 /// the environment variable to define where the Hermes files are stores
