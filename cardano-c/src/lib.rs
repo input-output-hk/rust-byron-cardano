@@ -4,6 +4,10 @@ use cardano::wallet::scheme::{Wallet};
 use std::os::raw::{c_char};
 use std::{ffi, slice, ptr};
 
+pub mod address;
+
+pub use address::*;
+
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
  * ******************************************************************************* */
