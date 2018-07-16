@@ -191,6 +191,22 @@ pub mod base58 {
         base_decode(ALPHABET, input.as_bytes())
     }
 
+    /// decode from base58 the given input
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cardano::util::base58;
+    ///
+    /// let encoded = b"TcgsE5dzphUWfjcb9i5";
+    /// let decoded = b"Hello World...";
+    ///
+    /// assert_eq!(decoded, base58::decode(encoded).unwrap().as_slice());
+    /// ```
+    pub fn decode_bytes(input: &[u8]) -> Result<Vec<u8>> {
+        base_decode(ALPHABET, input)
+    }
+
     #[cfg(test)]
     mod tests {
         fn encode(input: &[u8], expected: &str) {
