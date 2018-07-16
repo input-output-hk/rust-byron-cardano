@@ -64,6 +64,11 @@ pub fn net_sync_fast(network: String, mut storage: storage::Storage) {
             upper_bound_hash: network_tip.clone(),
         };
         let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
+
+        storage::epoch::epoch_create(&storage.config, &result.packhash, download_epoch_id);
+
+        storage::refpack_epoch_pack(&storage, &format!("EPOCH_{}", download_epoch_id)).unwrap();
+
         download_prev_hash = result.last_header_hash.clone();
         download_start_hash = result.next_epoch_hash.unwrap_or(result.last_header_hash);
         download_epoch_id += 1;
