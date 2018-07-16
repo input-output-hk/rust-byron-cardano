@@ -201,7 +201,7 @@ pub mod base58 {
     /// let encoded = b"TcgsE5dzphUWfjcb9i5";
     /// let decoded = b"Hello World...";
     ///
-    /// assert_eq!(decoded, base58::decode(encoded).unwrap().as_slice());
+    /// assert_eq!(decoded, base58::decode_bytes(encoded).unwrap().as_slice());
     /// ```
     pub fn decode_bytes(input: &[u8]) -> Result<Vec<u8>> {
         base_decode(ALPHABET, input)
