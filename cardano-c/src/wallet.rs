@@ -32,9 +32,9 @@ type AccountPtr = *mut bip44::Account<hdwallet::XPub>;
 ///
 #[no_mangle]
 pub extern "C"
-fn wallet_new_from_seed( seed_ptr: *const u8 /* expecting 64 bytes... */
-                       , protocol_magic: u32 /* the protocol magic to use */
-                       )
+fn cardano_wallet_new_from_seed( seed_ptr: *const u8 /* expecting 64 bytes... */
+                               , protocol_magic: u32 /* the protocol magic to use */
+                               )
     -> WalletPtr
 {
     let seed_slice = unsafe {
@@ -64,7 +64,7 @@ fn wallet_new_from_seed( seed_ptr: *const u8 /* expecting 64 bytes... */
 /// The data must be a valid Wallet created by `wallet_new_from_seed`.
 #[no_mangle]
 pub extern "C"
-fn wallet_delete(wallet_ptr: WalletPtr)
+fn cardano_wallet_delete(wallet_ptr: WalletPtr)
 {
     unsafe {
         Box::from_raw(wallet_ptr)
@@ -85,10 +85,10 @@ fn wallet_delete(wallet_ptr: WalletPtr)
 ///
 #[no_mangle]
 pub extern "C"
-fn account_create( wallet_ptr: WalletPtr
-                 , account_alias: *mut c_char
-                 , account_index: u32
-                 )
+fn cardano_account_create( wallet_ptr: WalletPtr
+                         , account_alias: *mut c_char
+                         , account_index: u32
+                         )
     -> AccountPtr
 {
     let wallet = unsafe { wallet_ptr.as_mut() }.expect("Not a NULL PTR");
@@ -105,7 +105,7 @@ fn account_create( wallet_ptr: WalletPtr
 /// take ownership of the given pointer and free the memory associated
 #[no_mangle]
 pub extern "C"
-fn account_delete(account_ptr: AccountPtr)
+fn cardano_account_delete(account_ptr: AccountPtr)
 {
     unsafe {
         Box::from_raw(account_ptr)
@@ -114,12 +114,12 @@ fn account_delete(account_ptr: AccountPtr)
 
 #[no_mangle]
 pub extern "C"
-fn account_generate_addresses( account_ptr:  AccountPtr
-                             , internal:     bool
-                             , from_index: u32
-                             , num_indices: usize
-                             , addresses_ptr: *mut *mut c_char
-                             )
+fn cardano_account_generate_addresses( account_ptr:  AccountPtr
+                                     , internal:     bool
+                                     , from_index: u32
+                                     , num_indices: usize
+                                     , addresses_ptr: *mut *mut c_char
+                                     )
     -> usize
 {
     let account = unsafe { account_ptr.as_mut() }
