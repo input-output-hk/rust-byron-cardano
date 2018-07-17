@@ -50,6 +50,7 @@ impl HasCommand for Blockchain {
             .subcommand(SubCommand::with_name("sync")
                 .about("get the next block repeatedly (deprecated will be replaced soon).")
                 .arg(blockchain_name_arg(1))
+                .arg(Arg::with_name("native").long("native").help("use native protocol rather than HTTP"))
             )
             .subcommand(SubCommand::with_name("cat")
                 .about("show content of a block")
@@ -159,7 +160,10 @@ impl HasCommand for Blockchain {
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
-                sync::net_sync_faster(config.network.clone(), config.get_storage().unwrap())
+                match opts.is_present("native") {
+                    true => sync::net_sync_native(config.network.clone(), config.get_storage().unwrap()),
+                    false => sync::net_sync_http(config.network.clone(), config.get_storage().unwrap())
+                }
             },
             ("debug-index", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
