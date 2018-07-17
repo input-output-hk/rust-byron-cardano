@@ -1,0 +1,18 @@
+[package]
+name = "cardano-cli"
+version = "0.1.0"
+authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
+          , "Vincent Hanquez <vincent.hanquez@iohk.io>"
+          ]
+
+[dependencies]
+termcolor = "0.3"
+term_size = "0.3"
+pbr = "1.0"
+toml = "0.4"
+log = "0.4"
+
+[dependencies.clap]
+version = "2.32"
+default-features = false
+features = [ "suggestions", "color", "wrap_help" ]
