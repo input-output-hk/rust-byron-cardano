@@ -263,7 +263,6 @@ fn download_epoch(storage: &Storage, net: &mut OpenPeer,
                 tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
                 let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
                 info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]), epoch_id, duration_print(epoch_time_elapsed));
-                storage::tag::write(storage, &storage::tag::get_epoch_tag(epoch_id), &packhash[..]);
                 return (previous_headerhash, b, packhash)
             },
         }

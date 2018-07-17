@@ -56,7 +56,7 @@ fn refresh_networks(networks: Networks) {
                 "Refresh for network {} failed: Unable to access storage",
                 label
             ),
-            Ok(storage) => sync::net_sync_fast(label, storage),
+            Ok(storage) => sync::net_sync_native(label, storage),
         }
     }
 }
