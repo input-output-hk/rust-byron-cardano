@@ -111,6 +111,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cardano-c"
+version = "0.1.0"
+dependencies = [
+ "cardano 0.1.0",
+]
+
+[[package]]
 name = "cardano-cli"
 version = "0.1.0"
 dependencies = [
