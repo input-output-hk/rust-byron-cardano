@@ -110,6 +110,10 @@ impl HasCommand for Blockchain {
                 .arg(Arg::with_name("tag-name").help("name of the tag").index(2).required(true))
                 .arg(Arg::with_name("tag-value").help("value to set to the given tag").index(3).required(false))
             )
+            .subcommand(SubCommand::with_name("ls-blocks")
+                .about("lists the blocks in the blockchain")
+                .arg(blockchain_name_arg(1))
+            )
             .subcommand(find_address::FindAddress::mk_command())
     }
 
@@ -324,6 +328,28 @@ impl HasCommand for Blockchain {
 
 
             },
+
+            ("ls-blocks", Some(opts)) => {
+                let config = resolv_network_by_name(&opts);
+                let storage = config.get_storage().unwrap();
+
+                let netcfg_file = config.get_storage_config().get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                let mut prev = net_cfg.genesis_prev;
+
+                let mut iter = storage.iterate_from_epoch(0).unwrap();
+                //let mut iter = storage.reverse_iter().unwrap();
+
+                while let Some(blk) = iter.next() {
+                    let hdr = blk.get_header();
+                    let date = hdr.get_blockdate();
+                    let hash = hdr.compute_hash();
+                    println!("block {} {:?}", hash, date);
+                    assert!(prev == hdr.get_previous_header());
+                    prev = hash;
+                }
+            },
+
             (find_address::FindAddress::COMMAND, Some(opts)) => find_address::FindAddress::run((), opts),
             _ => {
                 println!("{}", args.usage());
