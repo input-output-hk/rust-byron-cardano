@@ -81,7 +81,7 @@ fn cardano_wallet_delete(wallet_ptr: WalletPtr)
 /// to retrieve a created account from a wallet.
 ///
 /// The returned object is not owned by any smart pointer or garbage collector.
-/// To avoid memory leak, use `account_delete`
+/// To avoid memory leak, use `cardano_account_delete`
 ///
 #[no_mangle]
 pub extern "C"
