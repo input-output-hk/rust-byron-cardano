@@ -630,6 +630,7 @@ pub const MAX_MNEMONIC_VALUE : u16 = 2047;
 ///
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct MnemonicIndex(pub u16);
+
 impl MnemonicIndex {
     /// smart constructor, validate the given value fits the mnemonic index
     /// boundaries (see [`MAX_MNEMONIC_VALUE`](./constant.MAX_MNEMONIC_VALUE.html)).
@@ -704,6 +705,13 @@ impl MnemonicIndex {
 ///
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mnemonics(Vec<MnemonicIndex>);
+
+impl AsRef<[MnemonicIndex]> for Mnemonics {
+    fn as_ref(&self) -> &[MnemonicIndex] {
+        &self.0[..]
+    }
+}
+
 impl Mnemonics {
     /// get the [`Type`](./enum.Type.html) of this given `Mnemonics`.
     ///
