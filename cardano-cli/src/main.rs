@@ -1,8 +1,10 @@
 extern crate cardano_cli;
 
+use self::cardano_cli::utils::term;
+
 #[macro_use]
 extern crate clap;
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, SubCommand, ArgMatches};
 
 fn main() {
     let matches = App::new(crate_name!())
@@ -10,14 +12,59 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
 
-        .arg(Arg::with_name("QUIET")
-                .long("quiet")
-                .global(true)
-                .help("run the command quietly, do not print anything to the command line output"))
+        .arg(global_quiet_definition())
+        .arg(global_color_definition())
+
         .subcommand(blockchain_commands())
         .subcommand(wallet_commands())
         .subcommand(debug_commands())
         .get_matches();
+
+    let mut term = term::Term::new(configure_terminal(&matches));
+}
+
+/* ------------------------------------------------------------------------- *
+ *            Global options and helpers                                     *
+ * ------------------------------------------------------------------------- */
+
+fn global_quiet_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("QUIET")
+        .long("quiet")
+        .global(true)
+        .help("run the command quietly, do not print anything to the command line output")
+}
+fn global_quiet_option<'a>(matches: &ArgMatches<'a>) -> bool {
+    matches.is_present("QUIET")
+}
+
+fn global_color_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("COLOR")
+        .long("color")
+        .takes_value(true)
+        .default_value("auto")
+        .possible_values(&["auto", "always", "never"])
+        .global(true)
+        .help("enable output colors or not")
+}
+fn global_color_option<'a>(matches: &ArgMatches<'a>) -> term::ColorChoice {
+    match matches.value_of("COLOR") {
+        None            => term::ColorChoice::Auto,
+        Some("auto")    => term::ColorChoice::Auto,
+        Some("always")  => term::ColorChoice::Always,
+        Some("never")   => term::ColorChoice::Never,
+        Some(&_) => {
+            // this should not be reachable `clap` will perform validation
+            // checking of the possible_values given when creating the argument
+            unreachable!()
+        }
+    }
+}
+
+fn configure_terminal<'a>(matches: &ArgMatches<'a>) -> term::Config {
+    term::Config {
+        color: global_color_option(matches),
+        quiet: global_quiet_option(matches)
+    }
 }
 
 /* ------------------------------------------------------------------------- *
