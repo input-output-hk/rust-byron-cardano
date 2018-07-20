@@ -208,6 +208,17 @@ impl XPrv {
         Self::from_bytes(out)
     }
 
+    /// takes the given raw bytes and perform some modifications to normalize
+    /// it properly to a XPrv.
+    ///
+    pub fn normalize_bytes(mut bytes: [u8;XPRV_SIZE]) -> Self {
+        bytes[0]  &= 0b1111_1000;
+        bytes[31] &= 0b0001_1111;
+        bytes[31] |= 0b0100_0000;;
+
+        Self::from_bytes(bytes)
+    }
+
     // Create a XPrv from the given bytes.
     //
     // This function does not perform any validity check and should not be used outside
@@ -1022,6 +1033,26 @@ mod tests {
     fn xprv_sign() {
         let prv = XPrv::from_bytes_verified(D1_H0).unwrap();
         do_sign(&prv, &D1_H0_SIGNATURE);
+    }
+
+    #[test]
+    fn normalize_bytes() {
+        let entropies = vec![
+            super::super::bip::bip39::Entropy::from_slice(&[0;16]).unwrap(),
+            super::super::bip::bip39::Entropy::from_slice(&[0x1f;20]).unwrap(),
+            super::super::bip::bip39::Entropy::from_slice(&[0xda;24]).unwrap(),
+            super::super::bip::bip39::Entropy::from_slice(&[0x2a;28]).unwrap(),
+            super::super::bip::bip39::Entropy::from_slice(&[0xff;32]).unwrap(),
+        ];
+        for entropy in entropies {
+            let mut bytes = [0; XPRV_SIZE];
+            super::super::wallet::keygen::generate_seed(&entropy, b"trezor", &mut bytes);
+            let xprv = XPrv::normalize_bytes(bytes);
+            let bytes = xprv.0;
+            // calling the from_bytes verified to check the xprv
+            // is valid
+            let xprv = XPrv::from_bytes_verified(bytes).unwrap();
+        }
     }
 
     #[test]
