@@ -154,7 +154,7 @@ impl HasCommand for Blockchain {
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
                 let mut net = sync::get_native_peer(config.network.clone(), &net_cfg);
-                let b = net.get_block(hh.clone()).unwrap();
+                let b = net.get_block(hh.clone()).unwrap().decode().unwrap();
                 let storage = config.get_storage().unwrap();
                 blob::write(&storage, hh.bytes(), &cbor!(&b).unwrap()).unwrap();
             },

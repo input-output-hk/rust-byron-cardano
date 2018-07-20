@@ -3,11 +3,10 @@ use mstream::{MStream, MetricStart, MetricStats};
 use cardano::{config::{ProtocolMagic}, util::{hex}};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
-use cardano::block::{self, BlockHeader, Block, HeaderHash, EpochId, BlockDate, SlotId};
+use cardano::block::{self, BlockHeader, RawBlock, HeaderHash, EpochId, BlockDate, SlotId};
 use storage::{self, Storage, types::{PackHash}};
 use protocol::command::*;
 use std::time::{SystemTime, Duration};
-use cbor_event::{de::{RawCbor}};
 
 use config::net;
 use network::{Error, Result};
@@ -57,7 +56,7 @@ impl Api for PeerPool {
         }
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
             Some(conn) => conn.get_block(hash)
@@ -123,11 +122,12 @@ impl Api for OpenPeer {
         Ok(block_headers[0].clone())
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
         let b = GetBlock::only(&hash).execute(&mut self.0)
             .expect("to get one block at least");
 
-        Ok(RawCbor::from(b[0].as_ref()).deserialize()?)
+        Ok(RawBlock::from_dat(b[0].as_ref().to_vec()))
+        //Ok(RawCbor::from(b[0].as_ref()).deserialize()?)
     }
 
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {

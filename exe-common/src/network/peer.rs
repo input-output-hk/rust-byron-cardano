@@ -2,7 +2,7 @@ use config;
 use network::{native, Result, hermes};
 use network::api::{*};
 use cardano::config::{ProtocolMagic};
-use cardano::block::{BlockHeader, Block, HeaderHash};
+use cardano::block::{BlockHeader, RawBlock, HeaderHash};
 use storage::{Storage};
 
 /// network object to handle a peer connection and redirect to constructing
@@ -31,7 +31,7 @@ impl Api for Peer {
         }
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
         match self {
             Peer::Native(peer)   => peer.get_block(hash),
             Peer::Http(endpoint) => endpoint.get_block(hash),

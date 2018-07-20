@@ -1,4 +1,3 @@
-use cardano::block;
 use config::net;
 use network::{api, Peer, api::Api};
 use storage;
@@ -40,6 +39,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Stor
     let mut download_prev_hash = prev_hash.clone();
     let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
 
+    // fetch all previous epochs
     while download_epoch_id < network_slotid.get_epochid() {
         info!(
             "downloading epoch {} {}",
@@ -62,6 +62,32 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Stor
         download_prev_hash = result.last_header_hash.clone();
         download_start_hash = result.next_epoch_hash.unwrap_or(result.last_header_hash);
         download_epoch_id += 1;
+    }
+
+    // fetch all blocks in the current epoch
+    let mut next_hash = mbh.compute_hash();
+    loop {
+
+        let blockhash = storage::types::header_to_blockhash(&next_hash);
+
+        let block = (match storage::block_read(&storage, &blockhash)
+        {
+            None => {
+                info!("downloading block {}", next_hash);
+                let blk = net.get_block(next_hash.clone()).unwrap();
+                storage::blob::write(&storage, &blockhash, blk.as_ref()).unwrap();
+                blk
+            },
+            Some(blk) => {
+                info!("loading block {}", next_hash);
+                blk
+            }
+        }).decode().unwrap();
+
+        let hdr = block.get_header();
+        let date = hdr.get_blockdate();
+        if date.get_epochid() < download_epoch_id || date.is_genesis() { break; }
+        next_hash = hdr.get_previous_header();
     }
 }
 

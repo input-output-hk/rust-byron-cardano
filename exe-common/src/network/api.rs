@@ -1,4 +1,4 @@
-use cardano::block::{BlockHeader, Block, HeaderHash, EpochId};
+use cardano::block::{BlockHeader, RawBlock, HeaderHash, EpochId};
 use storage::{Storage, types::{PackHash}};
 
 use network::{Result};
@@ -13,7 +13,7 @@ pub trait Api {
 
     /// Get one specific block (represented by its unique hash) from the
     /// network
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block>;
+    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock>;
 
     /// Fetch a finished epoch
     ///

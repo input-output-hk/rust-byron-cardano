@@ -1,4 +1,4 @@
-use cardano::block::{block, BlockHeader, Block, HeaderHash};
+use cardano::block::{block, BlockHeader, RawBlock, HeaderHash};
 use storage::{self, Storage, tmpfile::{TmpFile}};
 use std::io::{Write, Seek, SeekFrom};
 use std::time::{SystemTime};
@@ -61,7 +61,7 @@ impl Api for HermesEndPoint {
         Ok(bh_raw.decode()?)
     }
 
-    fn get_block(&mut self, _hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, _hash: HeaderHash) -> Result<RawBlock> {
         unimplemented!()
     }
 
