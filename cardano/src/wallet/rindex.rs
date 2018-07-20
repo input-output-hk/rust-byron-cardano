@@ -167,6 +167,11 @@ impl Wallet {
         }
     }
 }
+impl Deref for Wallet {
+    type Target = RootKey;
+    fn deref(&self) -> &Self::Target { &self.root_key }
+}
+
 impl scheme::Wallet for Wallet {
     /// 2 Level of randomly chosen hard derivation indexes does not support Account model. Only one account: the root key.
     type Account     = RootKey;
@@ -222,6 +227,7 @@ impl scheme::Account for RootKey {
     }
 }
 
+#[derive(Debug)]
 pub enum Error {
     Bip39Error(bip39::Error),
     CBorEncoding(cbor_event::Error) // Should not happen really
@@ -241,6 +247,12 @@ pub struct RootKey {
     derivation_scheme: DerivationScheme
 }
 impl RootKey {
+    pub fn new(root_key: XPrv, derivation_scheme: DerivationScheme) -> Self {
+        RootKey {
+            root_key,
+            derivation_scheme
+        }
+    }
     fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
         where D: bip39::dictionary::Language
     {
@@ -258,7 +270,7 @@ impl RootKey {
         };
 
         let xprv = XPrv::generate_from_daedalus_seed(&seed);
-        Ok(RootKey { root_key: xprv, derivation_scheme })
+        Ok(RootKey::new(xprv, derivation_scheme))
     }
 }
 impl Deref for RootKey {
