@@ -423,7 +423,7 @@ impl Seed {
     ///
     /// # Safety
     ///
-    /// The password is meant to allow possible deniability. While it is possible
+    /// The password is meant to allow plausible deniability. While it is possible
     /// not to use a password to protect the HDWallet it is better to add one.
     ///
     /// # Example
