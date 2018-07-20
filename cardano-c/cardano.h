@@ -21,9 +21,9 @@ typedef struct cardano_account cardano_account;
 cardano_wallet *cardano_wallet_new_from_seed(const unsigned char * const seed_ptr, unsigned int protocol_magic);
 void cardano_wallet_delete(cardano_wallet *);
 
-cardano_account *cardano_account_create(cardano_wallet *wallet, unsigned char *alias, unsigned int index);
+cardano_account *cardano_account_create(cardano_wallet *wallet, const unsigned char *alias, unsigned int index);
 void cardano_accont_delete(cardano_account *account);
 
-unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, unsigned char **addresses_ptr);
+unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
 
 #endif
