@@ -1,12 +1,17 @@
+use std::path::PathBuf;
+
 extern crate cardano_cli;
 
 use self::cardano_cli::utils::term;
+use self::cardano_cli::blockchain;
 
 #[macro_use]
 extern crate clap;
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 fn main() {
+    let default_root_dir = get_default_root_dir();
+
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -14,18 +19,59 @@ fn main() {
 
         .arg(global_quiet_definition())
         .arg(global_color_definition())
+        .arg(global_rootdir_definition(&default_root_dir))
 
-        .subcommand(blockchain_commands())
-        .subcommand(wallet_commands())
-        .subcommand(debug_commands())
+        .subcommand(blockchain_commands_definition())
+        .subcommand(wallet_commands_definition())
+        .subcommand(debug_commands_definition())
         .get_matches();
 
     let mut term = term::Term::new(configure_terminal(&matches));
+
+    let root_dir = global_rootdir_match(&default_root_dir, &matches);
+
+    match matches.subcommand() {
+        ("blockchain", Some(matches)) => {
+            subcommand_blockchain(term, root_dir, matches)
+        },
+        ("wallet", Some(matches)) => {
+        },
+        ("debug", Some(matches)) => {
+        },
+        _ => {
+            term.error(matches.usage());
+            ::std::process::exit(1)
+        }
+    }
 }
 
 /* ------------------------------------------------------------------------- *
  *            Global options and helpers                                     *
  * ------------------------------------------------------------------------- */
+
+fn get_default_root_dir() -> PathBuf {
+    match ::std::env::home_dir() {
+        None      => { unimplemented!()   },
+        Some(dir) => dir.join(".ariadne")
+    }
+}
+fn global_rootdir_definition<'a, 'b>(default: &'a PathBuf) -> Arg<'a, 'b> {
+    Arg::with_name("ROOT_DIR")
+        .long("root-dir")
+        .help("the project root direction")
+        .default_value(default.to_str().unwrap())
+        .env("ARIADNE_ROOT_DIR") // TODO
+}
+fn global_rootdir_match<'a>(default: &'a PathBuf, matches: &ArgMatches<'a>) -> PathBuf {
+    match matches.value_of("ROOT_DIR") {
+        Some(dir) => { default.to_owned() },
+
+        // technically the None option should not be needed
+        // as we have already specified a default value
+        // when defining the command line argument
+        None => { PathBuf::from(default) },
+    }
+}
 
 fn global_quiet_definition<'a, 'b>() -> Arg<'a, 'b> {
     Arg::with_name("QUIET")
@@ -78,42 +124,95 @@ fn blockchain_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
         .help("the blockchain name")
         .required(true)
 }
+fn blockchain_argument_name_match<'a>(matches: &ArgMatches<'a>) -> String {
+    match matches.value_of("BLOCKCHAIN_NAME") {
+        Some(r) => { r.to_owned() },
+        None => { unreachable!() }
+    }
+}
 fn blockchain_argument_remote_alias_definition<'a, 'b>() -> Arg<'a,'b> {
     Arg::with_name("BLOCKCHAIN_REMOTE_ALIAS")
         .help("Alias given to a remote node.")
         .required(true)
+}
+fn blockchain_argument_remote_alias_match<'a>(matches: &ArgMatches<'a>) -> String {
+    match matches.value_of("BLOCKCHAIN_REMOTE_ALIAS") {
+        Some(r) => { r.to_owned() },
+        None => { unreachable!() }
+    }
 }
 fn blockchain_argument_remote_endpoint_definition<'a, 'b>() -> Arg<'a,'b> {
     Arg::with_name("BLOCKCHAIN_REMOTE_ENDPOINT")
         .help("Remote end point (IPv4 or IPv6 address or domain name. May include a port number. And a sub-route point in case of an http endpoint.")
         .required(true)
 }
+fn blockchain_argument_remote_endpoint_match<'a>(matches: &ArgMatches<'a>) -> String {
+    match matches.value_of("BLOCKCHAIN_REMOTE_ENDPOINT") {
+        Some(r) => { r.to_owned() },
+        None => { unreachable!() }
+    }
+}
+fn blockchain_argument_template_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("BLOCKCHAIN_TEMPLATE")
+        .long("template")
+        .value_name("TEMPLATE")
+        .help("the template for the new blockchain")
+        .required(false)
+        .possible_values(&["mainnet", "testnet"])
+        .default_value("mainnet")
+}
+fn blockchain_argument_template_match<'a>(matches: &ArgMatches<'a>)
+    -> blockchain::Config
+{
+    match matches.value_of("BLOCKCHAIN_TEMPLATE") {
+        None => blockchain::Config::mainnet(),
+        Some("mainnet") => blockchain::Config::mainnet(),
+        Some("testnet") => blockchain::Config::testnet(),
+        Some(&_) => {
+            // this should not be reachable as clap is handling
+            // checking the value against all possible value
+            unreachable!()
+        }
+    }
+}
 
-fn blockchain_commands<'a, 'b>() -> App<'a, 'b> {
+fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
+    match matches.subcommand() {
+        ("new", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let net_config = blockchain_argument_template_match(&matches);
+
+            blockchain::command_new(term, root_dir, name, net_config);
+        },
+        ("remote-add", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let alias = blockchain_argument_remote_alias_match(&matches);
+            let endpoint = blockchain_argument_remote_endpoint_match(&matches);
+
+            blockchain::command_remote_add(term, root_dir, name, alias, endpoint);
+        },
+        ("remote-rm", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let alias = blockchain_argument_remote_alias_match(&matches);
+
+            blockchain::command_remote_rm(term, root_dir, name, alias);
+        },
+        _ => {
+            term.error(matches.usage());
+            ::std::process::exit(1)
+        }
+    }
+}
+fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(BLOCKCHAIN_COMMAND)
         .about("blockchain operations")
         .subcommand(SubCommand::with_name("new")
             .about("create a new local blockchain")
-            .arg(Arg::with_name("template")
-                .long("template")
-                .value_name("TEMPLATE")
-                .help("the template for the new blockchain")
-                .required(false)
-                .possible_values(&["mainnet", "testnet"])
-                .default_value("mainnet")
-            )
+            .arg(blockchain_argument_template_definition())
             .arg(blockchain_argument_name_definition())
         )
         .subcommand(SubCommand::with_name("remote-add")
             .about("Attach a remote node to the local blockchain, this will allow to sync the local blockchain with this remote node.")
-            .arg(Arg::with_name("NATIVE_REMOTE")
-                .long("native")
-                .required(false)
-            )
-            .arg(Arg::with_name("HTTP_REMOTE")
-                .long("http")
-                .required(false)
-            )
             .arg(blockchain_argument_name_definition())
             .arg(blockchain_argument_remote_alias_definition())
             .arg(blockchain_argument_remote_endpoint_definition())
@@ -183,7 +282,7 @@ fn wallet_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
 
 const WALLET_COMMAND : &'static str = "wallet";
 
-fn wallet_commands<'a, 'b>() -> App<'a, 'b> {
+fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(WALLET_COMMAND)
         .about("wallet operations")
         .subcommand(SubCommand::with_name("create")
@@ -233,7 +332,7 @@ fn wallet_commands<'a, 'b>() -> App<'a, 'b> {
 
 const DEBUG_COMMAND : &'static str = "debug";
 
-fn debug_commands<'a, 'b>() -> App<'a, 'b> {
+fn debug_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(DEBUG_COMMAND)
         .about("Debug and advanced tooling operations.")
         .subcommand(SubCommand::with_name("address")

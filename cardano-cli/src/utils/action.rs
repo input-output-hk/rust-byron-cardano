@@ -73,7 +73,7 @@ impl<T> Async<T> {
     }
 
     /// tell if the Async is ready to unwrap or not
-    pub fn ready(&self) -> bool {
+    pub fn is_ready(&self) -> bool {
         match self {
             Async::NotReady => false,
             Async::Ready(_) => true
