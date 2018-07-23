@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 pub use exe_common::config::net::{Config, Peer, Peers};
 use storage::{tag, Storage, config::{StorageConfig}};
-use cardano::block;
 
 use utils::term::Term;
 
@@ -95,11 +94,11 @@ pub fn command_remote_add( mut term: Term
                          , remote_endpoint: String
                          )
 {
-    let mut blockchain = Blockchain::load(root_dir, name.clone());
+    let mut blockchain = Blockchain::load(root_dir, name);
     blockchain.add_peer(remote_alias.clone(), remote_endpoint);
     blockchain.save();
 
-    term.success(&format!("remote `{}' node added to blockchain `{}'\n", remote_alias, name)).unwrap();
+    term.success(&format!("remote `{}' node added to blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
 }
 
 pub fn command_remote_rm( mut term: Term
@@ -108,9 +107,9 @@ pub fn command_remote_rm( mut term: Term
                         , remote_alias: String
                         )
 {
-    let mut blockchain = Blockchain::load(root_dir, name.clone());
+    let mut blockchain = Blockchain::load(root_dir, name);
     blockchain.remove_peer(remote_alias.clone());
     blockchain.save();
 
-    term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, name)).unwrap();
+    term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
 }
