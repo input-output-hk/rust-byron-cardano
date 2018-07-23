@@ -12,6 +12,45 @@ fn blockchain_directory( root_dir: PathBuf
     root_dir.join("blockchains").join(name)
 }
 
+pub fn command_new( mut term: Term
+                  , root_dir: PathBuf
+                  , name: String
+                  , config: Config
+                  )
+{
+    let blockchain = Blockchain::new(root_dir, name.clone(), config);
+    blockchain.save();
+
+    term.success(&format!("local blockchain `{}' created.\n", &name)).unwrap();
+}
+
+pub fn command_remote_add( mut term: Term
+                         , root_dir: PathBuf
+                         , name: String
+                         , remote_alias: String
+                         , remote_endpoint: String
+                         )
+{
+    let mut blockchain = Blockchain::load(root_dir, name);
+    blockchain.add_peer(remote_alias.clone(), remote_endpoint);
+    blockchain.save();
+
+    term.success(&format!("remote `{}' node added to blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
+}
+
+pub fn command_remote_rm( mut term: Term
+                        , root_dir: PathBuf
+                        , name: String
+                        , remote_alias: String
+                        )
+{
+    let mut blockchain = Blockchain::load(root_dir, name);
+    blockchain.remove_peer(remote_alias.clone());
+    blockchain.save();
+
+    term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
+}
+
 struct Blockchain {
     name: String,
     storage_config: StorageConfig,
@@ -71,45 +110,4 @@ impl Blockchain {
         let tag = format!("remote/{}", remote_alias);
         tag::remove_tag(&self.storage, &tag);
     }
-}
-
-/// this is the `blockchain new` command execution flow
-///
-pub fn command_new( mut term: Term
-                  , root_dir: PathBuf
-                  , name: String
-                  , config: Config
-                  )
-{
-    let blockchain = Blockchain::new(root_dir, name.clone(), config);
-    blockchain.save();
-
-    term.success(&format!("local blockchain `{}' created.\n", &name)).unwrap();
-}
-
-pub fn command_remote_add( mut term: Term
-                         , root_dir: PathBuf
-                         , name: String
-                         , remote_alias: String
-                         , remote_endpoint: String
-                         )
-{
-    let mut blockchain = Blockchain::load(root_dir, name);
-    blockchain.add_peer(remote_alias.clone(), remote_endpoint);
-    blockchain.save();
-
-    term.success(&format!("remote `{}' node added to blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
-}
-
-pub fn command_remote_rm( mut term: Term
-                        , root_dir: PathBuf
-                        , name: String
-                        , remote_alias: String
-                        )
-{
-    let mut blockchain = Blockchain::load(root_dir, name);
-    blockchain.remove_peer(remote_alias.clone());
-    blockchain.save();
-
-    term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
 }
