@@ -4,3 +4,4 @@ extern crate storage;
 
 pub mod utils;
 pub mod blockchain;
+pub mod debug;

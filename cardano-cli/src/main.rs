@@ -4,7 +4,7 @@ extern crate dirs;
 extern crate cardano_cli;
 
 use self::cardano_cli::utils::term;
-use self::cardano_cli::blockchain;
+use self::cardano_cli::{blockchain, debug};
 
 #[macro_use]
 extern crate clap;
@@ -38,6 +38,7 @@ fn main() {
         ("wallet", Some(matches)) => {
         },
         ("debug", Some(matches)) => {
+            subcommand_debug(term, root_dir, matches)
         },
         _ => {
             term.error(matches.usage());
@@ -336,6 +337,19 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
 
 const DEBUG_COMMAND : &'static str = "debug";
 
+fn subcommand_debug<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
+    match matches.subcommand() {
+        ("address", Some(matches)) => {
+            let address = value_t!(matches, "ADDRESS", String).unwrap_or_else(|e| e.exit() );
+
+            debug::command_address(term, address);
+        },
+        _ => {
+            term.error(matches.usage());
+            ::std::process::exit(1)
+        }
+    }
+}
 fn debug_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(DEBUG_COMMAND)
         .about("Debug and advanced tooling operations.")
