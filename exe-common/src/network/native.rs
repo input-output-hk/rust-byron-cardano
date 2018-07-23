@@ -271,5 +271,5 @@ fn download_epoch(storage: &Storage, net: &mut OpenPeer,
 }
 
 fn duration_print(d: Duration) -> String {
-    format!("{}.{:03} seconds", d.as_secs(), d.subsec_nanos() / 1_000_000)
+    format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
 }
