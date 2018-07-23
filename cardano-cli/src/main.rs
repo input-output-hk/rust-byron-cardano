@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+extern crate dirs;
 extern crate cardano_cli;
 
 use self::cardano_cli::utils::term;
@@ -49,10 +50,13 @@ fn main() {
  *            Global options and helpers                                     *
  * ------------------------------------------------------------------------- */
 
+const APPLICATION_DIRECTORY_NAME : &'static str = "cardano-cli";
+const APPLICATION_ENVIRONMENT_ROOT_DIR : &'static str = "CARDANO_CLI_ROOT_DIR";
+
 fn get_default_root_dir() -> PathBuf {
-    match ::std::env::home_dir() {
+    match dirs::data_local_dir() {
         None      => { unimplemented!()   },
-        Some(dir) => dir.join(".ariadne")
+        Some(dir) => dir.join(APPLICATION_DIRECTORY_NAME)
     }
 }
 fn global_rootdir_definition<'a, 'b>(default: &'a PathBuf) -> Arg<'a, 'b> {
@@ -60,7 +64,7 @@ fn global_rootdir_definition<'a, 'b>(default: &'a PathBuf) -> Arg<'a, 'b> {
         .long("root-dir")
         .help("the project root direction")
         .default_value(default.to_str().unwrap())
-        .env("ARIADNE_ROOT_DIR") // TODO
+        .env(APPLICATION_ENVIRONMENT_ROOT_DIR)
 }
 fn global_rootdir_match<'a>(default: &'a PathBuf, matches: &ArgMatches<'a>) -> PathBuf {
     match matches.value_of("ROOT_DIR") {
