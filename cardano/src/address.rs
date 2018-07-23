@@ -76,6 +76,15 @@ pub enum AddrType {
     ATScript,
     ATRedeem
 }
+impl fmt::Display for AddrType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AddrType::ATPubKey => write!(f, "Public Key"),
+            AddrType::ATScript => write!(f, "Script"),
+            AddrType::ATRedeem => write!(f, "Redeem"),
+        }
+    }
+}
 // [TkListLen 1, TkInt (fromEnum t)]
 impl AddrType {
     fn from_u64(v: u64) -> Option<Self> {
