@@ -313,7 +313,6 @@ pub struct RootLevel<T>(T);
 impl RootLevel<XPrv> {
     pub fn account(&self, derivation_scheme: DerivationScheme, id: u32) -> AccountLevel<XPrv>
     {
-        assert!(id < BIP44_SOFT_UPPER_BOUND);
         AccountLevel::from(self.0.derive(derivation_scheme, BIP44_SOFT_UPPER_BOUND | id))
     }
 }
@@ -374,7 +373,6 @@ pub struct ChangeLevel<T>(T);
 impl ChangeLevel<XPrv> {
     pub fn index(&self, derivation_scheme: DerivationScheme, index: DerivationIndex) -> IndexLevel<XPrv>
     {
-        assert!(index < BIP44_SOFT_UPPER_BOUND);
         IndexLevel::from(self.0.derive(derivation_scheme, index))
     }
     pub fn public(&self) -> ChangeLevel<XPub> {
@@ -387,7 +385,6 @@ impl From<XPrv> for ChangeLevel<XPrv> {
 impl ChangeLevel<XPub> {
     pub fn index(&self, derivation_scheme: DerivationScheme, index: DerivationIndex) -> Result<IndexLevel<XPub>>
     {
-        assert!(index < BIP44_SOFT_UPPER_BOUND);
         Ok(IndexLevel::from(self.0.derive(derivation_scheme, index)?))
     }
 }
