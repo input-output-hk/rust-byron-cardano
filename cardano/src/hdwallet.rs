@@ -1051,7 +1051,7 @@ mod tests {
             let bytes = xprv.0;
             // calling the from_bytes verified to check the xprv
             // is valid
-            let xprv = XPrv::from_bytes_verified(bytes).unwrap();
+            let _ = XPrv::from_bytes_verified(bytes).unwrap();
         }
     }
 
@@ -1138,6 +1138,8 @@ mod golden_tests {
     use cryptoxide::{blake2b::Blake2b};
     use cbor_event;
 
+ #[allow(non_snake_case)]
+ #[allow(dead_code)]
 struct TestVector {
     /// BIP39 Seed
     seed: &'static [u8],
