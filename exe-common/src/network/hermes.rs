@@ -65,6 +65,10 @@ impl Api for HermesEndPoint {
         unimplemented!()
     }
 
+    fn get_blocks(&mut self, _from: HeaderHash, _to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>> {
+        unimplemented!()
+    }
+
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         let path = format!("epoch/{}", fep.epoch_id);
 

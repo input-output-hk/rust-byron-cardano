@@ -1,8 +1,7 @@
 use cardano::block::{BlockHeader, RawBlock, HeaderHash, EpochId};
-use storage::{Storage, types::{PackHash}};
-
-use network::{Result};
 use config::{net};
+use network::{Result};
+use storage::{Storage, types::{PackHash}};
 
 /// Api to abstract the network interaction and do the
 /// necessary operations
@@ -14,6 +13,9 @@ pub trait Api {
     /// Get one specific block (represented by its unique hash) from the
     /// network
     fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock>;
+
+    /// Get the blocks in the half-open interval (from, to].
+    fn get_blocks(&mut self, from: HeaderHash, to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>>;
 
     /// Fetch a finished epoch
     ///

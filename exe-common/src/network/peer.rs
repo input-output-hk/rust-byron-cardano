@@ -38,6 +38,13 @@ impl Api for Peer {
         }
     }
 
+    fn get_blocks(&mut self, from: HeaderHash, to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>> {
+        match self {
+            Peer::Native(peer)   => peer.get_blocks(from, to),
+            Peer::Http(endpoint) => endpoint.get_blocks(from, to),
+        }
+    }
+
     fn fetch_epoch(&mut self, config: &config::net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         match self {
             Peer::Native(peer)   => peer.fetch_epoch(config, storage, fep),

@@ -3,7 +3,7 @@ use mstream::{MStream, MetricStart, MetricStats};
 use cardano::{config::{ProtocolMagic}, util::{hex}};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
-use cardano::block::{self, BlockHeader, RawBlock, HeaderHash, EpochId, BlockDate, SlotId};
+use cardano::block::{self, Block, BlockHeader, RawBlock, HeaderHash, EpochId, SlotId, BlockDate};
 use storage::{self, Storage, types::{PackHash}};
 use protocol::command::*;
 use std::time::{SystemTime, Duration};
@@ -60,6 +60,13 @@ impl Api for PeerPool {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
             Some(conn) => conn.get_block(hash)
+        }
+    }
+
+    fn get_blocks(&mut self, from: HeaderHash, to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>> {
+        match self.connections.get_mut(0) {
+            None => panic!("We expect at lease one connection on any native peer"),
+            Some(conn) => conn.get_blocks(from, to)
         }
     }
 
@@ -127,7 +134,14 @@ impl Api for OpenPeer {
             .expect("to get one block at least");
 
         Ok(RawBlock::from_dat(b[0].as_ref().to_vec()))
-        //Ok(RawCbor::from(b[0].as_ref()).deserialize()?)
+    }
+
+    fn get_blocks(&mut self, from: HeaderHash, to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>> {
+        let mut blocks = vec!();
+        fetch_range(self, &from, &to, false, |blockhash, _block, block_raw| {
+            blocks.push((blockhash.clone(), block_raw.clone()));
+        });
+        Ok(blocks)
     }
 
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
@@ -140,11 +154,156 @@ impl Api for OpenPeer {
     }
 }
 
-fn network_get_blocks_headers(net: &mut OpenPeer, from: &block::HeaderHash, to: &block::HeaderHash) -> block::RawBlockHeaderMultiple {
-    let mbh = GetBlockHeader::range(&vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
-    mbh
+/// Fetch the blocks in the half-open interval (from, to] in batches
+/// of around 2000 blocks at a time. The closure 'got_block' is called
+/// with each block in the order (from, to]. We check that there is no
+/// gap in the chain, i.e. each block has the previous block as its
+/// parent. If 'one_epoch' is set, we return when we encounter a block
+/// in a different epoch than the previous one.
+fn fetch_range<F>(
+    net: &mut OpenPeer,
+    from: &HeaderHash,
+    to: &HeaderHash,
+    one_epoch: bool,
+    mut got_block: F)
+    -> (HeaderHash, Option<HeaderHash>)
+where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
+{
+    assert!(from != to);
+
+    let mut from = from.clone();
+    let mut epoch = None;
+    let mut next_hash = None;
+
+    while &from != to && (!one_epoch || next_hash.is_none()) {
+        info!("  ### from={} to={}", from, to);
+        let metrics = net.read_start();
+        let block_headers_raw = GetBlockHeader::range(
+            &vec![from.clone()], to.clone()).execute(&mut net.0).expect("to get one header at least");
+        let hdr_metrics = net.read_elapsed(&metrics);
+        let block_headers = block_headers_raw.decode().unwrap();
+        info!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
+
+        assert!(!block_headers.is_empty());
+
+        let mut start = 0;
+        let end = block_headers.len() - 1;
+
+        info!("  asked {} to {}", from, to);
+        info!("  start {} {} <- {}", block_headers[start].compute_hash(), block_headers[start].get_blockdate(), block_headers[start].get_previous_header());
+        info!("  end   {} {} <- {}", block_headers[end].compute_hash(), block_headers[end].get_blockdate(), block_headers[end].get_previous_header());
+
+        // The server will return the oldest ~2000 blocks starting at
+        // 'from'. However, they're in reverse order. Thus the last
+        // element of 'block_headers' should have 'from' as its
+        // parent.
+        assert!(block_headers[end].get_previous_header() == from);
+
+        if one_epoch {
+
+            if epoch.is_none() {
+                epoch = Some(block_headers[end].get_blockdate().get_epochid());
+            }
+
+            // Skip blocks beyond the current epoch.
+            while end >= start && block_headers[start].get_blockdate().get_epochid() > epoch.unwrap() {
+                start += 1
+            }
+
+            if start > 0 {
+                info!("  found next epoch");
+                next_hash = Some(block_headers[start-1].compute_hash());
+            }
+        }
+
+        let latest_block = &block_headers[start];
+        let first_block = &block_headers[end];
+
+        info!("  hdr latest {} {}", latest_block.compute_hash(), latest_block.get_blockdate());
+        info!("  hdr first  {} {}", first_block.compute_hash(), first_block.get_blockdate());
+
+        let download_start_hash = first_block.compute_hash();
+
+        let metrics = net.read_start();
+        let blocks_raw = GetBlock::from(&download_start_hash, &latest_block.compute_hash())
+                                .execute(&mut net.0)
+                                .expect("to get one block at least");
+        let blocks_metrics = net.read_elapsed(&metrics);
+        info!("  got {} blocks  ( {} )", blocks_raw.len(), blocks_metrics);
+
+        assert!(!blocks_raw.is_empty());
+
+        for block_raw in blocks_raw.iter() {
+            let block = block_raw.decode().unwrap();
+            let hdr = block.get_header();
+            let date = hdr.get_blockdate();
+            let blockhash = hdr.compute_hash();
+
+            info!("got block {} {} prev {}", blockhash, date, hdr.get_previous_header());
+
+            if hdr.get_previous_header() != from {
+                panic!("previous header doesn't match: hash {} date {} got {} expected {}",
+                       blockhash, date, hdr.get_previous_header(), from)
+            }
+
+            if one_epoch && date.get_epochid() != epoch.unwrap() {
+                panic!("received block from wrong epoch: hash {} date {} expected {}",
+                       blockhash, date, epoch.unwrap())
+            }
+
+            got_block(&hdr.compute_hash(), &block, &block_raw);
+
+            from = blockhash;
+        }
+    }
+
+    (from, next_hash)
 }
 
+fn download_epoch(storage: &Storage, net: &mut OpenPeer,
+                  epoch_id: EpochId,
+                  x_start_hash: &HeaderHash,
+                  x_previous_headerhash: &HeaderHash,
+                  tip_hash: &HeaderHash) -> (HeaderHash, HeaderHash, PackHash)
+{
+    let mut writer = storage::pack::PackWriter::init(&storage.config);
+    let epoch_time_start = SystemTime::now();
+    let mut expected_slotid = block::BlockDate::Genesis(epoch_id);
+
+    let (last_hash, next_hash) = fetch_range(net, x_previous_headerhash, tip_hash, true, |blockhash, block, block_raw| {
+        let hdr = block.get_header();
+        let date = hdr.get_blockdate();
+
+        if date.get_epochid() != epoch_id {
+            panic!("trying to append a block of different epoch id {}", date.get_epochid())
+        }
+
+        if &date != &expected_slotid {
+            println!("  WARNING: not contiguous. addr {} found, expected {}", date, expected_slotid);
+        }
+
+        match date {
+            BlockDate::Genesis(epoch) => {
+                expected_slotid = BlockDate::Normal(SlotId { epoch: epoch, slotid: 0 });
+            },
+            BlockDate::Normal(slotid) => {
+                expected_slotid = BlockDate::Normal(slotid.next());
+            },
+        }
+
+        writer.append(&storage::types::header_to_blockhash(&blockhash), block_raw.as_ref());
+    });
+
+    // write packfile
+    let (packhash, index) = writer.finalize();
+    let (_, tmpfile) = storage::pack::create_index(storage, &index);
+    tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+    let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
+    info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]), epoch_id, duration_print(epoch_time_elapsed));
+    (last_hash, next_hash.unwrap(), packhash)
+}
+
+/*
 fn download_epoch(storage: &Storage, net: &mut OpenPeer,
                   epoch_id: EpochId,
                   x_start_hash: &HeaderHash,
@@ -152,9 +311,7 @@ fn download_epoch(storage: &Storage, net: &mut OpenPeer,
                   tip_hash: &HeaderHash) -> (HeaderHash, HeaderHash, PackHash) {
     let mut start_hash = x_start_hash.clone();
     let mut found_epoch_boundary = None;
-    let mut writer = storage::pack::PackWriter::init(&storage.config);
     let mut previous_headerhash = x_previous_headerhash.clone();
-    let epoch_time_start = SystemTime::now();
     let mut expected_slotid = block::BlockDate::Genesis(epoch_id);
 
     loop {
@@ -268,6 +425,7 @@ fn download_epoch(storage: &Storage, net: &mut OpenPeer,
         }
     }
 }
+*/
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())

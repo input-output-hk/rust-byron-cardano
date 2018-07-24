@@ -13,7 +13,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Stor
 
     info!("Configured genesis   : {}", net_cfg.genesis);
     info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    info!("Network TIP is       : {}", network_tip);
+    info!("Network TIP is       : {} <- {}", network_tip, mbh.get_previous_header());
     info!("Network TIP slotid   : {}", network_slotid);
 
     // find the earliest epoch we know about starting from network_slotid
@@ -64,30 +64,17 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Stor
         download_epoch_id += 1;
     }
 
+    // get the last block of the most recent epoch
+    //let last_block = get_last_blockid(&storage.config, &packhash).unwrap();
+
+    info!("Last block in epoch  : {}", download_prev_hash);
+
     // fetch all blocks in the current epoch
-    let mut next_hash = mbh.compute_hash();
-    loop {
+    let blocks = net.get_blocks(download_prev_hash, network_tip).unwrap();
 
-        let blockhash = storage::types::header_to_blockhash(&next_hash);
-
-        let block = (match storage::block_read(&storage, &blockhash)
-        {
-            None => {
-                info!("downloading block {}", next_hash);
-                let blk = net.get_block(next_hash.clone()).unwrap();
-                storage::blob::write(&storage, &blockhash, blk.as_ref()).unwrap();
-                blk
-            },
-            Some(blk) => {
-                info!("loading block {}", next_hash);
-                blk
-            }
-        }).decode().unwrap();
-
-        let hdr = block.get_header();
-        let date = hdr.get_blockdate();
-        if date.get_epochid() < download_epoch_id || date.is_genesis() { break; }
-        next_hash = hdr.get_previous_header();
+    for &(ref hash, ref block) in blocks.iter() {
+        let blockhash = storage::types::header_to_blockhash(&hash);
+        storage::blob::write(&storage, &blockhash, block.as_ref()).unwrap();
     }
 }
 
