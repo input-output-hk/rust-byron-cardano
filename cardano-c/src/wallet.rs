@@ -45,14 +45,10 @@ fn cardano_wallet_new_from_seed( seed_ptr: *const u8 /* expecting 64 bytes... */
     let seed = bip::bip39::Seed::from_slice(&seed_slice)
                 .expect("constructing a valid Seed form the given bytes");
 
-    let protocol_magic = config::ProtocolMagic::new(protocol_magic);
-    let config = config::Config::new(protocol_magic);
-
     let wallet = Box::new(
         bip44::Wallet::from_bip39_seed(
             &seed,
             Default::default(),
-            config
         )
     );
 
