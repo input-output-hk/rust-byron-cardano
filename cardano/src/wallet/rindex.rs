@@ -13,7 +13,7 @@ use coin::Coin;
 use txutils::{self, OutputPolicy};
 use tx::{self, TxAux, Tx, TxId, TxInWitness};
 use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
-use config::Config;
+use config::ProtocolMagic;
 
 use super::scheme::{self};
 
@@ -27,13 +27,12 @@ pub type Addressing = (u32, u32);
 ///
 pub struct Wallet {
     root_key: RootKey,
-    config: Config,
 
     derivation_scheme: DerivationScheme
 }
 impl Wallet {
-    pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey, config: Config,) -> Self {
-        Wallet { root_key, config, derivation_scheme }
+    pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey,) -> Self {
+        Wallet { root_key, derivation_scheme }
     }
 
     /// Compatibility with daedalus mnemonic addresses
@@ -50,11 +49,11 @@ impl Wallet {
     /// There are many things that can go wrong when implementing this
     /// process, it is all done correctly by this function: prefer using
     /// this function.
-    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String, config: Config) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
         where D: bip39::dictionary::Language
     {
         let root_key = RootKey::from_daedalus_mnemonics(derivation_scheme, dic, mnemonics_phrase)?;
-        Ok(Wallet::from_root_key(derivation_scheme, root_key, config))
+        Ok(Wallet::from_root_key(derivation_scheme, root_key))
     }
 
     /// test that the given address belongs to the wallet.
@@ -93,7 +92,7 @@ impl Wallet {
         None
     }
 
-    pub fn move_transaction(&self, inputs: &Vec<txutils::TxInInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> fee::Result<(TxAux, fee::Fee)> {
+    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxInInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> fee::Result<(TxAux, fee::Fee)> {
 
         if inputs.len() == 0 {
             return Err(fee::Error::NoInputs);
@@ -146,7 +145,7 @@ impl Wallet {
                     },
                 }
                 */
-                let witnesses = scheme::Wallet::sign_tx(self, &tx.id(), input_addressing.iter());
+                let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), input_addressing.iter());
                 assert_eq!(witnesses.len(), fake_witnesses.len());
                 let txaux = tx::TxAux::new(tx, witnesses);
                 return Ok((txaux, txaux_fee))
@@ -185,7 +184,7 @@ impl scheme::Wallet for Wallet {
         self.root_key.clone()
     }
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts  { &self.root_key }
-    fn sign_tx<'a, I>(&'a self, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
         where I: Iterator<Item = &'a Self::Addressing>
     {
         let mut witnesses = vec![];
@@ -195,7 +194,7 @@ impl scheme::Wallet for Wallet {
                           .derive(self.derivation_scheme, addressing.0)
                           .derive(self.derivation_scheme, addressing.1);
 
-            let tx_witness = TxInWitness::new(&self.config, &key, txid);
+            let tx_witness = TxInWitness::new(protocol_magic, &key, txid);
             witnesses.push(tx_witness);
         }
         witnesses

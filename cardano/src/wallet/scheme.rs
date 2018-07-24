@@ -6,6 +6,7 @@ use tx::{self, TxId, TxOut, TxInWitness};
 use fee::{self, SelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
 use coin::Coin;
+use config::{ProtocolMagic};
 use address::{ExtendedAddr};
 
 /// main wallet scheme, provides all the details to manage a wallet:
@@ -37,7 +38,7 @@ pub trait Wallet {
 
     /// list all the accounts known of this wallet
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts;
-    fn sign_tx<'a, I>(&'a self, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
         where I: Iterator<Item = &'a Self::Addressing>;
 
 
@@ -47,6 +48,7 @@ pub trait Wallet {
     /// signes every TxIn as needed.
     ///
     fn new_transaction<'a, I>( &self
+                             , protocol_magic: ProtocolMagic
                              , selection_policy: fee::SelectionPolicy
                              , inputs: I
                              , outputs: Vec<TxOut>
@@ -76,7 +78,7 @@ pub trait Wallet {
             };
         }
 
-        let witnesses = self.sign_tx(&tx.id(), addressings.iter());
+        let witnesses = self.sign_tx(protocol_magic, &tx.id(), addressings.iter());
 
         Ok((tx::TxAux::new(tx, witnesses), fee))
     }
