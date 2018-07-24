@@ -116,7 +116,7 @@ impl Config {
 
         // TODO: derivation scheme to be set in the config file
         let derivation_scheme = DerivationScheme::V2;
-        Ok(bip44::Wallet::from_cached_key(cached_key, derivation_scheme, wallet_cfg))
+        Ok(bip44::Wallet::from_cached_key(cached_key, derivation_scheme))
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, name: &P) -> Result<()> {

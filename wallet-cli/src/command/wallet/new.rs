@@ -66,10 +66,8 @@ impl HasCommand for CommandNewWallet {
         let without_paper_wallet = args.is_present("NO PAPER WALLET");
         let seed = generate_entropy(language, password, mnemonic_sz, without_paper_wallet);
 
-        // TODO, use the Protocol magic from the blockchain
-        let config = Default::default();
         let derivation_scheme = Default::default();
-        let wallet = bip44::Wallet::from_bip39_seed(&seed, derivation_scheme, config);
+        let wallet = bip44::Wallet::from_bip39_seed(&seed, derivation_scheme);
 
         // TODO, shall we have a default for the fee selection policy?
         let selection_policy = Default::default();
