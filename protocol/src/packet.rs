@@ -179,25 +179,15 @@ pub fn send_handshake(hs: &Handshake) -> Vec<u8> { cbor!(hs).unwrap() }
 type Message = (u8, Vec<u8>);
 
 pub enum MsgType {
-    MsgSubscribe,
-    MsgGetHeaders,
-    MsgGetBlocks,
-}
-
-impl MsgType {
-    pub fn to_u8(self) -> u8 {
-        match self {
-            MsgType::MsgSubscribe => 0xe,
-            MsgType::MsgGetHeaders => 0x4,
-            MsgType::MsgGetBlocks => 0x6,
-        }
-    }
+    MsgSubscribe = 0xe,
+    MsgGetHeaders = 0x4,
+    MsgGetBlocks = 0x6,
 }
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     let value = if keep_alive { 43 } else { 42 };
     let dat = se::Serializer::new_vec().write_unsigned_integer(value).unwrap().finalize();
-    (0xe, dat)
+    (MsgType::MsgSubscribe as u8, dat)
 }
 
 pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::HeaderHash>) -> Message {
@@ -211,7 +201,7 @@ pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::Heade
         }
     };
     let dat = serializer.finalize();
-    (0x4, dat)
+    (MsgType::MsgGetHeaders as u8, dat)
 }
 
 pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
@@ -219,7 +209,7 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
         .serialize(from).unwrap()
         .serialize(to).unwrap()
         .finalize();
-    (0x6, dat)
+    (MsgType::MsgGetBlocks as u8, dat)
 }
 
 #[derive(Debug)]
