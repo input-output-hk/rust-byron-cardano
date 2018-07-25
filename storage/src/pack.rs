@@ -1,5 +1,10 @@
-
-// a pack file is:
+// a pack file is a collection of blobs, prefixed by their 32 bits size in BE:
+//
+// SIZE (4 bytes BE)
+// DATA (SIZE bytes)
+// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
+//
+// An index file is:
 //
 // MAGIC (8 Bytes)
 // BLOOM SIZE (4 bytes BE)
@@ -8,6 +13,17 @@
 // BLOOM FILTER (BLOOM_SIZE bytes)
 // BLOCK HASHES present in this pack ordered lexigraphically (#ENTRIES * 32 bytes)
 // OFFSET of BLOCK in the same order as BLOCK_HASHES (#ENTRIES * 8 bytes)
+//
+// The fanout is a cumulative numbers of things stored, ordered by their hash and
+// group in 256 buckets (first byte of the hash). This give a very efficient
+// way to "zoom" on the BLOCK HASHES, at it allows to windows only the hash that
+// start with a specific byte. This improve efficiency when searching inside a pack.
+//
+// The bloom filter is an help to the overall pack search, it allows to
+// efficiently query whether or not a hash is likely to be here or not. By the
+// nature of a bloom filter, it can only answer with certainty whether it
+// is present in this pack, there will be false positive in search.
+//
 
 use super::{TmpFile};
 
