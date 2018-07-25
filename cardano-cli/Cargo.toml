@@ -6,12 +6,16 @@ authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
           ]
 
 [dependencies]
-termcolor = "1.0.0"
+termcolor = "1.0"
 term_size = "0.3"
 pbr = "1.0"
-toml = "0.4"
 log = "0.4"
 dirs = "1.0"
+rand = "0.5"
+serde = "1.0"
+serde_derive = "1.0"
+serde_yaml = "0.7"
+cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
 exe-common = { path = "../exe-common" }
 storage = { path = "../storage" }

@@ -4,7 +4,7 @@ extern crate dirs;
 extern crate cardano_cli;
 
 use self::cardano_cli::utils::term;
-use self::cardano_cli::{blockchain, debug};
+use self::cardano_cli::{blockchain, wallet, debug};
 
 #[macro_use]
 extern crate clap;
@@ -36,12 +36,13 @@ fn main() {
             subcommand_blockchain(term, root_dir, matches)
         },
         ("wallet", Some(matches)) => {
+            subcommand_wallet(term, root_dir, matches)
         },
         ("debug", Some(matches)) => {
             subcommand_debug(term, root_dir, matches)
         },
         _ => {
-            term.error(matches.usage());
+            term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
         }
     }
@@ -69,7 +70,7 @@ fn global_rootdir_definition<'a, 'b>(default: &'a PathBuf) -> Arg<'a, 'b> {
 }
 fn global_rootdir_match<'a>(default: &'a PathBuf, matches: &ArgMatches<'a>) -> PathBuf {
     match matches.value_of("ROOT_DIR") {
-        Some(dir) => { default.to_owned() },
+        Some(dir) => { PathBuf::from(dir) },
 
         // technically the None option should not be needed
         // as we have already specified a default value
@@ -203,7 +204,7 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
             blockchain::command_remote_rm(term, root_dir, name, alias);
         },
         _ => {
-            term.error(matches.usage());
+            term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
         }
     }
@@ -284,9 +285,28 @@ fn wallet_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
         .help("the wallet name")
         .required(true)
 }
+fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> String {
+    match matches.value_of("WALLET_NAME") {
+        Some(r) => { r.to_owned() },
+        None => { unreachable!() }
+    }
+}
 
 const WALLET_COMMAND : &'static str = "wallet";
 
+fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
+    match matches.subcommand() {
+        ("new", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::command_new(term, root_dir, name);
+        },
+        _ => {
+            term.error(matches.usage()).unwrap();
+            ::std::process::exit(1)
+        }
+    }
+}
 fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(WALLET_COMMAND)
         .about("wallet operations")
@@ -337,7 +357,7 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
 
 const DEBUG_COMMAND : &'static str = "debug";
 
-fn subcommand_debug<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
+fn subcommand_debug<'a>(mut term: term::Term, _rootdir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
         ("address", Some(matches)) => {
             let address = value_t!(matches, "ADDRESS", String).unwrap_or_else(|e| e.exit() );
@@ -345,7 +365,7 @@ fn subcommand_debug<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMa
             debug::command_address(term, address);
         },
         _ => {
-            term.error(matches.usage());
+            term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
         }
     }

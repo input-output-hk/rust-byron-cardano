@@ -31,7 +31,7 @@ pub struct Wallet {
     derivation_scheme: DerivationScheme
 }
 impl Wallet {
-    pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey,) -> Self {
+    pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey) -> Self {
         Wallet { root_key, derivation_scheme }
     }
 
