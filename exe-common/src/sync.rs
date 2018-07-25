@@ -1,21 +1,27 @@
 use config::net;
-use network::{api, Peer, api::Api};
+use network::{Peer, api::Api, api::BlockRef};
 use storage;
-use utils::*;
+use cardano::block::{BlockDate, EpochId};
+use cardano::util::{hex};
+use std::time::{SystemTime, Duration};
 
-pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Storage) {
-    //let mut our_tip = tag::read_hash(&storage, &"TIP".to_string()).unwrap_or(genesis.clone());
+fn duration_print(d: Duration) -> String {
+    format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
+}
 
+pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage) {
     // recover and print the TIP of the network
-    let mbh = net.get_tip().unwrap();
-    let network_tip = mbh.compute_hash();
-    let network_slotid = mbh.get_blockdate();
+    let tip_header = net.get_tip().unwrap();
+    let tip = BlockRef { hash: tip_header.compute_hash(), date: tip_header.get_blockdate() };
 
     info!("Configured genesis   : {}", net_cfg.genesis);
     info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    info!("Network TIP is       : {} <- {}", network_tip, mbh.get_previous_header());
-    info!("Network TIP slotid   : {}", network_slotid);
+    info!("Network TIP is       : {} <- {}", tip.hash, tip_header.get_previous_header());
+    info!("Network TIP slotid   : {}", tip.date);
 
+    let our_tip = BlockRef { hash: net_cfg.genesis.clone(), date: BlockDate::Genesis(net_cfg.epoch_start) };
+
+    /*
     // find the earliest epoch we know about starting from network_slotid
     let (latest_known_epoch_id, mstart_hash, prev_hash) =
         match find_earliest_epoch(&storage, net_cfg.epoch_start, network_slotid.get_epochid()) {
@@ -34,47 +40,73 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, mut storage: storage::Stor
         "latest known epoch {} hash={:?}",
         latest_known_epoch_id, mstart_hash
     );
+    */
 
-    let mut download_epoch_id = latest_known_epoch_id;
-    let mut download_prev_hash = prev_hash.clone();
-    let mut download_start_hash = mstart_hash.or(Some(prev_hash)).unwrap();
-
-    // fetch all previous epochs
-    while download_epoch_id < network_slotid.get_epochid() {
-        info!(
-            "downloading epoch {} {}",
-            download_epoch_id, download_start_hash
-        );
-        let fep = api::FetchEpochParams {
-            epoch_id: download_epoch_id,
-            start_header_hash: download_start_hash,
-            previous_header_hash: download_prev_hash,
-            upper_bound_hash: network_tip.clone(),
+    // Determine whether the previous epoch is stable yet. Note: This
+    // assumes that k is smaller than the number of blocks in an
+    // epoch.
+    let first_unstable_epoch = tip.date.get_epochid() -
+        match tip.date {
+            BlockDate::Genesis(_) => 1,
+            BlockDate::Normal(d) => if d.slotid <= net_cfg.k { 1 } else { 0 }
         };
-        let result = net.fetch_epoch(&net_cfg, &mut storage, fep).unwrap();
+    info!("First unstable epoch : {}", first_unstable_epoch);
 
-        storage::tag::write(&storage, &storage::tag::get_epoch_tag(download_epoch_id), &result.packhash[..]);
+    let mut cur_epoch_state : Option<(EpochId, storage::pack::PackWriter, SystemTime)> = None;
 
-        storage::epoch::epoch_create(&storage.config, &result.packhash, download_epoch_id);
+    let mut last_block = None;
 
-        storage::refpack_epoch_pack(&storage, &format!("EPOCH_{}", download_epoch_id)).unwrap();
+    net.get_blocks(&our_tip, true, &tip, &mut |block_hash, block, block_raw| {
+        let date = block.get_header().get_blockdate();
 
-        download_prev_hash = result.last_header_hash.clone();
-        download_start_hash = result.next_epoch_hash.unwrap_or(result.last_header_hash);
-        download_epoch_id += 1;
-    }
+        // Flush the previous epoch (if any).
+        if date.is_genesis() {
+            if let Some((epoch_id, writer, epoch_time_start)) = cur_epoch_state.as_mut() {
+                let (packhash, index) = writer.finalize();
+                let (_, tmpfile) = storage::pack::create_index(&storage, &index);
+                tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+                let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
 
-    // get the last block of the most recent epoch
-    //let last_block = get_last_blockid(&storage.config, &packhash).unwrap();
+                storage::tag::write(&storage, &storage::tag::get_epoch_tag(*epoch_id), &packhash[..]);
 
-    info!("Last block in epoch  : {}", download_prev_hash);
+                storage::epoch::epoch_create(&storage.config, &packhash, *epoch_id);
 
-    // fetch all blocks in the current epoch
-    let blocks = net.get_blocks(download_prev_hash, network_tip).unwrap();
+                storage::refpack_epoch_pack(&storage, &format!("EPOCH_{}", epoch_id)).unwrap();
 
-    for &(ref hash, ref block) in blocks.iter() {
-        let blockhash = storage::types::header_to_blockhash(&hash);
-        storage::blob::write(&storage, &blockhash, block.as_ref()).unwrap();
+                // Checkpoint the tip so we don't have to refetch
+                // everything if we get interrupted.
+                storage::tag::write(&storage, &"tip", &packhash[..]);
+
+                info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
+                      epoch_id, duration_print(epoch_time_elapsed));
+            }
+        }
+
+        if date.get_epochid() >= first_unstable_epoch {
+            // This block is not part of a stable epoch yet and could
+            // be rolled back. Therefore we can't pack this epoch
+            // yet. Instead we write this block to disk separately.
+            let block_hash = storage::types::header_to_blockhash(&block_hash);
+            storage::blob::write(&storage, &block_hash, block_raw.as_ref()).unwrap();
+        } else {
+
+            // If this is the epoch genesis block, start writing a new epoch pack.
+            if date.is_genesis() {
+                cur_epoch_state = Some((date.get_epochid(), storage::pack::PackWriter::init(&storage.config), SystemTime::now()));
+            }
+
+            // And append the block to the epoch pack.
+            let (_, writer, _) = &mut cur_epoch_state.as_mut().unwrap();
+            writer.append(&storage::types::header_to_blockhash(&block_hash), block_raw.as_ref());
+        }
+
+        last_block = Some(block_hash.clone());
+    });
+
+    // Update the tip tag to point to the most recent block.
+    if let Some(block_hash) = last_block {
+        storage::tag::write(&storage, &"TIP",
+                            &storage::types::header_to_blockhash(&block_hash));
     }
 }
 

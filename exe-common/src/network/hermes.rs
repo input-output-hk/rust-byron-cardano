@@ -1,4 +1,4 @@
-use cardano::block::{block, BlockHeader, RawBlock, HeaderHash};
+use cardano::block::{block, Block, BlockHeader, RawBlock, HeaderHash};
 use storage::{self, Storage, tmpfile::{TmpFile}};
 use std::io::{Write, Seek, SeekFrom};
 use std::time::{SystemTime};
@@ -10,7 +10,7 @@ use hyper::Client;
 use tokio_core::reactor::Core;
 
 use network::{Result, Error};
-use network::api::{Api, FetchEpochParams, FetchEpochResult};
+use network::api::{Api, BlockRef};
 
 
 /// hermes end point
@@ -65,10 +65,13 @@ impl Api for HermesEndPoint {
         unimplemented!()
     }
 
-    fn get_blocks(&mut self, _from: HeaderHash, _to: HeaderHash) -> Result<Vec<(HeaderHash, RawBlock)>> {
+    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
+                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    {
         unimplemented!()
     }
 
+    /*
     fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
         let path = format!("epoch/{}", fep.epoch_id);
 
@@ -117,4 +120,5 @@ impl Api for HermesEndPoint {
             packhash: packhash
         })
     }
+    */
 }
