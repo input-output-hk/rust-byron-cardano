@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef};
-use storage::{self, tag, Error};
+use storage::{self, tag, Error, block_read};
 use cardano::block::{BlockDate, EpochId, HeaderHash};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
@@ -60,12 +60,39 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
     let mut last_block : Option<HeaderHash> = None;
 
+    // If our tip is in an epoch that has become stable, we now need
+    // to pack it. So read the previously fetched blocks in this epoch
+    // and prepend them to the incoming blocks.
+    if our_tip.0.date.get_epochid() < first_unstable_epoch {
+
+        let epoch_id = our_tip.0.date.get_epochid();
+        let mut writer = storage::pack::PackWriter::init(&storage.config);
+        let epoch_time_start = SystemTime::now();
+
+        let mut cur_hash = our_tip.0.hash.clone();
+        let mut blocks = vec![];
+        loop {
+            let block_raw = block_read(&storage, cur_hash.bytes()).unwrap();
+            let block = block_raw.decode().unwrap();
+            let hdr = block.get_header();
+            assert!(hdr.get_blockdate().get_epochid() == epoch_id);
+            blocks.push((storage::types::header_to_blockhash(&cur_hash), block_raw));
+            if hdr.get_blockdate().is_genesis() { break }
+            cur_hash = hdr.get_previous_header();
+        }
+
+        while let Some((hash, block_raw)) = blocks.pop() {
+            writer.append(&hash, block_raw.as_ref());
+        }
+
+        cur_epoch_state = Some((epoch_id, writer, epoch_time_start));
+
+        // FIXME: in fact we may need to pack the previous epoch as
+        // well. (If tip.slotid < w, it won't have been packed yet).
+    }
+
     net.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
         let date = block.get_header().get_blockdate();
-
-        // TODO: if we're finishing an epoch that was previously
-        // partially fetched (as separate blocks), we now need to load
-        // the previous blocks and pack the epoch.
 
         // Flush the previous epoch (if any).
         if date.is_genesis() {
