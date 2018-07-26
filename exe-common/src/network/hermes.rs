@@ -1,4 +1,5 @@
 use cardano::block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash};
+use cardano::hash::HASH_SIZE;
 use storage;
 use std::io::Write;
 use std::time::{SystemTime};
@@ -85,21 +86,25 @@ impl Api for HermesEndPoint {
         let mut inclusive = inclusive;
         let mut from = from.clone();
 
-        // FIXME: hack
-        if let BlockDate::Normal(d) = from.date {
-            if d.slotid == 21599 && !inclusive {
-                from.date = BlockDate::Genesis(d.epoch + 1);
-                inclusive = true;
-            };
-        };
-
-        assert!(inclusive); // FIXME
-
         loop {
+
+            // FIXME: hack
+            if let BlockDate::Normal(d) = from.date {
+                if d.slotid == 21599 && !inclusive {
+                    from = BlockRef {
+                        hash: HeaderHash::from_bytes([0;HASH_SIZE]), // FIXME: use None?
+                        parent: from.hash.clone(),
+                        date: BlockDate::Genesis(d.epoch + 1)
+                    };
+                    inclusive = true;
+                };
+            };
 
             let epoch = from.date.get_epochid();
 
-            if from.date.is_genesis() && epoch < to.date.get_epochid() {
+            if !inclusive && to.hash == from.hash { break }
+
+            if inclusive && from.date.is_genesis() && epoch < to.date.get_epochid() {
 
                 // Fetch a complete epoch.
 
@@ -137,16 +142,37 @@ impl Api for HermesEndPoint {
                         hash: hdr.compute_hash(),
                         parent: hdr.get_previous_header(),
                         date: hdr.get_blockdate()
-                    }
-                    //inclusive = false;
+                    };
+                    inclusive = false;
                 }
-
-                from.date = BlockDate::Genesis(epoch + 1);
-                //inclusive = true;
             }
 
             else {
-                // FIXME: fetch the remaining blocks
+
+                //assert!(from.date.get_epochid() == to.date.get_epochid());
+
+                let mut blocks = vec![];
+                let mut to = to.hash.clone();
+
+                loop {
+                    let block_raw = self.get_block(&to).unwrap();
+                    let block = block_raw.decode().unwrap();
+                    let hdr = block.get_header();
+                    assert!(hdr.get_blockdate() >= from.date);
+                    let prev = hdr.get_previous_header();
+                    blocks.push((hdr.compute_hash(), block, block_raw));
+                    if (inclusive && prev == from.parent)
+                        || (!inclusive && prev == from.hash)
+                    {
+                        break
+                    }
+                    to = prev;
+                }
+
+                while let Some((hash, block, block_raw)) = blocks.pop() {
+                    got_block(&hash, &block, &block_raw);
+                }
+
                 break;
             }
         }
