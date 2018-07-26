@@ -10,7 +10,7 @@ pub trait Api {
 
     /// Get one specific block (represented by its unique hash) from the
     /// network
-    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock>;
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock>;
 
     /// Get the blocks in the half-open interval (from, to] (if
     /// inclusive = false) or [from, to] (if inclusive = true). FIXME:
@@ -23,5 +23,6 @@ pub trait Api {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockRef {
     pub hash: HeaderHash,
-    pub date: BlockDate
+    pub date: BlockDate,
+    pub parent: HeaderHash, // FIXME: remove
 }

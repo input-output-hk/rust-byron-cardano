@@ -59,8 +59,24 @@ impl Api for HermesEndPoint {
         Ok(bh_raw.decode()?)
     }
 
-    fn get_block(&mut self, _hash: HeaderHash) -> Result<RawBlock> {
-        unimplemented!()
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
+        let uri = self.uri(&format!("block/{}", hash)).as_str().parse().unwrap();
+        info!("querying uri: {}", uri);
+        let client = Client::new(&self.core.handle());
+        let mut block_raw = vec!();
+        {
+            let work = client.get(uri).and_then(|res| {
+                res.body().for_each(|chunk| {
+                    block_raw.append(&mut chunk.to_vec());
+                    Ok(())
+                })
+            });
+            let now = SystemTime::now();
+            self.core.run(work).unwrap();
+            let time_elapsed = now.elapsed().unwrap();
+            info!("Downloaded block in {}sec", time_elapsed.as_secs());
+        }
+        Ok(RawBlock::from_dat(block_raw))
     }
 
     fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
@@ -81,10 +97,11 @@ impl Api for HermesEndPoint {
 
         loop {
 
-            /* Fetch a complete epoch at once? */
             let epoch = from.date.get_epochid();
 
             if from.date.is_genesis() && epoch < to.date.get_epochid() {
+
+                // Fetch a complete epoch.
 
                 let mut tmppack = vec!();
                 {
@@ -116,8 +133,11 @@ impl Api for HermesEndPoint {
                         got_block(&hdr.compute_hash(), &block, &block_raw);
                     }
 
-                    from.hash = hdr.compute_hash();
-                    from.date = hdr.get_blockdate();
+                    from = BlockRef {
+                        hash: hdr.compute_hash(),
+                        parent: hdr.get_previous_header(),
+                        date: hdr.get_blockdate()
+                    }
                     //inclusive = false;
                 }
 

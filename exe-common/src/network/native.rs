@@ -53,7 +53,7 @@ impl Api for PeerPool {
         }
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
             Some(conn) => conn.get_block(hash)
@@ -121,7 +121,7 @@ impl Api for OpenPeer {
         Ok(block_headers[0].clone())
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         let b = GetBlock::only(&hash).execute(&mut self.0)
             .expect("to get one block at least");
 
@@ -135,6 +135,14 @@ impl Api for OpenPeer {
         let mut from = from.clone();
 
         loop {
+            // FIXME: Work around a GetBlockHeader bug: it fails on
+            // the interval (x.parent, x].
+            if (inclusive && from.hash == to.hash) || (!inclusive && from.hash == to.parent) {
+                let block_raw = self.get_block(&to.hash).unwrap();
+                got_block(&to.hash, &block_raw.decode().unwrap(), &block_raw);
+                return;
+            }
+
             if inclusive {
                 if from.date > to.date { break }
                 info!("  ### get headers [{}..{}]", from.hash, to.hash);
@@ -193,8 +201,11 @@ impl Api for OpenPeer {
 
                 got_block(&hdr.compute_hash(), &block, &block_raw);
 
-                from.hash = blockhash;
-                from.date = date;
+                from = BlockRef {
+                    hash: blockhash,
+                    parent: hdr.get_previous_header(),
+                    date: date
+                };
                 inclusive = false;
             }
         }

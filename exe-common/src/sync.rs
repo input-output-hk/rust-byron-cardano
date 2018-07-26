@@ -12,7 +12,11 @@ fn duration_print(d: Duration) -> String {
 pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage) {
     // recover and print the TIP of the network
     let tip_header = net.get_tip().unwrap();
-    let tip = BlockRef { hash: tip_header.compute_hash(), date: tip_header.get_blockdate() };
+    let tip = BlockRef {
+        hash: tip_header.compute_hash(),
+        parent: tip_header.get_previous_header(),
+        date: tip_header.get_blockdate()
+    };
 
     info!("Configured genesis   : {}", net_cfg.genesis);
     info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
@@ -21,7 +25,11 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let genesis_ref = (BlockRef { hash: net_cfg.genesis.clone(), date: BlockDate::Genesis(net_cfg.epoch_start) }, true);
+    let genesis_ref = (BlockRef {
+        hash: net_cfg.genesis.clone(),
+        parent: net_cfg.genesis_prev.clone(),
+        date: BlockDate::Genesis(net_cfg.epoch_start)
+    }, true);
 
     let our_tip = match tag::read_hash(&storage, &tag::HEAD) {
         None => genesis_ref.clone(),
@@ -33,7 +41,12 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
                 },
                 Some(block) => {
                     let block = block.decode().unwrap();
-                    (BlockRef { hash: head_hash.clone(), date: block.get_header().get_blockdate() }, false)
+                    let header = block.get_header();
+                    (BlockRef {
+                        hash: head_hash.clone(),
+                        parent: header.get_previous_header(),
+                        date: header.get_blockdate()
+                    }, false)
                 }
             }
         }

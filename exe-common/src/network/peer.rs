@@ -30,7 +30,7 @@ impl Api for Peer {
         }
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<RawBlock> {
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self {
             Peer::Native(peer)   => peer.get_block(hash),
             Peer::Http(endpoint) => endpoint.get_block(hash),
