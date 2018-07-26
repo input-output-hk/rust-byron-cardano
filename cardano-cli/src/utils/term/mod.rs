@@ -3,6 +3,7 @@
 
 extern crate termcolor;
 extern crate term_size;
+extern crate rpassword;
 
 mod config;
 mod progress_bar;
@@ -61,6 +62,22 @@ impl Term {
         Progress::new_tick(self, 0)
     }
 
+    pub fn password(&mut self, prompt: &str) -> io::Result<String> {
+        let mut out = self.stdout.lock();
+        write!(&mut out, "{}", prompt)?;
+        out.flush()?;
+        let stdin = io::stdin();
+        let mut lock = stdin.lock();
+        rpassword::read_password_with_reader(Some(&mut lock))
+    }
+
+    pub fn simply(&mut self, msg: &str) -> io::Result<()> {
+        if self.config.quiet { return Ok(()); }
+        let mut out = self.stdout.lock();
+
+        write!(&mut out, "{}", msg)
+    }
+
     pub fn success(&mut self, msg: &str) -> io::Result<()> {
         if self.config.quiet { return Ok(()); }
         let mut out = self.stdout.lock();
@@ -74,6 +91,14 @@ impl Term {
         let mut out = self.stdout.lock();
 
         out.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+        write!(&mut out, "{}", msg)?;
+        out.reset()
+    }
+    pub fn warn(&mut self, msg: &str) -> io::Result<()> {
+        if self.config.quiet { return Ok(()); }
+        let mut out = self.stderr.lock();
+
+        out.set_color(ColorSpec::new().set_fg(Some(Color::Rgb(0xFF, 0xA5, 00))))?;
         write!(&mut out, "{}", msg)?;
         out.reset()
     }
