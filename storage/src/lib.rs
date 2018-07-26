@@ -25,7 +25,7 @@ pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
 use refpack::{RefPack};
-use cardano::block::{HeaderHash, BlockDate, RawBlock};
+use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 
 use types::*;
 use tmpfile::*;
@@ -44,7 +44,8 @@ pub enum Error {
     EpochExpectingGenesis,
     EpochError(u32, u32),
     EpochSlotRewind(u32, u32),
-    EpochChainInvalid(BlockDate, HeaderHash, HeaderHash)
+    EpochChainInvalid(BlockDate, HeaderHash, HeaderHash),
+    NoSuchTag
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -107,6 +108,21 @@ impl Storage {
     /// construct a range between the given hash
     pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
         block::Range::new(self, from, to).map_err(|err| Error::BlockError(err))
+    }
+
+    pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
+        match tag::read_hash(&self, &tag) {
+            None => Err(Error::NoSuchTag),
+            Some(hash) => {
+                match block_read(&self, hash.bytes()) {
+                    None => {
+                        warn!("tag '{}' refers to non-existent block {}", tag, hash);
+                        Err(Error::NoSuchTag)
+                    },
+                    Some(block) => Ok(block.decode()?)
+                }
+            }
+        }
     }
 }
 

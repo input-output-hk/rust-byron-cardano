@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef};
-use storage::{self, tag};
+use storage::{self, tag, Error};
 use cardano::block::{BlockDate, EpochId, HeaderHash};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
@@ -31,24 +31,16 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
         date: BlockDate::Genesis(net_cfg.epoch_start)
     }, true);
 
-    let our_tip = match tag::read_hash(&storage, &tag::HEAD) {
-        None => genesis_ref.clone(),
-        Some(head_hash) => {
-            match storage::block_read(&storage, head_hash.bytes()) {
-                None => {
-                    warn!("HEAD tag refers to non-existent block {}", head_hash);
-                    genesis_ref.clone()
-                },
-                Some(block) => {
-                    let block = block.decode().unwrap();
-                    let header = block.get_header();
-                    (BlockRef {
-                        hash: head_hash.clone(),
-                        parent: header.get_previous_header(),
-                        date: header.get_blockdate()
-                    }, false)
-                }
-            }
+    let our_tip = match storage.get_block_from_tag(&tag::HEAD) {
+        Err(Error::NoSuchTag) => genesis_ref.clone(),
+        Err(err) => panic!(err),
+        Ok(block) => {
+            let header = block.get_header();
+            (BlockRef {
+                hash: header.compute_hash().clone(),
+                parent: header.get_previous_header(),
+                date: header.get_blockdate()
+            }, false)
         }
     };
 
