@@ -1,7 +1,7 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef};
-use storage;
-use cardano::block::{BlockDate, EpochId};
+use storage::{self, tag};
+use cardano::block::{BlockDate, EpochId, HeaderHash};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
 
@@ -19,28 +19,27 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     info!("Network TIP is       : {} <- {}", tip.hash, tip_header.get_previous_header());
     info!("Network TIP slotid   : {}", tip.date);
 
-    let our_tip = BlockRef { hash: net_cfg.genesis.clone(), date: BlockDate::Genesis(net_cfg.epoch_start) };
+    // Start fetching at the current HEAD tag, or the genesis block if
+    // it doesn't exist.
+    let genesis_ref = (BlockRef { hash: net_cfg.genesis.clone(), date: BlockDate::Genesis(net_cfg.epoch_start) }, true);
 
-    /*
-    // find the earliest epoch we know about starting from network_slotid
-    let (latest_known_epoch_id, mstart_hash, prev_hash) =
-        match find_earliest_epoch(&storage, net_cfg.epoch_start, network_slotid.get_epochid()) {
-            None => (
-                net_cfg.epoch_start,
-                Some(net_cfg.genesis.clone()),
-                net_cfg.genesis_prev.clone(),
-            ),
-            Some((found_epoch_id, packhash)) => (
-                found_epoch_id + 1,
-                None,
-                get_last_blockid(&storage.config, &packhash).unwrap(),
-            ),
-        };
-    info!(
-        "latest known epoch {} hash={:?}",
-        latest_known_epoch_id, mstart_hash
-    );
-    */
+    let our_tip = match tag::read_hash(&storage, &tag::HEAD) {
+        None => genesis_ref.clone(),
+        Some(head_hash) => {
+            match storage::block_read(&storage, head_hash.bytes()) {
+                None => {
+                    warn!("HEAD tag refers to non-existent block {}", head_hash);
+                    genesis_ref.clone()
+                },
+                Some(block) => {
+                    let block = block.decode().unwrap();
+                    (BlockRef { hash: head_hash.clone(), date: block.get_header().get_blockdate() }, false)
+                }
+            }
+        }
+    };
+
+    info!("Fetching from        : {} ({})", our_tip.0.hash, our_tip.0.date);
 
     // Determine whether the previous epoch is stable yet. Note: This
     // assumes that k is smaller than the number of blocks in an
@@ -54,9 +53,9 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
     let mut cur_epoch_state : Option<(EpochId, storage::pack::PackWriter, SystemTime)> = None;
 
-    let mut last_block = None;
+    let mut last_block : Option<HeaderHash> = None;
 
-    net.get_blocks(&our_tip, true, &tip, &mut |block_hash, block, block_raw| {
+    net.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
         let date = block.get_header().get_blockdate();
 
         // Flush the previous epoch (if any).
@@ -75,7 +74,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
-                storage::tag::write(&storage, &"tip", &packhash[..]);
+                storage::tag::write(&storage, &tag::HEAD, &last_block.as_ref().unwrap().bytes()[..]);
 
                 info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
                       epoch_id, duration_print(epoch_time_elapsed));
@@ -105,7 +104,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
     // Update the tip tag to point to the most recent block.
     if let Some(block_hash) = last_block {
-        storage::tag::write(&storage, &"TIP",
+        storage::tag::write(&storage, &tag::HEAD,
                             &storage::types::header_to_blockhash(&block_hash));
     }
 }

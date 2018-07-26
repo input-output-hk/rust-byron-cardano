@@ -20,7 +20,7 @@ pub trait Api {
                    got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ());
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BlockRef {
     pub hash: HeaderHash,
     pub date: BlockDate
