@@ -809,6 +809,7 @@ pub mod dictionary {
     /// a given language and its dictionary of known mnemonic words.
     ///
     pub trait Language {
+        fn name(&self) -> &'static str;
         fn separator(&self) -> &'static str;
         fn lookup_mnemonic(&self, word: &str) -> Result<MnemonicIndex>;
         fn lookup_word(&self, mnemonic: MnemonicIndex) -> Result<String>;
@@ -823,9 +824,11 @@ pub mod dictionary {
     /// [`unicode-normalization`](https://crates.io/crates/unicode-normalization)).
     ///
     pub struct DefaultDictionary {
-        pub words: [&'static str; 2048]
+        pub words: [&'static str; 2048],
+        pub name: &'static str,
     }
     impl Language for DefaultDictionary {
+        fn name(&self) -> &'static str { self.name }
         fn separator(&self) -> &'static str { " " }
         fn lookup_mnemonic(&self, word: &str) -> Result<MnemonicIndex> {
             match self.words.iter().position(|x| x == &word) {
@@ -844,55 +847,63 @@ pub mod dictionary {
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#wordlists)
     ///
     pub const ENGLISH : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_english.txt")
+        words: include!("bip39_english.txt"),
+        name: "english"
     };
 
     /// default French dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#french)
     ///
     pub const FRENCH : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_french.txt")
+        words: include!("bip39_french.txt"),
+        name: "french"
     };
 
     /// default Japanese dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#japanese)
     ///
     pub const JAPANESE : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_japanese.txt")
+        words: include!("bip39_japanese.txt"),
+        name: "japanese"
     };
 
     /// default Korean dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#japanese)
     ///
     pub const KOREAN : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_korean.txt")
+        words: include!("bip39_korean.txt"),
+        name: "korean"
     };
 
     /// default chinese simplified dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#chinese)
     ///
     pub const CHINESE_SIMPLIFIED : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_chinese_simplified.txt")
+        words: include!("bip39_chinese_simplified.txt"),
+        name: "chinese-simplified"
     };
     /// default chinese traditional dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#chinese)
     ///
     pub const CHINESE_TRADITIONAL : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_chinese_traditional.txt")
+        words: include!("bip39_chinese_traditional.txt"),
+        name: "chinese-traditional"
     };
 
     /// default italian dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#italian)
     ///
     pub const ITALIAN : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_italian.txt")
+        words: include!("bip39_italian.txt"),
+        name: "italian"
     };
 
     /// default spanish dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#spanish)
     ///
     pub const SPANISH : DefaultDictionary = DefaultDictionary {
-        words: include!("bip39_spanish.txt")
+        words: include!("bip39_spanish.txt"),
+        name: "spanish"
     };
 }
 
