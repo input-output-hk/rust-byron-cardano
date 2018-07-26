@@ -22,7 +22,7 @@ cardano_wallet *cardano_wallet_new_from_seed(const unsigned char * const seed_pt
 void cardano_wallet_delete(cardano_wallet *);
 
 cardano_account *cardano_account_create(cardano_wallet *wallet, const unsigned char *alias, unsigned int index);
-void cardano_accont_delete(cardano_account *account);
+void cardano_account_delete(cardano_account *account);
 
 unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
 
