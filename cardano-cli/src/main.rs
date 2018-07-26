@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 extern crate dirs;
 extern crate cardano_cli;
+extern crate cardano;
 
 use self::cardano_cli::utils::term;
 use self::cardano_cli::{blockchain, wallet, debug};
@@ -291,15 +292,99 @@ fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> String {
         None => { unreachable!() }
     }
 }
+fn wallet_argument_wallet_scheme<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("WALLET_SCHEME")
+        .help("the scheme to organize accounts and addresses in a Wallet.")
+        .long("wallet-scheme")
+        .takes_value(true)
+        .possible_values(&["bip44", "random_index_2levels"])
+        .default_value("bip44")
+}
+fn wallet_argument_wallet_scheme_match<'a>(matches: &ArgMatches<'a>) -> wallet::HDWalletModel {
+    match matches.value_of("WALLET_SCHEME") {
+        Some("bip44")                => wallet::HDWalletModel::BIP44,
+        Some("random_index_2levels") => wallet::HDWalletModel::RandomIndex2Levels,
+        _ => unreachable!() // default is "bip44"
+    }
+}
+fn wallet_argument_mnemonic_language<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("MNEMONIC_LANGUAGE")
+        .help("the list of languages to display the mnemonic words of the wallet in. You can set multiple values using comma delimiter (example: `--mnemonics-languages=english,french,italian').")
+        .long("mnemonics-language")
+        .visible_alias("mnemonics-languages")
+        .takes_value(true)
+        .use_delimiter(true)
+        .require_delimiter(true)
+        .value_delimiter(",")
+        .possible_values(&["chinese-simplified", "chinese-traditional", "english", "french", "italian", "japanese", "korean", "spanish"])
+        .default_value("english")
+}
+fn wallet_argument_mnemonic_language_match<'a>(matches: &ArgMatches<'a>)
+    -> Vec<impl cardano::bip::bip39::dictionary::Language>
+{
+    let mut languages = Vec::new();
+    for lan in matches.values_of("MNEMONIC_LANGUAGE").unwrap() {
+        let value = match lan {
+            "chinese-simplified"  => cardano::bip::bip39::dictionary::CHINESE_SIMPLIFIED,
+            "chinese-traditional" => cardano::bip::bip39::dictionary::CHINESE_TRADITIONAL,
+            "english"             => cardano::bip::bip39::dictionary::ENGLISH,
+            "french"              => cardano::bip::bip39::dictionary::FRENCH,
+            "italian"             => cardano::bip::bip39::dictionary::ITALIAN,
+            "japanese"            => cardano::bip::bip39::dictionary::JAPANESE,
+            "korean"              => cardano::bip::bip39::dictionary::KOREAN,
+            "spanish"             => cardano::bip::bip39::dictionary::SPANISH,
+            _ => unreachable!() // clap knows the default values
+        };
+        languages.push(value);
+    }
+    languages
+}
+fn wallet_argument_derivation_scheme<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("DERIVATION_SCHEME")
+        .help("derivation scheme")
+        .long("derivation-scheme")
+        .takes_value(true)
+        .possible_values(&["v1", "v2"])
+        .default_value("v2")
+}
+fn wallet_argument_derivation_scheme_match<'a>(matches: &ArgMatches<'a>) -> cardano::hdwallet::DerivationScheme {
+    match matches.value_of("DERIVATION_SCHEME") {
+        Some("v1") => cardano::hdwallet::DerivationScheme::V1,
+        Some("v2") => cardano::hdwallet::DerivationScheme::V2,
+        _ => unreachable!() // default is "v2"
+    }
+}
+fn wallet_argument_mnemonic_size<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("MNEMONIC_SIZE")
+        .help("The number of words to use for the wallet mnemonic (the more the more secure).")
+        .long("mnemonics-length")
+        .takes_value(true)
+        .possible_values(&["12", "15", "18", "21", "24"])
+        .default_value("24")
+}
+fn wallet_argument_mnemonic_size_match<'a>(matches: &ArgMatches<'a>) -> cardano::bip::bip39::Type {
+    match matches.value_of("MNEMONIC_SIZE") {
+        Some("12") => cardano::bip::bip39::Type::Type12Words,
+        Some("15") => cardano::bip::bip39::Type::Type15Words,
+        Some("18") => cardano::bip::bip39::Type::Type18Words,
+        Some("21") => cardano::bip::bip39::Type::Type21Words,
+        Some("24") => cardano::bip::bip39::Type::Type24Words,
+        _ => unreachable!() // default is "24"
+    }
+}
 
 const WALLET_COMMAND : &'static str = "wallet";
 
 fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
-        ("new", Some(matches)) => {
+        ("create", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
+            let wallet_scheme = wallet_argument_wallet_scheme_match(&matches);
+            let derivation_scheme = wallet_argument_derivation_scheme_match(&matches);
+            let mnemonic_length = wallet_argument_mnemonic_size_match(&matches);
+            let mnemonic_langs  = wallet_argument_mnemonic_language_match(&matches);
 
-            wallet::command_new(term, root_dir, name);
+            wallet::command_new(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, mnemonic_langs);
         },
         _ => {
             term.error(matches.usage()).unwrap();
@@ -312,6 +397,10 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .about("wallet operations")
         .subcommand(SubCommand::with_name("create")
             .about("create a new wallet")
+            .arg(wallet_argument_mnemonic_size())
+            .arg(wallet_argument_derivation_scheme())
+            .arg(wallet_argument_wallet_scheme())
+            .arg(wallet_argument_mnemonic_language())
             .arg(wallet_argument_name_definition())
         )
         .subcommand(SubCommand::with_name("recover")
