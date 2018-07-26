@@ -345,19 +345,20 @@ impl HasCommand for Blockchain {
 
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut prev = net_cfg.genesis_prev;
+                let mut prev = None;
 
-                let mut iter = storage.iterate_from_epoch(0).unwrap();
-                //let mut iter = storage.reverse_iter().unwrap();
+                let mut iter = storage.reverse_iter().unwrap();
 
                 while let Some(blk) = iter.next() {
                     let hdr = blk.get_header();
                     let date = hdr.get_blockdate();
                     let hash = hdr.compute_hash();
                     println!("block {} {:?}", hash, date);
-                    assert!(prev == hdr.get_previous_header());
-                    prev = hash;
+                    if let Some(h) = prev { assert!(hash == h) }
+                    prev = Some(hdr.get_previous_header());
                 }
+
+                if let Some(h) = prev { assert!(net_cfg.genesis_prev == h) }
             },
 
             (find_address::FindAddress::COMMAND, Some(opts)) => find_address::FindAddress::run((), opts),
