@@ -70,8 +70,6 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 
                 storage::epoch::epoch_create(&storage.config, &packhash, *epoch_id);
 
-                storage::refpack_epoch_pack(&storage, &format!("EPOCH_{}", epoch_id)).unwrap();
-
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
                 storage::tag::write(&storage, &tag::HEAD, &last_block.as_ref().unwrap().bytes()[..]);
