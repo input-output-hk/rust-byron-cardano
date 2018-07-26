@@ -1,17 +1,17 @@
 //! Transaction types
-//! 
+//!
 //! `TxIn` : Input
 //! `TxOut` : Output
 //! `Tx` : Input + Output
 //! `TxInWitness`: Witness providing for TxIn (e.g. cryptographic signature)
 //! `TxAux` : Signed Tx (Tx + Witness)
-//! 
+//!
 use std::{fmt};
 
 use hash::{Blake2b256};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use config::{Config};
+use config::{ProtocolMagic};
 use redeem;
 
 use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
@@ -93,10 +93,10 @@ impl TxInWitness {
     }
 
     /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
-    pub fn new(cfg: &Config, key: &XPrv, txid: &TxId) -> Self {
+    pub fn new(protocol_magic: ProtocolMagic, key: &XPrv, txid: &TxId) -> Self {
         let vec = Serializer::new_vec()
             .write_unsigned_integer(1).expect("write byte 0x01")
-            .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
+            .serialize(&protocol_magic).expect("serialize protocol magic")
             .serialize(&txid).expect("serialize Tx's Id")
             .finalize();
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
@@ -124,10 +124,10 @@ impl TxInWitness {
 
     /// verify the signature against the given transation `Tx`
     ///
-    pub fn verify_tx(&self, cfg: &Config, tx: &Tx) -> bool {
+    pub fn verify_tx(&self, protocol_magic: ProtocolMagic, tx: &Tx) -> bool {
         let vec = Serializer::new_vec()
             .write_unsigned_integer(1).expect("write byte 0x01")
-            .serialize(&cfg.protocol_magic).expect("serialize protocol magic")
+            .serialize(&protocol_magic).expect("serialize protocol magic")
             .serialize(&tx.id()).expect("serialize Tx's Id")
             .finalize();
         match self {
@@ -138,8 +138,8 @@ impl TxInWitness {
     }
 
     /// verify the address's public key and the transaction signature
-    pub fn verify(&self, cfg: &Config, address: &ExtendedAddr, tx: &Tx) -> bool {
-        self.verify_address(address) && self.verify_tx(&cfg, tx)
+    pub fn verify(&self, protocol_magic: ProtocolMagic, address: &ExtendedAddr, tx: &Tx) -> bool {
+        self.verify_address(address) && self.verify_tx(protocol_magic, tx)
     }
 }
 impl cbor_event::se::Serialize for TxInWitness {
@@ -457,7 +457,6 @@ mod tests {
     use hdpayload;
     use hdwallet;
     use cbor_event::{self, de::RawCbor};
-    use config::{Config};
 
     const SEED: [u8;hdwallet::SEED_SIZE] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
@@ -554,32 +553,32 @@ mod tests {
 
     #[test]
     fn txinwitness_decode() {
-        let cfg = Config::default();
+        let protocol_magic = ProtocolMagic::default();
         let tx : Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
         let txinwitness : TxInWitness = RawCbor::from(TX_IN_WITNESS).deserialize().expect("TxInWitness");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        assert_eq!(txinwitness, TxInWitness::new(&cfg, &sk, &tx.id()));
+        assert_eq!(txinwitness, TxInWitness::new(protocol_magic, &sk, &tx.id()));
     }
 
     #[test]
     fn txinwitness_encode_decode() {
-        let cfg = Config::default();
+        let protocol_magic = ProtocolMagic::default();
         let tx : Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
+        let txinwitness = TxInWitness::new(protocol_magic, &sk, &tx.id());
 
         assert!(cbor_event::test_encode_decode(&txinwitness).expect("encode/decode TxInWitness"));
     }
 
     #[test]
     fn txinwitness_sign_verify() {
-        let cfg = Config::default();
+        let protocol_magic = ProtocolMagic::default();
         // create wallet's keys
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -606,12 +605,12 @@ mod tests {
         // txout of this given transation
 
         // create a TxInWitness (i.e. sign the given transaction)
-        let txinwitness = TxInWitness::new(&cfg, &sk, &tx.id());
+        let txinwitness = TxInWitness::new(protocol_magic, &sk, &tx.id());
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));
-        assert!(txinwitness.verify_tx(&cfg, &tx));
-        assert!(txinwitness.verify(&cfg, &ea, &tx));
+        assert!(txinwitness.verify_tx(protocol_magic, &tx));
+        assert!(txinwitness.verify(protocol_magic, &ea, &tx));
     }
 
     #[test]

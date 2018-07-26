@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::{PathBuf}};
 use std::io::{Write,Read};
 use cardano::util::{hex};
 
@@ -14,6 +14,19 @@ pub fn get_epoch_tag(epoch: u32) -> String {
 pub fn write<S: AsRef<str>>(storage: &super::Storage, name: &S, content: &[u8]) {
     let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Tag);
     tmp_file.write_all(hex::encode(content).as_bytes()).unwrap();
+
+    let path = storage.config.get_tag_filepath(name);
+    let dir = PathBuf::from(path);
+
+    match dir.parent() {
+        None => {},
+        Some(parent) => {
+            if parent != storage.config.get_filetype_dir(super::StorageFileType::Tag) {
+                fs::create_dir_all(parent).unwrap()
+            }
+        }
+    };
+
     tmp_file.render_permanent(&storage.config.get_tag_filepath(name)).unwrap();
 }
 
@@ -39,4 +52,9 @@ pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<bl
 pub fn exist<S: AsRef<str>>(storage: &super::Storage, name: &S) -> bool {
     let p = storage.config.get_tag_filepath(name);
     p.as_path().exists()
+}
+
+pub fn remove_tag<S: AsRef<str>>(storage: &super::Storage, name: &S) {
+    let p = storage.config.get_tag_filepath(name);
+    fs::remove_file(p).unwrap()
 }

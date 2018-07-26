@@ -21,6 +21,11 @@ $ cardano-cli wallet sync "My Wallet" mainnet
 * `-h, --help`       Prints help information
 * `-V, --version`    Prints version information
 
+## Global options
+
+* `--color <COLOR>`       enable output colors or not [default: auto]  [possible values: auto, always, never]
+* `--root-dir <ROOT_DIR>` the project root direction [env: CARDANO_CLI_ROOT_DIR=]  [default: _os specific_]
+
 ## `blockchain`: blockchain related operations
 
 ### `new`: creating a new local blockchain
@@ -46,9 +51,6 @@ blocks from time to time to get the latest details about the blockchain.
 cardano-cli blockchain remote-add [FLAGS] <BLOCKCHAIN_NAME> <BLOCKCHAIN_REMOTE_ALIAS> <BLOCKCHAIN_REMOTE_ENDPOINT>
 ```
 
-* FLAGS:
-    * `--http`
-    * `--native`
 * ARGS:
     * `<BLOCKCHAIN_NAME>`               the blockchain name
     * `<BLOCKCHAIN_REMOTE_ALIAS>`       Alias given to a remote node.
@@ -168,6 +170,21 @@ Prints the blockchain logs from the tip (or the specified hash, in reverse order
 ```
 cardano-cli wallet create <WALLET_NAME>
 ```
+
+* OPTIONS:
+    * `--color <COLOR>` enable output colors or not [default: auto]  [possible values: auto, always, never]
+    * `--derivation-scheme <DERIVATION_SCHEME>`     derivation scheme [default: v2]  [possible values: v1, v2]
+    * `--mnemonics-language <MNEMONIC_LANGUAGE>`
+            the list of languages to display the mnemonic words of the wallet in. You can set multiple values using
+            comma delimiter (example: `--mnemonics-languages=english,french,italian'). [default: english]  [aliases:
+            mnemonics-languages]  [possible values: chinese-simplified, chinese-traditional, english, french, italian,
+            japanese, korean, spanish]
+    * `--mnemonics-length <MNEMONIC_SIZE>`
+            The number of words to use for the wallet mnemonic (the more the more secure). [default: 24]  [possible
+            values: 12, 15, 18, 21, 24]
+    * `--wallet-scheme <WALLET_SCHEME>`
+            the scheme to organize accounts and addresses in a Wallet. [default: bip44]  [possible values: bip44,
+            random_index_2levels]
 
 * ARGS:
     * `<WALLET_NAME>`    the wallet name

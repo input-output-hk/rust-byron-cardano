@@ -1,7 +1,7 @@
 pub mod net {
     use cardano::block::{HeaderHash,EpochId};
     use cardano::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{self, File}, fmt, slice::{Iter}, ops::{Deref, DerefMut}};
+    use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}};
     use storage::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
@@ -44,7 +44,7 @@ pub mod net {
         Http(String)
     }
     impl Peer {
-        /// analyse the content of the given `addr` and construt the correct kind
+        /// analyse the content of the given `addr` and construct the correct kind
         /// of `Peer` accordingly.
         pub fn new(addr: String) -> Self {
             if addr.starts_with(r"http://") || addr.starts_with(r"https://") {
@@ -174,12 +174,18 @@ pub mod net {
         /// add a new peer in the `Peers` set
         pub fn push(&mut self, name: String, peer: Peer) { self.0.push(NamedPeer::new(name, peer)) }
 
-        /// get an iterator over the peers
-        pub fn iter(&self) -> Iter<NamedPeer> { self.0.iter() }
-
         pub fn natives<'a>(&'a self) -> Vec<&'a str> {
             self.iter().filter_map(|np| np.peer().get_native()).collect()
         }
+    }
+    impl Deref for Peers {
+        type Target = Vec<NamedPeer>;
+        fn deref(&self) -> &Self::Target { &self.0 }
+    }
+    impl ::std::iter::FromIterator<NamedPeer> for Peers {
+        fn from_iter<I>(iter: I) -> Self
+            where I: IntoIterator<Item = NamedPeer>
+        { Peers(::std::iter::FromIterator::from_iter(iter)) }
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

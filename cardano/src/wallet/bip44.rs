@@ -6,7 +6,7 @@ use bip::bip44::{BIP44_PURPOSE, BIP44_COIN_TYPE, BIP44_SOFT_UPPER_BOUND};
 use bip::bip39;
 use tx::{TxId, TxInWitness};
 use address::{ExtendedAddr};
-use config::Config;
+use config::{ProtocolMagic};
 use std::{ops::Deref, collections::{BTreeMap}};
 
 use super::scheme::{self};
@@ -21,7 +21,6 @@ pub use bip::bip44::{self, AddrType, Addressing, Change, Index};
 pub struct Wallet {
     cached_root_key: RootLevel<XPrv>,
     accounts: BTreeMap<String, Account<XPrv>>,
-    config: Config,
     derivation_scheme: DerivationScheme,
 }
 impl Wallet {
@@ -31,12 +30,11 @@ impl Wallet {
     /// state (beware that the cached root key would need to be stored
     /// in a secure manner though).
     ///
-    pub fn from_cached_key(cached_root_key: RootLevel<XPrv>, derivation_scheme: DerivationScheme, config: Config) -> Self {
+    pub fn from_cached_key(cached_root_key: RootLevel<XPrv>, derivation_scheme: DerivationScheme) -> Self {
         let accounts = BTreeMap::new();
         Wallet {
             cached_root_key,
             accounts,
-            config,
             derivation_scheme
         }
     }
@@ -47,10 +45,10 @@ impl Wallet {
     /// [`Wallet::from_bip39_mnemonics`](./struct.Wallet.html#method.from_bip39_mnemonics)
     /// constructor.
     ///
-    pub fn from_root_key(root_key: XPrv, derivation_scheme: DerivationScheme, config: Config) -> Self {
+    pub fn from_root_key(root_key: XPrv, derivation_scheme: DerivationScheme) -> Self {
         let cached_root_key = root_key.derive(derivation_scheme, BIP44_PURPOSE)
                                       .derive(derivation_scheme, BIP44_COIN_TYPE);
-        Wallet::from_cached_key(RootLevel::from(cached_root_key), derivation_scheme, config)
+        Wallet::from_cached_key(RootLevel::from(cached_root_key), derivation_scheme)
     }
 
     /// helper to create a wallet from BIP39 Seed
@@ -60,12 +58,11 @@ impl Wallet {
     ///
     pub fn from_bip39_seed( seed: &bip39::Seed
                           , derivation_scheme: DerivationScheme
-                          , config: Config
                           ) -> Self
     {
         let xprv = XPrv::generate_from_bip39(seed);
 
-        Wallet::from_root_key(xprv, derivation_scheme, config)
+        Wallet::from_root_key(xprv, derivation_scheme)
     }
 
     /// helper to create a wallet from BIP39 mnemonics
@@ -76,12 +73,11 @@ impl Wallet {
     pub fn from_bip39_mnemonics( mnemonics_phrase: &bip39::MnemonicString
                                , password: &[u8]
                                , derivation_scheme: DerivationScheme
-                               , config: Config
                                ) -> Self
     {
         let seed = bip39::Seed::from_mnemonic_string(mnemonics_phrase, password);
 
-        Wallet::from_bip39_seed(&seed, derivation_scheme, config)
+        Wallet::from_bip39_seed(&seed, derivation_scheme)
     }
 
     pub fn derivation_scheme(&self) -> DerivationScheme { self.derivation_scheme }
@@ -102,7 +98,7 @@ impl scheme::Wallet for Wallet {
         account
     }
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts  { &self.accounts }
-    fn sign_tx<'a, I>(&'a self, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
         where I: Iterator<Item = &'a Self::Addressing>
     {
         let mut witnesses = vec![];
@@ -113,7 +109,7 @@ impl scheme::Wallet for Wallet {
                           .change(self.derivation_scheme, addressing.address_type())
                           .index(self.derivation_scheme, addressing.index.get_scheme_value());
 
-            let tx_witness = TxInWitness::new(&self.config, &key, txid);
+            let tx_witness = TxInWitness::new(protocol_magic, &key, txid);
             witnesses.push(tx_witness);
         }
         witnesses
@@ -155,7 +151,7 @@ impl Account<XPrv> {
     /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
     ///
-    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default());
     /// let account = wallet.create_account("account 1", 0);
     ///
     /// // print only every two address (20 times)
@@ -196,7 +192,7 @@ impl Account<XPub> {
     /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
     ///
-    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default(), Default::default());
+    /// let mut wallet = bip44::Wallet::from_bip39_mnemonics(&mnemonics, b"password", Default::default());
     /// let account = wallet.create_account("account 1", 0).public();
     ///
     /// // print first 10 addresses from index 10000
