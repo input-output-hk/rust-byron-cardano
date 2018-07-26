@@ -63,6 +63,10 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     net.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
         let date = block.get_header().get_blockdate();
 
+        // TODO: if we're finishing an epoch that was previously
+        // partially fetched (as separate blocks), we now need to load
+        // the previous blocks and pack the epoch.
+
         // Flush the previous epoch (if any).
         if date.is_genesis() {
             if let Some((epoch_id, writer, epoch_time_start)) = cur_epoch_state.as_mut() {
