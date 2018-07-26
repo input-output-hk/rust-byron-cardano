@@ -44,6 +44,10 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
         }
     };
 
+    // TODO: we need to handle the case where our_tip is not an
+    // ancestor of tip. In that case we should start from the last
+    // stable epoch before our_tip.
+
     info!("Fetching from        : {} ({})", our_tip.0.hash, our_tip.0.date);
 
     // Determine whether the previous epoch is stable yet. Note: This
