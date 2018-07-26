@@ -1,9 +1,7 @@
-use cardano::block::{block, Block, BlockHeader, RawBlock, HeaderHash};
-use storage::{self, Storage, tmpfile::{TmpFile}};
-use std::io::{Write, Seek, SeekFrom};
+use cardano::block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash};
+use storage;
+use std::io::Write;
 use std::time::{SystemTime};
-
-use config::net;
 
 use futures::{Future, Stream};
 use hyper::Client;
@@ -68,57 +66,69 @@ impl Api for HermesEndPoint {
     fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
                    got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
     {
-        unimplemented!()
-    }
+        let mut inclusive = inclusive;
+        let mut from = from.clone();
 
-    /*
-    fn fetch_epoch(&mut self, _config: &net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
-        let path = format!("epoch/{}", fep.epoch_id);
-
-        let mut tmppack = TmpFile::create(storage.config.get_filetype_dir(storage::types::StorageFileType::Pack))?;
-        {
-            let uri = self.uri(&path).as_str().parse().unwrap();
-            info!("querying uri: {}", uri);
-            let client = Client::new(&self.core.handle());
-            let work = client.get(uri).and_then(|res| {
-                res.body().for_each(|chunk| {
-                    tmppack.write_all(&chunk).map_err(From::from)
-                })
-            });
-            let now = SystemTime::now();
-            self.core.run(work)?;
-            let time_elapsed = now.elapsed().unwrap();
-            info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
-
-        }
-        let now = SystemTime::now();
-        tmppack.seek(SeekFrom::Start(0))?;
-        let mut packfile = storage::pack::PackReader::from(tmppack);
-        let mut packwriter = storage::pack::PackWriter::init(&storage.config);
-        let mut last = None;
-        while let Some(rblock) = packfile.get_next() {
-            let rhdr = rblock.to_header();
-            // TODO: do some checks: let block = rblock.decode()?;
-            last = Some(rhdr.decode()?);
-            packwriter.append(rhdr.compute_hash().bytes(), rblock.as_ref());
-        }
-
-        let (packhash, index) = packwriter.finalize();
-        let (_, tmpfile) = storage::pack::create_index(storage, &index);
-        tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash))?;
-
-        let last_hdr = match last {
-            None => { panic!("no last block found, error.") },
-            Some(blk) => blk
+        // FIXME: hack
+        if let BlockDate::Normal(d) = from.date {
+            if d.slotid == 21599 && !inclusive {
+                from.date = BlockDate::Genesis(d.epoch + 1);
+                inclusive = true;
+            };
         };
-        let time_elapsed = now.elapsed().unwrap();
-        info!("Processing EPOCH in {}sec", time_elapsed.as_secs());
 
-        Ok(FetchEpochResult {
-            last_header_hash: last_hdr.compute_hash(),
-            next_epoch_hash: None,
-            packhash: packhash
-        })
+        assert!(inclusive); // FIXME
+
+        loop {
+
+            /* Fetch a complete epoch at once? */
+            let epoch = from.date.get_epochid();
+
+            if from.date.is_genesis() && epoch < to.date.get_epochid() {
+
+                let mut tmppack = vec!();
+                {
+                    let uri = self.uri(&format!("epoch/{}", epoch)).as_str().parse().unwrap();
+                    info!("querying uri: {}", uri);
+                    let client = Client::new(&self.core.handle());
+                    let work = client.get(uri).and_then(|res| {
+                        res.body().for_each(|chunk| {
+                            tmppack.append(&mut chunk.to_vec());
+                            Ok(())
+                        })
+                    });
+                    let now = SystemTime::now();
+                    self.core.run(work).unwrap();
+                    let time_elapsed = now.elapsed().unwrap();
+                    info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
+                }
+
+                let mut packfile = storage::pack::PackReader::from(&tmppack[..]);
+
+                while let Some(block_raw) = packfile.get_next() {
+                    let block = block_raw.decode().unwrap();
+                    let hdr = block.get_header();
+
+                    assert!(hdr.get_blockdate().get_epochid() == epoch);
+                    //assert!(from.date != hdr.get_blockdate() || from.hash == hdr.compute_hash());
+
+                    if from.date <= hdr.get_blockdate() {
+                        got_block(&hdr.compute_hash(), &block, &block_raw);
+                    }
+
+                    from.hash = hdr.compute_hash();
+                    from.date = hdr.get_blockdate();
+                    //inclusive = false;
+                }
+
+                from.date = BlockDate::Genesis(epoch + 1);
+                //inclusive = true;
+            }
+
+            else {
+                // FIXME: fetch the remaining blocks
+                break;
+            }
+        }
     }
-    */
 }
