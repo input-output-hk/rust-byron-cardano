@@ -63,6 +63,10 @@ fn main() {
                     .default_value("mainnet")
                     .possible_values(&["mainnet", "testnet"])
                 )
+                .arg(Arg::with_name("no-sync")
+                    .long("no-sync")
+                    .help("disable synchronizing with the upstream network")
+                )
         )
         .get_matches();
 
@@ -94,6 +98,8 @@ fn main() {
 
                 cfg.add_network(template, &net_cfg).unwrap();
             }
+
+            cfg.sync = !args.is_present("no-sync");
 
             info!("Starting {}-{}", crate_name!(), crate_version!());
             service::start(cfg);

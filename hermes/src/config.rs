@@ -39,7 +39,8 @@ type Result<T> = result::Result<T, Error>;
 pub struct Config {
     pub root_dir: PathBuf,
     pub port: u16,
-    pub network_names: HashSet<String>
+    pub network_names: HashSet<String>,
+    pub sync: bool,
 }
 
 impl Default for Config {
@@ -54,7 +55,8 @@ impl Config {
         Config {
             root_dir: root_dir,
             port: port,
-            network_names: HashSet::new()
+            network_names: HashSet::new(),
+            sync: true,
         }
     }
 

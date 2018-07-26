@@ -11,7 +11,7 @@ use net;
 static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
 
 pub fn start(cfg: Config) {
-    let _refresher = start_networks_refresher(cfg.clone());
+    let _refresher = if cfg.sync { Some(start_networks_refresher(cfg.clone())) } else { None };
     let _server = start_http_server(&cfg, Arc::new(cfg.get_networks().unwrap()));
 
     // XXX: consider installing a signal handler to initiate a graceful shutdown here
