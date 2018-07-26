@@ -107,25 +107,11 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     }
 }
 
-pub fn net_sync_http(network: String, storage: storage::Storage) {
-    let netcfg_file = storage.config.get_config_file();
-    let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-    let mut net = get_http_peer(network, &net_cfg);
-    net_sync(&mut net, &net_cfg, storage)
-}
-
-pub fn net_sync_native(network: String, storage: storage::Storage) {
-    let netcfg_file = storage.config.get_config_file();
-    let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-    let mut net = get_native_peer(network, &net_cfg);
-    net_sync(&mut net, &net_cfg, storage)
-}
-
-pub fn get_http_peer(blockchain: String, cfg: &net::Config) -> Peer {
+pub fn get_peer(blockchain: &str, cfg: &net::Config, native: bool) -> Peer {
     for peer in cfg.peers.iter() {
-        if peer.is_http() {
+        if (native && peer.is_native()) || (!native && peer.is_http()) {
             return Peer::new(
-                blockchain,
+                String::from(blockchain),
                 peer.name().to_owned(),
                 peer.peer().clone(),
                 cfg.protocol_magic,
@@ -133,20 +119,5 @@ pub fn get_http_peer(blockchain: String, cfg: &net::Config) -> Peer {
         }
     }
 
-    panic!("no http peer to connect to")
-}
-
-pub fn get_native_peer(blockchain: String, cfg: &net::Config) -> Peer {
-    for peer in cfg.peers.iter() {
-        if peer.is_native() {
-            return Peer::new(
-                blockchain,
-                peer.name().to_owned(),
-                peer.peer().clone(),
-                cfg.protocol_magic,
-            ).unwrap();
-        }
-    }
-
-    panic!("no native peer to connect to")
+    panic!("no peer to connect to")
 }

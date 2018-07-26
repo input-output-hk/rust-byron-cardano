@@ -38,14 +38,16 @@ impl HasCommand for Blockchain {
                         .possible_values(&["mainnet", "testnet"]).default_value("mainnet"))
                 .arg(blockchain_name_arg(1))
             )
-            .subcommand(SubCommand::with_name("get-block-header")
+            .subcommand(SubCommand::with_name("get-tip")
+                .about("show the remote tip")
                 .arg(blockchain_name_arg(1))
-                .about("get a given block header. (deprecated will be replaced soon).")
+                .arg(Arg::with_name("native").long("native").help("use native protocol rather than HTTP"))
             )
             .subcommand(SubCommand::with_name("get-block")
-                .about("get a given block (deprecated will be replaced soon).")
+                .about("get a given block from remote")
                 .arg(blockchain_name_arg(1))
                 .arg(Arg::with_name("blockid").help("hexadecimal encoded block id").index(2).required(true))
+                .arg(Arg::with_name("native").long("native").help("use native protocol rather than HTTP"))
             )
             .subcommand(SubCommand::with_name("sync")
                 .about("get the next block repeatedly (deprecated will be replaced soon).")
@@ -138,13 +140,12 @@ impl HasCommand for Blockchain {
                 let network_file = storage_config.get_config_file();
                 net_cfg.to_file(&network_file)
             },
-            ("get-block-header", Some(opts)) => {
+            ("get-tip", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = sync::get_native_peer(config.network, &net_cfg);
-                let mbh = net.get_tip().unwrap();
-                println!("prv block header: {}", mbh.get_previous_header());
+                let mbh = sync::get_peer(&config.network, &net_cfg, opts.is_present("native")).get_tip().unwrap();
+                println!("tip: {} {}", mbh, mbh.get_blockdate());
             },
             ("get-block", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
@@ -153,17 +154,22 @@ impl HasCommand for Blockchain {
                 let hh = block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
                 let netcfg_file = config.get_storage_config().get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                let mut net = sync::get_native_peer(config.network.clone(), &net_cfg);
-                let b = net.get_block(hh.clone()).unwrap().decode().unwrap();
+                let b = sync::get_peer(&config.network, &net_cfg, opts.is_present("native"))
+                    .get_block(hh.clone()).unwrap().decode().unwrap();
                 let storage = config.get_storage().unwrap();
+                println!("got block: {}", b);
                 blob::write(&storage, hh.bytes(), &cbor!(&b).unwrap()).unwrap();
             },
             ("sync", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
-                match opts.is_present("native") {
-                    true => sync::net_sync_native(config.network.clone(), config.get_storage().unwrap()),
-                    false => sync::net_sync_http(config.network.clone(), config.get_storage().unwrap())
-                }
+                let netcfg_file = config.get_storage_config().get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                sync::net_sync(
+                    &mut sync::get_peer(
+                        &config.network,
+                        &net_cfg,
+                        opts.is_present("native")),
+                    &net_cfg, config.get_storage().unwrap())
             },
             ("debug-index", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
