@@ -189,20 +189,20 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
             let name = blockchain_argument_name_match(&matches);
             let net_config = blockchain_argument_template_match(&matches);
 
-            blockchain::command_new(term, root_dir, name, net_config);
+            blockchain::commands::new(term, root_dir, name, net_config);
         },
         ("remote-add", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
             let alias = blockchain_argument_remote_alias_match(&matches);
             let endpoint = blockchain_argument_remote_endpoint_match(&matches);
 
-            blockchain::command_remote_add(term, root_dir, name, alias, endpoint);
+            blockchain::commands::remote_add(term, root_dir, name, alias, endpoint);
         },
         ("remote-rm", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
             let alias = blockchain_argument_remote_alias_match(&matches);
 
-            blockchain::command_remote_rm(term, root_dir, name, alias);
+            blockchain::commands::remote_rm(term, root_dir, name, alias);
         },
         _ => {
             term.error(matches.usage()).unwrap();
@@ -384,18 +384,18 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
             let mnemonic_length = wallet_argument_mnemonic_size_match(&matches);
             let mnemonic_langs  = wallet_argument_mnemonic_language_match(&matches);
 
-            wallet::command_new(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, mnemonic_langs);
+            wallet::commands::new(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, mnemonic_langs);
         },
         ("attach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
             let blockchain = blockchain_argument_name_match(&matches);
 
-            wallet::command_attach(term, root_dir, name, blockchain);
+            wallet::commands::attach(term, root_dir, name, blockchain);
         },
         ("detach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
 
-            wallet::command_detach(term, root_dir, name);
+            wallet::commands::detach(term, root_dir, name);
         },
         _ => {
             term.error(matches.usage()).unwrap();
