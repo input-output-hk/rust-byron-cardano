@@ -77,6 +77,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
             &storage, epoch_id, &mut writer, &our_tip.0.hash);
 
         cur_epoch_state = Some((epoch_id, writer, epoch_time_start));
+        last_block = Some(our_tip.0.hash.clone());
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
