@@ -67,8 +67,8 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     // If our tip is in an epoch that has become stable, we now need
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
-    if our_tip.0.date.get_epochid() < first_unstable_epoch {
-
+    if our_tip.0.date.get_epochid() < first_unstable_epoch && our_tip != genesis_ref
+    {
         let epoch_id = our_tip.0.date.get_epochid();
         let mut writer = storage::pack::PackWriter::init(&storage.config);
         let epoch_time_start = SystemTime::now();
