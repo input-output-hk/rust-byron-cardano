@@ -384,18 +384,18 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
             let mnemonic_length = wallet_argument_mnemonic_size_match(&matches);
             let mnemonic_langs  = wallet_argument_mnemonic_language_match(&matches);
 
-            wallet::command_new(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, mnemonic_langs);
+            wallet::commands::new(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, mnemonic_langs);
         },
         ("attach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
             let blockchain = blockchain_argument_name_match(&matches);
 
-            wallet::command_attach(term, root_dir, name, blockchain);
+            wallet::commands::attach(term, root_dir, name, blockchain);
         },
         ("detach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
 
-            wallet::command_detach(term, root_dir, name);
+            wallet::commands::detach(term, root_dir, name);
         },
         _ => {
             term.error(matches.usage()).unwrap();
