@@ -68,6 +68,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
     if our_tip.0.date.get_epochid() < first_unstable_epoch && our_tip != genesis_ref
+        && !epoch_exists(&storage, our_tip.0.date.get_epochid())
     {
         let epoch_id = our_tip.0.date.get_epochid();
         let mut writer = storage::pack::PackWriter::init(&storage.config);
@@ -132,9 +133,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
 // disk.
 fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block: &HeaderHash)
 {
-    // FIXME: epoch_read() is a bit inefficient here; we really only
-    // want to know if it exists.
-    if storage::epoch::epoch_read(&storage.config, epoch_id).is_ok() { return }
+    if epoch_exists(&storage, epoch_id) { return }
 
     info!("Packing epoch {}", epoch_id);
 
@@ -146,6 +145,14 @@ fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block:
     finish_epoch(storage, epoch_id, &mut writer, &epoch_time_start);
 
     // TODO: delete the blocks from disk?
+}
+
+// Check whether an epoch pack exists on disk.
+fn epoch_exists(storage: &storage::Storage, epoch_id: EpochId) -> bool
+{
+    // FIXME: epoch_read() is a bit inefficient here; we really only
+    // want to know if it exists.
+    storage::epoch::epoch_read(&storage.config, epoch_id).is_ok()
 }
 
 fn append_blocks_to_epoch_reverse(
