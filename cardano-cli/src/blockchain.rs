@@ -2,10 +2,11 @@ use std::path::PathBuf;
 
 pub use exe_common::config::net::{Config, Peer, Peers};
 use storage::{tag, Storage, config::{StorageConfig}};
+use cardano::block;
 
 use utils::term::Term;
 
-fn blockchain_directory( root_dir: PathBuf
+pub fn blockchain_directory( root_dir: PathBuf
                        , name: &str
                        ) -> PathBuf
 {
@@ -51,7 +52,7 @@ pub fn command_remote_rm( mut term: Term
     term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
 }
 
-struct Blockchain {
+pub struct Blockchain {
     name: String,
     storage_config: StorageConfig,
     storage: Storage,
@@ -80,7 +81,7 @@ impl Blockchain {
             config,
         }
     }
-    fn load(root_dir: PathBuf, name: String) -> Self {
+    pub fn load(root_dir: PathBuf, name: String) -> Self {
         let dir = blockchain_directory(root_dir, &name);
         let storage_config = StorageConfig::new(&dir);
         let storage = Storage::init(&storage_config).unwrap();
@@ -108,6 +109,15 @@ impl Blockchain {
     fn remove_peer(&mut self, remote_alias: String) {
         self.config.peers = self.config.peers.iter().filter(|np| np.name() != remote_alias).cloned().collect();
         let tag = format!("remote/{}", remote_alias);
+        tag::remove_tag(&self.storage, &tag);
+    }
+    pub fn get_genesis(&self) -> &block::HeaderHash { &self.config.genesis }
+    pub fn set_wallet_tag(&self, wallet_name: &str, hh: &block::HeaderHash) {
+        let tag = format!("wallet/{}", wallet_name);
+        tag::write_hash(&self.storage, &tag, hh)
+    }
+    pub fn remove_wallet_tag(&self, wallet_name: &str) {
+        let tag = format!("wallet/{}", wallet_name);
         tag::remove_tag(&self.storage, &tag);
     }
 }
