@@ -1,66 +1,24 @@
+pub mod config;
+pub mod commands;
+
 use std::path::PathBuf;
 
 pub use exe_common::config::net::{Config, Peer, Peers};
 use storage::{tag, Storage, config::{StorageConfig}};
 use cardano::block;
 
-use utils::term::Term;
-
-pub fn blockchain_directory( root_dir: PathBuf
-                       , name: &str
-                       ) -> PathBuf
-{
-    root_dir.join("blockchains").join(name)
-}
-
-pub fn command_new( mut term: Term
-                  , root_dir: PathBuf
-                  , name: String
-                  , config: Config
-                  )
-{
-    let blockchain = Blockchain::new(root_dir, name.clone(), config);
-    blockchain.save();
-
-    term.success(&format!("local blockchain `{}' created.\n", &name)).unwrap();
-}
-
-pub fn command_remote_add( mut term: Term
-                         , root_dir: PathBuf
-                         , name: String
-                         , remote_alias: String
-                         , remote_endpoint: String
-                         )
-{
-    let mut blockchain = Blockchain::load(root_dir, name);
-    blockchain.add_peer(remote_alias.clone(), remote_endpoint);
-    blockchain.save();
-
-    term.success(&format!("remote `{}' node added to blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
-}
-
-pub fn command_remote_rm( mut term: Term
-                        , root_dir: PathBuf
-                        , name: String
-                        , remote_alias: String
-                        )
-{
-    let mut blockchain = Blockchain::load(root_dir, name);
-    blockchain.remove_peer(remote_alias.clone());
-    blockchain.save();
-
-    term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
-}
-
+/// handy structure to use to manage and orginise a blockchain
+///
 pub struct Blockchain {
-    name: String,
-    storage_config: StorageConfig,
-    storage: Storage,
-    config: Config,
+    pub name: String,
+    pub storage_config: StorageConfig,
+    pub storage: Storage,
+    pub config: Config,
 }
 impl Blockchain {
-    fn new(root_dir: PathBuf, name: String, config: Config) -> Self {
-        let dir = blockchain_directory(root_dir, &name);
+    /// create the new blockhain with the given setting
+    pub fn new(root_dir: PathBuf, name: String, config: Config) -> Self {
+        let dir = config::directory(root_dir, &name);
         let storage_config = StorageConfig::new(&dir);
 
         let storage = Storage::init(&storage_config).unwrap();
@@ -81,8 +39,10 @@ impl Blockchain {
             config,
         }
     }
+
+    /// load the blockchain
     pub fn load(root_dir: PathBuf, name: String) -> Self {
-        let dir = blockchain_directory(root_dir, &name);
+        let dir = config::directory(root_dir, &name);
         let storage_config = StorageConfig::new(&dir);
         let storage = Storage::init(&storage_config).unwrap();
 
@@ -96,22 +56,28 @@ impl Blockchain {
             config
         }
     }
-    fn save(&self) {
+
+    /// save the blockchain settings
+    pub fn save(&self) {
         self.config.to_file(self.storage_config.get_config_file());
     }
-    fn add_peer(&mut self, remote_alias: String, remote_endpoint: String) {
+
+    /// add a peer to the blockchain
+    pub fn add_peer(&mut self, remote_alias: String, remote_endpoint: String) {
         let peer = Peer::new(remote_endpoint);
         self.config.peers.push(remote_alias.clone(), peer);
 
         let tag = format!("remote/{}", remote_alias);
         tag::write_hash(&self.storage, &tag, &self.config.genesis)
     }
-    fn remove_peer(&mut self, remote_alias: String) {
+
+    /// remove a peer from the blockchain
+    pub fn remove_peer(&mut self, remote_alias: String) {
         self.config.peers = self.config.peers.iter().filter(|np| np.name() != remote_alias).cloned().collect();
         let tag = format!("remote/{}", remote_alias);
         tag::remove_tag(&self.storage, &tag);
     }
-    pub fn get_genesis(&self) -> &block::HeaderHash { &self.config.genesis }
+
     pub fn set_wallet_tag(&self, wallet_name: &str, hh: &block::HeaderHash) {
         let tag = format!("wallet/{}", wallet_name);
         tag::write_hash(&self.storage, &tag, hh)

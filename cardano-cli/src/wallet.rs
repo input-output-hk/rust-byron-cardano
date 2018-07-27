@@ -1,13 +1,13 @@
 use std::{path::PathBuf, fs, io::{Read, Write}};
 use cardano::{hdwallet::{self, DerivationScheme}, wallet, bip::bip39};
-use storage::{self, tmpfile::{TmpFile}};
+use storage::{tmpfile::{TmpFile}};
 use serde_yaml;
 use rand::random;
 
 use utils::term::Term;
 use utils::password_encrypted::{self, Password};
 
-use blockchain::{Blockchain, blockchain_directory};
+use blockchain::{self, Blockchain};
 
 fn wallet_directory( root_dir: PathBuf
                    , name: &str
@@ -94,7 +94,7 @@ pub fn command_attach( mut term: Term
     }
 
     // 2. check the blockchain exists
-    let blockchain_dir = blockchain_directory(root_dir.clone(), &blockchain_name);
+    let blockchain_dir = blockchain::config::directory(root_dir.clone(), &blockchain_name);
     if let Err(err) = ::std::fs::read_dir(blockchain_dir) {
         term.error(&format!("Blockchain `{}' does not exists or you do not have user permissions", blockchain_name)).unwrap();
         ::std::process::exit(2);
@@ -106,7 +106,7 @@ pub fn command_attach( mut term: Term
     wallet.save();
 
     // 4. set the wallet state tag to the genesis of the blockchain
-    blockchain.set_wallet_tag(&wallet.name, blockchain.get_genesis());
+    blockchain.set_wallet_tag(&wallet.name, &blockchain.config.genesis);
 
     term.success("Wallet successfully attached to blockchain.").unwrap()
 }
