@@ -413,11 +413,12 @@ pub mod command {
     use super::{LightId, Connection};
     use cardano;
     use packet;
+    use cbor_event::de::RawCbor;
 
     pub trait Command<W: Read+Write> {
         type Output;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str>;
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str>;
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String>;
 
         fn initial(&self, connection: &mut Connection<W>) -> Result<LightId, &'static str> {
             let id = connection.get_free_light_id();
@@ -426,7 +427,7 @@ pub mod command {
             connection.new_light_connection(id).unwrap();
             Ok(id)
         }
-        fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output, &'static str> {
+        fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output, String> {
             let id = Command::initial(self, connection)?;
 
             Command::command(self, connection, id)?;
@@ -466,20 +467,23 @@ pub mod command {
             connection.send_bytes(id, &get_header_dat[..]).unwrap();
             Ok(())
         }
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
             // require the initial header
             let dat = connection.wait_msg(id).unwrap();
             match decode_sum_type(&dat) {
-                None => Err("message block decoder failed with something unexpected"),
-                Some((sumval, dat)) => {
-                    if sumval == 0 {
-                        let mut v = Vec::new();
-                        v.extend_from_slice(dat);
-                        Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
-                    } else {
-                        Err("message block decoder failed with something unexpected")
-                    }
+                None => Err(String::from("message block decoder failed with something unexpected")),
+                Some((0, dat)) => {
+                    let mut v = Vec::new();
+                    v.extend_from_slice(dat);
+                    Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                 },
+                Some((1, dat)) => {
+                    Err(format!("server returned an error for GetHeaders: {}",
+                                RawCbor::from(dat).text().unwrap()))
+                },
+                Some((_n, _dat)) => {
+                    Err(String::from("message block decoder failed with something unexpected"))
+                }
             }
         }
     }
@@ -520,7 +524,7 @@ pub mod command {
             Ok(())
         }
 
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, &'static str> {
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
             let msg_response = connection.wait_msg_eos(id).unwrap();
             let mut msgs = Vec::new();
             for response in msg_response.iter() {

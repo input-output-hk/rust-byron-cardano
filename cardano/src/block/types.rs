@@ -125,7 +125,7 @@ impl fmt::Display for ChainDifficulty {
 
 pub type EpochId = u32;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotId {
     pub epoch: EpochId,
     pub slotid: u32,

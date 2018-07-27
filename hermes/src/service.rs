@@ -6,11 +6,12 @@ use router::Router;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use net;
 
 static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
 
 pub fn start(cfg: Config) {
-    let _refresher = start_networks_refresher(cfg.clone());
+    let _refresher = if cfg.sync { Some(start_networks_refresher(cfg.clone())) } else { None };
     let _server = start_http_server(&cfg, Arc::new(cfg.get_networks().unwrap()));
 
     // XXX: consider installing a signal handler to initiate a graceful shutdown here
@@ -56,7 +57,11 @@ fn refresh_networks(networks: Networks) {
                 "Refresh for network {} failed: Unable to access storage",
                 label
             ),
-            Ok(storage) => sync::net_sync_fast(label, storage),
+            Ok(storage) => {
+                let netcfg_file = storage.config.get_config_file();
+                let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
+                sync::net_sync(&mut sync::get_peer(&label, &net_cfg, true), &net_cfg, storage)
+            }
         }
     }
 }

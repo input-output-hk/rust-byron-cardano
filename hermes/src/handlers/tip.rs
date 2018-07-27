@@ -1,5 +1,5 @@
 use config::{Networks};
-use storage::{block_location, block_read_location};
+use storage::{block_location, block_read_location, Error, tag};
 use std::sync::{Arc};
 
 use iron;
@@ -29,8 +29,7 @@ impl Handler {
 impl iron::Handler for Handler {
     // XXX
     //
-    // The current implementation of the TIP handler is to look for the latest epoch
-    // and to extract its latest block
+    // The current implementation of the TIP handler is to look for the HEAD tag
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let ref network_name = req.extensions.get::<router::Router>().unwrap().find("network").unwrap();
 
@@ -44,29 +43,15 @@ impl iron::Handler for Handler {
         };
         let net_cfg = &net.config;
 
-        let hh =
-            match find_earliest_epoch(&net.storage, net_cfg.epoch_start, 100) {
-                None => return Ok(Response::with((status::NotFound, "No Tip To Serve"))),
-                Some((_, packhash)) =>
-                    get_last_blockid(&net.storage.config, &packhash).unwrap(),
-            };
-
-        match block_location(&net.storage, hh.bytes()) {
-            None => {
-                warn!("block `{}' does not exist", hh);
-                Ok(Response::with((status::NotFound, "Not Found")))
+        match net.storage.get_block_from_tag(&tag::HEAD) {
+            Err(Error::NoSuchTag) =>
+                Ok(Response::with((status::NotFound, "No Tip To Serve"))),
+            Err(err) => {
+                error!("error while reading block: {:?}", err);
+                Ok(Response::with(status::InternalServerError))
             },
-            Some(loc) => {
-                debug!("blk location: {:?}", loc);
-                match block_read_location(&net.storage, &loc, hh.bytes()) {
-                    None        => {
-                        error!("error while reading block at location: {:?}", loc);
-                        Ok(Response::with(status::InternalServerError))
-                    },
-                    Some(rblk) => {
-                        Ok(Response::with((status::Ok, rblk.to_header().as_ref())))
-                    }
-                }
+            Ok(block) => {
+                Ok(Response::with((status::Ok, block.get_header().to_raw().as_ref())))
             }
         }
     }

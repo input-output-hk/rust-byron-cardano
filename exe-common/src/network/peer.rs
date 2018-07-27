@@ -1,9 +1,8 @@
 use config;
 use network::{native, Result, hermes};
-use network::api::{*};
+use network::api::{*, BlockRef};
 use cardano::config::{ProtocolMagic};
-use cardano::block::{BlockHeader, Block, HeaderHash};
-use storage::{Storage};
+use cardano::block::{Block, BlockHeader, RawBlock, HeaderHash};
 
 /// network object to handle a peer connection and redirect to constructing
 /// the appropriate network protocol object (native, http...)
@@ -31,17 +30,19 @@ impl Api for Peer {
         }
     }
 
-    fn get_block(&mut self, hash: HeaderHash) -> Result<Block> {
+    fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self {
             Peer::Native(peer)   => peer.get_block(hash),
             Peer::Http(endpoint) => endpoint.get_block(hash),
         }
     }
 
-    fn fetch_epoch(&mut self, config: &config::net::Config, storage: &mut Storage, fep: FetchEpochParams) -> Result<FetchEpochResult> {
+    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
+                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    {
         match self {
-            Peer::Native(peer)   => peer.fetch_epoch(config, storage, fep),
-            Peer::Http(endpoint) => endpoint.fetch_epoch(config, storage, fep),
+            Peer::Native(peer)   => peer.get_blocks(from, inclusive, to, got_block),
+            Peer::Http(endpoint) => endpoint.get_blocks(from, inclusive, to, got_block),
         }
     }
 }
