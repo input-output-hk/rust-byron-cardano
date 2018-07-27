@@ -7,6 +7,8 @@ use rand::random;
 use utils::term::Term;
 use utils::password_encrypted::{self, Password};
 
+use blockchain::{Blockchain, blockchain_directory};
+
 fn wallet_directory( root_dir: PathBuf
                    , name: &str
                    ) -> PathBuf
@@ -74,6 +76,73 @@ pub fn command_new<D>( mut term: Term
     wallet.save();
 
     term.success(&format!("wallet `{}' successfully created.\n", &wallet.name)).unwrap();
+}
+
+pub fn command_attach( mut term: Term
+                     , root_dir: PathBuf
+                     , name: String
+                     , blockchain_name: String
+                     )
+{
+    // load the wallet
+    let mut wallet = Wallet::load(root_dir.clone(), name);
+
+    // 1. is the wallet already attached
+    if let Some(ref bn) = wallet.config.attached_blockchain {
+        term.error(&format!("Wallet already attached to blockchain `{}'\n", bn)).unwrap();
+        ::std::process::exit(1);
+    }
+
+    // 2. check the blockchain exists
+    let blockchain_dir = blockchain_directory(root_dir.clone(), &blockchain_name);
+    if let Err(err) = ::std::fs::read_dir(blockchain_dir) {
+        term.error(&format!("Blockchain `{}' does not exists or you do not have user permissions", blockchain_name)).unwrap();
+        ::std::process::exit(2);
+    }
+    let blockchain = Blockchain::load(root_dir, blockchain_name.clone());
+
+    // 3. save the attached wallet
+    wallet.config.attached_blockchain = Some(blockchain_name);
+    wallet.save();
+
+    // 4. set the wallet state tag to the genesis of the blockchain
+    blockchain.set_wallet_tag(&wallet.name, blockchain.get_genesis());
+
+    term.success("Wallet successfully attached to blockchain.").unwrap()
+}
+
+pub fn command_detach( mut term: Term
+                     , root_dir: PathBuf
+                     , name: String
+                     )
+{
+    // load the wallet
+    let mut wallet = Wallet::load(root_dir.clone(), name);
+
+    // 1. get the wallet's blockchain
+    let blockchain = match wallet.config.attached_blockchain {
+        None => {
+            term.error("Wallet is not attached to any blockchain\n").unwrap();
+            ::std::process::exit(1);
+        },
+        Some(blockchain) => {
+            Blockchain::load(root_dir, blockchain)
+        }
+    };
+
+    // 2. remove the wallet tag
+    blockchain.remove_wallet_tag(&wallet.name);
+
+    // 3. remove the blockchain name from the wallet config
+    wallet.config.attached_blockchain = None;
+
+    // TODO: clear the wallet log too, we are not linked to any blockchain
+    //       we cannot keep UTxO or other logs associated to a blockchain
+    //       as it may not be compatible with the next attached blockchain
+
+    wallet.save();
+
+    term.success("Wallet successfully attached to blockchain.").unwrap()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
