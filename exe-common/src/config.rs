@@ -6,7 +6,7 @@ pub mod net {
     use serde_yaml;
     use serde;
 
-    const DEFAULT_EPOCH_STABILITY_DEPTH : u32 = 2160;
+    const DEFAULT_EPOCH_STABILITY_DEPTH : usize = 2160;
 
 
     /// A blockchain may have multiple Peer of different kind. Here we define the list
@@ -194,7 +194,7 @@ pub mod net {
     pub struct Config {
         pub genesis: HeaderHash,
         pub genesis_prev: HeaderHash,
-        pub epoch_stability_depth: u32,
+        pub epoch_stability_depth: usize,
         pub protocol_magic: ProtocolMagic,
         pub epoch_start: EpochId,
         pub peers: Peers

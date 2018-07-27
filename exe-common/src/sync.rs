@@ -56,7 +56,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     let first_unstable_epoch = tip.date.get_epochid() -
         match tip.date {
             BlockDate::Genesis(_) => 1,
-            BlockDate::Normal(d) => if d.slotid <= net_cfg.epoch_stability_depth { 1 } else { 0 }
+            BlockDate::Normal(d) => if d.slotid as usize <= net_cfg.epoch_stability_depth { 1 } else { 0 }
         };
     info!("First unstable epoch : {}", first_unstable_epoch);
 
