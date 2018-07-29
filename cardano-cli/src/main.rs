@@ -3,6 +3,8 @@ use std::path::PathBuf;
 extern crate dirs;
 extern crate cardano_cli;
 extern crate cardano;
+extern crate log;
+extern crate env_logger;
 
 use self::cardano_cli::utils::term;
 use self::cardano_cli::{blockchain, wallet, debug};
@@ -13,6 +15,10 @@ use clap::{Arg, App, SubCommand, ArgMatches};
 
 fn main() {
     let default_root_dir = get_default_root_dir();
+
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .init();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -204,6 +210,12 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::remote_rm(term, root_dir, name, alias);
         },
+        ("remote-fetch", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let peers = values_t!(matches, "BLOCKCHAIN_REMOTE_ALIAS", String).unwrap_or_else(|_| Vec::new());
+
+            blockchain::commands::remote_fetch(term, root_dir, name, peers);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -234,6 +246,7 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(blockchain_argument_name_definition())
             .arg(blockchain_argument_remote_alias_definition()
                 .multiple(true) // we want to accept multiple aliases here too
+                .required(false) // we allow user not to set any values here
             )
         )
         .subcommand(SubCommand::with_name("forward")
