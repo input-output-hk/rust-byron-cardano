@@ -4,7 +4,6 @@ extern crate cryptoxide;
 extern crate cbor_event;
 extern crate cardano;
 extern crate rand;
-extern crate flate2;
 
 pub mod block;
 pub mod types;
@@ -16,7 +15,6 @@ pub mod refpack;
 pub mod tmpfile;
 pub mod lock;
 pub mod append;
-mod compression;
 mod bitmap;
 mod bloom;
 use std::{fs, io, result};
@@ -29,8 +27,6 @@ use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 
 use types::*;
 use tmpfile::*;
-
-const USE_COMPRESSION : bool = true;
 
 #[derive(Debug)]
 pub enum Error {
@@ -132,15 +128,14 @@ fn tmpfile_create_type(storage: &Storage, filetype: StorageFileType) -> TmpFile 
 
 pub mod blob {
     use std::fs;
-    use std::io::{Read};
+    use std::io::{Read,Write};
     use super::{Result, Error};
-    use compression;
     use cardano::block::RawBlock;
 
     pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
         let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Blob);
-        compression::compress_write(&mut tmp_file, block)?;
+        tmp_file.write_all(block)?;
         tmp_file.render_permanent(&path).map_err(|e| Error::IoError(e))
     }
 
@@ -160,7 +155,7 @@ pub mod blob {
         let mut file = fs::File::open(path)?;
         file.read_to_end(&mut content)?;
 
-        Ok(RawBlock::from_dat(compression::decompress_conditional(content.as_ref())))
+        Ok(RawBlock::from_dat(content))
     }
 
     pub fn exist(storage: &super::Storage, hash: &super::BlockHash) -> bool {

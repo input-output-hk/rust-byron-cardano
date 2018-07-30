@@ -37,7 +37,6 @@ use cryptoxide::digest::Digest;
 use types::HASH_SIZE;
 use bloom;
 use types::BlockHash;
-use compression;
 use cardano;
 
 const MAGIC : &[u8] = b"ADAPACK1";
@@ -368,7 +367,7 @@ pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<cardano::block::R
 pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> io::Result<cardano::block::RawBlock> {
     file.seek(SeekFrom::Start(ofs))?;
     let v = read_block_raw_next(file)?;
-    Ok(cardano::block::RawBlock::from_dat(compression::decompress_conditional(v.as_ref())))
+    Ok(v)
 }
 
 // A Writer for a specific pack that accumulate some numbers for reportings,
@@ -419,8 +418,7 @@ impl PackWriter {
     }
 
     pub fn append(&mut self, blockhash: &super::BlockHash, block: &[u8]) {
-        let compressed_block = compression::compress_conditional(block);
-        self.append_raw(blockhash, &compressed_block[..])
+        self.append_raw(blockhash, block)
     }
 
     pub fn finalize(&mut self) -> (super::PackHash, Index) {
@@ -458,13 +456,12 @@ impl RawBufPackWriter {
             let read = {
                 let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
                 match read_block_raw_next(&mut reader) {
-                    Ok(rblock) => {
-                        let block = cardano::block::RawBlock::from_dat(compression::decompress_conditional(rblock.as_ref()));
+                    Ok(block) => {
                         let blk = block.decode().unwrap();
                         info!("  - block {}", blk.get_header().get_slotid());
-                        self.writer.append(blk.get_header().compute_hash().bytes(), rblock.as_ref());
+                        let len = block.as_ref().len();
+                        self.writer.append(blk.get_header().compute_hash().bytes(), block.as_ref());
                         self.last = Some(block);
-                        let len = rblock.as_ref().len();
                         let pad_sz = if len % 4 != 0 { 4 - len % 4 } else { 0 };
                         len + pad_sz + SIZE_SIZE
                     },
@@ -535,7 +532,7 @@ impl<R: Read> PackReader<R> {
             Ok(block_raw) => {
                 self.hash_context.input(block_raw.as_ref());
                 self.pos += 4 + align4(block_raw.as_ref().len() as u64);
-                Some(cardano::block::RawBlock::from_dat(compression::decompress_conditional(block_raw.as_ref())))
+                Some(block_raw)
             },
         }
     }
