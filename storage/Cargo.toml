@@ -9,4 +9,3 @@ cardano = { path = "../cardano" }
 cbor_event = { path = "../cbor_event" }
 log = "*"
 rand = "0.4"
-flate2 = "1.0.1"
