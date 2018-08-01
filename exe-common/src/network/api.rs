@@ -21,7 +21,7 @@ pub trait Api {
                     , inclusive: bool
                     , to: &BlockRef
                     , got_block: &mut F
-                    )
+                    ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
 }
 

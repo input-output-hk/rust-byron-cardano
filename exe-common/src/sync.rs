@@ -1,5 +1,5 @@
 use config::net;
-use network::{Peer, api::Api, api::BlockRef};
+use network::{Peer, api::Api, api::BlockRef, Result};
 use storage::{self, tag, Error, block_read};
 use cardano::block::{BlockDate, EpochId, HeaderHash};
 use cardano::util::{hex};
@@ -9,7 +9,12 @@ fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
 }
 
-pub fn net_sync<A: Api>(net: &mut A, net_cfg: &net::Config, storage: &storage::Storage) {
+pub fn net_sync<A: Api>(
+    net: &mut A,
+    net_cfg: &net::Config,
+    storage: &storage::Storage)
+    -> Result<()>
+{
     // recover and print the TIP of the network
     let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
@@ -120,13 +125,15 @@ pub fn net_sync<A: Api>(net: &mut A, net_cfg: &net::Config, storage: &storage::S
         }
 
         last_block = Some(block_hash.clone());
-    });
+    })?;
 
     // Update the tip tag to point to the most recent block.
     if let Some(block_hash) = last_block {
         storage::tag::write(&storage, &tag::HEAD,
                             &storage::types::header_to_blockhash(&block_hash));
     }
+
+    Ok(())
 }
 
 // Create an epoch from a complete set of previously fetched blocks on

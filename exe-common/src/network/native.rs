@@ -65,7 +65,7 @@ impl Api for PeerPool {
                     , inclusive: bool
                     , to: &BlockRef
                     , got_block: &mut F
-                    )
+                    ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         match self.connections.get_mut(0) {
@@ -138,7 +138,7 @@ impl Api for OpenPeer {
                     , inclusive: bool
                     , to: &BlockRef
                     , got_block: &mut F
-                    )
+                    ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         let mut inclusive = inclusive;
@@ -148,9 +148,9 @@ impl Api for OpenPeer {
             // FIXME: Work around a GetBlockHeader bug: it fails on
             // the interval (x.parent, x].
             if (inclusive && from.hash == to.hash) || (!inclusive && from.hash == to.parent) {
-                let block_raw = self.get_block(&to.hash).unwrap();
-                got_block(&to.hash, &block_raw.decode().unwrap(), &block_raw);
-                return;
+                let block_raw = self.get_block(&to.hash)?;
+                got_block(&to.hash, &block_raw.decode()?, &block_raw);
+                return Ok(());
             }
 
             if inclusive {
@@ -165,7 +165,7 @@ impl Api for OpenPeer {
                 &vec![from.hash.clone()], to.hash.clone())
                 .execute(&mut self.0).expect("to get one header at least");
             let hdr_metrics = self.read_elapsed(&metrics);
-            let block_headers = block_headers_raw.decode().unwrap();
+            let block_headers = block_headers_raw.decode()?;
             info!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
 
             assert!(!block_headers.is_empty());
@@ -197,7 +197,7 @@ impl Api for OpenPeer {
             assert!(!blocks_raw.is_empty());
 
             for block_raw in blocks_raw.iter() {
-                let block = block_raw.decode().unwrap();
+                let block = block_raw.decode()?;
                 let hdr = block.get_header();
                 let date = hdr.get_blockdate();
                 let blockhash = hdr.compute_hash();
@@ -219,5 +219,7 @@ impl Api for OpenPeer {
                 inclusive = false;
             }
         }
+
+        Ok(())
     }
 }
