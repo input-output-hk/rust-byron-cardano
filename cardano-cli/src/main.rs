@@ -21,6 +21,7 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
 
+        .arg(global_verbose_definition())
         .arg(global_quiet_definition())
         .arg(global_color_definition())
         .arg(global_rootdir_definition(&default_root_dir))
@@ -114,14 +115,32 @@ fn global_color_option<'a>(matches: &ArgMatches<'a>) -> term::ColorChoice {
         }
     }
 }
+fn global_verbose_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("VERBOSITY")
+        .long("verbose")
+        .short("v")
+        .multiple(true)
+        .global(true)
+        .help("set the verbosity mode, multiple occurrences means more verbosity")
+}
+fn global_verbose_option<'a>(matches: &ArgMatches<'a>) -> u64 {
+    matches.occurrences_of("VERBOSITY")
+}
 
 fn configure_terminal<'a>(matches: &ArgMatches<'a>) -> term::Config {
     let quiet = global_quiet_option(matches);
     let color = global_color_option(matches);
+    let verbosity = global_verbose_option(matches);
 
     if ! quiet {
+        let log_level = match verbosity {
+            0 => log::LevelFilter::Warn,
+            1 => log::LevelFilter::Info,
+            2 => log::LevelFilter::Debug,
+            _ => log::LevelFilter::Trace,
+        };
         env_logger::Builder::from_default_env()
-            .filter_level(log::LevelFilter::Info)
+            .filter_level(log_level)
             .init();
     }
 
