@@ -16,8 +16,13 @@ pub trait Api {
     /// inclusive = false) or [from, to] (if inclusive = true). FIXME:
     /// the inclusive = true case is only needed because the native
     /// protocol doesn't support fetching from the genesis_prev hash.
-    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
-                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ());
+    fn get_blocks<F>( &mut self
+                    , from: &BlockRef
+                    , inclusive: bool
+                    , to: &BlockRef
+                    , got_block: &mut F
+                    )
+        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
 }
 
 #[derive(Debug, Clone, PartialEq)]

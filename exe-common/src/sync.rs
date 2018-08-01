@@ -9,7 +9,7 @@ fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
 }
 
-pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: &storage::Storage) {
+pub fn net_sync<A: Api>(net: &mut A, net_cfg: &net::Config, storage: &storage::Storage) {
     // recover and print the TIP of the network
     let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
