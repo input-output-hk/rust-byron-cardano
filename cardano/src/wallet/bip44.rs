@@ -1,7 +1,7 @@
 /// BIP44 derivation scheme and address model
 ///
 
-use hdwallet::{Result, XPrv, XPub, DerivationScheme, DerivationIndex};
+use hdwallet::{Result, XPRV_SIZE, XPrv, XPub, DerivationScheme, DerivationIndex};
 use bip::bip44::{BIP44_PURPOSE, BIP44_COIN_TYPE, BIP44_SOFT_UPPER_BOUND};
 use bip::bip39;
 use tx::{TxId, TxInWitness};
@@ -10,6 +10,7 @@ use config::{ProtocolMagic};
 use std::{ops::Deref, collections::{BTreeMap}};
 
 use super::scheme::{self};
+use super::keygen;
 
 pub use bip::bip44::{self, AddrType, Addressing, Change, Index};
 
@@ -56,6 +57,7 @@ impl Wallet {
     /// We assume the [`MnemonicString`](../../bip/bip39/struct.MnemonicString.html)
     /// so we don't have to handle error in this constructor.
     ///
+    /// Prefer `from_entropy` unless BIP39 seed generation compatibility is needed.
     pub fn from_bip39_seed( seed: &bip39::Seed
                           , derivation_scheme: DerivationScheme
                           ) -> Self
@@ -70,6 +72,7 @@ impl Wallet {
     /// We assume the [`MnemonicString`](../../bip/bip39/struct.MnemonicString.html)
     /// so we don't have to handle error in this constructor.
     ///
+    /// Prefer `from_entropy` unless BIP39 seed generation compatibility is needed.
     pub fn from_bip39_mnemonics( mnemonics_phrase: &bip39::MnemonicString
                                , password: &[u8]
                                , derivation_scheme: DerivationScheme
@@ -78,6 +81,19 @@ impl Wallet {
         let seed = bip39::Seed::from_mnemonic_string(mnemonics_phrase, password);
 
         Wallet::from_bip39_seed(&seed, derivation_scheme)
+    }
+
+    /// Create a new wallet from a root entropy
+    ///
+    /// This is the recommended method to create a wallet from initial generated value.
+    ///
+    /// Note this method, doesn't put the bip39 dictionary used in the cryptographic data,
+    /// hence the way the mnemonics are displayed is independent of the language chosen.
+    pub fn from_entropy(entropy: &bip39::Entropy, password: &[u8], derivation_scheme: DerivationScheme) -> Self {
+        let mut seed = [0u8; XPRV_SIZE];
+        keygen::generate_seed(entropy, password, &mut seed);
+        let xprv = XPrv::normalize_bytes(seed);
+        Wallet::from_root_key(xprv, derivation_scheme)
     }
 
     pub fn derivation_scheme(&self) -> DerivationScheme { self.derivation_scheme }
