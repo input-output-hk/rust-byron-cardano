@@ -190,8 +190,6 @@ fn finish_epoch(storage: &storage::Storage, epoch_id : EpochId, writer : &mut st
 
     // TODO: should test that epoch <epoch_id - 1> exists.
 
-    storage::tag::write(&storage, &storage::tag::get_epoch_tag(epoch_id), &packhash[..]);
-
     storage::epoch::epoch_create(&storage.config, &packhash, epoch_id);
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
