@@ -1,5 +1,6 @@
 pub mod config;
 pub mod commands;
+mod peer;
 
 use std::path::PathBuf;
 

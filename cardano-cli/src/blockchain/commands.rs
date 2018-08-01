@@ -4,6 +4,7 @@ pub use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
 
 use utils::term::Term;
 
+use super::peer;
 use super::Blockchain;
 
 /// function to create and initialise a given new blockchain
@@ -78,26 +79,9 @@ pub fn remote_fetch( mut term: Term
         if peers.is_empty() || peers.contains(&np.name().to_owned()) {
             term.info(&format!("fetching blocks from peer: {}\n", np.name())).unwrap();
 
-            let peer_handshake = network::Peer::new(
-                blockchain.name.clone(),
-                np.name().to_owned(),
-                np.peer().clone(),
-                blockchain.config.protocol_magic
-            );
+            let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
 
-            let mut peer = match peer_handshake {
-                Err(err) => {
-                    term.warn(&format!("Unable to initiate handshake with peer {} ({})\n\t{:?}\n", np.name(), np.peer(), err)).unwrap();
-                    continue;
-                },
-                Ok(peer) => peer
-            };
-
-            sync::net_sync(
-                &mut peer,
-                &blockchain.config,
-                &blockchain.storage
-            );
+            peer.connect(&mut term).unwrap().sync(&mut term);
         }
     }
 }
