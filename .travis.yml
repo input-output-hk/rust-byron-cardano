@@ -3,6 +3,7 @@ cache: cargo
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+  - ./cardano-c/test.sh
 matrix:
   include:
     - rust: stable
