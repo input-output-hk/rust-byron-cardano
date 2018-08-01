@@ -16,10 +16,6 @@ use clap::{Arg, App, SubCommand, ArgMatches};
 fn main() {
     let default_root_dir = get_default_root_dir();
 
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
-        .init();
-
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -120,9 +116,18 @@ fn global_color_option<'a>(matches: &ArgMatches<'a>) -> term::ColorChoice {
 }
 
 fn configure_terminal<'a>(matches: &ArgMatches<'a>) -> term::Config {
+    let quiet = global_quiet_option(matches);
+    let color = global_color_option(matches);
+
+    if ! quiet {
+        env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
+
     term::Config {
-        color: global_color_option(matches),
-        quiet: global_quiet_option(matches)
+        color: color,
+        quiet: quiet
     }
 }
 
