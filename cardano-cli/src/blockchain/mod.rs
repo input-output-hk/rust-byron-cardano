@@ -64,17 +64,22 @@ impl Blockchain {
 
     /// add a peer to the blockchain
     pub fn add_peer(&mut self, remote_alias: String, remote_endpoint: String) {
-        let peer = Peer::new(remote_endpoint);
-        self.config.peers.push(remote_alias.clone(), peer);
+        let tag = self.mk_remote_tag(&remote_alias);
 
-        let tag = format!("remote/{}", remote_alias);
+        let peer = Peer::new(remote_endpoint);
+        self.config.peers.push(remote_alias, peer);
+
         tag::write_hash(&self.storage, &tag, &self.config.genesis)
+    }
+
+    pub fn mk_remote_tag(&self, remote: &str) -> String {
+        format!("remote/{}", remote)
     }
 
     /// remove a peer from the blockchain
     pub fn remove_peer(&mut self, remote_alias: String) {
         self.config.peers = self.config.peers.iter().filter(|np| np.name() != remote_alias).cloned().collect();
-        let tag = format!("remote/{}", remote_alias);
+        let tag = self.mk_remote_tag(&remote_alias);
         tag::remove_tag(&self.storage, &tag);
     }
 
