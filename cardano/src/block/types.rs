@@ -134,6 +134,9 @@ impl SlotId {
     pub fn next(&self) -> Self {
         SlotId { epoch: self.epoch, slotid: self.slotid + 1 }
     }
+    pub fn slot_number(&self) -> usize {
+        (self.epoch as usize) * 21600 + (self.slotid as usize)
+    }
 }
 impl fmt::Display for SlotId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -141,7 +144,12 @@ impl fmt::Display for SlotId {
     }
 }
 
-
+impl ::std::ops::Sub<SlotId> for SlotId {
+    type Output = usize;
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.slot_number() - rhs.slot_number()
+    }
+}
 
 // **************************************************************************
 // CBOR implementations
