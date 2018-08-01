@@ -169,7 +169,7 @@ impl HasCommand for Blockchain {
                         &config.network,
                         &net_cfg,
                         opts.is_present("native")),
-                    &net_cfg, config.get_storage().unwrap())
+                    &net_cfg, &config.get_storage().unwrap())
             },
             ("debug-index", Some(opts)) => {
                 let config = resolv_network_by_name(&opts);
