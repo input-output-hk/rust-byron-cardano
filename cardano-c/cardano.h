@@ -4,7 +4,6 @@
 
 typedef int cardano_result;
 
-
 /*********/
 /* BIP39 */
 /*********/
@@ -18,7 +17,8 @@ cardano_result cardano_bip39_encode(const unsigned char * const entropy_raw, uns
 typedef struct cardano_wallet cardano_wallet;
 typedef struct cardano_account cardano_account;
 
-cardano_wallet *cardano_wallet_new_from_seed(const unsigned char * const seed_ptr, unsigned int protocol_magic);
+cardano_wallet *cardano_wallet_new(const unsigned char * const entropy_ptr, unsigned long entropy_size,
+                                   const unsigned char * const password_ptr, unsigned long password_size);
 void cardano_wallet_delete(cardano_wallet *);
 
 cardano_account *cardano_account_create(cardano_wallet *wallet, const unsigned char *alias, unsigned int index);
