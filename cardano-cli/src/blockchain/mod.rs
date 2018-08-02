@@ -12,6 +12,7 @@ use cardano::block;
 ///
 pub struct Blockchain {
     pub name: String,
+    pub dir: PathBuf,
     pub storage_config: StorageConfig,
     pub storage: Storage,
     pub config: Config,
@@ -35,6 +36,7 @@ impl Blockchain {
 
         Blockchain {
             name,
+            dir,
             storage_config,
             storage,
             config,
@@ -52,6 +54,7 @@ impl Blockchain {
 
         Blockchain {
             name,
+            dir,
             storage_config,
             storage,
             config

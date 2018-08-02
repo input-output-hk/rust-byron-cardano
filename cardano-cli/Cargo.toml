@@ -17,6 +17,7 @@ serde_derive = "1.0"
 serde_yaml = "0.7"
 rpassword = "2.0"
 env_logger = "0.5.11"
+humantime = "1.1"
 cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
 exe-common = { path = "../exe-common" }

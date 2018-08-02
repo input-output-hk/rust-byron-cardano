@@ -85,3 +85,73 @@ pub fn remote_fetch( mut term: Term
         }
     }
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum RemoteDetail {
+    Short,
+    Local,
+    Remote
+}
+
+pub fn remote_ls( mut term: Term
+                , root_dir: PathBuf
+                , name: String
+                , detailed: RemoteDetail
+                )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+
+    for np in blockchain.peers() {
+        use exe_common::network::api::BlockRef;
+
+        let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
+        let (tip, _is_genesis) = peer.load_local_tip();
+
+        term.info(&format!("{}", peer.name)).unwrap();
+        term.simply(" (").unwrap();
+        term.success(&format!("{}", peer.config)).unwrap();
+        term.simply(")\n").unwrap();
+
+        if detailed >= RemoteDetail::Local {
+            let tag_path = blockchain.dir.join("tag").join(&peer.tag);
+            let metadata = ::std::fs::metadata(tag_path).unwrap();
+            let now = ::std::time::SystemTime::now();
+            let fetched_date = metadata.modified().unwrap();
+            // get the difference between now and the last fetch, only keep up to the seconds
+            let fetched_since = ::std::time::Duration::new(now.duration_since(fetched_date).unwrap().as_secs(), 0);
+
+            term.simply(" * last fetch:      ").unwrap();
+            term.info(&format!("{} ({} ago)", format_systemtime(fetched_date), format_duration(fetched_since))).unwrap();
+            term.simply("\n").unwrap();
+            term.simply(" * local tip hash:  ").unwrap();
+            term.success(&format!("{}", tip.hash)).unwrap();
+            term.simply("\n").unwrap();
+            term.simply(" * local tip date:  ").unwrap();
+            term.success(&format!("{}", tip.date)).unwrap();
+            term.simply("\n").unwrap();
+
+            if detailed >= RemoteDetail::Remote {
+                let mut connected_peer = peer.connect(&mut term).unwrap();
+                let remote_tip = connected_peer.query_tip();
+                let block_diff = remote_tip.date - tip.date;
+
+                term.simply(" * remote tip hash: ").unwrap();
+                term.warn(&format!("{}", remote_tip.hash)).unwrap();
+                term.simply("\n").unwrap();
+                term.simply(" * remote tip date: ").unwrap();
+                term.warn(&format!("{}", remote_tip.date)).unwrap();
+                term.simply("\n").unwrap();
+                term.simply(" * local is ").unwrap();
+                term.warn(&format!("{}", block_diff)).unwrap();
+                term.simply(" blocks behind remote\n").unwrap();
+            }
+        }
+    }
+}
+
+fn format_systemtime(time: ::std::time::SystemTime) -> String {
+    format!("{}", ::humantime::format_rfc3339(time)).chars().take(10).collect()
+}
+fn format_duration(duration: ::std::time::Duration) -> String {
+    format!("{}", ::humantime::format_duration(duration))
+}
