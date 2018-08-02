@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-pub use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
+use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
+use exe_common::network::api::BlockRef;
+
 
 use utils::term::Term;
 
@@ -102,8 +104,6 @@ pub fn remote_ls( mut term: Term
     let blockchain = Blockchain::load(root_dir, name);
 
     for np in blockchain.peers() {
-        use exe_common::network::api::BlockRef;
-
         let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
         let (tip, _is_genesis) = peer.load_local_tip();
 
@@ -154,4 +154,56 @@ fn format_systemtime(time: ::std::time::SystemTime) -> String {
 }
 fn format_duration(duration: ::std::time::Duration) -> String {
     format!("{}", ::humantime::format_duration(duration))
+}
+
+pub fn forward( mut term: Term
+              , root_dir: PathBuf
+              , name: String
+              , to: Option<String>
+              )
+{
+    let mut blockchain = Blockchain::load(root_dir, name);
+
+    let hash = if let Some(hash_hex) = to {
+        let hash = match ::cardano::util::hex::decode(&hash_hex) {
+            Ok(hash) => match ::cardano::block::HeaderHash::from_slice(hash.as_ref()) {
+                Err(err) => {
+                    debug!("invalid block hash: {}", err);
+                    term.error(&format!("invalid hash `{}': this is not a valid block hash\n", hash_hex)).unwrap();
+                    ::std::process::exit(1);
+                },
+                Ok(hash) => hash
+            },
+            Err(err) => {
+                debug!("invalid block hash: {:?}", err);
+                term.error(&format!("invalid hash `{}': invalid hexadecimal\n", hash_hex)).unwrap();
+                ::std::process::exit(1);
+            }
+        };
+
+        if ::storage::block_location(&blockchain.storage, hash.bytes()).is_none() {
+            term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_hex)).unwrap();
+            ::std::process::exit(1);
+        }
+
+        hash
+    } else {
+        let initial_tip = blockchain.load_tip().0;
+
+        let tip = blockchain.peers().map(|np| {
+            peer::Peer::prepare(&blockchain, np.name().to_owned()).load_local_tip().0
+        }).fold(initial_tip, |current_tip, tip| {
+            if tip.date > current_tip.date {
+                tip
+            } else {
+                current_tip
+            }
+        });
+
+        tip.hash
+    };
+
+    term.success(&format!("forward local tip to: {}\n", hash)).unwrap();
+
+    blockchain.save_tip(&hash)
 }
