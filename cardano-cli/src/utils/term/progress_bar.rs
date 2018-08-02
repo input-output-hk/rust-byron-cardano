@@ -38,7 +38,7 @@ impl<'a> Progress<'a> {
         bar.set_width(Some(term.width));
         bar.format("╢▌▌░╟");
         bar.show_speed = false;
-        bar.show_tick = true;
+        bar.show_tick = false;
         Progress {
             _term: term,
             bar: bar,

@@ -37,8 +37,13 @@ impl Api for Peer {
         }
     }
 
-    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
-                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    fn get_blocks<F>( &mut self
+                    , from: &BlockRef
+                    , inclusive: bool
+                    , to: &BlockRef
+                    , got_block: &mut F
+                    )
+        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         match self {
             Peer::Native(peer)   => peer.get_blocks(from, inclusive, to, got_block),

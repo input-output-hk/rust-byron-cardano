@@ -7,6 +7,8 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_yaml;
 extern crate rand;
+#[macro_use]
+extern crate log;
 
 pub mod utils;
 pub mod blockchain;

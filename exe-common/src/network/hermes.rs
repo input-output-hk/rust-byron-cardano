@@ -80,8 +80,13 @@ impl Api for HermesEndPoint {
         Ok(RawBlock::from_dat(block_raw))
     }
 
-    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
-                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    fn get_blocks<F>( &mut self
+                    , from: &BlockRef
+                    , inclusive: bool
+                    , to: &BlockRef
+                    , got_block: &mut F
+                    )
+        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         let mut inclusive = inclusive;
         let mut from = from.clone();

@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
-pub use exe_common::config::net::{Config, Peer, Peers};
+pub use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
 
 use utils::term::Term;
 
+use super::peer;
 use super::Blockchain;
 
 /// function to create and initialise a given new blockchain
@@ -64,4 +65,23 @@ pub fn remote_rm( mut term: Term
     blockchain.save();
 
     term.success(&format!("remote `{}' node removed from blockchain `{}'\n", remote_alias, blockchain.name)).unwrap();
+}
+
+pub fn remote_fetch( mut term: Term
+                   , root_dir: PathBuf
+                   , name: String
+                   , peers: Vec<String>
+                   )
+{
+    let mut blockchain = Blockchain::load(root_dir, name);
+
+    for np in blockchain.peers() {
+        if peers.is_empty() || peers.contains(&np.name().to_owned()) {
+            term.info(&format!("fetching blocks from peer: {}\n", np.name())).unwrap();
+
+            let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
+
+            peer.connect(&mut term).unwrap().sync(&mut term);
+        }
+    }
 }

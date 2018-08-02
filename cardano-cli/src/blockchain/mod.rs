@@ -1,9 +1,10 @@
 pub mod config;
 pub mod commands;
+mod peer;
 
 use std::path::PathBuf;
 
-pub use exe_common::config::net::{Config, Peer, Peers};
+pub use exe_common::{config::net::{self, Config, Peer, Peers}, network};
 use storage::{tag, Storage, config::{StorageConfig}};
 use cardano::block;
 
@@ -64,18 +65,29 @@ impl Blockchain {
 
     /// add a peer to the blockchain
     pub fn add_peer(&mut self, remote_alias: String, remote_endpoint: String) {
-        let peer = Peer::new(remote_endpoint);
-        self.config.peers.push(remote_alias.clone(), peer);
+        let tag = self.mk_remote_tag(&remote_alias);
 
-        let tag = format!("remote/{}", remote_alias);
+        let peer = Peer::new(remote_endpoint);
+        self.config.peers.push(remote_alias, peer);
+
         tag::write_hash(&self.storage, &tag, &self.config.genesis)
+    }
+
+    pub fn mk_remote_tag(&self, remote: &str) -> String {
+        format!("remote/{}", remote)
     }
 
     /// remove a peer from the blockchain
     pub fn remove_peer(&mut self, remote_alias: String) {
         self.config.peers = self.config.peers.iter().filter(|np| np.name() != remote_alias).cloned().collect();
-        let tag = format!("remote/{}", remote_alias);
+        let tag = self.mk_remote_tag(&remote_alias);
         tag::remove_tag(&self.storage, &tag);
+    }
+
+    pub fn peers<'a>(&'a self)
+        -> impl Iterator<Item = &'a net::NamedPeer>
+    {
+        self.config.peers.iter()
     }
 
     pub fn set_wallet_tag(&self, wallet_name: &str, hh: &block::HeaderHash) {

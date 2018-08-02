@@ -3,6 +3,8 @@ use std::path::PathBuf;
 extern crate dirs;
 extern crate cardano_cli;
 extern crate cardano;
+extern crate log;
+extern crate env_logger;
 
 use self::cardano_cli::utils::term;
 use self::cardano_cli::{blockchain, wallet, debug};
@@ -19,6 +21,7 @@ fn main() {
         .author(crate_authors!())
         .about(crate_description!())
 
+        .arg(global_verbose_definition())
         .arg(global_quiet_definition())
         .arg(global_color_definition())
         .arg(global_rootdir_definition(&default_root_dir))
@@ -112,11 +115,38 @@ fn global_color_option<'a>(matches: &ArgMatches<'a>) -> term::ColorChoice {
         }
     }
 }
+fn global_verbose_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("VERBOSITY")
+        .long("verbose")
+        .short("v")
+        .multiple(true)
+        .global(true)
+        .help("set the verbosity mode, multiple occurrences means more verbosity")
+}
+fn global_verbose_option<'a>(matches: &ArgMatches<'a>) -> u64 {
+    matches.occurrences_of("VERBOSITY")
+}
 
 fn configure_terminal<'a>(matches: &ArgMatches<'a>) -> term::Config {
+    let quiet = global_quiet_option(matches);
+    let color = global_color_option(matches);
+    let verbosity = global_verbose_option(matches);
+
+    if ! quiet {
+        let log_level = match verbosity {
+            0 => log::LevelFilter::Warn,
+            1 => log::LevelFilter::Info,
+            2 => log::LevelFilter::Debug,
+            _ => log::LevelFilter::Trace,
+        };
+        env_logger::Builder::from_default_env()
+            .filter_level(log_level)
+            .init();
+    }
+
     term::Config {
-        color: global_color_option(matches),
-        quiet: global_quiet_option(matches)
+        color: color,
+        quiet: quiet
     }
 }
 
@@ -204,6 +234,12 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::remote_rm(term, root_dir, name, alias);
         },
+        ("remote-fetch", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let peers = values_t!(matches, "BLOCKCHAIN_REMOTE_ALIAS", String).unwrap_or_else(|_| Vec::new());
+
+            blockchain::commands::remote_fetch(term, root_dir, name, peers);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -234,6 +270,7 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(blockchain_argument_name_definition())
             .arg(blockchain_argument_remote_alias_definition()
                 .multiple(true) // we want to accept multiple aliases here too
+                .required(false) // we allow user not to set any values here
             )
         )
         .subcommand(SubCommand::with_name("forward")

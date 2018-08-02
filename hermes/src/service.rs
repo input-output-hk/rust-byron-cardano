@@ -60,7 +60,7 @@ fn refresh_networks(networks: Networks) {
             Ok(storage) => {
                 let netcfg_file = storage.config.get_config_file();
                 let net_cfg = net::Config::from_file(&netcfg_file).expect("no network config present");
-                sync::net_sync(&mut sync::get_peer(&label, &net_cfg, true), &net_cfg, storage)
+                sync::net_sync(&mut sync::get_peer(&label, &net_cfg, true), &net_cfg, &storage)
             }
         }
     }

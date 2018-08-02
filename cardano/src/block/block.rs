@@ -50,10 +50,16 @@ pub enum BlockHeader {
 }
 
 /// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
     Genesis(EpochId),
     Normal(SlotId),
+}
+impl ::std::ops::Sub<BlockDate> for BlockDate {
+    type Output = usize;
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.slot_number() - rhs.slot_number()
+    }
 }
 
 impl PartialOrd for BlockDate {
@@ -99,6 +105,12 @@ impl BlockDate {
         match self {
             BlockDate::Genesis(_) => true,
             _                     => false
+        }
+    }
+    pub fn slot_number(&self) -> usize {
+        match self {
+            BlockDate::Genesis(eid) => (*eid as usize) * 21600,
+            BlockDate::Normal(sid)  => sid.slot_number()
         }
     }
 }

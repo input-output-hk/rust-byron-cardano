@@ -9,7 +9,7 @@ fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
 }
 
-pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage) {
+pub fn net_sync<A: Api>(net: &mut A, net_cfg: &net::Config, storage: &storage::Storage) {
     // recover and print the TIP of the network
     let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
@@ -68,14 +68,14 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
     if our_tip.0.date.get_epochid() < first_unstable_epoch && our_tip != genesis_ref
-        && !epoch_exists(&storage, our_tip.0.date.get_epochid())
+        && !epoch_exists(storage, our_tip.0.date.get_epochid())
     {
         let epoch_id = our_tip.0.date.get_epochid();
         let mut writer = storage::pack::PackWriter::init(&storage.config);
         let epoch_time_start = SystemTime::now();
 
         let prev_block = append_blocks_to_epoch_reverse(
-            &storage, epoch_id, &mut writer, &our_tip.0.hash);
+            storage, epoch_id, &mut writer, &our_tip.0.hash);
 
         cur_epoch_state = Some((epoch_id, writer, epoch_time_start));
         last_block = Some(our_tip.0.hash.clone());
@@ -83,7 +83,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
         if epoch_id > net_cfg.epoch_start {
-            maybe_create_epoch(&storage, epoch_id - 1, &prev_block);
+            maybe_create_epoch(storage, epoch_id - 1, &prev_block);
         }
     }
 
@@ -93,11 +93,11 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
         // Flush the previous epoch (if any).
         if date.is_genesis() {
             if let Some((epoch_id, writer, epoch_time_start)) = cur_epoch_state.as_mut() {
-                finish_epoch(&storage, *epoch_id, writer, epoch_time_start);
+                finish_epoch(storage, *epoch_id, writer, epoch_time_start);
 
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
-                storage::tag::write(&storage, &tag::HEAD, &last_block.as_ref().unwrap().bytes()[..]);
+                storage::tag::write(storage, &tag::HEAD, &last_block.as_ref().unwrap().bytes()[..]);
             }
         }
 
@@ -106,7 +106,7 @@ pub fn net_sync(net: &mut Api, net_cfg: &net::Config, storage: storage::Storage)
             // be rolled back. Therefore we can't pack this epoch
             // yet. Instead we write this block to disk separately.
             let block_hash = storage::types::header_to_blockhash(&block_hash);
-            storage::blob::write(&storage, &block_hash, block_raw.as_ref()).unwrap();
+            storage::blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
         } else {
 
             // If this is the epoch genesis block, start writing a new epoch pack.
@@ -189,8 +189,6 @@ fn finish_epoch(storage: &storage::Storage, epoch_id : EpochId, writer : &mut st
     let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
 
     // TODO: should test that epoch <epoch_id - 1> exists.
-
-    storage::tag::write(&storage, &storage::tag::get_epoch_tag(epoch_id), &packhash[..]);
 
     storage::epoch::epoch_create(&storage.config, &packhash, epoch_id);
 

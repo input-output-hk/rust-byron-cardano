@@ -60,8 +60,13 @@ impl Api for PeerPool {
         }
     }
 
-    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
-                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    fn get_blocks<F>( &mut self
+                    , from: &BlockRef
+                    , inclusive: bool
+                    , to: &BlockRef
+                    , got_block: &mut F
+                    )
+        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
@@ -128,8 +133,13 @@ impl Api for OpenPeer {
         Ok(RawBlock::from_dat(b[0].as_ref().to_vec()))
     }
 
-    fn get_blocks(&mut self, from: &BlockRef, inclusive: bool, to: &BlockRef,
-                   got_block: &mut FnMut(&HeaderHash, &Block, &RawBlock) -> ())
+    fn get_blocks<F>( &mut self
+                    , from: &BlockRef
+                    , inclusive: bool
+                    , to: &BlockRef
+                    , got_block: &mut F
+                    )
+        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         let mut inclusive = inclusive;
         let mut from = from.clone();
