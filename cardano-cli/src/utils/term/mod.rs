@@ -96,7 +96,7 @@ impl Term {
     }
     pub fn warn(&mut self, msg: &str) -> io::Result<()> {
         if self.config.quiet { return Ok(()); }
-        let mut out = self.stderr.lock();
+        let mut out = self.stdout.lock();
 
         out.set_color(ColorSpec::new().set_fg(Some(Color::Rgb(0xFF, 0xA5, 00))))?;
         write!(&mut out, "{}", msg)?;
@@ -104,7 +104,7 @@ impl Term {
     }
     pub fn error(&mut self, msg: &str) -> io::Result<()> {
         if self.config.quiet { return Ok(()); }
-        let mut out = self.stderr.lock();
+        let mut out = self.stdout.lock();
 
         out.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
         write!(&mut out, "{}", msg)?;

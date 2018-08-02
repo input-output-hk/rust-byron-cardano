@@ -17,7 +17,7 @@ impl<'a> Deref for ConnectedPeer<'a> {
 }
 impl<'a> ConnectedPeer<'a> {
     /// get the remote tip
-    fn query_tip(&mut self) -> BlockRef {
+    pub fn query_tip(&mut self) -> BlockRef {
         let tip_header = self.connection.get_tip().unwrap();
         BlockRef {
             hash: tip_header.compute_hash(),
@@ -135,16 +135,15 @@ impl<'a> ConnectedPeer<'a> {
 pub struct Peer<'a> {
     /// keep a reference to the upper blockchain, we will need to drop
     /// the peer before finalising the blockchain
-    blockchain: &'a super::Blockchain,
+    pub blockchain: &'a super::Blockchain,
 
     // we obviously need it in order to connect to a given configuration
-    config: exe_common::config::net::Peer,
+    pub config: exe_common::config::net::Peer,
 
     // the name of the peer
-    name: String,
+    pub name: String,
 
-    tag: String,
-
+    pub tag: String,
 }
 impl<'a> Peer<'a> {
     pub fn prepare(blockchain: &'a super::Blockchain, name: String) -> Self {
@@ -186,7 +185,7 @@ impl<'a> Peer<'a> {
     }
 
     /// load the peer current block
-    fn load_peer_local_tip(&self) -> HeaderHash {
+    pub fn load_peer_local_tip(&self) -> HeaderHash {
         match tag::read_hash(&self.blockchain.storage, &self.tag) {
             None => panic!("expecting any peer to have a tag"),
             Some(hh) => hh
@@ -203,7 +202,7 @@ impl<'a> Peer<'a> {
     }
 
     /// get the remote local tip. the bool is to note if the tip is the same as genesis
-    fn load_local_tip(&self) -> (BlockRef, bool) {
+    pub fn load_local_tip(&self) -> (BlockRef, bool) {
         let genesis_ref = (BlockRef {
             hash: self.blockchain.config.genesis.clone(),
             parent: self.blockchain.config.genesis_prev.clone(),

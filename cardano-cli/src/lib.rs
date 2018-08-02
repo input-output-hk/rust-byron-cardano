@@ -9,6 +9,7 @@ extern crate serde_yaml;
 extern crate rand;
 #[macro_use]
 extern crate log;
+extern crate humantime;
 
 pub mod utils;
 pub mod blockchain;

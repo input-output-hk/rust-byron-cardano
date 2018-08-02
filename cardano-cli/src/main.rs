@@ -240,6 +240,20 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::remote_fetch(term, root_dir, name, peers);
         },
+        ("remote-ls", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let detailed = if matches.is_present("REMOTE_LS_DETAILED_SHORT") {
+                blockchain::commands::RemoteDetail::Short
+            } else if matches.is_present("REMOTE_LS_DETAILED_LOCAL") {
+                blockchain::commands::RemoteDetail::Local
+            } else if matches.is_present("REMOTE_LS_DETAILED_REMOTE") {
+                blockchain::commands::RemoteDetail::Remote
+            } else {
+                blockchain::commands::RemoteDetail::Short
+            };
+
+            blockchain::commands::remote_ls(term, root_dir, name, detailed);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -271,6 +285,28 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(blockchain_argument_remote_alias_definition()
                 .multiple(true) // we want to accept multiple aliases here too
                 .required(false) // we allow user not to set any values here
+            )
+        )
+        .subcommand(SubCommand::with_name("remote-ls")
+            .about("List all the remote nodes of the given blockchain")
+            .arg(blockchain_argument_name_definition())
+            .arg(Arg::with_name("REMOTE_LS_DETAILED_SHORT")
+                .long("--short")
+                .group("REMOTE_LS_DETAILED")
+                .required(false)
+                .help("print only the bare minimum information regarding the remotes (default)")
+            )
+            .arg(Arg::with_name("REMOTE_LS_DETAILED_LOCAL")
+                .long("--detailed")
+                .group("REMOTE_LS_DETAILED")
+                .required(false)
+                .help("print all local known information regarding the remotes")
+            )
+            .arg(Arg::with_name("REMOTE_LS_DETAILED_REMOTE")
+                .long("--complete")
+                .group("REMOTE_LS_DETAILED")
+                .required(false)
+                .help("print all local known information regarding the remotes as well as the details from the remote (needs a network connection)")
             )
         )
         .subcommand(SubCommand::with_name("forward")
