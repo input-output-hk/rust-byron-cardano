@@ -57,7 +57,7 @@ impl<W: Sized+Write+Read> Connection<W> {
             0xffffffff => Err(Error::UnsupportedVersion),
             0x00000001 => Err(Error::InvalidRequest),
             0x00000002 => Err(Error::CrossedRequest),
-            0x00000000 => { println!("HANDSHAKE OK"); Ok(conn) },
+            0x00000000 => { info!("HANDSHAKE OK"); Ok(conn) },
             v          => Err(Error::UnknownErrorCode(v)),
         }
     }
@@ -276,7 +276,7 @@ pub mod protocol {
         buf.push(v as u8);
     }
     */
-    
+
     fn append_u32(v: u32, buf: &mut Vec<u8>) {
         buf.push((v >> 24) as u8);
         buf.push((v >> 16) as u8);
