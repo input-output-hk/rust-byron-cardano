@@ -27,7 +27,10 @@ impl PeerPool {
         let mut connections = Vec::new();
         for sockaddr in address.to_socket_addrs()? {
             match Connection::new(sockaddr, protocol_magic) {
-                Ok(connection) => connections.push(connection),
+                Ok(connection) => {
+                    connections.push(connection);
+                    break
+                },
                 Err(Error::ConnectionTimedOut) => {
                     warn!("connection peer `{}' address {} timed out, ignoring for now.", name, sockaddr)
                 },
