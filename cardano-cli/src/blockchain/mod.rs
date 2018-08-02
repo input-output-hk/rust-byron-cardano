@@ -4,9 +4,12 @@ mod peer;
 
 use std::path::PathBuf;
 
+use exe_common::network::api::BlockRef;
 pub use exe_common::{config::net::{self, Config, Peer, Peers}, network};
 use storage::{tag, Storage, config::{StorageConfig}};
 use cardano::block;
+
+const LOCAL_BLOCKCHAIN_TIP_TAG : &'static str = "tip";
 
 /// handy structure to use to manage and orginise a blockchain
 ///
@@ -34,13 +37,17 @@ impl Blockchain {
             tag::write_hash(&storage, &tag, &config.genesis)
         }
 
-        Blockchain {
+        let blockchain = Blockchain {
             name,
             dir,
             storage_config,
             storage,
             config,
-        }
+        };
+
+        blockchain.save_tip(&blockchain.config.genesis);
+
+        blockchain
     }
 
     /// load the blockchain
@@ -100,5 +107,30 @@ impl Blockchain {
     pub fn remove_wallet_tag(&self, wallet_name: &str) {
         let tag = format!("wallet/{}", wallet_name);
         tag::remove_tag(&self.storage, &tag);
+    }
+
+    pub fn load_tip(&self) -> (BlockRef, bool) {
+        let genesis_ref = (BlockRef {
+            hash: self.config.genesis.clone(),
+            parent: self.config.genesis_prev.clone(),
+            date: block::BlockDate::Genesis(self.config.epoch_start)
+        }, true);
+        match self.storage.get_block_from_tag(LOCAL_BLOCKCHAIN_TIP_TAG) {
+            Err(::storage::Error::NoSuchTag) => genesis_ref,
+            Err(err) => panic!(err),
+            Ok(block) => {
+                let header = block.get_header();
+                let hash = header.compute_hash();
+                let is_genesis = hash == genesis_ref.0.hash;
+                (BlockRef {
+                    hash: hash,
+                    parent: header.get_previous_header(),
+                    date: header.get_blockdate()
+                }, is_genesis)
+            }
+        }
+    }
+    pub fn save_tip(&self, hh: &block::HeaderHash) {
+        tag::write_hash(&self.storage, &LOCAL_BLOCKCHAIN_TIP_TAG, hh);
     }
 }
