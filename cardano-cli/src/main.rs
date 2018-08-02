@@ -260,6 +260,11 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::forward(term, root_dir, name, opt_hash);
         },
+        ("pull", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+
+            blockchain::commands::pull(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)

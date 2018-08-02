@@ -207,3 +207,22 @@ pub fn forward( mut term: Term
 
     blockchain.save_tip(&hash)
 }
+
+pub fn pull( mut term: Term
+           , root_dir: PathBuf
+           , name: String
+           )
+{
+    let blockchain = Blockchain::load(root_dir.clone(), name.clone());
+
+    for np in blockchain.peers() {
+        if ! np.is_native() { continue; }
+        term.info(&format!("fetching blocks from peer: {}\n", np.name())).unwrap();
+
+        let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
+
+        peer.connect(&mut term).unwrap().sync(&mut term);
+    }
+
+    forward(term, root_dir, name, None)
+}
