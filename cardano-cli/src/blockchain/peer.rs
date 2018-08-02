@@ -119,7 +119,7 @@ impl<'a> ConnectedPeer<'a> {
             }
 
             last_block = Some(block_hash.clone());
-        });
+        }).unwrap();
         pbr.end();
 
         // Update the tip tag to point to the most recent block.
