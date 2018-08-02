@@ -61,12 +61,16 @@ impl Api for HermesEndPoint {
     }
 
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
-        let uri = self.uri(&format!("block/{}", hash)).as_str().parse().unwrap();
+        let uri = self.uri(&format!("block/{}", hash));
         info!("querying uri: {}", uri);
         let client = Client::new(&self.core.handle());
         let mut block_raw = vec!();
+        let mut err = None;
         {
-            let work = client.get(uri).and_then(|res| {
+            let work = client.get(uri.parse().unwrap()).and_then(|res| {
+                if !res.status().is_success() {
+                    err = Some(Error::HttpError(uri, res.status().clone()));
+                };
                 res.body().for_each(|chunk| {
                     block_raw.append(&mut chunk.to_vec());
                     Ok(())
@@ -77,6 +81,7 @@ impl Api for HermesEndPoint {
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded block in {}sec", time_elapsed.as_secs());
         }
+        if let Some(err) = err { return Err(err) };
         Ok(RawBlock::from_dat(block_raw))
     }
 
@@ -85,7 +90,7 @@ impl Api for HermesEndPoint {
                     , inclusive: bool
                     , to: &BlockRef
                     , got_block: &mut F
-                    )
+                    ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
         let mut inclusive = inclusive;
@@ -114,11 +119,16 @@ impl Api for HermesEndPoint {
                 // Fetch a complete epoch.
 
                 let mut tmppack = vec!();
+                let mut err = None;
+
                 {
-                    let uri = self.uri(&format!("epoch/{}", epoch)).as_str().parse().unwrap();
+                    let uri = self.uri(&format!("epoch/{}", epoch));
                     info!("querying uri: {}", uri);
                     let client = Client::new(&self.core.handle());
-                    let work = client.get(uri).and_then(|res| {
+                    let work = client.get(uri.parse().unwrap()).and_then(|res| {
+                        if !res.status().is_success() {
+                            err = Some(Error::HttpError(uri, res.status().clone()));
+                        };
                         res.body().for_each(|chunk| {
                             tmppack.append(&mut chunk.to_vec());
                             Ok(())
@@ -130,10 +140,12 @@ impl Api for HermesEndPoint {
                     info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
                 }
 
+                if let Some(err) = err { return Err(err) };
+
                 let mut packfile = storage::pack::PackReader::from(&tmppack[..]);
 
                 while let Some(block_raw) = packfile.get_next() {
-                    let block = block_raw.decode().unwrap();
+                    let block = block_raw.decode()?;
                     let hdr = block.get_header();
 
                     assert!(hdr.get_blockdate().get_epochid() == epoch);
@@ -160,8 +172,8 @@ impl Api for HermesEndPoint {
                 let mut to = to.hash.clone();
 
                 loop {
-                    let block_raw = self.get_block(&to).unwrap();
-                    let block = block_raw.decode().unwrap();
+                    let block_raw = self.get_block(&to)?;
+                    let block = block_raw.decode()?;
                     let hdr = block.get_header();
                     assert!(hdr.get_blockdate() >= from.date);
                     let prev = hdr.get_previous_header();
@@ -181,5 +193,7 @@ impl Api for HermesEndPoint {
                 break;
             }
         }
+
+        Ok(())
     }
 }
