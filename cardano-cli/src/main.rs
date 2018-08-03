@@ -265,6 +265,13 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::pull(term, root_dir, name);
         },
+        ("cat", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let hash = matches.value_of("HASH_BLOCK").unwrap().to_owned();
+            let no_parse = matches.is_present("BLOCK_NO_PARSE");
+
+            blockchain::commands::cat(term, root_dir, name, hash, no_parse);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -344,6 +351,10 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
                 .value_name("HASH")
                 .required(true)
                 .help("The block hash to open.")
+            )
+            .arg(Arg::with_name("BLOCK_NO_PARSE")
+                .long("no-parse")
+                .help("don't parse the block, flush the bytes directl to the standard output (not subject to `--quiet' option)")
             )
         )
         .subcommand(SubCommand::with_name("status")

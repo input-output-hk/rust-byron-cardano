@@ -121,7 +121,9 @@ dependencies = [
 name = "cardano-cli"
 version = "0.1.0"
 dependencies = [
+ "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cardano 0.1.0",
+ "cbor_event 0.1.0",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cryptoxide 0.1.0",
  "dirs 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",

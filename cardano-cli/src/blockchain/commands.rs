@@ -1,8 +1,8 @@
 use std::path::PathBuf;
+use std::io::{Write};
 
 use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
 use exe_common::network::api::BlockRef;
-
 
 use utils::term::Term;
 
@@ -165,21 +165,7 @@ pub fn forward( mut term: Term
     let mut blockchain = Blockchain::load(root_dir, name);
 
     let hash = if let Some(hash_hex) = to {
-        let hash = match ::cardano::util::hex::decode(&hash_hex) {
-            Ok(hash) => match ::cardano::block::HeaderHash::from_slice(hash.as_ref()) {
-                Err(err) => {
-                    debug!("invalid block hash: {}", err);
-                    term.error(&format!("invalid hash `{}': this is not a valid block hash\n", hash_hex)).unwrap();
-                    ::std::process::exit(1);
-                },
-                Ok(hash) => hash
-            },
-            Err(err) => {
-                debug!("invalid block hash: {:?}", err);
-                term.error(&format!("invalid hash `{}': invalid hexadecimal\n", hash_hex)).unwrap();
-                ::std::process::exit(1);
-            }
-        };
+        let hash = super::config::parse_block_hash(&mut term, &hash_hex);
 
         if ::storage::block_location(&blockchain.storage, hash.bytes()).is_none() {
             term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_hex)).unwrap();
@@ -225,4 +211,46 @@ pub fn pull( mut term: Term
     }
 
     forward(term, root_dir, name, None)
+}
+
+pub fn cat( mut term: Term
+          , root_dir: PathBuf
+          , name: String
+          , hash_str: String
+          , no_parse: bool
+          )
+{
+    let blockchain = Blockchain::load(root_dir.clone(), name.clone());
+
+    let hash = super::config::parse_block_hash(&mut term, &hash_str);
+    let block_location = match ::storage::block_location(&blockchain.storage, hash.bytes()) {
+        None => {
+            term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_str)).unwrap();
+            ::std::process::exit(1);
+        },
+        Some(loc) => loc
+    };
+
+    match ::storage::block_read_location(&blockchain.storage, &block_location, hash.bytes()) {
+        None        => {
+            // this is a bug, we have a block location available for this hash
+            // but we were not able to read the block.
+            panic!("the impossible happened, we have a block location of this given block `{}'", hash)
+        },
+        Some(rblk) => {
+            if no_parse {
+                ::std::io::stdout().write(rblk.as_ref()).unwrap();
+                ::std::io::stdout().flush().unwrap();
+            } else {
+                use utils::pretty::Pretty;
+
+                let blk = rblk.decode().unwrap();
+                let hdr = blk.get_header();
+                let computed_hash = hdr.compute_hash();
+                info!("blk location: {:?}", block_location);
+                info!("hash computed: {} expected: {}", computed_hash, hash);
+                println!("{}", blk.to_pretty())
+            }
+        }
+    }
 }
