@@ -229,7 +229,7 @@ impl<'a> Peer<'a> {
             date: BlockDate::Genesis(self.blockchain.config.epoch_start)
         }, true);
         let our_tip = match self.blockchain.storage.get_block_from_tag(&self.tag) {
-            Err(storage::Error::NoSuchTag) => genesis_ref.clone(),
+            Err(storage::Error::NoSuchTag) => genesis_ref,
             Err(err) => panic!(err),
             Ok(block) => {
                 let header = block.get_header();
