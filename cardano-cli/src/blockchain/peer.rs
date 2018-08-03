@@ -81,6 +81,26 @@ impl<'a> ConnectedPeer<'a> {
             }
         }
 
+        // If the previous epoch has become stable, then we may need to
+        // pack it.
+        else if our_tip.0.date.get_epochid() == first_unstable_epoch
+            && first_unstable_epoch > peer.blockchain.config.epoch_start
+            && !internal::epoch_exists(&peer.blockchain.storage, first_unstable_epoch - 1)
+        {
+            // Iterate to the last block in the previous epoch.
+            let mut cur_hash = our_tip.0.hash.clone();
+            loop {
+                let block_raw = storage::block_read(&peer.blockchain.storage, cur_hash.bytes()).unwrap();
+                let block = block_raw.decode().unwrap();
+                let hdr = block.get_header();
+                assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
+                cur_hash = hdr.get_previous_header();
+                if hdr.get_blockdate().is_genesis() { break }
+            }
+            internal::maybe_create_epoch(&peer.blockchain.storage, first_unstable_epoch - 1, &cur_hash);
+        }
+
+
         // initialisation of the progress bar:
         let count = tip.date - our_tip.0.date;
         let mut pbr = term.progress_bar(count as u64);
