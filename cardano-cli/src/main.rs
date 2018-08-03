@@ -272,6 +272,11 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::cat(term, root_dir, name, hash, no_parse);
         },
+        ("status", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+
+            blockchain::commands::status(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)

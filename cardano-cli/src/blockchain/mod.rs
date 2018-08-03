@@ -9,7 +9,7 @@ pub use exe_common::{config::net::{self, Config, Peer, Peers}, network};
 use storage::{tag, Storage, config::{StorageConfig}};
 use cardano::block;
 
-const LOCAL_BLOCKCHAIN_TIP_TAG : &'static str = "tip";
+pub const LOCAL_BLOCKCHAIN_TIP_TAG : &'static str = "tip";
 
 /// handy structure to use to manage and orginise a blockchain
 ///

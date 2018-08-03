@@ -254,3 +254,60 @@ pub fn cat( mut term: Term
         }
     }
 }
+
+pub fn status( mut term: Term
+         , root_dir: PathBuf
+         , name: String
+         )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+
+    term.warn("Blockchain:\n").unwrap();
+    {
+        let (tip, _is_genesis) = blockchain.load_tip();
+        let tag_path = blockchain.dir.join("tag").join(super::LOCAL_BLOCKCHAIN_TIP_TAG);
+        let metadata = ::std::fs::metadata(tag_path).unwrap();
+        let now = ::std::time::SystemTime::now();
+        let fetched_date = metadata.modified().unwrap();
+        // get the difference between now and the last fetch, only keep up to the seconds
+        let fetched_since = ::std::time::Duration::new(now.duration_since(fetched_date).unwrap().as_secs(), 0);
+
+        term.simply("   * last forward:    ").unwrap();
+        term.info(&format!("{} ({} ago)", format_systemtime(fetched_date), format_duration(fetched_since))).unwrap();
+        term.simply("\n").unwrap();
+        term.simply("   * local tip hash:  ").unwrap();
+        term.success(&format!("{}", tip.hash)).unwrap();
+        term.simply("\n").unwrap();
+        term.simply("   * local tip date:  ").unwrap();
+        term.success(&format!("{}", tip.date)).unwrap();
+        term.simply("\n").unwrap();
+    }
+
+    term.warn("Peers:\n").unwrap();
+    for (idx, np) in blockchain.peers().enumerate() {
+        let peer = peer::Peer::prepare(&blockchain, np.name().to_owned());
+        let (tip, _is_genesis) = peer.load_local_tip();
+
+        term.info(&format!(" {}. {}", idx + 1, peer.name)).unwrap();
+        term.simply(" (").unwrap();
+        term.success(&format!("{}", peer.config)).unwrap();
+        term.simply(")\n").unwrap();
+
+        let tag_path = blockchain.dir.join("tag").join(&peer.tag);
+        let metadata = ::std::fs::metadata(tag_path).unwrap();
+        let now = ::std::time::SystemTime::now();
+        let fetched_date = metadata.modified().unwrap();
+        // get the difference between now and the last fetch, only keep up to the seconds
+        let fetched_since = ::std::time::Duration::new(now.duration_since(fetched_date).unwrap().as_secs(), 0);
+
+        term.simply("     * last fetch:      ").unwrap();
+        term.info(&format!("{} ({} ago)", format_systemtime(fetched_date), format_duration(fetched_since))).unwrap();
+        term.simply("\n").unwrap();
+        term.simply("     * local tip hash:  ").unwrap();
+        term.success(&format!("{}", tip.hash)).unwrap();
+        term.simply("\n").unwrap();
+        term.simply("     * local tip date:  ").unwrap();
+        term.success(&format!("{}", tip.date)).unwrap();
+        term.simply("\n").unwrap();
+    }
+}
