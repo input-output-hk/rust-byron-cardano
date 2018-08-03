@@ -1,4 +1,5 @@
 extern crate cryptoxide;
+extern crate cbor_event;
 extern crate cardano;
 extern crate exe_common;
 extern crate storage;

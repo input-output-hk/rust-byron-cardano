@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::io::{Write};
 
 use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
 use exe_common::network::api::BlockRef;
@@ -210,4 +211,46 @@ pub fn pull( mut term: Term
     }
 
     forward(term, root_dir, name, None)
+}
+
+pub fn cat( mut term: Term
+          , root_dir: PathBuf
+          , name: String
+          , hash_str: String
+          , no_parse: bool
+          )
+{
+    let blockchain = Blockchain::load(root_dir.clone(), name.clone());
+
+    let hash = super::config::parse_block_hash(&mut term, &hash_str);
+    let block_location = match ::storage::block_location(&blockchain.storage, hash.bytes()) {
+        None => {
+            term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_str)).unwrap();
+            ::std::process::exit(1);
+        },
+        Some(loc) => loc
+    };
+
+    match ::storage::block_read_location(&blockchain.storage, &block_location, hash.bytes()) {
+        None        => {
+            // this is a bug, we have a block location available for this hash
+            // but we were not able to read the block.
+            panic!("the impossible happened, we have a block location of this given block `{}'", hash)
+        },
+        Some(rblk) => {
+            if no_parse {
+                ::std::io::stdout().write(rblk.as_ref()).unwrap();
+                ::std::io::stdout().flush().unwrap();
+            } else {
+                use utils::pretty::Pretty;
+
+                let blk = rblk.decode().unwrap();
+                let hdr = blk.get_header();
+                let computed_hash = hdr.compute_hash();
+                info!("blk location: {:?}", block_location);
+                info!("hash computed: {} expected: {}", computed_hash, hash);
+                println!("{}", blk.to_pretty())
+            }
+        }
+    }
 }
