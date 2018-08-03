@@ -102,6 +102,26 @@ pub fn net_sync<A: Api>(
         }
     }
 
+    // If the previous epoch has become stable, then we may need to
+    // pack it.
+    else if our_tip.0.date.get_epochid() == first_unstable_epoch
+        && first_unstable_epoch > net_cfg.epoch_start
+        && !epoch_exists(storage, first_unstable_epoch - 1)
+    {
+        // Iterate to the last block in the previous epoch.
+        let mut cur_hash = our_tip.0.hash.clone();
+        loop {
+            let block_raw = block_read(&storage, cur_hash.bytes()).unwrap();
+            let block = block_raw.decode().unwrap();
+            let hdr = block.get_header();
+            assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
+            cur_hash = hdr.get_previous_header();
+            if hdr.get_blockdate().is_genesis() { break }
+        }
+
+        maybe_create_epoch(storage, first_unstable_epoch - 1, &cur_hash);
+    }
+
     net.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
         let date = block.get_header().get_blockdate();
 
