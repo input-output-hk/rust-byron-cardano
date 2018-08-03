@@ -20,11 +20,11 @@ type AccountPtr = *mut bip44::Account<hdwallet::XPub>;
 
 // TODO: one of the major missing element is a proper clean error handling
 
-/// create a Wallet from the given seed (expecting a pointer to an array of 64 bytes)
+/// Create a HD BIP44 compliant Wallet from the given entropy and a password
 ///
-/// the cardano mainnet protocol magic is `0x2D964A09`
+/// Password can be empty
 ///
-/// use the function `wallet_delete` to free all the memory associated to the returned
+/// use the function `cardano_wallet_delete` to free all the memory associated to the returned
 /// object. This function may fail if:
 ///
 /// - panic: if there is no more memory to allocate the object to return
@@ -32,32 +32,29 @@ type AccountPtr = *mut bip44::Account<hdwallet::XPub>;
 ///
 #[no_mangle]
 pub extern "C"
-fn cardano_wallet_new_from_seed( seed_ptr: *const u8 /* expecting 64 bytes... */
-                               , protocol_magic: u32 /* the protocol magic to use */
-                               )
-    -> WalletPtr
+fn cardano_wallet_new( entropy_ptr: *const u8 /* expecting entropy ptr ... */
+                     , entropy_size: usize    /* entropy size */
+                     , password_ptr: *const u8 /* password ptr */
+                     , password_size: usize    /* password size */
+                     ) -> WalletPtr
 {
-    let seed_slice = unsafe {
-        slice::from_raw_parts(seed_ptr, bip::bip39::SEED_SIZE)
+    let entropy_slice = unsafe { slice::from_raw_parts(entropy_ptr, entropy_size) };
+    let password = unsafe { slice::from_raw_parts(password_ptr, password_size) };
+
+    let entropy = match bip::bip39::Entropy::from_slice(entropy_slice) {
+        Err(_) => return ptr::null_mut(),
+        Ok(e) => e,
     };
 
-    // TODO: we need to handle errors here
-    let seed = bip::bip39::Seed::from_slice(&seed_slice)
-                .expect("constructing a valid Seed form the given bytes");
+    let wallet = bip44::Wallet::from_entropy(&entropy, &password, hdwallet::DerivationScheme::V2);
 
-    let wallet = Box::new(
-        bip44::Wallet::from_bip39_seed(
-            &seed,
-            Default::default(),
-        )
-    );
-
-    Box::into_raw(wallet)
+    let wallet_box = Box::new(wallet);
+    Box::into_raw(wallet_box)
 }
 
 /// take ownership of the given pointer and free the associated data
 ///
-/// The data must be a valid Wallet created by `wallet_new_from_seed`.
+/// The data must be a valid Wallet created by `cardano_wallet_new`.
 #[no_mangle]
 pub extern "C"
 fn cardano_wallet_delete(wallet_ptr: WalletPtr)
