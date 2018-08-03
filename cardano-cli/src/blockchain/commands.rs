@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
 use exe_common::network::api::BlockRef;
 
-
 use utils::term::Term;
 
 use super::peer;
@@ -165,21 +164,7 @@ pub fn forward( mut term: Term
     let mut blockchain = Blockchain::load(root_dir, name);
 
     let hash = if let Some(hash_hex) = to {
-        let hash = match ::cardano::util::hex::decode(&hash_hex) {
-            Ok(hash) => match ::cardano::block::HeaderHash::from_slice(hash.as_ref()) {
-                Err(err) => {
-                    debug!("invalid block hash: {}", err);
-                    term.error(&format!("invalid hash `{}': this is not a valid block hash\n", hash_hex)).unwrap();
-                    ::std::process::exit(1);
-                },
-                Ok(hash) => hash
-            },
-            Err(err) => {
-                debug!("invalid block hash: {:?}", err);
-                term.error(&format!("invalid hash `{}': invalid hexadecimal\n", hash_hex)).unwrap();
-                ::std::process::exit(1);
-            }
-        };
+        let hash = super::config::parse_block_hash(&mut term, &hash_hex);
 
         if ::storage::block_location(&blockchain.storage, hash.bytes()).is_none() {
             term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_hex)).unwrap();
