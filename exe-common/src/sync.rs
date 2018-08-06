@@ -234,7 +234,14 @@ fn finish_epoch(storage: &storage::Storage, epoch_writer_state: &mut EpochWriter
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
     let epoch_time_elapsed = epoch_writer_state.write_start_time.elapsed().unwrap();
 
-    assert!(epoch_id > 0 || epoch_exists(storage, epoch_id - 1));
+    if epoch_id > 0 {
+        assert!(
+            epoch_exists(storage, epoch_id - 1),
+            "Attempted finish_epoch() with non-existent previous epoch (ID {}, previous' ID {})",
+            epoch_id,
+            epoch_id - 1
+        );
+    }
 
     storage::epoch::epoch_create(&storage.config, &packhash, epoch_id);
 
