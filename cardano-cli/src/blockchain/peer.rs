@@ -3,9 +3,9 @@ use exe_common;
 use exe_common::network::{api::Api, api::BlockRef};
 use cardano::block::{BlockDate, EpochId, HeaderHash};
 use utils::term::Term;
-use storage::{self, tag, Storage, config::{StorageConfig}};
+use storage::{self, tag};
 use std::ops::Deref;
-use std::time::{SystemTime, Duration};
+use std::time::SystemTime;
 
 pub struct ConnectedPeer<'a> {
     peer: Peer<'a>,
@@ -288,13 +288,10 @@ impl<'a> Peer<'a> {
 }
 
 mod internal {
-    use storage::{self, tag, Error, block_read};
-    use cardano::block::{BlockDate, EpochId, HeaderHash};
+    use storage::{self, block_read};
+    use cardano::block::{EpochId, HeaderHash};
     use cardano::util::{hex};
     use std::time::{SystemTime, Duration};
-
-    use exe_common::config::net;
-    use exe_common::network::{Peer, api::Api, api::BlockRef};
 
     fn duration_print(d: Duration) -> String {
         format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())

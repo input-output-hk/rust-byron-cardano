@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::io::{Write};
 
-use exe_common::{config::net::{Config, Peer, Peers}, sync, network};
-use exe_common::network::api::BlockRef;
+use exe_common::config::net::Config;
 
 use utils::term::Term;
 
@@ -75,7 +74,7 @@ pub fn remote_fetch( mut term: Term
                    , peers: Vec<String>
                    )
 {
-    let mut blockchain = Blockchain::load(root_dir, name);
+    let blockchain = Blockchain::load(root_dir, name);
 
     for np in blockchain.peers() {
         if peers.is_empty() || peers.contains(&np.name().to_owned()) {
@@ -162,7 +161,7 @@ pub fn forward( mut term: Term
               , to: Option<String>
               )
 {
-    let mut blockchain = Blockchain::load(root_dir, name);
+    let blockchain = Blockchain::load(root_dir, name);
 
     let hash = if let Some(hash_hex) = to {
         let hash = super::config::parse_block_hash(&mut term, &hash_hex);
