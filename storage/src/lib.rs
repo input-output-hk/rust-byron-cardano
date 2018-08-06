@@ -17,7 +17,7 @@ pub mod lock;
 pub mod append;
 mod bitmap;
 mod bloom;
-use std::{fs, io, result};
+use std::{fs, io, result, cell};
 
 pub use config::StorageConfig;
 
@@ -60,13 +60,11 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    lookups: BTreeMap<PackHash, pack::Lookup>,
+    lookups: cell::RefCell<BTreeMap<PackHash, pack::Lookup>>,
 }
 
 impl Storage {
     pub fn init(cfg: &StorageConfig) -> Result<Self> {
-        let mut lookups = BTreeMap::new();
-
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Blob))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Pack))?;
@@ -74,18 +72,24 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Epoch))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
 
-        let packhashes = cfg.list_indexes();
-        for p in packhashes.iter() {
-            match pack::read_index_fanout(&cfg, p) {
-                Err(_)     => {},
-                Ok(lookup) => {
-                    lookups.insert(*p, lookup);
-                }
-            }
-        }
+        let storage = Storage { config: cfg.clone(), lookups: cell::RefCell::new(BTreeMap::new()) };
+        storage.refresh_cache()?;
 
-        let storage = Storage { config: cfg.clone(), lookups: lookups };
         Ok(storage)
+    }
+
+    pub fn refresh_cache(&self) -> Result<()> {
+        use std::collections::btree_map::{Entry};
+
+        let packhashes = self.config.list_indexes();
+        for p in packhashes.iter() {
+            let lookup = pack::read_index_fanout(&self.config, p)?;
+            match self.lookups.borrow_mut().entry(*p) {
+                Entry::Vacant(ve)       => { ve.insert(lookup); },
+                Entry::Occupied(mut oe) => { oe.insert(lookup); },
+            }
+        };
+        Ok(())
     }
 
     /// create a reverse iterator over the stored blocks
@@ -179,7 +183,7 @@ pub enum BlockLocation {
 }
 
 pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocation> {
-    for (packref, lookup) in storage.lookups.iter() {
+    for (packref, lookup) in storage.lookups.borrow().iter() {
         let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
         match nb {
             pack::FanoutNb(0) => {},
@@ -205,7 +209,7 @@ pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockH
     match loc {
         &BlockLocation::Loose                 => blob::read(storage, hash).ok(),
         &BlockLocation::Packed(ref packref, ref iofs) => {
-            match storage.lookups.get(packref) {
+            match storage.lookups.borrow().get(packref) {
                 None         => { unreachable!(); },
                 Some(lookup) => {
                     let idx_filepath = storage.config.get_index_filepath(packref);
@@ -284,7 +288,7 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     }
 
     // append to lookups
-    storage.lookups.insert(packhash, lookup);
+    storage.lookups.borrow_mut().insert(packhash, lookup);
     packhash
 }
 

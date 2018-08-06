@@ -208,6 +208,8 @@ pub struct Peer<'a> {
 }
 impl<'a> Peer<'a> {
     pub fn prepare(blockchain: &'a super::Blockchain, name: String) -> Self {
+        blockchain.storage.refresh_cache().unwrap();
+
         let config = match blockchain.peers().find(|np| np.name() == &name) {
             None => panic!(""),
             Some(np) => np.peer().clone(),
