@@ -34,14 +34,55 @@ impl<'a> ConnectedPeer<'a> {
         // it doesn't exist.
         let our_tip = self.load_local_tip();
 
+        let mut best_tip = self.peer.blockchain.load_remote_tips().into_iter().fold(our_tip.clone(), |best_tip, current_tip| {
+            if best_tip.0.date < current_tip.0.date {
+                current_tip
+            } else {
+                best_tip
+            }
+        });
+
         let mut connection = self.connection;
         let peer = self.peer;
+
+        if best_tip.0.date < tip.date {
+            // do nothing, best_tip is behind the remote tip.
+        } else if best_tip.0.date > tip.date {
+            match storage::block_read(&peer.blockchain.storage, tip.hash.bytes()) {
+                None => {
+                    // we don't have the block locally... might be a fork, we need to download the
+                    // blockchain anyway
+                    term.info("remote may have forked from the consensus. Download the blocks anyway.").unwrap();
+                    best_tip = our_tip;
+                },
+                Some(_) => {
+                    term.info("remote already as further as it takes").unwrap();
+                    peer.save_peer_local_tip(&tip.hash);
+                    return peer;
+                }
+            }
+        } else { // best_tip.0.date == tip.date
+            if best_tip.0.hash == tip.hash {
+                // this is the same block hash. save the local tip
+                peer.save_peer_local_tip(&tip.hash);
+                return peer;
+            } else {
+                // it seems the best_tip is for the same date, but has a different hash
+                // it could be there is a fork between the remotes.
+                //
+                // TODO: we might want to drive back to a given block set in the past instead.
+                //       in order to avoid re-downloading existing epochs (especially if `our_tip`
+                //       is very far in the past).
+                best_tip = our_tip;
+            }
+
+        }
 
         // TODO: we need to handle the case where our_tip is not an
         // ancestor of tip. In that case we should start from the last
         // stable epoch before our_tip.
 
-        info!("Fetching from        : {} ({})", our_tip.0.hash, our_tip.0.date);
+        info!("Fetching from        : {} ({})", best_tip.0.hash, best_tip.0.date);
 
         // Determine whether the previous epoch is stable yet. Note: This
         // assumes that k is smaller than the number of blocks in an
@@ -61,18 +102,18 @@ impl<'a> ConnectedPeer<'a> {
         // If our tip is in an epoch that has become stable, we now need
         // to pack it. So read the previously fetched blocks in this epoch
         // and prepend them to the incoming blocks.
-        if our_tip.0.date.get_epochid() < first_unstable_epoch && (! our_tip.1) // the second item mark if the tip is genesis
-            && !internal::epoch_exists(&peer.blockchain.storage, our_tip.0.date.get_epochid())
+        if best_tip.0.date.get_epochid() < first_unstable_epoch && (! best_tip.1) // the second item mark if the tip is genesis
+            && !internal::epoch_exists(&peer.blockchain.storage, best_tip.0.date.get_epochid())
         {
-            let epoch_id = our_tip.0.date.get_epochid();
+            let epoch_id = best_tip.0.date.get_epochid();
             let mut writer = storage::pack::PackWriter::init(&peer.blockchain.storage.config);
             let epoch_time_start = SystemTime::now();
 
             let prev_block = internal::append_blocks_to_epoch_reverse(
-                &peer.blockchain.storage, epoch_id, &mut writer, &our_tip.0.hash);
+                &peer.blockchain.storage, epoch_id, &mut writer, &best_tip.0.hash);
 
             cur_epoch_state = Some((epoch_id, writer, epoch_time_start));
-            last_block = Some(our_tip.0.hash.clone());
+            last_block = Some(best_tip.0.hash.clone());
 
             // If tip.slotid < w, the previous epoch won't have been
             // created yet either, so do that now.
@@ -83,12 +124,12 @@ impl<'a> ConnectedPeer<'a> {
 
         // If the previous epoch has become stable, then we may need to
         // pack it.
-        else if our_tip.0.date.get_epochid() == first_unstable_epoch
+        else if best_tip.0.date.get_epochid() == first_unstable_epoch
             && first_unstable_epoch > peer.blockchain.config.epoch_start
             && !internal::epoch_exists(&peer.blockchain.storage, first_unstable_epoch - 1)
         {
             // Iterate to the last block in the previous epoch.
-            let mut cur_hash = our_tip.0.hash.clone();
+            let mut cur_hash = best_tip.0.hash.clone();
             loop {
                 let block_raw = storage::block_read(&peer.blockchain.storage, cur_hash.bytes()).unwrap();
                 let block = block_raw.decode().unwrap();
@@ -102,9 +143,9 @@ impl<'a> ConnectedPeer<'a> {
 
 
         // initialisation of the progress bar:
-        let count = tip.date - our_tip.0.date;
+        let count = tip.date - best_tip.0.date;
         let mut pbr = term.progress_bar(count as u64);
-        connection.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
+        connection.get_blocks(&best_tip.0, best_tip.1, &tip, &mut |block_hash, block, block_raw| {
             let date = block.get_header().get_blockdate();
             pbr.advance(1);
             pbr.message(&format!("downloading epoch {} -> ", date.get_epochid()));

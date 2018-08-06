@@ -87,6 +87,13 @@ impl Blockchain {
         format!("remote/{}", remote)
     }
 
+    pub fn load_remote_tips(&self) -> Vec<(BlockRef, bool)> {
+        self.peers().map(|np| {
+            let peer = peer::Peer::prepare(self, np.name().to_owned());
+            peer.load_local_tip()
+        }).collect()
+    }
+
     /// remove a peer from the blockchain
     pub fn remove_peer(&mut self, remote_alias: String) {
         self.config.peers = self.config.peers.iter().filter(|np| np.name() != remote_alias).cloned().collect();
