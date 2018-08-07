@@ -1,5 +1,6 @@
 use std::io::{Write, Read};
 use std::{iter, io, result};
+use num_traits::FromPrimitive;
 
 pub type LightweightConnectionId = u32;
 
@@ -116,14 +117,13 @@ impl<W: Sized+Write+Read> Connection<W> {
     pub fn recv(&mut self) -> Result<protocol::Command>  {
         let hdr = self.recv_u32()?;
         if hdr < LIGHT_ID_MIN {
-            match protocol::control_header_from_u32(hdr) {
-                Ok(c)  => {
+            match protocol::ControlHeader::from_u32(hdr) {
+                Some(c)  => {
                     let r = self.recv_u32()?;
                     Ok(protocol::Command::Control(c, r))
                 },
-                Err(_) => Err(Error::CommandFailed)
+                None => Err(Error::CommandFailed)
             }
-
         } else {
             let len = self.recv_u32()?;
             Ok(protocol::Command::Data(hdr, len))
@@ -157,16 +157,17 @@ impl<W: Sized+Write+Read> Connection<W> {
 pub mod protocol {
     use std::{fmt};
     use cardano::util::{hex};
+
     const PROTOCOL_VERSION : u32 = 0x00000000;
 
-    #[derive(Debug)]
+    #[derive(Debug, FromPrimitive)]
     pub enum ControlHeader {
-        CreatedNewConnection,
-        CloseConnection,
-        CloseSocket,
-        CloseEndPoint,
-        ProbeSocket,
-        ProbeSocketAck,
+        CreatedNewConnection = 0,
+        CloseConnection = 1,
+        CloseSocket = 2,
+        CloseEndPoint = 3,
+        ProbeSocket = 4,
+        ProbeSocketAck = 5,
     }
 
     #[derive(Debug)]
@@ -291,12 +292,12 @@ pub mod protocol {
     }
 
     pub fn create_conn(cid: super::LightweightConnectionId, buf: &mut Vec<u8>) {
-        append_u32(control_header_to_u32(ControlHeader::CreatedNewConnection), buf);
+        append_u32(ControlHeader::CreatedNewConnection as u32, buf);
         append_u32(cid, buf);
     }
 
     pub fn delete_conn(cid: super::LightweightConnectionId, buf: &mut Vec<u8>) {
-        append_u32(control_header_to_u32(ControlHeader::CloseConnection), buf);
+        append_u32(ControlHeader::CloseConnection as u32, buf);
         append_u32(cid, buf);
     }
 
@@ -304,28 +305,5 @@ pub mod protocol {
     pub fn append_with_length(dat: &[u8], buf: &mut Vec<u8>) {
         append_u32(dat.len() as u32, buf);
         buf.extend_from_slice(dat);
-    }
-
-    pub fn control_header_to_u32(h: ControlHeader) -> u32 {
-        match h {
-            ControlHeader::CreatedNewConnection => 0,
-            ControlHeader::CloseConnection      => 1,
-            ControlHeader::CloseSocket          => 2,
-            ControlHeader::CloseEndPoint        => 3,
-            ControlHeader::ProbeSocket          => 4,
-            ControlHeader::ProbeSocketAck       => 5,
-        }
-    }
-
-    pub fn control_header_from_u32(v: u32) -> Result<ControlHeader, ()> {
-        match v {
-            0 => Ok(ControlHeader::CreatedNewConnection),
-            1 => Ok(ControlHeader::CloseConnection),
-            2 => Ok(ControlHeader::CloseSocket),
-            3 => Ok(ControlHeader::CloseEndPoint),
-            4 => Ok(ControlHeader::ProbeSocket),
-            5 => Ok(ControlHeader::ProbeSocketAck),
-            _ => Err(()),
-        }
     }
 }

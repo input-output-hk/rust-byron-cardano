@@ -177,7 +177,7 @@ impl<T: Write+Read> Connection<T> {
 
         self.client_cons.insert(lcid, lc);
 
-        /* wait answer from server, which should a new light connection creation,
+        /* wait answer from server, which should be a new light connection creation,
          * followed by the handshake data and then the node id
          */
         let siv = match self.ntt.recv()? {
