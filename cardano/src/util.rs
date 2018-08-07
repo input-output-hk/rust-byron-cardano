@@ -191,7 +191,11 @@ pub mod base58 {
     /// assert_eq!(encoded, base58::encode(decoded));
     /// ```
     pub fn encode(input: &[u8]) -> String {
-        String::from_utf8(base_encode(ALPHABET, input)).unwrap()
+        // unsafe to unwrap the result of `String::from_utf8` as the given
+        // returned bytes are valid within the base58 alphabet (they are all ASCII7)
+        String::from_utf8(
+            base_encode(ALPHABET, input)
+        ).unwrap()
     }
 
     /// decode from base58 the given input
