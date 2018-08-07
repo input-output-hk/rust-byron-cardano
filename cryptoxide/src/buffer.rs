@@ -21,9 +21,7 @@ pub trait ReadBuffer {
     fn is_full(&self) -> bool;
     fn remaining(&self) -> usize;
     fn capacity(&self) -> usize;
-    fn position(&self) -> usize { self.capacity() - self.remaining() }
 
-    fn rewind(&mut self, distance: usize);
     fn truncate(&mut self, amount: usize);
     fn reset(&mut self);
 
@@ -49,9 +47,7 @@ pub trait WriteBuffer {
     fn is_full(&self) -> bool;
     fn remaining(&self) -> usize;
     fn capacity(&self) -> usize;
-    fn position(&self) -> usize { self.capacity() - self.remaining() }
 
-    fn rewind(&mut self, distance: usize);
     fn reset(&mut self);
 
     // FIXME - Shouldn't need mut self
@@ -85,7 +81,6 @@ impl <'a> ReadBuffer for RefReadBuffer<'a> {
     fn remaining(&self) -> usize { self.buff.len() - self.pos }
     fn capacity(&self) -> usize { self.buff.len() }
 
-    fn rewind(&mut self, distance: usize) { self.pos -= distance; }
     fn truncate(&mut self, amount: usize) {
         self.buff = &self.buff[..self.buff.len() - amount];
     }
@@ -138,7 +133,6 @@ impl ReadBuffer for OwnedReadBuffer {
     fn remaining(&self) -> usize { self.len - self.pos }
     fn capacity(&self) -> usize { self.len }
 
-    fn rewind(&mut self, distance: usize) { self.pos -= distance; }
     fn truncate(&mut self, amount: usize) { self.len -= amount; }
     fn reset(&mut self) { self.pos = 0; }
 
@@ -174,7 +168,6 @@ impl <'a> WriteBuffer for RefWriteBuffer<'a> {
     fn remaining(&self) -> usize { self.len - self.pos }
     fn capacity(&self) -> usize { self.len }
 
-    fn rewind(&mut self, distance: usize) { self.pos -= distance; }
     fn reset(&mut self) { self.pos = 0; }
 
     fn peek_read_buffer(&mut self) -> RefReadBuffer {
@@ -216,10 +209,6 @@ impl <'a> WriteBuffer for BorrowedWriteBuffer<'a> {
     fn remaining(&self) -> usize { self.len - self.pos }
     fn capacity(&self) -> usize { self.len }
 
-    fn rewind(&mut self, distance: usize) {
-        self.pos -= distance;
-        self.parent.len -= distance;
-    }
     fn reset(&mut self) {
         self.pos = 0;
         self.parent.len = 0;
@@ -270,7 +259,6 @@ impl WriteBuffer for OwnedWriteBuffer {
     fn remaining(&self) -> usize { self.len - self.pos }
     fn capacity(&self) -> usize { self.len }
 
-    fn rewind(&mut self, distance: usize) { self.pos -= distance; }
     fn reset(&mut self) { self.pos = 0; }
 
     fn peek_read_buffer<'a>(&'a mut self) -> RefReadBuffer<'a> {
