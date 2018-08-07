@@ -131,7 +131,7 @@ impl Wallet {
                 },
             };
 
-            let current_diff = (total_input - tx.get_output_total()).unwrap_or(Coin::zero());
+            let current_diff = (total_input - tx.get_output_total()?).unwrap_or(Coin::zero());
             let txaux_fee : fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
 
             if current_diff == txaux_fee.to_coin() {

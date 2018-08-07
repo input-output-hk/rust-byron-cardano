@@ -16,7 +16,7 @@ use redeem;
 
 use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
 use address::{ExtendedAddr, SpendingData};
-use coin::{Coin};
+use coin::{self, Coin};
 
 // TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
 // if this is confirmed, we need to make a proper type, wrapping it around
@@ -294,12 +294,12 @@ impl Tx {
     pub fn add_output(&mut self, o: TxOut) {
         self.outputs.push(o)
     }
-    pub fn get_output_total(&self) -> Coin {
+    pub fn get_output_total(&self) -> coin::Result<Coin> {
         let mut total = Coin::zero();
         for ref o in self.outputs.iter() {
-            total = (total + o.value).unwrap()
+            total = (total + o.value)?;
         }
-        total
+        Ok(total)
     }
 }
 impl cbor_event::se::Serialize for Tx {
