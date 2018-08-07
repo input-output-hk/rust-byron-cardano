@@ -24,6 +24,19 @@ const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
 const TAG_LEN : usize = 16;
 
+#[derive(Debug)]
+pub enum Error {
+    InvalidHDKeySize(usize),
+    CannotDecrypt,
+    NotEnoughEncryptedData,
+    CborError(cbor_event::Error)
+}
+impl From<cbor_event::Error> for Error {
+    fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
+}
+
+pub type Result<T> = ::std::result::Result<T, Error>;
+
 /// A derivation path of HD wallet derivation indices which uses a CBOR encoding
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Path(Vec<u32>);
@@ -32,9 +45,9 @@ impl AsRef<[u32]> for Path {
 }
 impl Path {
     pub fn new(v: Vec<u32>) -> Self { Path(v) }
-    fn from_cbor(bytes: &[u8]) -> cbor_event::Result<Self> {
+    fn from_cbor(bytes: &[u8]) -> Result<Self> {
         let mut raw = RawCbor::from(bytes);
-        cbor_event::de::Deserialize::deserialize(&mut raw)
+        Ok(cbor_event::de::Deserialize::deserialize(&mut raw)?)
     }
     fn cbor(&self) -> Vec<u8> {
         cbor!(self)
@@ -73,13 +86,13 @@ impl HDKey {
     /// create a `HDKey` by taking ownership of the given bytes
     pub fn from_bytes(bytes: [u8;HDKEY_SIZE]) -> Self { HDKey(bytes) }
     /// create a `HDKey` from the given slice
-    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
         if bytes.len() == HDKEY_SIZE {
             let mut v = [0u8;HDKEY_SIZE];
             v[0..HDKEY_SIZE].clone_from_slice(bytes);
-            Some(HDKey::from_bytes(v))
+            Ok(HDKey::from_bytes(v))
         } else {
-            None
+            Err(Error::InvalidHDKeySize(bytes.len()))
         }
     }
 
@@ -96,18 +109,18 @@ impl HDKey {
         out
     }
 
-    pub fn decrypt(&self, input: &[u8]) -> Option<Vec<u8>> {
+    pub fn decrypt(&self, input: &[u8]) -> Result<Vec<u8>> {
         let len = input.len() - TAG_LEN;
-        if len <= 0 { return None; };
+        if len <= 0 { return Err(Error::NotEnoughEncryptedData); };
 
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
 
         let mut out: Vec<u8> = repeat(0).take(len).collect();
 
         if ctx.decrypt(&input[..len], &mut out[..], &input[len..]) {
-            Some(out)
+            Ok(out)
         } else {
-            None
+            Err(Error::CannotDecrypt)
         }
     }
 
@@ -118,9 +131,9 @@ impl HDKey {
         HDAddressPayload::from_vec(out)
     }
 
-    pub fn decrypt_path(&self, payload: &HDAddressPayload) -> Option<Path> {
+    pub fn decrypt_path(&self, payload: &HDAddressPayload) -> Result<Path> {
         let out = self.decrypt(payload.as_ref())?;
-        Path::from_cbor(&out).ok()
+        Path::from_cbor(&out)
     }
 }
 impl Drop for HDKey {
@@ -180,7 +193,7 @@ mod tests {
 
         let key = HDKey::new(&pk);
         let payload = key.encrypt(&bytes);
-        assert_eq!(Some(bytes), key.decrypt(&payload))
+        assert_eq!(bytes, key.decrypt(&payload).unwrap())
     }
 
     #[test]
@@ -199,7 +212,7 @@ mod tests {
 
         let key = HDKey::new(&pk);
         let payload = key.encrypt_path(&path);
-        assert_eq!(Some(path), key.decrypt_path(&payload))
+        assert_eq!(path, key.decrypt_path(&payload).unwrap())
     }
 
     #[test]

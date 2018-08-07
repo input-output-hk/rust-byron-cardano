@@ -17,7 +17,7 @@ impl RandomIndexLookup {
     fn try_get_addressing(&self, addr: &ExtendedAddr) -> Option<hdpayload::Path> {
         match addr.attributes.derivation_path {
             None => None,
-            Some(ref epath) => self.key.decrypt_path(epath)
+            Some(ref epath) => self.key.decrypt_path(epath).ok()
         }
     }
 }

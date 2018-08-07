@@ -1,5 +1,4 @@
 use tx::*;
-use hdpayload;
 use coin::{self, Coin};
 use address::{ExtendedAddr};
 
@@ -42,13 +41,6 @@ impl<Addressing> Input<Addressing> {
     { Input { ptr: ptr, value: value, addressing: addressing } }
 
     pub fn value(&self) -> Coin { self.value.value }
-
-    pub fn get_derivation_path(&self, key: &hdpayload::HDKey) -> Option<hdpayload::Path> {
-        match &self.value.address.attributes.derivation_path {
-            &Some(ref payload) => { key.decrypt_path(payload) },
-            &None              => { None }
-        }
-    }
 }
 
 pub fn output_sum<'a, O: 'a + Iterator<Item = &'a TxOut>>(o: O) -> coin::Result<Coin> {
