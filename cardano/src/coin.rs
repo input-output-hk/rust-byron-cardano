@@ -48,6 +48,17 @@ impl Coin {
     /// ```
     pub fn zero() -> Self { Coin(0) }
 
+    /// create of unitary coin (a coin of value `1`)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cardano::coin::{Coin};
+    ///
+    /// println!("{}", Coin::unit());
+    /// ```
+    pub fn unit() -> Self { Coin(1) }
+
     /// create a coin of the given value
     ///
     /// # Example

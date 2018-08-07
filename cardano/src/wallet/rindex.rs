@@ -153,11 +153,11 @@ impl Wallet {
             } else {
                 // already above..
                 if current_diff > txaux_fee.to_coin() {
-                    let r = (out_total + Coin::new(1).unwrap())?;
+                    let r = (out_total + Coin::unit())?;
                     out_total = r
                 } else {
                     // not enough fee, so reduce the output_total
-                    match out_total - Coin::new(1).unwrap() {
+                    match out_total - Coin::unit() {
                         Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
                         Err(err) => unreachable!("{}", err),
                         Ok(o) => out_total = o,
