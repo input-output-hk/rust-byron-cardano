@@ -9,7 +9,7 @@ use bip::bip39;
 use hdwallet::{XPrv, DerivationScheme};
 use hdpayload;
 use fee::{self, FeeAlgorithm};
-use coin::Coin;
+use coin::{self, Coin};
 use txutils::{self, OutputPolicy};
 use tx::{self, TxAux, Tx, TxId, TxInWitness};
 use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
@@ -117,8 +117,9 @@ impl Wallet {
 
         let min_fee_for_inputs = alg.calculate_for_txaux_component(&tx_base, &fake_witnesses)?.to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
-            None => return Err(fee::Error::NotEnoughInput),
-            Some(c) => c,
+            Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+            Err(err) => unreachable!("{}", err),
+            Ok(c) => c,
         };
 
         loop {
@@ -157,8 +158,9 @@ impl Wallet {
                 } else {
                     // not enough fee, so reduce the output_total
                     match out_total - Coin::new(1).unwrap() {
-                        None => return Err(fee::Error::NotEnoughInput),
-                        Some(o) => out_total = o,
+                        Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+                        Err(err) => unreachable!("{}", err),
+                        Ok(o) => out_total = o,
                     }
                 }
             }
