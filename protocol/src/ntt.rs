@@ -244,16 +244,16 @@ pub mod protocol {
         // Given a ACK nodeid, get the equivalent SYN nodeid
         pub fn ack_to_syn(&self) -> Self {
             assert!(self.0[0] == NODEID_ACK);
-            let nodeid = self.clone();
-            nodeid.0[0] == NODEID_SYN;
+            let mut nodeid = self.clone();
+            nodeid.0[0] = NODEID_SYN;
             nodeid
         }
 
         // Given a SYN nodeid, get the equivalent ACK nodeid
         pub fn syn_to_ack(&self) -> Self {
             assert!(self.0[0] == NODEID_SYN);
-            let nodeid = self.clone();
-            nodeid.0[0] == NODEID_ACK;
+            let mut nodeid = self.clone();
+            nodeid.0[0] = NODEID_ACK;
             nodeid
         }
     }
