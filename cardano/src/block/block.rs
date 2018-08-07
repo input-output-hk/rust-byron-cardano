@@ -32,10 +32,10 @@ impl RawBlockHeader {
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
     pub fn decode(&self) -> cbor_event::Result<Block> { RawCbor::from(&self.0).deserialize() }
-    pub fn to_header(&self) -> RawBlockHeader {
+    pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
-        let blk = self.decode().unwrap();
-        blk.get_header().to_raw()
+        let blk = self.decode()?;
+        Ok(blk.get_header().to_raw())
     }
 }
 
