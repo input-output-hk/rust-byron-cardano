@@ -682,7 +682,7 @@ impl MnemonicIndex {
     /// # panic
     ///
     /// this function may panic if the
-    /// [`Language::lookup_word`](./dictionary/trait.Language.html#tymethod.lookup_word)
+    /// [`Language::lookup_word`](./dictionary/trait.Language.html#method.lookup_word)
     /// returns an error. Which should not happen.
     ///
     pub fn to_word<D>(self, dic: &D) -> String
