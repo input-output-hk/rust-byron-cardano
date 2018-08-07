@@ -142,7 +142,11 @@ impl Signature {
     }
 }
 impl Clone for Signature {
-    fn clone(&self) -> Self { Self::from_slice(self.as_ref()).unwrap() }
+    fn clone(&self) -> Self {
+        let mut bytes = [0;SIGNATURE_SIZE];
+        bytes.copy_from_slice(&self.0);
+        Signature(bytes)
+    }
 }
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
