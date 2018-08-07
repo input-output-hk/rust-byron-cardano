@@ -114,7 +114,10 @@ impl cbor_event::de::Deserialize for AddrType {
 pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
+        // the reason for this unwrap is that we have to dynamically allocate 66 bytes
+        // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
         let buf = cbor!(pubk).unwrap();
+
         StakeholderId(DigestBlake2b224::new(buf.as_ref()))
     }
 }
