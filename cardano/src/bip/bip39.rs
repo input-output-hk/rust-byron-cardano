@@ -124,7 +124,7 @@ pub type Result<T> = result::Result<T, Error>;
 ///
 /// See module documentation for mode details about how to use
 /// `Entropy`.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Entropy {
     Entropy12([u8;16]),
     Entropy15([u8;20]),
