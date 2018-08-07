@@ -17,6 +17,11 @@ use curve25519::{GeP2, GeP3, ge_scalarmult_base, sc_reduce, sc_muladd, curve2551
 use util::{fixed_time_eq};
 use std::ops::{Add, Sub, Mul};
 
+pub const SEED_LENGTH : usize = 32;
+pub const PRIVATE_KEY_LENGTH : usize = 64;
+pub const PUBLIC_KEY_LENGTH : usize = 32;
+pub const SIGNATURE_LENGTH : usize = 64;
+
 static L: [u8; 32] =
       [ 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -24,11 +29,11 @@ static L: [u8; 32] =
         0x58, 0x12, 0x63, 0x1a, 0x5c, 0xf5, 0xd3, 0xed ];
 
 /// Create a keypair of secret key and public key
-pub fn keypair(seed: &[u8]) -> ([u8; 64], [u8; 32]) {
-    assert!(seed.len() == 32, "Seed should be 32 bytes long!");
+pub fn keypair(seed: &[u8]) -> ([u8; PRIVATE_KEY_LENGTH], [u8; PUBLIC_KEY_LENGTH]) {
+    assert!(seed.len() == SEED_LENGTH, "Seed should be {} bytes long!", SEED_LENGTH);
 
-    let mut secret: [u8; 64] = {
-        let mut hash_output: [u8; 64] = [0; 64];
+    let mut secret: [u8; PRIVATE_KEY_LENGTH] = {
+        let mut hash_output: [u8; PRIVATE_KEY_LENGTH] = [0; PRIVATE_KEY_LENGTH];
         let mut hasher = Sha512::new();
         hasher.input(seed);
         hasher.result(&mut hash_output);
@@ -50,7 +55,9 @@ pub fn keypair(seed: &[u8]) -> ([u8; 64], [u8; 32]) {
 }
 
 /// Generate a signature for the given message using a normal ED25519 secret key
-pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; 64] {
+pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; SIGNATURE_LENGTH] {
+    assert!(secret_key.len() == PRIVATE_KEY_LENGTH, "Private key should be {} bytes long!", PRIVATE_KEY_LENGTH);
+
     let seed = &secret_key[0..32];
     let public_key = &secret_key[32..64];
     let az: [u8; 64] = {
@@ -74,7 +81,7 @@ pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; 64] {
         hash_output
     };
 
-    let mut signature: [u8; 64] = [0; 64];
+    let mut signature: [u8; SIGNATURE_LENGTH] = [0; SIGNATURE_LENGTH];
     let r: GeP3 = ge_scalarmult_base(&nonce[0..32]);
     for (result_byte, source_byte) in (&mut signature[0..32]).iter_mut().zip(r.to_bytes().iter()) {
         *result_byte = *source_byte;
@@ -97,14 +104,15 @@ pub fn signature(message: &[u8], secret_key: &[u8]) -> [u8; 64] {
 }
 
 /// generate the public key associated with an extended secret key
-pub fn to_public(extended_secret: &[u8]) -> [u8;32] {
+pub fn to_public(extended_secret: &[u8]) -> [u8;PUBLIC_KEY_LENGTH] {
     let a = ge_scalarmult_base(&extended_secret[0..32]);
     let public_key = a.to_bytes();
     public_key
 }
 
 /// Generate a signature for the given message using an extended ED25519 secret key
-pub fn signature_extended(message: &[u8], extended_secret: &[u8]) -> [u8; 64] {
+pub fn signature_extended(message: &[u8], extended_secret: &[u8]) -> [u8; SIGNATURE_LENGTH] {
+    assert!(extended_secret.len() == PRIVATE_KEY_LENGTH, "Private key should be {} bytes long!", PRIVATE_KEY_LENGTH);
     let public_key = to_public(extended_secret);
 
     let nonce = {
@@ -117,7 +125,7 @@ pub fn signature_extended(message: &[u8], extended_secret: &[u8]) -> [u8; 64] {
         hash_output
     };
 
-    let mut signature: [u8; 64] = [0; 64];
+    let mut signature: [u8; SIGNATURE_LENGTH] = [0; SIGNATURE_LENGTH];
     let r: GeP3 = ge_scalarmult_base(&nonce[0..32]);
     for (result_byte, source_byte) in (&mut signature[0..32]).iter_mut().zip(r.to_bytes().iter()) {
         *result_byte = *source_byte;
@@ -161,6 +169,9 @@ fn check_s_lt_l(s: &[u8]) -> bool
 
 /// Verify that a signature is valid for a given message for an associated public key
 pub fn verify(message: &[u8], public_key: &[u8], signature: &[u8]) -> bool {
+    assert!(public_key.len() == PUBLIC_KEY_LENGTH, "Public key should be {} bytes long!", PUBLIC_KEY_LENGTH);
+    assert!(signature.len() == SIGNATURE_LENGTH, "signature should be {} bytes long!", SIGNATURE_LENGTH);
+
     if check_s_lt_l(&signature[32..64]) {
         return false;
     }
