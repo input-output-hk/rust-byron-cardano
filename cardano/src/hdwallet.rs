@@ -21,7 +21,7 @@ use bip::bip39;
 
 use std::{fmt, result};
 use std::marker::PhantomData;
-use util::{hex};
+use util::{hex, securemem};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 
@@ -148,6 +148,11 @@ impl Seed {
 }
 impl AsRef<[u8]> for Seed {
     fn as_ref(&self) -> &[u8] { &self.0 }
+}
+impl Drop for Seed {
+    fn drop(&mut self) {
+        securemem::zero(&mut self.0);
+    }
 }
 
 /// HDWallet extended private key
@@ -327,6 +332,11 @@ impl fmt::Display for XPrv {
 }
 impl AsRef<[u8]> for XPrv {
     fn as_ref(&self) -> &[u8] { &self.0 }
+}
+impl Drop for XPrv {
+    fn drop(&mut self) {
+        securemem::zero(&mut self.0);
+    }
 }
 impl serde::Serialize for XPrv
 {
