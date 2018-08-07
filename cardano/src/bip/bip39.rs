@@ -332,7 +332,8 @@ impl Entropy {
             // only store up to the value 2047
             words.push(MnemonicIndex::new(n).unwrap());
         }
-
+        // by design, it is safe to call unwrap here as
+        // the mnemonic length has been validated by construction.
         Mnemonics::from_mnemonics(words).unwrap()
     }
 }
