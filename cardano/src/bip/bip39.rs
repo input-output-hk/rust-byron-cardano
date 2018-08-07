@@ -852,7 +852,14 @@ pub mod dictionary {
                 None => {
                     Err(Error::MnemonicWordNotFoundInDictionary(word.to_string()))
                 },
-                Some(v)  => Ok(MnemonicIndex::new(v as u16).unwrap())
+                Some(v)  => {
+                    Ok(
+                        // it is safe to call unwrap as we guarantee that the
+                        // returned index `v` won't be out of bound for a
+                        // `MnemonicIndex` (DefaultDictionary.words is an array of 2048 elements)
+                        MnemonicIndex::new(v as u16).unwrap()
+                    )
+                }
             }
         }
         fn lookup_word(&self, mnemonic: MnemonicIndex) -> Result<String> {
