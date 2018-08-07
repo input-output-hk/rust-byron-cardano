@@ -7,10 +7,10 @@ use cryptoxide::blake2b::Blake2b;
 use cryptoxide::sha3::Sha3;
 
 use redeem;
-use util::{base58};
+use util::{base58, hex};
 use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use hdwallet::{XPub};
+use hdwallet::{self, XPub};
 use hdpayload::{HDAddressPayload};
 
 /// Digest of the composition of `Blake2b_224 . Sha3_256`
@@ -45,14 +45,7 @@ impl DigestBlake2b224 {
 }
 impl fmt::Display for DigestBlake2b224 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.iter().for_each(|byte| {
-            if byte < &0x10 {
-                write!(f, "0{:x}", byte).unwrap()
-            } else {
-                write!(f, "{:x}", byte).unwrap()
-            }
-        });
-        Ok(())
+        write!(f, "{}", hex::encode(&self.0))
     }
 }
 impl cbor_event::se::Serialize for DigestBlake2b224 {
