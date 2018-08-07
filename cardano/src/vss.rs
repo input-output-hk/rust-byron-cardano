@@ -41,7 +41,9 @@ impl cbor_event::de::Deserialize for PublicKey {
 pub struct Signature([u8; SIGNATURE_SIZE]);
 impl Clone for Signature {
     fn clone(&self) -> Self {
-        Self::from_slice(self.as_ref()).unwrap()
+        let mut bytes = [0;SIGNATURE_SIZE];
+        bytes.copy_from_slice(&self.0);
+        Signature(bytes)
     }
 }
 impl Signature {
