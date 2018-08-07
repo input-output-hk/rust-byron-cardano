@@ -10,7 +10,7 @@ use redeem;
 use util::{base58, hex};
 use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use hdwallet::{self, XPub};
+use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
 /// Digest of the composition of `Blake2b_224 . Sha3_256`
