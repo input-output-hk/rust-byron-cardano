@@ -15,12 +15,13 @@ impl Fee {
     pub fn to_coin(&self) -> Coin { self.0 }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Error {
     NoInputs,
     NoOutputs,
     NotEnoughInput,
     CoinError(coin::Error),
+    CborError(cbor_event::Error)
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -28,7 +29,8 @@ impl fmt::Display for Error {
             &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
             &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
             &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
-            &Error::CoinError(err) => write!(f, "Error on coin operations: {}", err)
+            &Error::CoinError(ref err) => write!(f, "Error on coin operations: {}", err),
+            &Error::CborError(ref err) => write!(f, "Error while performing cbor serialization: {}", err),
         }
     }
 }
@@ -37,6 +39,9 @@ pub type Result<T> = result::Result<T, Error>;
 
 impl From<coin::Error> for Error {
     fn from(e: coin::Error) -> Error { Error::CoinError(e) }
+}
+impl From<cbor_event::Error> for Error {
+    fn from(e: cbor_event::Error) -> Error { Error::CborError(e) }
 }
 
 /// Algorithm trait for input selections
@@ -130,12 +135,14 @@ pub trait FeeAlgorithm {
 
 impl FeeAlgorithm for LinearFee {
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee> {
-        let txbytes = cbor!(txaux).unwrap();
+        // the only reason the cbor serialisation would fail is if there was
+        // no more memory free to allocate.
+        let txbytes = cbor!(txaux)?;
         self.estimate(txbytes.len())
     }
     fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee> {
         let ser = cbor_event::se::Serializer::new_vec();
-        let txbytes = txaux_serialize(tx, witnesses, ser).unwrap().finalize();
+        let txbytes = txaux_serialize(tx, witnesses, ser)?.finalize();
         self.estimate(txbytes.len())
     }
 }
@@ -181,7 +188,7 @@ impl SelectionAlgorithm for LinearFee {
 
             // calculate fee from the Tx serialised + estimated size for signing
             let mut tx = Tx::new_with(txins.clone(), txouts.clone());
-            let txbytes = cbor!(&tx).unwrap();
+            let txbytes = cbor!(&tx)?;
 
             let estimated_fee = (self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len())))?;
 
@@ -194,7 +201,7 @@ impl SelectionAlgorithm for LinearFee {
                 }
             };
 
-            let txbytes = cbor!(&tx).unwrap();
+            let txbytes = cbor!(&tx)?;
             let corrected_fee = self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len()));
 
             fee = corrected_fee?;
