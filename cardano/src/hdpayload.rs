@@ -18,7 +18,7 @@ use std::{iter::repeat, ops::{Deref}, fmt};
 use hdwallet::{XPub};
 use cbor_event::{self, de::RawCbor, se::{self, Serializer}};
 
-use util::hex;
+use util::{securemem, hex};
 
 const NONCE : &'static [u8] = b"serokellfore";
 const SALT  : &'static [u8] = b"address-hashing";
@@ -121,6 +121,11 @@ impl HDKey {
     pub fn decrypt_path(&self, payload: &HDAddressPayload) -> Option<Path> {
         let out = self.decrypt(payload.as_ref())?;
         Path::from_cbor(&out).ok()
+    }
+}
+impl Drop for HDKey {
+    fn drop(&mut self) {
+        securemem::zero(&mut self.0);
     }
 }
 

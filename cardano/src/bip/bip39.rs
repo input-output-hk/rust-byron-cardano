@@ -52,7 +52,7 @@ use cryptoxide::hmac::{Hmac};
 use cryptoxide::sha2::{Sha512};
 use cryptoxide::pbkdf2::{pbkdf2};
 use std::{fmt, result, str, ops::Deref};
-use util::{hex};
+use util::{hex, securemem};
 
 /// Error regarding BIP39 operations
 #[derive(PartialEq, Eq)]
@@ -361,6 +361,17 @@ impl Deref for Entropy {
     type Target = [u8];
     fn deref(&self) -> &Self::Target { self.as_ref() }
 }
+impl Drop for Entropy {
+    fn drop(&mut self) {
+        match self {
+            Entropy::Entropy12(b) => securemem::zero(b),
+            Entropy::Entropy15(b) => securemem::zero(b),
+            Entropy::Entropy18(b) => securemem::zero(b),
+            Entropy::Entropy21(b) => securemem::zero(b),
+            Entropy::Entropy24(b) => securemem::zero(b),
+        }
+    }
+}
 
 /// the expected size of a seed, in bytes.
 pub const SEED_SIZE : usize = 64;
@@ -468,6 +479,11 @@ impl AsRef<[u8]> for Seed {
 impl Deref for Seed {
     type Target = [u8];
     fn deref(&self) -> &Self::Target { self.as_ref() }
+}
+impl Drop for Seed {
+    fn drop(&mut self) {
+        self.0.copy_from_slice(&[0;SEED_SIZE][..]);
+    }
 }
 
 /// RAII for validated mnemonic words. This guarantee a given mnemonic phrase
