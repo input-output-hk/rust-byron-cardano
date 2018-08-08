@@ -12,3 +12,5 @@ keywords = [ "Cardano", "Protocol" ]
 cbor_event = { path = "../cbor_event" }
 cardano = { path = "../cardano" }
 log = "0.4"
+num-traits = "0.2.5"
+num-derive = "0.2.2"
