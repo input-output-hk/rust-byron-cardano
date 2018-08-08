@@ -71,7 +71,7 @@ impl Wallet {
         // This wallet has has only one account
         let account : &RootKey = scheme::Wallet::list_accounts(self);
         if let &Some(ref hdpa) = &address.attributes.derivation_path {
-            if let Some(path) = hdkey.decrypt_path(hdpa) {
+            if let Ok(path) = hdkey.decrypt_path(hdpa) {
                 let addressing = (path.as_ref()[0], path.as_ref()[1]);
 
                 // regenerate the address to prevent HDAddressPayload reuse
