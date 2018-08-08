@@ -7,7 +7,7 @@ use cryptoxide::blake2b::Blake2b;
 use cryptoxide::sha3::Sha3;
 
 use redeem;
-use util::{base58};
+use util::{base58, hex};
 use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
@@ -45,14 +45,7 @@ impl DigestBlake2b224 {
 }
 impl fmt::Display for DigestBlake2b224 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.iter().for_each(|byte| {
-            if byte < &0x10 {
-                write!(f, "0{:x}", byte).unwrap()
-            } else {
-                write!(f, "{:x}", byte).unwrap()
-            }
-        });
-        Ok(())
+        write!(f, "{}", hex::encode(&self.0))
     }
 }
 impl cbor_event::se::Serialize for DigestBlake2b224 {
@@ -121,7 +114,10 @@ impl cbor_event::de::Deserialize for AddrType {
 pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
+        // the reason for this unwrap is that we have to dynamically allocate 66 bytes
+        // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
         let buf = cbor!(pubk).unwrap();
+
         StakeholderId(DigestBlake2b224::new(buf.as_ref()))
     }
 }

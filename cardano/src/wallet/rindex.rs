@@ -9,7 +9,7 @@ use bip::bip39;
 use hdwallet::{XPrv, DerivationScheme};
 use hdpayload;
 use fee::{self, FeeAlgorithm};
-use coin::Coin;
+use coin::{self, Coin};
 use txutils::{self, OutputPolicy};
 use tx::{self, TxAux, Tx, TxId, TxInWitness};
 use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
@@ -117,8 +117,9 @@ impl Wallet {
 
         let min_fee_for_inputs = alg.calculate_for_txaux_component(&tx_base, &fake_witnesses)?.to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
-            None => return Err(fee::Error::NotEnoughInput),
-            Some(c) => c,
+            Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+            Err(err) => unreachable!("{}", err),
+            Ok(c) => c,
         };
 
         loop {
@@ -130,7 +131,7 @@ impl Wallet {
                 },
             };
 
-            let current_diff = (total_input - tx.get_output_total()).unwrap_or(Coin::zero());
+            let current_diff = (total_input - tx.get_output_total()?).unwrap_or(Coin::zero());
             let txaux_fee : fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
 
             if current_diff == txaux_fee.to_coin() {
@@ -152,13 +153,14 @@ impl Wallet {
             } else {
                 // already above..
                 if current_diff > txaux_fee.to_coin() {
-                    let r = (out_total + Coin::new(1).unwrap())?;
+                    let r = (out_total + Coin::unit())?;
                     out_total = r
                 } else {
                     // not enough fee, so reduce the output_total
-                    match out_total - Coin::new(1).unwrap() {
-                        None => return Err(fee::Error::NotEnoughInput),
-                        Some(o) => out_total = o,
+                    match out_total - Coin::unit() {
+                        Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+                        Err(err) => unreachable!("{}", err),
+                        Ok(o) => out_total = o,
                     }
                 }
             }

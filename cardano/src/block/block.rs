@@ -151,10 +151,16 @@ impl BlockHeader {
     }
 
     pub fn to_raw(&self) -> RawBlockHeader {
+        // the only reason this would fail is if there was no more memory
+        // to allocate. This would be the users' last concern if it was the
+        // case
         RawBlockHeader(cbor!(self).unwrap())
     }
 
     pub fn compute_hash(&self) -> HeaderHash {
+        // the only reason this would fail is if there was no more memory
+        // to allocate. This would be the users' last concern if it was the
+        // case
         let v = cbor!(self).unwrap();
         HeaderHash::new(&v[..])
     }

@@ -332,7 +332,8 @@ impl Entropy {
             // only store up to the value 2047
             words.push(MnemonicIndex::new(n).unwrap());
         }
-
+        // by design, it is safe to call unwrap here as
+        // the mnemonic length has been validated by construction.
         Mnemonics::from_mnemonics(words).unwrap()
     }
 }
@@ -681,7 +682,7 @@ impl MnemonicIndex {
     /// # panic
     ///
     /// this function may panic if the
-    /// [`Language::lookup_word`](./dictionary/trait.Language.html#tymethod.lookup_word)
+    /// [`Language::lookup_word`](./dictionary/trait.Language.html#method.lookup_word)
     /// returns an error. Which should not happen.
     ///
     pub fn to_word<D>(self, dic: &D) -> String
@@ -851,7 +852,14 @@ pub mod dictionary {
                 None => {
                     Err(Error::MnemonicWordNotFoundInDictionary(word.to_string()))
                 },
-                Some(v)  => Ok(MnemonicIndex::new(v as u16).unwrap())
+                Some(v)  => {
+                    Ok(
+                        // it is safe to call unwrap as we guarantee that the
+                        // returned index `v` won't be out of bound for a
+                        // `MnemonicIndex` (DefaultDictionary.words is an array of 2048 elements)
+                        MnemonicIndex::new(v as u16).unwrap()
+                    )
+                }
             }
         }
         fn lookup_word(&self, mnemonic: MnemonicIndex) -> Result<String> {

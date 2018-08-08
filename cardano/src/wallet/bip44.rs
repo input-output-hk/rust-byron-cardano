@@ -250,7 +250,7 @@ impl scheme::Account for Account<XPub> {
         for addressing in addresses {
             let key = self.cached_root_key
                           .change(self.derivation_scheme, addressing.0).expect("cannot fail")
-                          .index(self.derivation_scheme, addressing.1).unwrap();
+                          .index(self.derivation_scheme, addressing.1).expect("cannot fail");
             let addr = ExtendedAddr::new_simple(key.0);
             vec.push(addr);
         }

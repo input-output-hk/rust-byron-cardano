@@ -17,12 +17,15 @@ pub enum Error {
     /// means that the given value was out of bound
     ///
     /// Max bound being: `MAX_COIN`.
-    OutOfBound(u64)
+    OutOfBound(u64),
+
+    Negative
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::OutOfBound(v) => write!(f, "Coin of value {} is out of bound. Max coin value: {}.", v, MAX_COIN),
+            &Error::OutOfBound(ref v) => write!(f, "Coin of value {} is out of bound. Max coin value: {}.", v, MAX_COIN),
+            &Error::Negative          => write!(f, "Coin cannot hold a negative value"),
         }
     }
 }
@@ -44,6 +47,17 @@ impl Coin {
     /// println!("{}", Coin::zero());
     /// ```
     pub fn zero() -> Self { Coin(0) }
+
+    /// create of unitary coin (a coin of value `1`)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cardano::coin::{Coin};
+    ///
+    /// println!("{}", Coin::unit());
+    /// ```
+    pub fn unit() -> Self { Coin(1) }
 
     /// create a coin of the given value
     ///
@@ -76,7 +90,8 @@ impl cbor_event::de::Deserialize for Coin {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Coin::new(raw.unsigned_integer()?).map_err(|err| {
             match err {
-                Error::OutOfBound(v) => cbor_event::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN))
+                Error::OutOfBound(v) => cbor_event::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN)),
+                Error::Negative => cbor_event::Error::CustomError("coin cannot hold negative value".to_owned()),
             }
         })
     }
@@ -94,24 +109,36 @@ impl<'a> ops::Add<&'a Coin> for Coin {
     }
 }
 impl ops::Sub for Coin {
-    type Output = Option<Coin>;
+    type Output = Result<Coin>;
     fn sub(self, other: Coin) -> Self::Output {
-        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
+        if other.0 > self.0 {
+            Err(Error::Negative)
+        } else {
+            Ok(Coin(self.0 - other.0))
+        }
     }
 }
 impl<'a> ops::Sub<&'a Coin> for Coin {
-    type Output = Option<Coin>;
+    type Output = Result<Coin>;
     fn sub(self, other: &'a Coin) -> Self::Output {
-        if other.0 > self.0 { None } else { Some(Coin(self.0 - other.0)) }
+        if other.0 > self.0 {
+            Err(Error::Negative)
+        } else {
+            Ok(Coin(self.0 - other.0))
+        }
     }
 }
 // this instance is necessary to chain the substraction operations
 //
 // i.e. `coin1 - coin2 - coin3`
-impl ops::Sub<Coin> for Option<Coin> {
-    type Output = Option<Coin>;
+impl ops::Sub<Coin> for Result<Coin> {
+    type Output = Result<Coin>;
     fn sub(self, other: Coin) -> Self::Output {
-        if other.0 > self?.0 { None } else { Some(Coin(self?.0 - other.0)) }
+        if other.0 > self?.0 {
+            Err(Error::Negative)
+        } else {
+            Ok(Coin(self?.0 - other.0))
+        }
     }
 }
 
