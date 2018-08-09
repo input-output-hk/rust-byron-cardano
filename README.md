@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
+[![Build status](https://ci.appveyor.com/api/projects/status/awho7gyd988djosg?svg=true)](https://ci.appveyor.com/project/zondax/rust-cardano)
 
 # rust implementation of cardano wallet and crypto
 
