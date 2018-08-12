@@ -49,6 +49,9 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+#[derive(Debug, Clone)]
+pub struct BlockHeaders(pub Vec<BlockHeader>);
+
 /// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
@@ -237,12 +240,7 @@ impl cbor_event::se::Serialize for Block {
 }
 impl cbor_event::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
-        }
-        let sum_type_idx = raw.unsigned_integer()?;
-        match sum_type_idx {
+        match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::GenesisBlock(blk))
@@ -251,8 +249,8 @@ impl cbor_event::de::Deserialize for Block {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::MainBlock(blk))
             },
-            _ => {
-                Err(cbor_event::Error::CustomError(format!("Unsupported Block: {}", sum_type_idx)))
+            idx => {
+                Err(cbor_event::Error::CustomError(format!("Unsupported Block: {}", idx)))
             }
         }
     }
@@ -271,14 +269,10 @@ impl cbor_event::se::Serialize for BlockHeader {
         }
     }
 }
+
 impl cbor_event::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
-        }
-        let sum_type_idx = raw.unsigned_integer()?;
-        match sum_type_idx {
+        match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::GenesisBlockHeader(blk))
@@ -287,11 +281,39 @@ impl cbor_event::de::Deserialize for BlockHeader {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::MainBlockHeader(blk))
             },
-            _ => {
-                Err(cbor_event::Error::CustomError(format!("Unsupported BlockHeader: {}", sum_type_idx)))
+            idx => {
+                Err(cbor_event::Error::CustomError(format!("Unsupported BlockHeader: {}", idx)))
             }
         }
     }
+}
+
+impl cbor_event::de::Deserialize for BlockHeaders {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        match decode_sum_type(raw)? {
+            0 => {
+                Ok(BlockHeaders(Vec::<BlockHeader>::deserialize(raw)?))
+            },
+            1 => {
+                Err(cbor_event::Error::CustomError(format!(
+                    "Server returned an error for Headers: {}",
+                    raw.text().unwrap())))
+            },
+            idx => {
+                Err(cbor_event::Error::CustomError(
+                    format!("Unsupported Headers: {}", idx)))
+            }
+        }
+    }
+}
+
+fn decode_sum_type(raw: &mut RawCbor) -> cbor_event::Result<u64> {
+    let len = raw.array()?;
+    if len != cbor_event::Len::Len(2) {
+        return Err(cbor_event::Error::CustomError(
+            format!("Expected sum type but got array of {:?} elements", len)));
+    }
+    Ok(raw.unsigned_integer()?)
 }
 
 #[cfg(test)]
