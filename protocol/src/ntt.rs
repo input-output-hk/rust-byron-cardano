@@ -162,7 +162,7 @@ pub mod protocol {
 
     #[derive(Debug, FromPrimitive)]
     pub enum ControlHeader {
-        CreatedNewConnection = 0,
+        CreateNewConnection = 0,
         CloseConnection = 1,
         CloseSocket = 2,
         CloseEndPoint = 3,
@@ -177,6 +177,8 @@ pub mod protocol {
     }
 
     pub type Nonce = u64;
+
+    #[derive(Debug, PartialEq)]
     pub enum NodeControlHeader {
         Syn,
         Ack,
@@ -231,8 +233,13 @@ pub mod protocol {
         pub fn make_ack(nonce: Nonce) -> Self {
             make_nodeid(NodeControlHeader::Ack, nonce)
         }
+
         pub fn get_control_header(&self) -> NodeControlHeader {
-            if self.0[0] == NODEID_ACK { NodeControlHeader::Syn } else { NodeControlHeader::Ack }
+            if self.0[0] == NODEID_ACK { NodeControlHeader::Ack } else { NodeControlHeader::Syn }
+        }
+
+        pub fn is_syn(&self) -> bool {
+            self.0[0] == NODEID_SYN
         }
 
         // check if a SYN nodeid match a specific ACK nodeid
@@ -292,7 +299,7 @@ pub mod protocol {
     }
 
     pub fn create_conn(cid: super::LightweightConnectionId, buf: &mut Vec<u8>) {
-        append_u32(ControlHeader::CreatedNewConnection as u32, buf);
+        append_u32(ControlHeader::CreateNewConnection as u32, buf);
         append_u32(cid, buf);
     }
 

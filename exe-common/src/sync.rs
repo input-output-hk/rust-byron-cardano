@@ -4,6 +4,7 @@ use storage::{self, tag, Error, block_read};
 use cardano::block::{BlockDate, EpochId, HeaderHash};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
+use std::thread;
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
@@ -22,6 +23,9 @@ pub fn net_sync<A: Api>(
     storage: &storage::Storage)
     -> Result<()>
 {
+    // FIXME
+    loop {
+
     // recover and print the TIP of the network
     let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
@@ -168,6 +172,9 @@ pub fn net_sync<A: Api>(
     if let Some(block_hash) = last_block {
         storage::tag::write(&storage, &tag::HEAD,
                             &storage::types::header_to_blockhash(&block_hash));
+    }
+
+        //thread::sleep(Duration::from_secs(5));
     }
 
     Ok(())

@@ -106,6 +106,11 @@ impl OpenPeer {
         let conn = protocol::ntt::Connection::handshake(drg_seed, stream)?;
         let mut conne = protocol::Connection::new(conn);
         conne.handshake(&hs)?;
+
+        // FIXME: make it configurable whether we want to subscribe to
+        // receive tip updates.
+        conne.subscribe()?;
+
         Ok(OpenPeer(conne))
     }
 
@@ -119,6 +124,21 @@ impl OpenPeer {
 }
 impl Api for OpenPeer {
     fn get_tip(&mut self) -> Result<BlockHeader> {
+
+        let prev_tip = self.0.get_latest_tip();
+
+        loop {
+            self.0.process_message()?;
+            let new_tip = self.0.get_latest_tip();
+            if new_tip.is_some() &&
+                (prev_tip.is_none()
+                 || new_tip.as_ref().unwrap().compute_hash() != prev_tip.as_ref().unwrap().compute_hash())
+            {
+                return Ok(new_tip.unwrap());
+            }
+        }
+
+        /*
         let block_headers_raw = GetBlockHeader::tip().execute(&mut self.0).expect("to get one header at least");
 
         let block_headers = block_headers_raw.decode()?;
@@ -127,6 +147,7 @@ impl Api for OpenPeer {
             panic!("get head header return more than 1 header")
         }
         Ok(block_headers[0].clone())
+        */
     }
 
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
