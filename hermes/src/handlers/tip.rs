@@ -1,5 +1,5 @@
 use config::{Networks};
-use storage::{block_location, block_read_location, Error, tag};
+use storage::{Error, tag};
 use std::sync::{Arc};
 
 use iron;
@@ -10,7 +10,6 @@ use router;
 use router::{Router};
 
 use handlers::common;
-use exe_common::utils::*;
 
 pub struct Handler {
     networks: Arc<Networks>
@@ -41,7 +40,6 @@ impl iron::Handler for Handler {
             None => return Ok(Response::with(status::BadRequest)),
             Some(net) => net
         };
-        let net_cfg = &net.config;
 
         match net.storage.get_block_from_tag(&tag::HEAD) {
             Err(Error::NoSuchTag) =>
