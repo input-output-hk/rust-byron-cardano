@@ -151,15 +151,6 @@ impl<T: Write+Read> Connection<T> {
         self.ntt.get_backend()
     }
 
-    // search for the next free LIGHT ID in the client connection map
-    fn find_next_connection_id(&self) -> LightId {
-        let mut x = LightId(ntt::LIGHT_ID_MIN);
-        while self.client_cons.contains_key(&x) {
-            x = x.next();
-        }
-        return x;
-    }
-
     fn get_free_light_id(&mut self) -> LightId {
         let id = self.next_light_id;
         self.next_light_id = id.next();
