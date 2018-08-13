@@ -29,10 +29,9 @@ fn net_sync_to<A: Api>(
         date: tip_header.get_blockdate()
     };
 
-    info!("Configured genesis   : {}", net_cfg.genesis);
-    info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    info!("Network TIP is       : {} <- {}", tip.hash, tip_header.get_previous_header());
-    info!("Network TIP slotid   : {}", tip.date);
+    debug!("Configured genesis   : {}", net_cfg.genesis);
+    debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+    info!( "Network TIP is       : {} ({}) <- {}", tip.hash, tip.date, tip_header.get_previous_header());
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
