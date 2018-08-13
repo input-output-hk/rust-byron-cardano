@@ -8,6 +8,7 @@ use cbor_event::{self, de::RawCbor};
 use super::types::{HeaderHash, SlotId, EpochId};
 use super::genesis;
 use super::normal;
+use super::super::cbor::hs::util::decode_sum_type;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -305,15 +306,6 @@ impl cbor_event::de::Deserialize for BlockHeaders {
             }
         }
     }
-}
-
-fn decode_sum_type(raw: &mut RawCbor) -> cbor_event::Result<u64> {
-    let len = raw.array()?;
-    if len != cbor_event::Len::Len(2) {
-        return Err(cbor_event::Error::CustomError(
-            format!("Expected sum type but got array of {:?} elements", len)));
-    }
-    Ok(raw.unsigned_integer()?)
 }
 
 #[cfg(test)]

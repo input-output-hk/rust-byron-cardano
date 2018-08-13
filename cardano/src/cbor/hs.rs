@@ -37,6 +37,15 @@ pub mod util {
         Ok(bytes)
     }
 
+    pub fn decode_sum_type(raw: &mut RawCbor) -> cbor_event::Result<u64> {
+        let len = raw.array()?;
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(
+                format!("Expected sum type but got array of {:?} elements", len)));
+        }
+        Ok(raw.unsigned_integer()?)
+    }
+
     #[cfg(test)]
     #[cfg(feature = "with-bench")]
     mod bench {
