@@ -90,7 +90,7 @@ impl Api for HermesEndPoint {
                 })
             });
             let now = SystemTime::now();
-            self.core.run(work).unwrap();
+            self.core.run(work)?;
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded block in {}sec", time_elapsed.as_secs());
         }
@@ -148,7 +148,7 @@ impl Api for HermesEndPoint {
                         })
                     });
                     let now = SystemTime::now();
-                    self.core.run(work).unwrap();
+                    self.core.run(work)?;
                     let time_elapsed = now.elapsed().unwrap();
                     info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
                 }
