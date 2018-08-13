@@ -1,6 +1,5 @@
 use std::io::{Write, Read};
 use std::{iter, io, result};
-use num_traits::FromPrimitive;
 
 pub type LightweightConnectionId = u32;
 
@@ -160,7 +159,7 @@ pub mod protocol {
 
     const PROTOCOL_VERSION : u32 = 0x00000000;
 
-    #[derive(Debug, FromPrimitive)]
+    #[derive(Debug)]
     pub enum ControlHeader {
         CreateNewConnection = 0,
         CloseConnection = 1,
@@ -168,6 +167,20 @@ pub mod protocol {
         CloseEndPoint = 3,
         ProbeSocket = 4,
         ProbeSocketAck = 5,
+    }
+
+    impl ControlHeader {
+        pub fn from_u32(v: u32) -> Option<Self> {
+            match v {
+                0 => Some(ControlHeader::CreateNewConnection),
+                1 => Some(ControlHeader::CloseConnection),
+                2 => Some(ControlHeader::CloseSocket),
+                3 => Some(ControlHeader::CloseEndPoint),
+                4 => Some(ControlHeader::ProbeSocket),
+                5 => Some(ControlHeader::ProbeSocketAck),
+                _ => None,
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -307,7 +320,6 @@ pub mod protocol {
         append_u32(ControlHeader::CloseConnection as u32, buf);
         append_u32(cid, buf);
     }
-
 
     pub fn append_with_length(dat: &[u8], buf: &mut Vec<u8>) {
         append_u32(dat.len() as u32, buf);
