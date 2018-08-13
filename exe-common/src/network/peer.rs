@@ -30,6 +30,13 @@ impl Api for Peer {
         }
     }
 
+    fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
+        match self {
+            Peer::Native(peer)   => peer.wait_for_new_tip(prev_tip),
+            Peer::Http(endpoint) => endpoint.wait_for_new_tip(prev_tip),
+        }
+    }
+
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self {
             Peer::Native(peer)   => peer.get_block(hash),

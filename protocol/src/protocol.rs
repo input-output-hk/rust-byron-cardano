@@ -421,7 +421,7 @@ impl<T: Write+Read> Connection<T> {
                             // The server opened a connection, so we
                             // have to ACK it on a separate, temporary
                             // connection.
-                            info!("new light connection {} from node {}", id, nodeid);
+                            info!("new async light connection {} from node {}", id, nodeid);
                             //let ack_conn_id = self.get_free_light_id(); // FIXME: mutable borrow of self
                             let ack_conn_id = self.next_light_id;
                             self.next_light_id = id.next();

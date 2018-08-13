@@ -1,10 +1,9 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
 use storage::{self, tag, Error, block_read};
-use cardano::block::{BlockDate, EpochId, HeaderHash};
+use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
-use std::thread;
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
@@ -17,17 +16,13 @@ struct EpochWriterState {
     blobs_to_delete: Vec<HeaderHash>,
 }
 
-pub fn net_sync<A: Api>(
+fn net_sync_to<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
-    storage: &storage::Storage)
+    storage: &storage::Storage,
+    tip_header: &BlockHeader)
     -> Result<()>
 {
-    // FIXME
-    loop {
-
-    // recover and print the TIP of the network
-    let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
         hash: tip_header.compute_hash(),
         parent: tip_header.get_previous_header(),
@@ -174,7 +169,26 @@ pub fn net_sync<A: Api>(
                             &storage::types::header_to_blockhash(&block_hash));
     }
 
-        //thread::sleep(Duration::from_secs(5));
+    Ok(())
+}
+
+pub fn net_sync<A: Api>(
+    net: &mut A,
+    net_cfg: &net::Config,
+    storage: &storage::Storage,
+    sync_once: bool)
+    -> Result<()>
+{
+    // recover and print the TIP of the network
+    let mut tip_header = net.get_tip()?;
+
+    loop {
+
+        net_sync_to(net, net_cfg, storage, &tip_header)?;
+
+        if sync_once { break }
+
+        tip_header = net.wait_for_new_tip(&tip_header.compute_hash())?;
     }
 
     Ok(())

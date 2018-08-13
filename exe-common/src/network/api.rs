@@ -8,6 +8,9 @@ pub trait Api {
     /// a given network
     fn get_tip(&mut self) -> Result<BlockHeader>;
 
+    /// Wait until a new tip is available
+    fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader>;
+
     /// Get one specific block (represented by its unique hash) from the
     /// network
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock>;
