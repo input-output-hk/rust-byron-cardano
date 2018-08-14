@@ -78,7 +78,7 @@ impl Coin {
 }
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)
     }
 }
 impl cbor_event::se::Serialize for Coin {
