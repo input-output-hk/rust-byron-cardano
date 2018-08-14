@@ -171,6 +171,19 @@ fn net_sync_to<A: Api>(
     Ok(())
 }
 
+/// Synchronize the local blockchain stored in `storage` with the
+/// network `net`. That is, fetch all blocks between the most recent
+/// block we received (as denoted by the `HEAD` tag) and the network's
+/// current tip. Blocks will be packed into epochs on disk as soon
+/// they're stable.
+///
+/// If `sync_once` is set to `true`, then this function will
+/// synchronize once and then return. If it's set to `false`, then
+/// this function will run forever, continuously synchronizing to the
+/// network's latest tip. (In the case of the Hermes backend, it will
+/// sleep for some time between polling for new tips; with the native
+/// protocol backend, it will block waiting for the server to send us
+/// new tip announcements.)
 pub fn net_sync<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
