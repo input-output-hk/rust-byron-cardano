@@ -2,6 +2,7 @@ mod config;
 pub mod commands;
 mod error;
 mod result;
+pub mod state;
 
 pub use self::error::{Error};
 pub use self::result::{Result};
