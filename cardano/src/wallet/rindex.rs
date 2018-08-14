@@ -6,7 +6,7 @@ use cbor_event;
 use cryptoxide;
 use cryptoxide::digest::{Digest};
 use bip::bip39;
-use hdwallet::{XPrv, DerivationScheme};
+use hdwallet::{self, XPrv, XPub, DerivationScheme};
 use hdpayload;
 use fee::{self, FeeAlgorithm};
 use coin::{self, Coin};
@@ -208,36 +208,42 @@ impl scheme::Account for RootKey {
     fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
         where I: Iterator<Item = &'a Self::Addressing>
     {
-        let (hint_low, hint_max) = addresses.size_hint();
-        let mut vec = Vec::with_capacity(hint_max.unwrap_or(hint_low));
-
-        let hdkey = hdpayload::HDKey::new(&self.public());
-
-        for addressing in addresses {
-            let key = self.derive(self.derivation_scheme, addressing.0)
-                          .derive(self.derivation_scheme, addressing.1)
-                          .public();
-
-            let payload = hdkey.encrypt_path(&hdpayload::Path::new(vec![addressing.0, addressing.1]));
-            let attributes = Attributes::new_bootstrap_era(Some(payload));
-            let addr = ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes);
-            vec.push(addr);
-        }
-
-        vec
+        self.address_generator().iter_with(addresses).collect()
     }
 }
 
 #[derive(Debug)]
 pub enum Error {
     Bip39Error(bip39::Error),
-    CBorEncoding(cbor_event::Error) // Should not happen really
+    DerivationError(hdwallet::Error),
+    PayloadError(hdpayload::Error),
+    CBorEncoding(cbor_event::Error), // Should not happen really
+
+    /// the addressing decoded in the payload is invalid
+    InvalidPayloadAddressing,
+
+    /// we were not able to reconstruct the wallet's address
+    /// it could be due to that:
+    ///
+    /// 1. this address is using a different derivation scheme;
+    /// 2. the address has been falsified (someone copied
+    ///    an HDPayload from another of the wallet's addresses and
+    ///    put it in one of its address);
+    /// 3. that the software needs to be updated.
+    ///
+    CannotReconstructAddress
 }
 impl From<bip39::Error> for Error {
     fn from(e: bip39::Error) -> Self { Error::Bip39Error(e) }
 }
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CBorEncoding(e) }
+}
+impl From<hdwallet::Error> for Error {
+    fn from(e: hdwallet::Error) -> Self { Error::DerivationError(e) }
+}
+impl From<hdpayload::Error> for Error {
+    fn from(e: hdpayload::Error) -> Self { Error::PayloadError(e) }
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -273,8 +279,173 @@ impl RootKey {
         let xprv = XPrv::generate_from_daedalus_seed(&seed);
         Ok(RootKey::new(xprv, derivation_scheme))
     }
+
+    pub fn address_generator(&self) -> AddressGenerator<XPrv>
+    {
+        AddressGenerator::<XPrv>::new(self.root_key.clone(), self.derivation_scheme)
+    }
 }
 impl Deref for RootKey {
     type Target = XPrv;
     fn deref(&self) -> &Self::Target { &self.root_key }
+}
+
+/// structure to create addresses
+///
+/// The model is fairly simple in this case, one can generate addresses
+/// from this structure. The convenient element here is that it interfaces
+/// both private key and public key derivation. So one does not need to
+/// have the private key to generate addresses, the public key may suffice
+/// in this case.
+///
+/// It is handy to hold this structure in memory during heavy address generation
+/// or tight loop of address generation as the scheme to retrieve the encryption
+/// key to encrypt for the address Payload is costly.
+///
+pub struct AddressGenerator<K> {
+    hdkey: hdpayload::HDKey,
+    cached_key: K,
+    derivation_scheme: DerivationScheme,
+}
+impl<K> AddressGenerator<K> {
+    /// create an address iterator from the address generator.
+    ///
+    /// # Example
+    ///
+    /// ```
+    pub fn iter_with<'a, I>(self, iter: I) -> AddressIterator<K, I>
+        where I: Iterator<Item = &'a Addressing>
+    {
+        AddressIterator::new(self, iter)
+    }
+
+    pub fn try_get_addressing(&self, address: &ExtendedAddr) -> Result<Option<Addressing>> {
+        if let Some(ref epath) = address.attributes.derivation_path {
+            let path = match self.hdkey.decrypt_path(epath) {
+                Ok(path) => path,
+                Err(hdpayload::Error::CannotDecrypt) => {
+                    // we could not decrypt it, there was no _error_.
+                    return Ok(None);
+                },
+                Err(err) => return Err(Error::from(err))
+            };
+            if path.len() == 2 {
+                let path = (path[0], path[1]);
+
+                Ok(Some(path))
+            } else {
+                Err(Error::InvalidPayloadAddressing)
+            }
+        } else { Ok(None) }
+    }
+
+    fn compare_address_with_pubkey(&self, address: &ExtendedAddr, path: &Addressing, key: XPub) -> Result<()> {
+        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+
+        let mut attributes = address.attributes.clone();
+        attributes.derivation_path = Some(payload);
+
+        let expected = ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes);
+        if &expected == address {
+            Ok(())
+        } else {
+            Err(Error::CannotReconstructAddress)
+        }
+    }
+}
+impl AddressGenerator<XPub> {
+    pub fn new(key: XPub, derivation_scheme: DerivationScheme) -> Self {
+        let hdkey = hdpayload::HDKey::new(&key);
+
+        AddressGenerator {
+            hdkey,
+            cached_key: key,
+            derivation_scheme,
+        }
+    }
+
+    fn key(&self, path: &Addressing) -> Result<XPub> {
+        Ok(
+            self.cached_key
+                .derive(self.derivation_scheme, path.0)?
+                .derive(self.derivation_scheme, path.1)?
+        )
+    }
+
+    /// attempt the reconstruct the address with the same metadata
+    pub fn compare_address(&self, address: &ExtendedAddr, path: &Addressing) -> Result<()> {
+        let key = self.key(path)?;
+        self.compare_address_with_pubkey(address, path, key)
+    }
+
+    /// create an address with the given addressing
+    pub fn address(&self, path: &Addressing) -> Result<ExtendedAddr> {
+        let key = self.key(path)?;
+
+        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+        let attributes = Attributes::new_bootstrap_era(Some(payload));
+        Ok(ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes))
+    }
+}
+impl AddressGenerator<XPrv> {
+    pub fn new(key: XPrv, derivation_scheme: DerivationScheme) -> Self {
+        let hdkey = hdpayload::HDKey::new(&key.public());
+
+        AddressGenerator {
+            hdkey,
+            cached_key: key,
+            derivation_scheme,
+        }
+    }
+
+    fn key(&self, path: &Addressing) -> XPrv {
+        self.cached_key
+            .derive(self.derivation_scheme, path.0)
+            .derive(self.derivation_scheme, path.1)
+    }
+
+    /// create an address with the given addressing
+    pub fn address(&self, path: &Addressing) -> ExtendedAddr {
+        let key = self.key(path).public();
+
+        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+        let attributes = Attributes::new_bootstrap_era(Some(payload));
+        ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes)
+    }
+
+    /// attempt the reconstruct the address with the same metadata
+    pub fn compare_address(&self, address: &ExtendedAddr, path: &Addressing) -> Result<()> {
+        let key = self.key(path).public();
+        self.compare_address_with_pubkey(address, path, key)
+    }
+}
+
+pub struct AddressIterator<K, I> {
+    generator: AddressGenerator<K>,
+
+    iter: I
+}
+impl<K, I> AddressIterator<K, I> {
+    fn new(generator: AddressGenerator<K>, iter: I) -> Self {
+        AddressIterator {
+            generator,
+            iter
+        }
+    }
+}
+impl<'a, I> Iterator for AddressIterator<XPrv, I>
+    where I: Iterator<Item = &'a Addressing>
+{
+    type Item = ExtendedAddr;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|path| { self.generator.address(path) })
+    }
+}
+impl<'a, I> Iterator for AddressIterator<XPub, I>
+    where I: Iterator<Item = &'a Addressing>
+{
+    type Item = Result<ExtendedAddr>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|path| { self.generator.address(path) })
+    }
 }
