@@ -398,6 +398,14 @@ impl AddressGenerator<XPrv> {
         }
     }
 
+    pub fn public(self) -> AddressGenerator<XPub> {
+        AddressGenerator {
+            hdkey: self.hdkey,
+            cached_key: self.cached_key.public(),
+            derivation_scheme: self.derivation_scheme,
+        }
+    }
+
     fn key(&self, path: &Addressing) -> XPrv {
         self.cached_key
             .derive(self.derivation_scheme, path.0)
