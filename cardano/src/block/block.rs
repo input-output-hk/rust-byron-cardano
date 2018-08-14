@@ -3,11 +3,13 @@
 //! The main types are `Header` and `Block`
 use std::{fmt};
 use std::cmp::{Ord, Ordering};
+use std::ops::{Deref, DerefMut};
 
 use cbor_event::{self, de::RawCbor};
 use super::types::{HeaderHash, SlotId, EpochId};
 use super::genesis;
 use super::normal;
+use super::super::cbor::hs::util::decode_sum_type;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -47,6 +49,20 @@ impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 pub enum BlockHeader {
     GenesisBlockHeader(genesis::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
+}
+
+/// BlockHeaders is a vector of block headers, as produced by
+/// MsgBlocks.
+#[derive(Debug, Clone)]
+pub struct BlockHeaders(pub Vec<BlockHeader>);
+
+impl Deref for BlockHeaders {
+    type Target = Vec<BlockHeader>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl DerefMut for BlockHeaders {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 /// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
@@ -237,12 +253,7 @@ impl cbor_event::se::Serialize for Block {
 }
 impl cbor_event::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
-        }
-        let sum_type_idx = raw.unsigned_integer()?;
-        match sum_type_idx {
+        match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::GenesisBlock(blk))
@@ -251,8 +262,8 @@ impl cbor_event::de::Deserialize for Block {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(Block::MainBlock(blk))
             },
-            _ => {
-                Err(cbor_event::Error::CustomError(format!("Unsupported Block: {}", sum_type_idx)))
+            idx => {
+                Err(cbor_event::Error::CustomError(format!("Unsupported Block: {}", idx)))
             }
         }
     }
@@ -271,14 +282,10 @@ impl cbor_event::se::Serialize for BlockHeader {
         }
     }
 }
+
 impl cbor_event::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
-        }
-        let sum_type_idx = raw.unsigned_integer()?;
-        match sum_type_idx {
+        match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::GenesisBlockHeader(blk))
@@ -287,8 +294,27 @@ impl cbor_event::de::Deserialize for BlockHeader {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
                 Ok(BlockHeader::MainBlockHeader(blk))
             },
-            _ => {
-                Err(cbor_event::Error::CustomError(format!("Unsupported BlockHeader: {}", sum_type_idx)))
+            idx => {
+                Err(cbor_event::Error::CustomError(format!("Unsupported BlockHeader: {}", idx)))
+            }
+        }
+    }
+}
+
+impl cbor_event::de::Deserialize for BlockHeaders {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        match decode_sum_type(raw)? {
+            0 => {
+                Ok(BlockHeaders(Vec::<BlockHeader>::deserialize(raw)?))
+            },
+            1 => {
+                Err(cbor_event::Error::CustomError(format!(
+                    "Server returned an error for Headers: {}",
+                    raw.text().unwrap())))
+            },
+            idx => {
+                Err(cbor_event::Error::CustomError(
+                    format!("Unsupported Headers: {}", idx)))
             }
         }
     }

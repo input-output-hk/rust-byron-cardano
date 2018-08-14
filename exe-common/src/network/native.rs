@@ -56,6 +56,13 @@ impl Api for PeerPool {
         }
     }
 
+    fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
+        match self.connections.get_mut(0) {
+            None => panic!("We expect at lease one connection on any native peer"),
+            Some(conn) => conn.wait_for_new_tip(prev_tip)
+        }
+    }
+
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
@@ -106,6 +113,11 @@ impl OpenPeer {
         let conn = protocol::ntt::Connection::handshake(drg_seed, stream)?;
         let mut conne = protocol::Connection::new(conn);
         conne.handshake(&hs)?;
+
+        // FIXME: make it configurable whether we want to subscribe to
+        // receive tip updates.
+        conne.subscribe()?;
+
         Ok(OpenPeer(conne))
     }
 
@@ -119,6 +131,9 @@ impl OpenPeer {
 }
 impl Api for OpenPeer {
     fn get_tip(&mut self) -> Result<BlockHeader> {
+
+        if let Some(prev_tip) = self.0.get_latest_tip() { return Ok(prev_tip) }
+
         let block_headers_raw = GetBlockHeader::tip().execute(&mut self.0).expect("to get one header at least");
 
         let block_headers = block_headers_raw.decode()?;
@@ -127,6 +142,18 @@ impl Api for OpenPeer {
             panic!("get head header return more than 1 header")
         }
         Ok(block_headers[0].clone())
+    }
+
+    fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
+        loop {
+            self.0.process_message()?;
+            let new_tip = self.0.get_latest_tip();
+            if new_tip.is_some() &&
+                (new_tip.as_ref().unwrap().compute_hash() != *prev_tip)
+            {
+                return Ok(new_tip.unwrap());
+            }
+        }
     }
 
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {

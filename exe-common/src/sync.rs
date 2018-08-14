@@ -1,7 +1,7 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
 use storage::{self, tag, Error, block_read};
-use cardano::block::{BlockDate, EpochId, HeaderHash};
+use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
 
@@ -16,24 +16,22 @@ struct EpochWriterState {
     blobs_to_delete: Vec<HeaderHash>,
 }
 
-pub fn net_sync<A: Api>(
+fn net_sync_to<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
-    storage: &storage::Storage)
+    storage: &storage::Storage,
+    tip_header: &BlockHeader)
     -> Result<()>
 {
-    // recover and print the TIP of the network
-    let tip_header = net.get_tip().unwrap();
     let tip = BlockRef {
         hash: tip_header.compute_hash(),
         parent: tip_header.get_previous_header(),
         date: tip_header.get_blockdate()
     };
 
-    info!("Configured genesis   : {}", net_cfg.genesis);
-    info!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    info!("Network TIP is       : {} <- {}", tip.hash, tip_header.get_previous_header());
-    info!("Network TIP slotid   : {}", tip.date);
+    debug!("Configured genesis   : {}", net_cfg.genesis);
+    debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
+    info!( "Network TIP is       : {} ({}) <- {}", tip.hash, tip.date, tip_header.get_previous_header());
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
@@ -168,6 +166,41 @@ pub fn net_sync<A: Api>(
     if let Some(block_hash) = last_block {
         storage::tag::write(&storage, &tag::HEAD,
                             &storage::types::header_to_blockhash(&block_hash));
+    }
+
+    Ok(())
+}
+
+/// Synchronize the local blockchain stored in `storage` with the
+/// network `net`. That is, fetch all blocks between the most recent
+/// block we received (as denoted by the `HEAD` tag) and the network's
+/// current tip. Blocks will be packed into epochs on disk as soon
+/// they're stable.
+///
+/// If `sync_once` is set to `true`, then this function will
+/// synchronize once and then return. If it's set to `false`, then
+/// this function will run forever, continuously synchronizing to the
+/// network's latest tip. (In the case of the Hermes backend, it will
+/// sleep for some time between polling for new tips; with the native
+/// protocol backend, it will block waiting for the server to send us
+/// new tip announcements.)
+pub fn net_sync<A: Api>(
+    net: &mut A,
+    net_cfg: &net::Config,
+    storage: &storage::Storage,
+    sync_once: bool)
+    -> Result<()>
+{
+    // recover and print the TIP of the network
+    let mut tip_header = net.get_tip()?;
+
+    loop {
+
+        net_sync_to(net, net_cfg, storage, &tip_header)?;
+
+        if sync_once { break }
+
+        tip_header = net.wait_for_new_tip(&tip_header.compute_hash())?;
     }
 
     Ok(())

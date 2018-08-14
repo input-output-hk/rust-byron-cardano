@@ -179,9 +179,10 @@ pub fn send_handshake(hs: &Handshake) -> Vec<u8> { cbor!(hs).unwrap() }
 type Message = (u8, Vec<u8>);
 
 pub enum MsgType {
-    MsgSubscribe = 0xe,
     MsgGetHeaders = 0x4,
+    MsgHeaders = 0x5,
     MsgGetBlocks = 0x6,
+    MsgSubscribe = 0xd,
 }
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {

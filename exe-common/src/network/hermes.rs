@@ -2,7 +2,8 @@ use cardano::block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash}
 use cardano::hash::HASH_SIZE;
 use storage;
 use std::io::Write;
-use std::time::{SystemTime};
+use std::time::{SystemTime, Duration};
+use std::thread;
 
 use futures::{Future, Stream};
 use hyper::Client;
@@ -11,6 +12,8 @@ use tokio_core::reactor::Core;
 use network::{Result, Error};
 use network::api::{Api, BlockRef};
 
+// Time between get_tip calls. FIXME: make configurable?
+static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
 
 /// hermes end point
 pub struct HermesEndPoint {
@@ -60,6 +63,16 @@ impl Api for HermesEndPoint {
         Ok(bh_raw.decode()?)
     }
 
+    fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
+        loop {
+            let new_tip = self.get_tip()?;
+            if new_tip.compute_hash() != *prev_tip { return Ok(new_tip) }
+
+            info!("Sleeping for {:?}", NETWORK_REFRESH_FREQUENCY);
+            thread::sleep(NETWORK_REFRESH_FREQUENCY);
+        }
+    }
+
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         let uri = self.uri(&format!("block/{}", hash));
         info!("querying uri: {}", uri);
@@ -77,7 +90,7 @@ impl Api for HermesEndPoint {
                 })
             });
             let now = SystemTime::now();
-            self.core.run(work).unwrap();
+            self.core.run(work)?;
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded block in {}sec", time_elapsed.as_secs());
         }
@@ -135,7 +148,7 @@ impl Api for HermesEndPoint {
                         })
                     });
                     let now = SystemTime::now();
-                    self.core.run(work).unwrap();
+                    self.core.run(work)?;
                     let time_elapsed = now.elapsed().unwrap();
                     info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
                 }
