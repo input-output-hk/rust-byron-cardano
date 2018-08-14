@@ -78,7 +78,7 @@ impl Coin {
 }
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)
     }
 }
 impl cbor_event::se::Serialize for Coin {
@@ -142,6 +142,13 @@ impl ops::Sub<Coin> for Result<Coin> {
     }
 }
 
+impl From<Coin> for u64 {
+    fn from(c: Coin) -> u64 { c.0 }
+}
+
+impl From<u32> for Coin {
+    fn from(c: u32) -> Coin { Coin(c as u64) }
+}
 pub fn sum_coins(coins: &[Coin]) -> Result<Coin> {
     coins.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
 }
