@@ -3,6 +3,7 @@
 //! The main types are `Header` and `Block`
 use std::{fmt};
 use std::cmp::{Ord, Ordering};
+use std::ops::{Deref, DerefMut};
 
 use cbor_event::{self, de::RawCbor};
 use super::types::{HeaderHash, SlotId, EpochId};
@@ -50,8 +51,19 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+/// BlockHeaders is a vector of block headers, as produced by
+/// MsgBlocks.
 #[derive(Debug, Clone)]
 pub struct BlockHeaders(pub Vec<BlockHeader>);
+
+impl Deref for BlockHeaders {
+    type Target = Vec<BlockHeader>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl DerefMut for BlockHeaders {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
 
 /// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]

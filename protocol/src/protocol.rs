@@ -472,10 +472,10 @@ impl<T: Write+Read> Connection<T> {
     pub fn process_async_headers(&mut self, msg: &[u8]) -> Result<()> {
         let mut headers = cardano::block::BlockHeaders::deserialize(&mut RawCbor::from(msg))?;
 
-        info!("received {} asynchronous headers", headers.0.len());
+        info!("received {} asynchronous headers", headers.len());
 
-        if headers.0.len() > 0 {
-            self.latest_tip = headers.0.pop();
+        if let Some(latest_test) = headers.pop() {
+            self.latest_tip = Some(latest_test);
         }
 
         Ok(())
