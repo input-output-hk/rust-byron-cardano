@@ -10,6 +10,8 @@ pub use self::config::{HDWalletModel, Config};
 
 use self::config::{decrypt_primary_key};
 
+use self::state::log::{LogLock};
+
 use std::{path::PathBuf, fs, io::{Read, Write}};
 use cardano::{wallet};
 use storage::{tmpfile::{TmpFile}};
@@ -85,6 +87,12 @@ impl Wallet {
         file.read_to_end(&mut key).unwrap();
 
         Self::new(root_dir, name, cfg, key)
+    }
+
+    /// lock the LOG file of the wallet for Read and/or Write operations
+    pub fn log(&self) -> Result<LogLock> {
+        let dir = config::directory(self.root_dir.clone(), &self.name);
+        Ok(LogLock::acquire_wallet_log_lock(dir)?)
     }
 
     /// convenient function to reconstruct a BIP44 wallet from the encrypted key and password
