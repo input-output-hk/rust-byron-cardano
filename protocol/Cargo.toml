@@ -12,3 +12,7 @@ keywords = [ "Cardano", "Protocol" ]
 cbor_event = { path = "../cbor_event" }
 cardano = { path = "../cardano" }
 log = "0.4"
+
+[dev-dependencies]
+rand = "*"
+env_logger = "*"

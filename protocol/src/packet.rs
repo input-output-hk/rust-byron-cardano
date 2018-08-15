@@ -3,6 +3,7 @@ use std::{fmt};
 use cardano::config::{ProtocolMagic};
 use cardano::block;
 use cardano::block::{HeaderHash};
+use cardano::tx;
 
 use cbor_event::{self, se, de::{self, RawCbor}};
 
@@ -211,6 +212,14 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
         .serialize(to).unwrap()
         .finalize();
     (MsgType::MsgGetBlocks as u8, dat)
+}
+
+pub fn send_msg_announcetx(txid: &tx::TxId) -> Message {
+    let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
+        .serialize(&0).unwrap()
+        .serialize(txid).unwrap()
+        .finalize();
+    (0x24, dat)
 }
 
 #[derive(Debug)]

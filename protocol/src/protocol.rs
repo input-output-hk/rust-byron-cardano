@@ -368,7 +368,7 @@ impl<T: Write+Read> Connection<T> {
                 error!("LightId({}) Unsupported control `{:?}`", cid, ch);
                 Err(Error::UnsupportedControl(ch))
             },
-            ntt::protocol::Command::Data(server_id, len) => {
+            Command::Data(server_id, len) => {
                 let bytes = self.ntt.recv_len(len).unwrap();
                 let id = LightId::new(server_id);
                 match self.server_cons.get_mut(&id) {
@@ -489,9 +489,9 @@ impl<T: Write+Read> Connection<T> {
 pub mod command {
     use std::io::{Read, Write};
     use super::{LightId, Connection};
-    use cardano;
+    use cardano::{self, tx};
     use packet;
-    use cbor_event::de::RawCbor;
+    use cbor_event::{de::RawCbor, se, self};
 
     pub trait Command<W: Read+Write> {
         type Output;
@@ -621,4 +621,76 @@ pub mod command {
             None
         }
     }
+
+    #[derive(Debug)]
+    pub struct AnnounceTx(tx::TxAux);
+    impl AnnounceTx {
+        pub fn new(tx: tx::TxAux) -> Self { AnnounceTx(tx) }
+    }
+    impl<W> Command<W> for AnnounceTx where W: Read+Write {
+        type Output = SendTx;
+
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            let (_, get_header_dat) = packet::send_msg_announcetx(&self.0.tx.id());
+
+            connection.send_bytes(id, &[0x18, 0x25]).unwrap();
+            connection.send_bytes(id, &get_header_dat[..]).unwrap();
+            Ok(())
+        }
+
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
+            let dat = connection.wait_msg(id).unwrap();
+            panic!("not implemented");
+            /*
+            match RawCbor::from(&dat).deserialize().unwrap() {
+                Err(err) => 
+                    Err(String::from(format!("error while decoding response from cbor: {:?}", err))),
+                Ok(res) => {
+                    let (v, txid) : (u64, Vec<tx::TxId>) = res;
+                    assert_eq!(v, 0u64);
+                    assert_eq!(txid[0], self.0.tx.id());
+                    Ok(SendTx(self.0.clone(), id))
+                },
+            }
+            */
+        }
+
+        fn terminate(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct SendTx(tx::TxAux, LightId);
+
+    impl<W> Command<W> for SendTx where W: Read+Write {
+        type Output = (); // FIXME
+
+        fn initial(&self, connection: &mut Connection<W>) -> Result<LightId, &'static str> {
+            Ok(self.1)
+        }
+
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+            let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
+                .serialize(&1).unwrap()
+                .serialize(&self.0).unwrap()
+                .finalize();
+            connection.send_bytes(id, &dat[..]).unwrap();
+            Ok(())
+        }
+
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
+            let dat = connection.wait_msg(id).unwrap();
+            panic!("not implemented");
+            /*
+            match RawCbor::from(&dat).deserialize().unwrap() {
+                None => Err(String::from("message block decoder failed with something unexpected")),
+                Some(val) => {
+                    Ok(val)
+                },
+            }
+            */
+        }
+    }
+
 }
