@@ -78,6 +78,11 @@ impl LogReader {
 
     pub fn release_lock(self) -> LogLock { LogLock(self.0.close()) }
 
+    pub fn into_iter<A>(self) -> LogIterator<A>
+        where for<'de> A: serde::Deserialize<'de>
+    {
+        LogIterator {reader: self, _log_type: ::std::marker::PhantomData }
+    }
     pub fn next<A>(&mut self) -> Result<Option<Log<A>>>
         where for<'de> A: serde::Deserialize<'de>
     {
@@ -87,6 +92,24 @@ impl LogReader {
                 let log = Log::deserisalise(&bytes)?;
                 Ok(Some(log))
             }
+        }
+    }
+}
+
+pub struct LogIterator<A> {
+    reader: LogReader,
+    _log_type: ::std::marker::PhantomData<A>
+}
+impl<A> Iterator for LogIterator<A>
+    where for<'de> A: serde::Deserialize<'de>
+{
+    type Item = Result<Log<A>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.reader.next() {
+            Err(err) => Some(Err(err)),
+            Ok(None) => None,
+            Ok(Some(log)) => Some(Ok(log))
         }
     }
 }
