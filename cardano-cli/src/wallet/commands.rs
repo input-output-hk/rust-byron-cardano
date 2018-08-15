@@ -1,5 +1,6 @@
 use super::config::{encrypt_primary_key, Config, HDWalletModel};
 use super::{Wallet};
+use super::state;
 
 use std::{path::PathBuf};
 use cardano::{hdwallet::{self, DerivationScheme}, wallet, bip::bip39};
@@ -139,6 +140,60 @@ pub fn detach( mut term: Term
     term.success("Wallet successfully attached to blockchain.").unwrap()
 }
 
+pub fn sync( mut term: Term
+           , root_dir: PathBuf
+           , name: String
+           )
+
+{
+    // 0. load the wallet
+    let wallet = Wallet::load(root_dir.clone(), name);
+
+    // 1. get the wallet's blockchain
+    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
+
+    // 2. prepare the wallet state
+    let initial_ptr = state::ptr::StatePtr::new_before_genesis(blockchain.config.genesis_prev);
+    match wallet.config.hdwallet_model {
+        HDWalletModel::BIP44 => {
+            let mut state = {
+                // TODO: add public key in the config file in the case of wallet
+                //       with bip44 scheme. So we don't need a password
+                let wallet = wallet.get_wallet_bip44(&[]).unwrap(); // TODO bad unwrap
+                let lookup_struct = state::lookup::sequentialindex::SequentialBip44Lookup::new(wallet);
+                state::state::State::new(initial_ptr, lookup_struct)
+            };
+
+            // 3. update the initial state with existing logs
+            let log_lock = wallet.log().unwrap(); // TODO check for Error::WalletLogAlreadyLocked(process_id)
+            state.update_with_logs(
+                state::log::LogReader::open(log_lock).unwrap() // BAD
+                    .into_iter().filter_map(|r| {
+                        match r {
+                            Err(err) => {
+                                panic!("{:?}", err)
+                            },
+                            Ok(v) => Some(v)
+                        }
+                    })
+            ).unwrap(); // BAD
+
+
+        },
+        HDWalletModel::RandomIndex2Levels => {
+            let mut _state = {
+                // TODO: ask user to fill in the password of the wallet
+                const PASSWORD : &'static [u8] = &[];
+                let wallet = wallet.get_wallet_rindex(PASSWORD).unwrap(); // TODO bad unwrap
+                let lookup_struct = state::lookup::randomindex::RandomIndexLookup::from(wallet);
+                state::state::State::new(initial_ptr, lookup_struct)
+            };
+
+            // TODO
+        },
+    };
+}
+
 fn load_attached_blockchain(term: &mut Term, root_dir: PathBuf, name: Option<String>) -> Blockchain {
     match name {
         None => {
@@ -150,4 +205,3 @@ fn load_attached_blockchain(term: &mut Term, root_dir: PathBuf, name: Option<Str
         }
     }
 }
-
