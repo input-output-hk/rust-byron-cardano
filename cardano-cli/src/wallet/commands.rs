@@ -64,8 +64,14 @@ pub fn new<D>( mut term: Term
     }
     let encrypted_xprv = encrypt_primary_key(password.as_bytes(), &xprv);
 
+    // create the root public key (if not unsafe wallet)
+    let public_key = match wallet_scheme {
+        HDWalletModel::BIP44 => Some(xprv.public()),
+        HDWalletModel::RandomIndex2Levels => None
+    };
+
     // 5. create the wallet
-    let wallet = Wallet::new(root_dir, name, config, encrypted_xprv);
+    let wallet = Wallet::new(root_dir, name, config, encrypted_xprv, public_key);
 
     // 6. save the wallet
     wallet.save();
