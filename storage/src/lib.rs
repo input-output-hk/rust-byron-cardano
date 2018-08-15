@@ -92,14 +92,14 @@ impl Storage {
     ///
     /// it will iterate from the tag `HEAD` until there is no more
     /// value to parse
-    pub fn reverse_iter<'a>(&'a self) -> Result<block::ReverseIter<'a>> {
-        block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
-    }
+    //pub fn reverse_iter<'a>(&'a self) -> Result<block::ReverseIter<'a>> {
+    //    block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
+    //}
 
     /// create a block iterator starting from the given EpochId
-    pub fn iterate_from_epoch<'a>(&'a self, from: cardano::block::EpochId) -> Result<block::Iter<'a>> {
-        Ok(block::Iter::new(&self.config, from)?)
-    }
+    //pub fn iterate_from_epoch<'a>(&'a self, from: cardano::block::EpochId) -> Result<block::Iter<'a>> {
+    //    Ok(block::Iter::new(&self.config, from)?)
+    //}
 
     /// construct a range between the given hash
     pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
