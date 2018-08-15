@@ -70,13 +70,16 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId)
     Ok(ph)
 }
 
+pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<RefPack> {
+    let mut file = fs::File::open(config.get_epoch_refpack_filepath(epochid))?;
+    Ok(RefPack::read(&mut file).unwrap())
+}
+
 pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<(PackHash, RefPack)> {
     match epoch_read_pack(config, epochid) {
         Err(e) => Err(e),
         Ok(ph) => {
-            let mut file = fs::File::open(config.get_epoch_refpack_filepath(epochid))?;
-            let rp = RefPack::read(&mut file).unwrap();
-
+            let rp = epoch_read_packref(config, epochid)?;
             Ok((ph, rp))
         }
     }
