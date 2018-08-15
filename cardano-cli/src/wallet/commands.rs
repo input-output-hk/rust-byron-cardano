@@ -122,15 +122,7 @@ pub fn detach( mut term: Term
     let mut wallet = Wallet::load(root_dir.clone(), name);
 
     // 1. get the wallet's blockchain
-    let blockchain = match wallet.config.attached_blockchain {
-        None => {
-            term.error("Wallet is not attached to any blockchain\n").unwrap();
-            ::std::process::exit(1);
-        },
-        Some(blockchain) => {
-            Blockchain::load(root_dir, blockchain)
-        }
-    };
+    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain);
 
     // 2. remove the wallet tag
     blockchain.remove_wallet_tag(&wallet.name);
@@ -146,3 +138,16 @@ pub fn detach( mut term: Term
 
     term.success("Wallet successfully attached to blockchain.").unwrap()
 }
+
+fn load_attached_blockchain(term: &mut Term, root_dir: PathBuf, name: Option<String>) -> Blockchain {
+    match name {
+        None => {
+            term.error("Wallet is not attached to any blockchain\n").unwrap();
+            ::std::process::exit(1);
+        },
+        Some(blockchain) => {
+            Blockchain::load(root_dir, blockchain)
+        }
+    }
+}
+
