@@ -1,7 +1,6 @@
 use {address, tx, hdwallet, vss, hash::{Blake2b256}};
 use config::{ProtocolMagic};
 use std::{fmt};
-use std::slice::{Iter};
 use std::collections::{BTreeMap, btree_map};
 
 use cbor_event::{self, de::RawCbor};
@@ -72,7 +71,10 @@ impl TxPayload {
     pub fn empty() -> Self {
         TxPayload::new(Vec::new())
     }
-    pub fn iter(&self) -> Iter<tx::TxAux> { self.txaux.iter() }
+}
+impl ::std::ops::Deref for TxPayload {
+    type Target = [tx::TxAux];
+    fn deref(&self) -> &Self::Target { self.txaux.deref() }
 }
 impl cbor_event::se::Serialize for TxPayload {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
