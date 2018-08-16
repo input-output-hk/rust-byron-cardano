@@ -115,6 +115,10 @@ impl Blockchain {
         let tag = format!("wallet/{}", wallet_name);
         tag::remove_tag(&self.storage, &tag);
     }
+    pub fn get_wallet_tag(&self, wallet_name: &str) -> Option<block::HeaderHash> {
+        let tag = format!("wallet/{}", wallet_name);
+        tag::read_hash(&self.storage, &tag)
+    }
 
     pub fn load_tip(&self) -> (BlockRef, bool) {
         let genesis_ref = (BlockRef {
