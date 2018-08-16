@@ -202,6 +202,12 @@ pub enum Block {
     MainBlock(normal::Block),
 }
 impl Block {
+    pub fn is_genesis_block(&self) -> bool {
+        match self {
+            &Block::GenesisBlock(_) => true,
+            &Block::MainBlock(_) => false
+        }
+    }
     pub fn get_header(&self) -> BlockHeader {
         match self {
             &Block::GenesisBlock(ref blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
