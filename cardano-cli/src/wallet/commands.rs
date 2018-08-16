@@ -131,13 +131,12 @@ pub fn detach( mut term: Term
     // 3. remove the blockchain name from the wallet config
     wallet.config.attached_blockchain = None;
 
-    // TODO: clear the wallet log too, we are not linked to any blockchain
-    //       we cannot keep UTxO or other logs associated to a blockchain
-    //       as it may not be compatible with the next attached blockchain
+    // 4. delete the wallet log
+    wallet.delete_log().unwrap();
 
     wallet.save();
 
-    term.success("Wallet successfully attached to blockchain.").unwrap()
+    term.success("Wallet successfully attached to blockchain.\n").unwrap()
 }
 
 pub fn sync( mut term: Term
