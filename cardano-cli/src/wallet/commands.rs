@@ -57,6 +57,12 @@ pub fn new<D>( mut term: Term
 
     let xprv = hdwallet::XPrv::normalize_bytes(seed);
 
+    // create the root public key
+    let public_key = match wallet_scheme {
+        HDWalletModel::BIP44 => None,
+        HDWalletModel::RandomIndex2Levels => Some(xprv.public()),
+    };
+
     // 4. encrypt the private key
     term.info("Set a wallet password. This is for local usage only, allows you to protect your cached private key and prevent from creating non desired transactions.\n").unwrap();
     let password              = term.password("spending password: ").unwrap();
