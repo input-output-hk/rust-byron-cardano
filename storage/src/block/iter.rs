@@ -1,72 +1,204 @@
 //! objects to iterate through the blocks depending on the backend used
 //!
 
-use super::super::{Storage, StorageConfig, block_location, block_read_location};
-use super::super::tag;
+use super::super::{Storage, StorageConfig, block_location, block_read_location, header_to_blockhash};
+use super::super::{tag, blob};
 use super::super::epoch::epoch_read_pack;
 use super::super::pack::{PackReader};
-use cardano::block::{HeaderHash, Block, RawBlock, EpochId};
+use super::super::types::{BlockHash, PackHash};
+use cardano::block::{HeaderHash, Block, RawBlock, EpochId, BlockDate};
 
-use std::{iter, fs};
+use std::{iter, fs, mem};
 
 use super::error::{Error, Result};
 
-pub struct Iter<'a> {
-    storage: &'a StorageConfig,
-    from:    EpochId,
-    current: PackReader<fs::File>,
+#[derive(Clone)]
+pub struct IterParams {
+    storage: StorageConfig,
+    start: StartIter,
+    end: EndIter,
+    storage_tip: HeaderHash,
 }
 
-impl<'a> Iter<'a> {
-    /// create a block iterator, going forward, moving from epoch to epoch
-    /// starting from the given epoch.
-    pub fn new(storage: &'a StorageConfig, from: EpochId) -> Result<Self> {
-        let current = {
-            let epochref = epoch_read_pack(storage, from)?;
-            PackReader::init(&storage, &epochref)
-        };
-        Ok(Iter { storage, from, current })
-    }
+pub struct Iter {
+    config: IterParams,
+    storage: Storage,
+    start_date: BlockDate,
+    end_date: BlockDate,
+    epoch_packrefs: Vec<PackHash>,
+    blocks: Vec<Block>,
+    packreader: Option<PackReader<fs::File>>,
+}
 
-    /// get the next raw block, don't attempt to decode the raw block
-    pub fn next_raw(&mut self, retry: bool) -> Result<Option<RawBlock>> {
-        match self.current.get_next() {
-            Some(expr) => Ok(Some(expr)),
-            None => {
-                if ! retry { return Ok(None); }
-                let next_epoch = self.from + 1;
-                self.current = {
-                    let epochref = match epoch_read_pack(self.storage, next_epoch) {
-                        Err(err) => {
-                            if err.kind() == ::std::io::ErrorKind::NotFound {
-                                return Ok(None);
-                            } else {
-                                return Err(Error::IoError(err));
-                            }
-                        },
-                        Ok(c) => c
-                    };
-                    PackReader::init(self.storage, &epochref)
+#[derive(Clone)]
+pub enum StartIter {
+    Date(BlockDate),
+}
+
+#[derive(Clone)]
+pub enum EndIter {
+    Date(BlockDate),
+    Tip,
+}
+
+impl IterParams {
+    pub fn new(storage: StorageConfig, storage_tip: &HeaderHash, start: StartIter, end: EndIter) -> IterParams {
+        IterParams {
+            storage: storage,
+            start: start,
+            end: end,
+            storage_tip: storage_tip.clone(),
+        }
+    }
+}
+
+// TODO proper error handling
+fn previous_block(storage: &Storage, block: &Block) -> Block {
+    let prev_hash = block.get_header().get_previous_header();
+    let blk = blob::read(&storage, &header_to_blockhash(&prev_hash)).unwrap().decode().unwrap();
+    blk
+}
+
+fn next_until_range(packreader: &mut PackReader<fs::File>, start_date: &BlockDate, end_date: &BlockDate) -> Result<Option<Block>> {
+    loop {
+        match packreader.get_next() {
+            None => { return Ok(None) },
+            Some(ref b) => {
+                let mut blk = b.decode().unwrap();
+                let blk_date = blk.get_header().get_blockdate();
+                if &blk_date > end_date {
+                    return Ok(None)
                 };
-                self.from = next_epoch;
-                self.next_raw(false)
+                if &blk_date >= start_date {
+                    return Ok(Some(blk))
+                }
             },
         }
     }
+}
 
-    /// just like `next_raw` but perform the cbor decoding into block
-    pub fn next_block(&mut self) -> Result<Option<Block>> {
-        match self.next_raw(true)? {
-            None => Ok(None),
-            Some(raw) => Ok(Some(raw.decode()?))
+impl Iter {
+    pub fn start(params: &IterParams) -> Result<Self> {
+
+        let mut epoch_packrefs = Vec::new();
+
+        let start = match params.start {
+            StartIter::Date(date) => date,
+        };
+        let end = match params.end {
+            EndIter::Date(date) => date,
+            EndIter::Tip => unimplemented!(), // TODO use the code to read tip block's date that is written down there
+        };
+
+        if end <= start {
+            // error
+        }
+
+        let mut iter_epoch = start.get_epochid();
+        while iter_epoch <= end.get_epochid() {
+            match epoch_read_pack(&params.storage, iter_epoch) {
+                Ok(packref) => {
+                    epoch_packrefs.push(packref);
+                    iter_epoch += 1;
+                },
+                Err(_) => {
+                    break;
+                },
+            };
+        }
+
+        let mut loose_blocks = Vec::new();
+
+        let storage = Storage::init(&params.storage).unwrap(); // TODO merge errors from block and general storage
+
+        // check if we have everything through epoch pack, no block needed in this case. if not we reverse iter the blocks
+        if iter_epoch <= end.get_epochid() {
+            // earliest missing block date
+            let earliest = BlockDate::Genesis(iter_epoch);
+
+            // move reading of the tip at the beginning to be able to early
+            // bail if we don't have the blocks asked for.
+            // also, it will need to use generic block storage, instead of
+            // using blob storage.
+            let tip_blk = blob::read(&storage, &header_to_blockhash(&params.storage_tip)).unwrap().decode().unwrap();
+            let tip_date = tip_blk.get_header().get_blockdate();
+            if tip_date < end {
+                return Err(Error::DateNotAvailable(end))
+            }
+
+            // rewind until we reach the end boundary
+            let mut current_date = tip_date;
+            let mut current_blk = tip_blk;
+            loop {
+                if current_date == end {
+                    break;
+                }
+                let blk = previous_block(&storage, &current_blk);
+                current_date = blk.get_header().get_blockdate();
+                current_blk = blk;
+            }
+
+            // append to loose_blocks from end (included), to earliest (included)
+            while current_date >= earliest {
+                loose_blocks.push(current_blk.clone());
+                current_blk = previous_block(&storage, &current_blk);
+                current_date = current_blk.get_header().get_blockdate();
+            }
+
+            // reverse blocks
+            loose_blocks.reverse();
+        }
+
+        Ok(Iter {
+            config: params.clone(),
+            storage: storage,
+            start_date: start,
+            end_date: end,
+            epoch_packrefs: epoch_packrefs,
+            blocks: loose_blocks,
+            packreader: None,
+        })
+    }
+
+    /// get the next raw block, don't attempt to decode the raw block
+    pub fn next(&mut self) -> Result<Option<Block>> {
+        let mut packreader = None;
+        mem::swap(&mut self.packreader, &mut packreader);
+        match packreader {
+            Some(mut pr) => {
+                match next_until_range(&mut pr, &self.start_date, &self.end_date)? {
+                    None      => self.next(),
+                    Some(blk) => {
+                        let mut v = Some(pr);
+                        mem::swap(&mut self.packreader, &mut v);
+                        Ok(Some(blk))
+                    },
+                }
+            },
+            None => {
+                match self.epoch_packrefs.pop() {
+                    None => {
+                        match self.blocks.pop() {
+                            None => Ok(None),
+                            Some(blk) => Ok(Some(blk)),
+                        }
+                    },
+                    Some(pref) => {
+                        let packreader = PackReader::init(&self.config.storage, &pref);
+                        self.packreader = Some(packreader);
+                        self.next()
+                    }
+                }
+            },
         }
     }
 }
-impl<'a> iter::Iterator for Iter<'a> {
+
+impl<'a> iter::Iterator for Iter {
     type Item = Block;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_block().unwrap()
+        self.next().unwrap()
     }
 }
 

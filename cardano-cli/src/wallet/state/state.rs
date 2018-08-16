@@ -52,7 +52,7 @@ impl<T: AddressLookup> State<T> {
         Ok(())
     }
 
-    pub fn forward_with_txins<I: IntoIterator<Item = TxIn>>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
+    pub fn forward_with_txins<'a, I: IntoIterator<Item = &'a TxIn>>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
         where T::AddressOutput: Clone
     {
         let mut events = Vec::new();

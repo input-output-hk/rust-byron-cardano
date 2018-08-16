@@ -126,6 +126,12 @@ impl Wallet {
         Ok(writer.release_lock())
     }
 
+    pub fn delete_log(&self) -> ::std::io::Result<()> {
+        let dir = config::directory(self.root_dir.clone(), &self.name);
+        let lock = LogLock::acquire_wallet_log_lock(dir.clone()).unwrap();
+        lock.delete_wallet_log_lock(dir)
+    }
+
     /// convenient function to reconstruct a BIP44 wallet from the encrypted key and password
     ///
     /// # Error

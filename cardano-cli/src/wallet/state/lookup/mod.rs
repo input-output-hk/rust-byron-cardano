@@ -4,9 +4,9 @@ pub mod randomindex;
 pub mod sequentialindex;
 
 pub trait AddressLookup {
-    type Error;
-    type AddressInput;
-    type AddressOutput;
+    type Error        : ::std::fmt::Debug;
+    type AddressInput : ::std::fmt::Display;
+    type AddressOutput: ::std::fmt::Display;
 
     /// the implementor will attempt the recognize the given UTxO's credited_address.
     ///
