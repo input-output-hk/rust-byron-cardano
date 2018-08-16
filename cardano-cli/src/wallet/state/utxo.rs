@@ -38,7 +38,7 @@ pub struct UTxO<A> {
     pub credited_address: A,
 
     /// the amount credited in this `UTxO`
-    credited_value: Coin,
+    pub credited_value: Coin,
 }
 impl<A> UTxO<A> {
     /// extract the `TxIn` from the `UTxO`. The output `TxIn` is meant to
