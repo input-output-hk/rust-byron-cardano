@@ -1,6 +1,7 @@
 pub mod config;
 pub mod commands;
 mod peer;
+pub mod iter;
 
 use std::path::PathBuf;
 
@@ -130,5 +131,15 @@ impl Blockchain {
     }
     pub fn save_tip(&self, hh: &block::HeaderHash) {
         tag::write_hash(&self.storage, &LOCAL_BLOCKCHAIN_TIP_TAG, hh);
+    }
+
+    pub fn iter<'a>(&'a self, from: block::HeaderHash, to: block::HeaderHash) -> iter::Result<iter::Iter<'a>> {
+        iter::Iter::new(&self.storage, from, to)
+    }
+
+    pub fn iter_to_tip<'a>(&'a self, from: block::HeaderHash) -> iter::Result<iter::Iter<'a>> {
+        let to   = self.load_tip().0.hash;
+
+        self.iter(from, to)
     }
 }
