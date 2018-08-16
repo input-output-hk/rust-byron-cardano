@@ -6,3 +6,4 @@ pub mod lookup;
 pub mod state;
 pub mod ptr;
 pub mod utxo;
+pub mod iter;
