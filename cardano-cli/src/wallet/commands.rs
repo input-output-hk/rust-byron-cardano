@@ -67,12 +67,6 @@ pub fn new<D>( mut term: Term
     }
     let encrypted_xprv = encrypt_primary_key(password.as_bytes(), &xprv);
 
-    // create the root public key (if not unsafe wallet)
-    let public_key = match wallet_scheme {
-        HDWalletModel::BIP44 => Some(xprv.public()),
-        HDWalletModel::RandomIndex2Levels => None
-    };
-
     // 5. create the wallet
     let wallet = Wallet::new(root_dir, name, config, encrypted_xprv, public_key);
 
@@ -80,6 +74,89 @@ pub fn new<D>( mut term: Term
     wallet.save();
 
     term.success(&format!("wallet `{}' successfully created.\n", &wallet.name)).unwrap();
+}
+
+pub fn recover<D>( mut term: Term
+                 , root_dir: PathBuf
+                 , name: String
+                 , wallet_scheme: HDWalletModel
+                 , derivation_scheme: DerivationScheme
+                 , _mnemonic_size: bip39::Type // TODO, check
+                 , daedalus_seed: bool
+                 , language: D
+                 )
+    where D: bip39::dictionary::Language
+{
+    let config = Config {
+        attached_blockchain: None,
+        derivation_scheme: derivation_scheme,
+        hdwallet_model: wallet_scheme
+    };
+
+    // 1. generate the mnemonics
+    term.info("enter your mnemonics\n").unwrap();
+    // TODO, this prompting is poor
+    let mnemonics_string = term.prompt("mnemonics: ").unwrap();
+
+    // 3. perform the seed generation from the entropy
+    let xprv = if daedalus_seed {
+        match wallet::rindex::RootKey::from_daedalus_mnemonics(derivation_scheme, &language, mnemonics_string) {
+            Err(err) => {
+                term.error(&format!("Invalid mnemonics: {:#?}\n", err)).unwrap();
+                ::std::process::exit(1)
+            },
+            Ok(root_key) => { (*root_key).clone() }
+        }
+    } else {
+       let mnemonics = match bip39::Mnemonics::from_string(&language, &mnemonics_string) {
+            Err(err) => {
+                term.error(&format!("Invalid mnemonics: {}\n", err)).unwrap();
+                ::std::process::exit(1);
+            },
+            Ok(string) => { string }
+        };
+
+        let entropy = match bip39::Entropy::from_mnemonics(&mnemonics) {
+            Err(err) => {
+                term.error(&format!("Invalid mnemonics: {}\n", err)).unwrap();
+                ::std::process::exit(1)
+            },
+            Ok(entropy) => { entropy },
+        };
+
+        term.info("Enter the wallet recovery password (if the password is wrong, you won't know).\n").unwrap();
+        let recovery_password = term.password("recovery password: ").unwrap();
+
+        let mut seed = [0;hdwallet::XPRV_SIZE];
+        wallet::keygen::generate_seed(&entropy, recovery_password.as_bytes(), &mut seed);
+
+        // normalize the seed to make it a valid private key
+        hdwallet::XPrv::normalize_bytes(seed)
+    };
+
+    // create the root public key
+    let public_key = match wallet_scheme {
+        HDWalletModel::BIP44 => None,
+        HDWalletModel::RandomIndex2Levels => Some(xprv.public()),
+    };
+
+    // 4. encrypt the private key
+    term.info("Set a wallet password. This is for local usage only, allows you to protect your cached private key and prevent from creating non desired transactions.\n").unwrap();
+    let password              = term.password("spending password: ").unwrap();
+    let password_confirmation = term.password("confirm password: ").unwrap();
+    if password != password_confirmation {
+        term.error("Not the same password.").unwrap();
+        ::std::process::exit(1);
+    }
+    let encrypted_xprv = encrypt_primary_key(password.as_bytes(), &xprv);
+
+    // 5. create the wallet
+    let wallet = Wallet::new(root_dir, name, config, encrypted_xprv, public_key);
+
+    // 6. save the wallet
+    wallet.save();
+
+    term.success(&format!("wallet `{}' successfully recovered.\n", &wallet.name)).unwrap();
 }
 
 pub fn attach( mut term: Term
