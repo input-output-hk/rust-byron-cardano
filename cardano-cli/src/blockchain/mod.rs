@@ -107,19 +107,6 @@ impl Blockchain {
         self.config.peers.iter()
     }
 
-    pub fn set_wallet_tag(&self, wallet_name: &str, hh: &block::HeaderHash) {
-        let tag = format!("wallet/{}", wallet_name);
-        tag::write_hash(&self.storage, &tag, hh)
-    }
-    pub fn remove_wallet_tag(&self, wallet_name: &str) {
-        let tag = format!("wallet/{}", wallet_name);
-        tag::remove_tag(&self.storage, &tag);
-    }
-    pub fn get_wallet_tag(&self, wallet_name: &str) -> Option<block::HeaderHash> {
-        let tag = format!("wallet/{}", wallet_name);
-        tag::read_hash(&self.storage, &tag)
-    }
-
     pub fn load_tip(&self) -> (BlockRef, bool) {
         let genesis_ref = (BlockRef {
             hash: self.config.genesis.clone(),

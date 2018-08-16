@@ -98,20 +98,17 @@ pub fn attach( mut term: Term
     // 2. check the blockchain exists
     let blockchain_dir = blockchain::config::directory(root_dir.clone(), &blockchain_name);
     if let Err(err) = ::std::fs::read_dir(blockchain_dir) {
-        term.error(&format!("Blockchain `{}' does not exists or you do not have user permissions", blockchain_name)).unwrap();
-        term.error(&format!("   |-> {}", err)).unwrap();
+        term.error(&format!("Blockchain `{}' does not exists or you do not have user permissions\n", blockchain_name)).unwrap();
+        term.error(&format!("   |-> {}\n", err)).unwrap();
         ::std::process::exit(2);
     }
-    let blockchain = Blockchain::load(root_dir, blockchain_name.clone());
+    let _ = Blockchain::load(root_dir, blockchain_name.clone());
 
     // 3. save the attached wallet
     wallet.config.attached_blockchain = Some(blockchain_name);
     wallet.save();
 
-    // 4. set the wallet state tag to the genesis of the blockchain
-    blockchain.set_wallet_tag(&wallet.name, &blockchain.config.genesis);
-
-    term.success("Wallet successfully attached to blockchain.").unwrap()
+    term.success("Wallet successfully attached to blockchain.\n").unwrap()
 }
 
 pub fn detach( mut term: Term
@@ -123,15 +120,13 @@ pub fn detach( mut term: Term
     let mut wallet = Wallet::load(root_dir.clone(), name);
 
     // 1. get the wallet's blockchain
-    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain);
+    let _ = load_attached_blockchain(
+        &mut term,
+        root_dir,
+        ::std::mem::replace(&mut wallet.config.attached_blockchain, None)
+    );
 
-    // 2. remove the wallet tag
-    blockchain.remove_wallet_tag(&wallet.name);
-
-    // 3. remove the blockchain name from the wallet config
-    wallet.config.attached_blockchain = None;
-
-    // 4. delete the wallet log
+    // 2. delete the wallet log
     wallet.delete_log().unwrap();
 
     wallet.save();
