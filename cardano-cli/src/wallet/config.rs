@@ -24,7 +24,7 @@ pub fn directory( root_dir: PathBuf
 ///   and randomly selected indices (this will force us to encrypt the derivation
 ///   path in the address, making the address longer and increasing the fee sligthly)
 ///
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Copy, Clone)]
 pub enum HDWalletModel {
     BIP44,
     RandomIndex2Levels
