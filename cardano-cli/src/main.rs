@@ -497,6 +497,11 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::detach(term, root_dir, name);
         },
+        ("sync", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::sync(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)

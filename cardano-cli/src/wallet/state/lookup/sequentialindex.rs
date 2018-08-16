@@ -1,11 +1,22 @@
 use cardano::wallet::{bip44};
 use std::collections::BTreeMap;
 use cardano::address::ExtendedAddr;
-use cardano::tx::{TxIn, TxId, TxOut};
-use super::lookup::{AddrLookup, Result, WalletAddr, StatePtr, Utxo};
+
+use super::{AddressLookup};
+use super::super::{utxo::{UTxO}};
+
+pub const DEFAULT_GAP_LIMIT: u32 = 20;
+
+type Result<T> = bip44::bip44::Result<T>;
 
 pub struct SequentialBip44Lookup {
     // cryptographic wallet
+    //
+    // downside of needed the bip44's wallet is that we need to decrypt the
+    // wallet private key with the password. This is needed because we might need
+    // to create new addresses and they need hard derivation (which cannot be
+    // done through the public key).
+    //
     wallet: bip44::Wallet,
     // all the known expected addresses, that includes
     // all different accounts, and also the next not yet live
@@ -34,7 +45,7 @@ impl SequentialBip44Lookup {
             wallet: wallet,
             expected: BTreeMap::new(),
             accounts: Vec::new(),
-            gap_limit: 20,
+            gap_limit: DEFAULT_GAP_LIMIT,
         }
     }
 
@@ -87,34 +98,21 @@ impl SequentialBip44Lookup {
     }
 }
 
-impl AddrLookup for SequentialBip44Lookup {
-    fn lookup(&mut self, ptr: &StatePtr, outs: &[(TxId, u32, &TxOut)]) -> Result<Vec<Utxo>> {
-        let mut found = Vec::new();
-        for o in outs {
-            let addressing = self.expected.get(&o.2.address).and_then(|a| Some(a.clone()));
-            match addressing {
-                None => {},
-                Some(addressing) => {
-                    // check if we need to generate next window of addresses
-                    self.threshold_generate(addressing)?;
-                    // found an address from our expected set, so append the txout as ours
-                    let utxo = Utxo {
-                        block_addr: ptr.clone(),
-                        wallet_addr: WalletAddr::Bip44(addressing),
-                        txin: TxIn { id: o.0.clone(), index: o.1 },
-                        coin: o.2.value,
-                    };
-                    found.push(utxo)
-                },
-            }
-        }
-        Ok(found)
+impl AddressLookup for SequentialBip44Lookup {
+    type Error = bip44::bip44::Error;
+    type AddressInput = ExtendedAddr;
+    type AddressOutput = bip44::Addressing;
+
+    fn lookup(&mut self, utxo: UTxO<Self::AddressInput>) -> Result<Option<UTxO<Self::AddressOutput>>> {
+        let addressing = self.expected.get(&utxo.credited_address).cloned();
+        if let Some(addressing) = addressing {
+            self.threshold_generate(addressing)?;
+
+            Ok(Some(utxo.map(|_| addressing)))
+        } else { Ok(None) }
     }
 
-    fn acknowledge_address(&mut self, addr: &WalletAddr) -> Result<()> {
-        match addr {
-            WalletAddr::Bip44(ref addressing) => self.threshold_generate(addressing.clone()),
-            _ => Ok(())
-        }
+    fn acknowledge(&mut self, address: &Self::AddressOutput) -> Result<()> {
+        self.threshold_generate(address.clone())
     }
 }
