@@ -23,6 +23,8 @@ pub struct IterParams {
 pub struct Iter {
     config: IterParams,
     storage: Storage,
+    start_date: BlockDate,
+    end_date: BlockDate,
     epoch_packrefs: Vec<PackHash>,
     blocks: Vec<Block>,
     packreader: Option<PackReader<fs::File>>,
@@ -55,6 +57,24 @@ fn previous_block(storage: &Storage, block: &Block) -> Block {
     let prev_hash = block.get_header().get_previous_header();
     let blk = blob::read(&storage, &header_to_blockhash(&prev_hash)).unwrap().decode().unwrap();
     blk
+}
+
+fn next_until_range(packreader: &mut PackReader<fs::File>, start_date: &BlockDate, end_date: &BlockDate) -> Result<Option<Block>> {
+    loop {
+        match packreader.get_next() {
+            None => { return Ok(None) },
+            Some(ref b) => {
+                let mut blk = b.decode().unwrap();
+                let blk_date = blk.get_header().get_blockdate();
+                if &blk_date > end_date {
+                    return Ok(None)
+                };
+                if &blk_date >= start_date {
+                    return Ok(Some(blk))
+                }
+            },
+        }
+    }
 }
 
 impl Iter {
@@ -132,6 +152,8 @@ impl Iter {
         Ok(Iter {
             config: params.clone(),
             storage: storage,
+            start_date: start,
+            end_date: end,
             epoch_packrefs: epoch_packrefs,
             blocks: loose_blocks,
             packreader: None,
@@ -144,24 +166,18 @@ impl Iter {
         mem::swap(&mut self.packreader, &mut packreader);
         match packreader {
             Some(mut pr) => {
-                //self.packreader = None;
-                match pr.get_next() {
-                    None => {
-                        self.next()
-                    }
-                    Some(ref b) => {
+                match next_until_range(&mut pr, &self.start_date, &self.end_date)? {
+                    None      => self.next(),
+                    Some(blk) => {
                         let mut v = Some(pr);
                         mem::swap(&mut self.packreader, &mut v);
-                        //mem::swap(self.packreader, packreader);
-                        Ok(Some(b.decode().unwrap()))
-                    }
+                        Ok(Some(blk))
+                    },
                 }
             },
             None => {
                 match self.epoch_packrefs.pop() {
                     None => {
-                        // TODO we might need to finish early if iterating up to a mid-epoch.
-                        // verify block against the end date
                         match self.blocks.pop() {
                             None => Ok(None),
                             Some(blk) => Ok(Some(blk)),
@@ -170,8 +186,6 @@ impl Iter {
                     Some(pref) => {
                         let packreader = PackReader::init(&self.config.storage, &pref);
                         self.packreader = Some(packreader);
-                        // TODO we might need to skip if start is in a middle of an epoch
-                        // skip until at least start date..
                         self.next()
                     }
                 }
