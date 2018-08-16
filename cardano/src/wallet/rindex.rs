@@ -266,7 +266,7 @@ impl RootKey {
             derivation_scheme
         }
     }
-    fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
         where D: bip39::dictionary::Language
     {
         let mnemonics = bip39::Mnemonics::from_string(dic, &mnemonics_phrase)?;
