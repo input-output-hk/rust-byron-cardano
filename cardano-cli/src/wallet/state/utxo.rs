@@ -1,4 +1,4 @@
-use cardano::{coin::{Coin}, tx::{TxIn, TxId, TxOut}, address::{ExtendedAddr}, bip::bip44, hdpayload};
+use cardano::{coin::{Coin}, tx::{TxIn, TxId, TxOut}, address::{ExtendedAddr}};
 use std::{fmt, collections::{BTreeMap}};
 
 use super::ptr::{StatePtr};
@@ -91,18 +91,3 @@ impl<A: fmt::Display> fmt::Display for UTxO<A> {
 
 /// collections for quick lookup of `UTxO` by `TxId`
 pub type UTxOs<A> = BTreeMap<TxIn, UTxO<A>>;
-
-/// iterator over the blockchain, constructing the UTxO on the fly
-/// for consumption by other operators
-///
-pub struct UTxOIterator<A>(::std::marker::PhantomData<A>); // TODO
-
-pub type AnonymousUtxoIterator   = UTxOIterator<ExtendedAddr>;
-pub type BIP44UtxoIterator       = UTxOIterator<bip44::Addressing>;
-pub type WithPayloadUtxoIterator = UTxOIterator<hdpayload::Path>;
-
-impl<A> Iterator for UTxOIterator<A> {
-    type Item = UTxO<A>;
-    // TODO
-    fn next(&mut self) -> Option<Self::Item> { None }
-}
