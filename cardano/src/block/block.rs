@@ -196,7 +196,7 @@ impl fmt::Display for BlockHeader {
 }
 
 /// Block of either a genesis block or a normal block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Block {
     GenesisBlock(genesis::Block),
     MainBlock(normal::Block),
