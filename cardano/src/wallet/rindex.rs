@@ -17,7 +17,13 @@ use config::ProtocolMagic;
 
 use super::scheme::{self};
 
-pub type Addressing = (u32, u32);
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct Addressing(pub u32, pub u32);
+impl ::std::fmt::Display for Addressing {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}.{}", self.0, self.1)
+    }
+}
 
 /// Implementation of 2 level randomly chosen derivation index wallet
 ///
@@ -72,7 +78,7 @@ impl Wallet {
         let account : &RootKey = scheme::Wallet::list_accounts(self);
         if let &Some(ref hdpa) = &address.attributes.derivation_path {
             if let Ok(path) = hdkey.decrypt_path(hdpa) {
-                let addressing = (path.as_ref()[0], path.as_ref()[1]);
+                let addressing = Addressing(path.as_ref()[0], path.as_ref()[1]);
 
                 // regenerate the address to prevent HDAddressPayload reuse
                 //
@@ -330,7 +336,7 @@ impl<K> AddressGenerator<K> {
                 Err(err) => return Err(Error::from(err))
             };
             if path.len() == 2 {
-                let path = (path[0], path[1]);
+                let path = Addressing(path[0], path[1]);
 
                 Ok(Some(path))
             } else {
