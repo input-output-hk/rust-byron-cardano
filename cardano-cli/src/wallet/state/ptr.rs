@@ -3,8 +3,8 @@ use std::{fmt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatePtr {
-    latest_addr: Option<BlockDate>,
-    latest_known_hash: HeaderHash,
+    pub latest_addr: Option<BlockDate>,
+    pub latest_known_hash: HeaderHash,
 }
 impl fmt::Display for StatePtr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
