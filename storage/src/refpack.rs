@@ -32,11 +32,8 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct RefPack(VecDeque<BlockHash>);
 impl RefPack {
     pub fn new() -> Self { RefPack(VecDeque::new()) }
-    pub fn push_back(&mut self, bh: BlockHash) { self.0.push_back(bh) }
-    pub fn push_back_missing(&mut self) { self.0.push_back([0u8; HASH_SIZE]) }
-    pub fn push_front(&mut self, bh: BlockHash) { self.0.push_front(bh) }
-    pub fn push_front_missing(&mut self) { self.0.push_front([0u8; HASH_SIZE]) }
-    pub fn iter<'a>(&'a self) -> Iter<'a, BlockHash> { self.0.iter() }
+    pub fn push_back_missing(&mut self) { self.push_back([0u8; HASH_SIZE]) }
+    pub fn push_front_missing(&mut self) { self.push_front([0u8; HASH_SIZE]) }
 
     pub fn read<R: io::Read>(reader: &mut R) -> Result<Self> {
         let mut rf = Self::new();
@@ -51,6 +48,13 @@ impl RefPack {
         for bh in self.iter() { writer.write_all(&bh[..])?; }
         Ok(())
     }
+}
+impl ::std::ops::Deref for RefPack {
+    type Target = VecDeque<BlockHash>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+impl ::std::ops::DerefMut for RefPack {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 pub fn read_refpack<P: AsRef<str>>(storage_config: &StorageConfig, name: P) -> Result<RefPack> {
