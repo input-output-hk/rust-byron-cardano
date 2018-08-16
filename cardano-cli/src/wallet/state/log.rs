@@ -67,6 +67,11 @@ impl LogLock {
     pub fn acquire_wallet_log_lock(wallet_path: PathBuf) -> Result<Self> {
         Ok(LogLock(Lock::lock(wallet_path.join(WALLET_LOG_FILE))?))
     }
+
+    pub fn delete_wallet_log_lock(self, wallet_path: PathBuf) -> ::std::io::Result<()> {
+        let file = wallet_path.join(WALLET_LOG_FILE);
+        ::std::fs::remove_file(file)
+    }
 }
 
 /// Structure to read the Wallet Log one by one
