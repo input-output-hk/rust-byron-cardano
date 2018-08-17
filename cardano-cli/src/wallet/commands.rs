@@ -279,6 +279,49 @@ pub fn status( mut term: Term
     };
 }
 
+pub fn log( mut term: Term
+          , root_dir: PathBuf
+          , name: String
+          )
+{
+    // load the wallet
+    let wallet = Wallet::load(root_dir.clone(), name);
+
+    if let Some(ref blk_name) = &wallet.config.attached_blockchain {
+        term.simply("Wallet ").unwrap();
+        term.warn(&wallet.name).unwrap();
+        term.simply(" on blockchain ").unwrap();
+        term.info(blk_name).unwrap();
+        term.simply("\n").unwrap();
+    } else {
+        term.info(&format!("Wallet {} status\n", &wallet.name)).unwrap();
+        term.warn("wallet not attached to a blockchain").unwrap();
+        return;
+    }
+
+    // 1. get the wallet's blockchain
+    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
+
+    // 2. prepare the wallet state
+    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
+    match wallet.config.hdwallet_model {
+        HDWalletModel::BIP44 => {
+            let mut state = {
+                let lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+                state::State::new(initial_ptr, lookup_struct)
+            };
+            display_wallet_state_logs(&mut term, &wallet, &mut state);
+        },
+        HDWalletModel::RandomIndex2Levels => {
+            let mut state = {
+                let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
+                state::State::new(initial_ptr, lookup_struct)
+            };
+            display_wallet_state_logs(&mut term, &wallet, &mut state);
+        },
+    };
+}
+
 pub fn sync( mut term: Term
            , root_dir: PathBuf
            , name: String
@@ -376,6 +419,45 @@ fn update_wallet_state_with_utxos<LS>(term: &mut Term, wallet: &Wallet, blockcha
         }
     }
     progress.end();
+}
+
+fn display_wallet_state_logs<LS>(term: &mut Term, wallet: &Wallet, state: &mut state::State<LS>)
+    where LS: lookup::AddressLookup
+        , for<'de> LS::AddressOutput : serde::Deserialize<'de>
+{
+    let log_lock = lock_wallet_log(&wallet);
+    let reader = log::LogReader::open(log_lock).unwrap();
+    let reader : log::LogIterator<LS::AddressOutput> = reader.into_iter();
+    let reader = reader.filter_map(|r| {
+        match r {
+            Err(err) => {
+                panic!("{:?}", err)
+            },
+            Ok(v) => Some(v)
+        }
+    });
+
+    for log in reader {
+        match log {
+            log::Log::Checkpoint(ptr) => {
+                term.simply(&format!("checkpoint {}.{}\n", ptr.latest_known_hash, ptr.latest_addr.unwrap())).unwrap();
+            },
+            log::Log::ReceivedFund(utxo) => {
+                term.info(&format!("credit {}.{}\n", utxo.blockchain_ptr.latest_known_hash, utxo.blockchain_ptr.latest_addr.unwrap())).unwrap();
+                term.simply(&format!("transaction: {}{}", utxo.transaction_id, utxo.index_in_transaction)).unwrap();
+                // TODO: add address
+                // term.simply(&format!("Address: {}", state.mk_address(utxo.credited_address))).unwrap();
+                term.simply(&format!("Amount: {}", utxo.credited_value)).unwrap();
+            },
+            log::Log::SpentFund(utxo) => {
+                term.info(&format!("debit  {}.{}\n", utxo.blockchain_ptr.latest_known_hash, utxo.blockchain_ptr.latest_addr.unwrap())).unwrap();
+                term.simply(&format!("transaction: {}{}", utxo.transaction_id, utxo.index_in_transaction)).unwrap();
+                // TODO: add address
+                // term.simply(&format!("Address: {}", state.mk_address(utxo.credited_address))).unwrap();
+                term.simply(&format!("Amount: {}", utxo.credited_value)).unwrap();
+            }
+        }
+    }
 }
 
 fn update_wallet_state_with_logs<LS>(wallet: &Wallet, state: &mut state::State<LS>)
