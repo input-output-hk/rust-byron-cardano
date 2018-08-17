@@ -579,7 +579,6 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(wallet_argument_derivation_scheme())
             .arg(wallet_argument_wallet_scheme())
             .arg(wallet_argument_mnemonic_language())
-            .arg(wallet_argument_name_definition())
             .arg(wallet_argument_daedalus_seed())
         )
         .subcommand(SubCommand::with_name("destroy")
