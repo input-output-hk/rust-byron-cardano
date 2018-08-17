@@ -47,6 +47,18 @@ impl<A> Log<A>
         )
     }
 }
+impl<A> Log<A>
+{
+    pub fn map<F, U>(self, f: F) -> Log<U>
+        where F: FnOnce(A) -> U
+    {
+        match self {
+            Log::Checkpoint(ptr)    => Log::Checkpoint(ptr),
+            Log::ReceivedFund(utxo) => Log::ReceivedFund(utxo.map(f)),
+            Log::SpentFund(utxo)    => Log::SpentFund(utxo.map(f)),
+        }
+    }
+}
 impl<A: fmt::Display> fmt::Display for Log<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
