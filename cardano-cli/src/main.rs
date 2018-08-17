@@ -555,6 +555,16 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::sync(term, root_dir, name);
         },
+        ("status", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::status(term, root_dir, name);
+        },
+        ("log", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::log(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -579,7 +589,6 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(wallet_argument_derivation_scheme())
             .arg(wallet_argument_wallet_scheme())
             .arg(wallet_argument_mnemonic_language())
-            .arg(wallet_argument_name_definition())
             .arg(wallet_argument_daedalus_seed())
         )
         .subcommand(SubCommand::with_name("destroy")
@@ -611,6 +620,10 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(SubCommand::with_name("status")
             .about("print some status information from the given wallet (funds, transactions...)")
+            .arg(wallet_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name("log")
+            .about("print the wallet logs")
             .arg(wallet_argument_name_definition())
         )
 }

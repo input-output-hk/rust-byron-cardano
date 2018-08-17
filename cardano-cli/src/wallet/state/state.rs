@@ -6,9 +6,9 @@ use std::{fmt};
 
 #[derive(Debug)]
 pub struct State<T: AddressLookup> {
-    ptr: StatePtr,
-    lookup_struct: T,
-    utxos: UTxOs<T::AddressOutput>
+    pub ptr: StatePtr,
+    pub lookup_struct: T,
+    pub utxos: UTxOs<T::AddressOutput>
 }
 
 impl<T: AddressLookup> State<T> {
