@@ -219,6 +219,66 @@ pub fn detach( mut term: Term
     term.success("Wallet successfully attached to blockchain.\n").unwrap()
 }
 
+pub fn status( mut term: Term
+             , root_dir: PathBuf
+             , name: String
+             )
+{
+    // load the wallet
+    let wallet = Wallet::load(root_dir.clone(), name);
+
+    if let Some(ref blk_name) = &wallet.config.attached_blockchain {
+        term.simply("Wallet ").unwrap();
+        term.warn(&wallet.name).unwrap();
+        term.simply(" on blockchain ").unwrap();
+        term.info(blk_name).unwrap();
+        term.simply("\n").unwrap();
+    } else {
+        term.info(&format!("Wallet {} status\n", &wallet.name)).unwrap();
+        term.warn("wallet not attached to a blockchain").unwrap();
+        return;
+    }
+
+    term.simply(" * wallet model ").unwrap();
+    term.warn(&format!("{:?}", &wallet.config.hdwallet_model)).unwrap();
+    term.simply("\n").unwrap();
+    term.simply(" * derivation scheme ").unwrap();
+    term.warn(&format!("{:?}", &wallet.config.derivation_scheme)).unwrap();
+    term.simply("\n").unwrap();
+
+    // 1. get the wallet's blockchain
+    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
+
+    // 2. prepare the wallet state
+    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
+    match wallet.config.hdwallet_model {
+        HDWalletModel::BIP44 => {
+            let mut state = {
+                let lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+                state::State::new(initial_ptr, lookup_struct)
+            };
+
+            update_wallet_state_with_logs(&wallet, &mut state);
+
+            term.simply(" * synced to block ").unwrap();
+            term.warn(&format!(" {} ({})", state.ptr.latest_known_hash, state.ptr.latest_addr.unwrap())).unwrap();
+            term.simply("\n").unwrap();
+        },
+        HDWalletModel::RandomIndex2Levels => {
+            let mut state = {
+                let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
+                state::State::new(initial_ptr, lookup_struct)
+            };
+
+            update_wallet_state_with_logs(&wallet, &mut state);
+
+            term.simply(" * synced to block ").unwrap();
+            term.warn(&format!(" {} ({})", state.ptr.latest_known_hash, state.ptr.latest_addr.unwrap())).unwrap();
+            term.simply("\n").unwrap();
+        },
+    };
+}
+
 pub fn sync( mut term: Term
            , root_dir: PathBuf
            , name: String
