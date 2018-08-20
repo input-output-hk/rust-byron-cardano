@@ -1,17 +1,17 @@
 use super::super::super::blockchain;
 use cardano::{block::Block, tx::TxAux};
-use super::super::super::utils::term::{Progress};
 
+use indicatif::ProgressBar;
 use super::ptr::StatePtr;
 
-pub struct TransactionIterator<'a, 'b, 'c: 'b>
+pub struct TransactionIterator<'a>
 {
     block_iterator: blockchain::iter::Iter<'a>,
-    progress: &'b mut Progress<'c>,
+    progress: ProgressBar,
 
     current_tx: Option<(Block, usize)>,
 }
-impl<'a, 'b, 'c> TransactionIterator<'a, 'b, 'c> {
+impl<'a> TransactionIterator<'a> {
     fn mk_tx(&self) -> Option<(StatePtr, TxAux)> {
         if let Some((block, idx)) = &self.current_tx {
             let hdr = block.get_header();
@@ -35,7 +35,7 @@ impl<'a, 'b, 'c> TransactionIterator<'a, 'b, 'c> {
         self.current_tx = None;
         loop {
             if let Some(raw_block) = self.block_iterator.next() {
-                self.progress.advance(1);
+                self.progress.inc(1);
                 let block = raw_block?.decode()?;
                 if block.has_transactions() {
                     self.current_tx = Some((block, 0));
@@ -47,7 +47,7 @@ impl<'a, 'b, 'c> TransactionIterator<'a, 'b, 'c> {
         }
         Ok(())
     }
-    pub fn new(progress: &'b mut Progress<'c>, block_iterator: blockchain::iter::Iter<'a>) -> Self {
+    pub fn new(progress: ProgressBar, block_iterator: blockchain::iter::Iter<'a>) -> Self {
         TransactionIterator {
             block_iterator: block_iterator,
             progress: progress,
@@ -55,7 +55,7 @@ impl<'a, 'b, 'c> TransactionIterator<'a, 'b, 'c> {
         }
     }
 }
-impl<'a, 'b, 'c> Iterator for TransactionIterator<'a, 'b, 'c> {
+impl<'a> Iterator for TransactionIterator<'a> {
     type Item = blockchain::iter::Result<(StatePtr, TxAux)>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -67,6 +67,7 @@ impl<'a, 'b, 'c> Iterator for TransactionIterator<'a, 'b, 'c> {
 
                 match self.mk_tx() {
                     None => {
+                        self.progress.finish();
                         None
                     },
                     Some(r) => {

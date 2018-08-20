@@ -3,6 +3,11 @@ extern crate cbor_event;
 extern crate cardano;
 extern crate exe_common;
 extern crate storage;
+
+extern crate console;
+extern crate dialoguer;
+extern crate indicatif;
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;

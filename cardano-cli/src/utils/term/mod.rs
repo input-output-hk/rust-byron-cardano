@@ -1,126 +1,135 @@
 //! terminal helpers
 //!
 
-extern crate termcolor;
-extern crate term_size;
-extern crate rpassword;
-
 mod config;
-mod progress_bar;
+pub mod emoji;
 
-pub use self::config::{Config};
-pub use self::progress_bar::{Progress, Units};
+use console;
+use dialoguer;
+use indicatif;
+
+pub use self::config::{Config, ColorChoice};
 
 use std::{io::{self, Write}};
-use self::termcolor::{StandardStream, Color, ColorSpec, WriteColor};
-
-pub use self::termcolor::ColorChoice;
 
 pub const DEFAULT_TERM_WIDTH : usize = 80;
 pub const DEFAULT_TERM_HEIGHT: usize = 24;
 
+pub struct Style {
+    pub error:   console::Style,
+    pub warning: console::Style,
+    pub success: console::Style,
+    pub info:    console::Style,
+}
+impl Style {
+    fn new(color_choice: &ColorChoice) -> Self {
+        match color_choice {
+            ColorChoice::Auto   => { /* do nothing */ },
+            ColorChoice::Never  => { console::set_colors_enabled(false) },
+            ColorChoice::Always => { console::set_colors_enabled(true) },
+        };
+
+        Style {
+            error:   console::Style::new().red().bold(),
+            warning: console::Style::new().red(),
+            success: console::Style::new().green(),
+            info:    console::Style::new().cyan().italic(),
+        }
+    }
+}
+
 pub struct Term {
-    /// the terminal's width
-    pub width: usize,
-    /// the terminal's height
-    pub height: usize,
     /// the user's configuration of the terminal
     pub config: Config,
 
-    stdout: StandardStream,
-    stderr: StandardStream,
+    pub style: Style,
+
+    stdout: console::Term
 }
 impl Term {
     pub fn new(config: Config) -> Self {
-        let (width, height) = if let Some((w, h)) = term_size::dimensions() {
-            (w, h) } else { (DEFAULT_TERM_WIDTH, DEFAULT_TERM_HEIGHT)
-        };
-        let stdout = StandardStream::stdout(config.color);
-        let stderr = StandardStream::stderr(config.color);
-        Term { width, height, config, stdout, stderr }
+        // make sure we are using a terminal for now
+        if ! console::user_attended() {
+            panic!(
+                "We only support terminal"
+            );
+        }
+
+        let stdout = console::Term::buffered_stdout();
+        let style  = Style::new(&config.color);
+
+        Term { config, stdout, style }
     }
 
-    /// create a progress bar configured for byte streaming progress.
-    ///
-    pub fn progress_download<'a>(&'a mut self, count: u64) -> Progress<'a> {
-        if self.config.quiet { return Progress::quiet(self); }
-        let mut b = Progress::new_bar(self, count);
-        b.set_units(Units::Bytes);
-        b.show_speed = true;
-        b
-    }
-    /// create a progress bar configured not to display bytes related data
-    ///
-    pub fn progress_bar<'a>(&'a mut self, count: u64) -> Progress<'a> {
-        if self.config.quiet { return Progress::quiet(self); }
-        Progress::new_bar(self, count)
-    }
-    /// configure a spinning progress display, no progress bar, only
-    /// a ticking display.
-    pub fn progress_tick<'a>(&'a mut self) -> Progress<'a> {
-        if self.config.quiet { return Progress::quiet(self); }
-        Progress::new_tick(self, 0)
+    pub fn progress_bar(&self, count: u64) -> indicatif::ProgressBar {
+        let pb = indicatif::ProgressBar::new(count);
+        pb.enable_steady_tick(100);
+        pb.set_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+                .progress_chars("#>-")
+        );
+        pb
     }
 
     pub fn prompt(&mut self, prompt: &str) -> io::Result<String> {
-        use ::std::io::BufRead;
-
-        let mut out = self.stdout.lock();
-        write!(&mut out, "{}", prompt)?;
-        out.flush()?;
-        let stdin = io::stdin();
-        let mut lock = stdin.lock();
-        let mut output = String::new();
-        lock.read_line(&mut output)?;
-        Ok(output)
+        self.write_line(prompt)?;
+        self.flush()?;
+        self.read_line()
     }
 
     pub fn password(&mut self, prompt: &str) -> io::Result<String> {
-        let mut out = self.stdout.lock();
-        write!(&mut out, "{}", prompt)?;
-        out.flush()?;
-        let stdin = io::stdin();
-        let mut lock = stdin.lock();
-        rpassword::read_password_with_reader(Some(&mut lock))
+        self.write_line(prompt)?;
+        self.flush()?;
+        #[cfg(windows)]
+        {
+            // TODO: there seems to be an issue with rust crate: console
+            //       the password read line is not working or not returning
+            //       at all on windows 10 's `cmd` or `PowerShell`
+            let line = self.read_line()?;
+            self.stdout.move_cursor_up(1)?;
+            self.stdout.clear_line()?;
+            Ok(line)
+        }
+        #[cfg(not(windows))]
+        {
+            self.read_secure_line()
+        }
     }
 
     pub fn simply(&mut self, msg: &str) -> io::Result<()> {
-        if self.config.quiet { return Ok(()); }
-        let mut out = self.stdout.lock();
-
-        write!(&mut out, "{}", msg)
+        write!(self, "{}", msg)
     }
-
     pub fn success(&mut self, msg: &str) -> io::Result<()> {
-        if self.config.quiet { return Ok(()); }
-        let mut out = self.stdout.lock();
-
-        out.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
-        write!(&mut out, "{}", msg)?;
-        out.reset()
+        write!(&mut self.stdout, "{}", self.style.success.apply_to(msg))
     }
     pub fn info(&mut self, msg: &str) -> io::Result<()> {
-        if self.config.quiet { return Ok(()); }
-        let mut out = self.stdout.lock();
-
-        out.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-        write!(&mut out, "{}", msg)?;
-        out.reset()
+        write!(&mut self.stdout, "{}", self.style.info.apply_to(msg))
     }
     pub fn warn(&mut self, msg: &str) -> io::Result<()> {
-        if self.config.quiet { return Ok(()); }
-        let mut out = self.stdout.lock();
-
-        out.set_color(ColorSpec::new().set_fg(Some(Color::Rgb(0xFF, 0xA5, 00))))?;
-        write!(&mut out, "{}", msg)?;
-        out.reset()
+        write!(&mut self.stdout, "{}", self.style.warning.apply_to(msg))
     }
     pub fn error(&mut self, msg: &str) -> io::Result<()> {
-        if self.config.quiet { return Ok(()); }
-        let mut out = self.stdout.lock();
-
-        out.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
-        write!(&mut out, "{}", msg)?;
-        out.reset()
+        write!(&mut self.stdout, "{}", self.style.error.apply_to(msg))
+    }
+}
+impl ::std::ops::Deref for Term {
+    type Target = console::Term;
+    fn deref(&self) -> &Self::Target { &self.stdout }
+}
+impl ::std::ops::DerefMut for Term {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.stdout }
+}
+impl io::Write for Term {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        io::Write::write(&mut self.stdout, buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        io::Write::flush(&mut self.stdout)
+    }
+}
+impl io::Read for Term {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        io::Read::read(&mut self.stdout, buf)
     }
 }

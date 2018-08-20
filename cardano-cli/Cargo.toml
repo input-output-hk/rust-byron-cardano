@@ -6,9 +6,10 @@ authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
           ]
 
 [dependencies]
-termcolor = "1.0"
+console = "0.6.1"
+dialoguer = "0.1"
+indicatif = "0.9"
 ansi_term = "0.11"
-term_size = "0.3"
 pbr = "1.0"
 log = "0.4"
 dirs = "1.0"
@@ -16,8 +17,7 @@ rand = "0.5"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.7"
-rpassword = "2.0"
-env_logger = "0.5.11"
+env_logger = "0.5"
 humantime = "1.1"
 cbor_event = { path = "../cbor_event" }
 cryptoxide = { path = "../cryptoxide" }
