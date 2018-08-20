@@ -176,14 +176,14 @@ impl cbor_event::de::Deserialize for Handshake {
 
 pub fn send_handshake(hs: &Handshake) -> Vec<u8> { cbor!(hs).unwrap() }
 
-// Message Header follow by the data
-type Message = (u8, Vec<u8>);
+pub type Message = (u8, Vec<u8>);
 
 pub enum MsgType {
     MsgGetHeaders = 0x4,
     MsgHeaders = 0x5,
     MsgGetBlocks = 0x6,
     MsgSubscribe = 0xd,
+    MsgAnnounceTx = 0x25, // == InvOrData key TxMsgContents
 }
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
@@ -216,10 +216,10 @@ pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
 
 pub fn send_msg_announcetx(txid: &tx::TxId) -> Message {
     let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
-        .serialize(&0).unwrap()
+        .serialize(&0u8).unwrap() // == Left constructor of InvOrData (i.e. InvMsg)
         .serialize(txid).unwrap()
         .finalize();
-    (0x24, dat)
+    (MsgType::MsgAnnounceTx as u8, dat)
 }
 
 #[derive(Debug)]

@@ -267,8 +267,8 @@ pub enum AddrType {
 }
 
 impl Addressing {
-    /// create a new `Addressing` for the given account and `AddrType`.
-    /// The default index is set to `0` (the starting index).
+    /// create a new `Addressing` for the given account, `AddrType`
+    /// and address index.
     ///
     /// # example
     ///
@@ -279,12 +279,12 @@ impl Addressing {
     ///
     /// assert!(Addressing::new(0x80000000, AddrType::External).is_err());
     /// ```
-    pub fn new(account: u32, typ: AddrType) -> Result<Self> {
+    pub fn new(account: u32, typ: AddrType, index: u32) -> Result<Self> {
         let change = match typ {
                         AddrType::Internal => 1,
                         AddrType::External => 0,
                     };
-        Ok(Addressing { account: Account::new(account)?, change: change, index: Index::new(0)? })
+        Ok(Addressing { account: Account::new(account)?, change: change, index: Index::new(index)? })
     }
 
     fn new_from_change(change: Change, index: u32) -> Result<Self> {

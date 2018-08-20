@@ -3,12 +3,12 @@ use std::io::{Read, Write};
 use std::{io, fmt, result};
 
 use packet;
-use packet::{Handshake};
+use packet::{Handshake, Message};
 use ntt;
 
 use cardano;
 
-use cbor_event::{self, de::{RawCbor}, Deserialize};
+use cbor_event::{self, se, de::{RawCbor}, Deserialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -286,6 +286,14 @@ impl<T: Write+Read> Connection<T> {
         Ok(())
     }
 
+    pub fn send_message(&mut self, id: LightId, msg: &Message) -> Result<()> {
+        let mut v = vec![];
+        v.extend(&se::Serializer::new_vec().serialize(&msg.0)?.finalize());
+        v.extend(&msg.1[..]);
+        self.send_bytes(id, &v[..])?;
+        Ok(())
+    }
+
     pub fn send_nodeid(&mut self, id: LightId, nodeid: &ntt::protocol::NodeId) -> Result<()> {
         trace!("send NodeID {} associated to light id {}", nodeid, id);
         self.ntt.light_send_data(id.0, nodeid.as_ref())?;
@@ -451,9 +459,7 @@ impl<T: Write+Read> Connection<T> {
         info!("subscribing on light connection {}", id);
 
         // FIXME: use keep-alive?
-        let (subscribe_id, subscribe_dat) = packet::send_msg_subscribe(false);
-        self.send_bytes(id, &[subscribe_id]).unwrap();
-        self.send_bytes(id, &subscribe_dat[..]).unwrap();
+        self.send_message(id, &packet::send_msg_subscribe(false))?;
 
         Ok(())
     }
@@ -540,9 +546,7 @@ pub mod command {
     impl<W> Command<W> for GetBlockHeader where W: Read+Write {
         type Output = cardano::block::RawBlockHeaderMultiple;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            let (get_header_id, get_header_dat) = packet::send_msg_getheaders(&self.from[..], &self.to);
-            connection.send_bytes(id, &[get_header_id]).unwrap();
-            connection.send_bytes(id, &get_header_dat[..]).unwrap();
+            connection.send_message(id, &packet::send_msg_getheaders(&self.from[..], &self.to)).unwrap();
             Ok(())
         }
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
@@ -596,9 +600,7 @@ pub mod command {
         type Output = Vec<cardano::block::RawBlock>;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
             // require the initial header
-            let (get_header_id, get_header_dat) = packet::send_msg_getblocks(&self.from, &self.to);
-            connection.send_bytes(id, &[get_header_id]).unwrap();
-            connection.send_bytes(id, &get_header_dat[..]).unwrap();
+            connection.send_message(id, &packet::send_msg_getblocks(&self.from, &self.to)).unwrap();
             Ok(())
         }
 
@@ -623,74 +625,69 @@ pub mod command {
     }
 
     #[derive(Debug)]
-    pub struct AnnounceTx(tx::TxAux);
-    impl AnnounceTx {
-        pub fn new(tx: tx::TxAux) -> Self { AnnounceTx(tx) }
+    pub struct SendTx(tx::TxAux);
+    impl SendTx {
+        pub fn new(tx: tx::TxAux) -> Self { SendTx(tx) }
     }
-    impl<W> Command<W> for AnnounceTx where W: Read+Write {
-        type Output = SendTx;
-
-        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            let (_, get_header_dat) = packet::send_msg_announcetx(&self.0.tx.id());
-
-            connection.send_bytes(id, &[0x18, 0x25]).unwrap();
-            connection.send_bytes(id, &get_header_dat[..]).unwrap();
-            Ok(())
-        }
-
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
-            let dat = connection.wait_msg(id).unwrap();
-            panic!("not implemented");
-            /*
-            match RawCbor::from(&dat).deserialize().unwrap() {
-                Err(err) => 
-                    Err(String::from(format!("error while decoding response from cbor: {:?}", err))),
-                Ok(res) => {
-                    let (v, txid) : (u64, Vec<tx::TxId>) = res;
-                    assert_eq!(v, 0u64);
-                    assert_eq!(txid[0], self.0.tx.id());
-                    Ok(SendTx(self.0.clone(), id))
-                },
-            }
-            */
-        }
-
-        fn terminate(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            Ok(())
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct SendTx(tx::TxAux, LightId);
-
     impl<W> Command<W> for SendTx where W: Read+Write {
-        type Output = (); // FIXME
-
-        fn initial(&self, connection: &mut Connection<W>) -> Result<LightId, &'static str> {
-            Ok(self.1)
-        }
+        type Output = ();
 
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
-                .serialize(&1).unwrap()
-                .serialize(&self.0).unwrap()
-                .finalize();
-            connection.send_bytes(id, &dat[..]).unwrap();
+            connection.send_message(id, &packet::send_msg_announcetx(&self.0.tx.id())).unwrap();
             Ok(())
         }
 
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
             let dat = connection.wait_msg(id).unwrap();
-            panic!("not implemented");
-            /*
-            match RawCbor::from(&dat).deserialize().unwrap() {
-                None => Err(String::from("message block decoder failed with something unexpected")),
-                Some(val) => {
-                    Ok(val)
+            match decode_sum_type(&dat) {
+                None => Err(String::from("SendTx failed with something unexpected")),
+                Some((0, dat)) => {
+                    let mut raw = RawCbor::from(dat);
+                    let arr = raw.array().unwrap();
+                    if arr != cbor_event::Len::Len(1) {
+                        return Err(format!("Peer rejected transaction '{}'", self.0.tx.id()))
+                    }
+                    let txid: tx::TxId = raw.deserialize().unwrap();
+                    assert_eq!(txid, self.0.tx.id());
+
+                    // We now have to send the TxAux on the same connection.
+                    let msg = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
+                        .serialize(&1u8).unwrap() // == Right constructor of InvOrData (i.e. DataMsg)
+                        .serialize(&self.0).unwrap()
+                        .finalize();
+                    connection.send_bytes(id, &msg[..]).unwrap();
+
+                    // Receive the ResMsg data type.
+                    let dat = connection.wait_msg(id).unwrap();
+                    let mut raw = RawCbor::from(&dat);
+                    if raw.array().unwrap() != cbor_event::Len::Len(2) {
+                        return Err(String::from("SendTx failed with something unexpected"))
+                    }
+                    if raw.unsigned_integer().unwrap() != 1 {
+                        return Err(String::from("SendTx failed with something unexpected"))
+                    }
+                    let arr = raw.array().unwrap();
+                    if arr != cbor_event::Len::Len(2) {
+                        return Err(String::from("SendTx failed with something unexpected"))
+                    }
+                    let txid: tx::TxId = raw.deserialize().unwrap();
+                    assert_eq!(txid, self.0.tx.id());
+                    let result = raw.bool().unwrap();
+                    if !result {
+                        return Err(format!("Peer rejected transaction '{}'", self.0.tx.id()))
+                    }
+
+                    Ok(())
+
                 },
+                Some((1, dat)) => {
+                    Err(format!("Server returned an error for SendTx: {}",
+                                RawCbor::from(dat).text().unwrap()))
+                },
+                Some((_n, _dat)) => {
+                    Err(String::from("SendTx failed with something unexpected"))
+                }
             }
-            */
         }
     }
-
 }

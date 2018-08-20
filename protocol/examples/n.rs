@@ -1,5 +1,5 @@
 extern crate protocol;
-extern crate wallet_crypto;
+extern crate cardano;
 extern crate rand;
 #[macro_use]
 extern crate log;
@@ -10,19 +10,21 @@ use protocol::packet::{Handshake};
 use protocol::command::{Command};
 
 use protocol::{command, ntt, Connection};
-use wallet_crypto::{config::{ProtocolMagic, Config}, bip44, hdwallet, wallet, tx, coin, util::{base58, hex}};
+use cardano::{config::ProtocolMagic, hdwallet,
+              wallet::scheme::{Wallet, Account},
+              wallet::bip44,
+              fee, txutils, tx, coin, util::{base58, hex}};
 use std::net::TcpStream;
-
-use std::time::Duration;
-use std::thread;
-
+use std::fs::File;
+use std::io::prelude::*;
 
 // mainnet:
 // const HOST: &'static str = "relays.cardano-mainnet.iohk.io:3000";
 // const PROTOCOL_MAGIC : u32 = 764824073;
 
 // staging:
-const HOST: &'static str = "relays.awstest.iohkdev.io:3000";
+//const HOST: &'static str = "relays.awstest.iohkdev.io:3000";
+const HOST: &'static str = "localhost:3000";
 const PROTOCOL_MAGIC : u32 = 633343913;
 
 fn main() {
@@ -44,54 +46,63 @@ fn main() {
     let mut connection = Connection::new(conn);
     connection.handshake(&hs).unwrap();
 
-    /*
-    let mbh = command::GetBlockHeader::tip().execute(&mut connection)
-        .expect("to get one header at least").decode().unwrap();
-    info!("tip date: {}", mbh[0].get_blockdate());
-    */
+    if false {
+        let mbh = command::GetBlockHeader::tip().execute(&mut connection)
+            .expect("to get one header at least").decode().unwrap();
+        info!("tip date: {}", mbh[0].get_blockdate());
+    }
 
     {
+        let mut file = File::open("test.key").expect("unable to read test.key");
+        let mut key = String::new();
+        file.read_to_string(&mut key).unwrap();
+
         // 1. create a wallet
-        let cached_root_xprv = hdwallet::XPrv::from_slice(&hex::decode("xxxx").unwrap()).unwrap();
-        let config = Config::new(ProtocolMagic::new(PROTOCOL_MAGIC));
-        let wallet = wallet::Wallet::new(cached_root_xprv, config, Default::default());
+        let xprv_vec = hex::decode(&key).unwrap();
+        assert!(xprv_vec.len() == hdwallet::XPRV_SIZE);
+        let mut xprv_bytes = [0;hdwallet::XPRV_SIZE];
+        xprv_bytes.copy_from_slice(&xprv_vec[..]);
+        let root_xprv =
+            hdwallet::XPrv::from_bytes_verified(xprv_bytes).unwrap();
+        let mut wallet = bip44::Wallet::from_cached_key(
+            bip44::RootLevel::from(root_xprv), hdwallet::DerivationScheme::default());
+        let account_number = 0;
+        let account = wallet.create_account("bla", account_number);
+
         // 2. create a valid transaction
-        let mut addresses = wallet.gen_addresses(0, bip44::AddrType::External, vec![0]).unwrap();
-        let input_addr = addresses.pop().unwrap();
-        let mut addresses = wallet.gen_addresses(0, bip44::AddrType::External, vec![1]).unwrap();
-        let output_addr = addresses.pop().unwrap();
-        let mut addresses = wallet.gen_addresses(0, bip44::AddrType::Internal, vec![1]).unwrap();
-        let change_addr = addresses.pop().unwrap();
+        let input_index = 2;
+        let input_addr = account.generate_addresses(
+            [(bip44::AddrType::External, input_index)].iter()).pop().unwrap();
+        let output_addr = account.generate_addresses(
+            [(bip44::AddrType::External, input_index + 1)].iter()).pop().unwrap();
+        let change_addr = account.generate_addresses(
+            [(bip44::AddrType::Internal, 1)].iter()).pop().unwrap();
 
-        let inputs = {
-            let txin = tx::TxIn::new(tx::TxId::from_slice(&hex::decode("ba019f377600b8cacac8c9cba2c0642cb3550dcca1686b0381058bc5cffc3d18").unwrap()).unwrap(), 0);
-            let addressing = bip44::Addressing::new(0, bip44::AddrType::External).unwrap();
-            let txout = tx::TxOut::new(input_addr.clone(), coin::Coin::new(1_000_000).unwrap());
-            let mut inputs = tx::Inputs::new();
-            inputs.push(tx::Input::new(txin, txout, addressing));
-            inputs
-        };
+        let txin = tx::TxIn::new(tx::TxId::from_slice(&hex::decode("e276efdd613403ed096471c361b78f53b942de3904fbb142e838069e4374a793").unwrap()).unwrap(), 0);
+        let addressing = bip44::Addressing::new(account_number, bip44::AddrType::External, input_index).unwrap();
+        let txout = tx::TxOut::new(input_addr.clone(), coin::Coin::new(600_000).unwrap());
+        let inputs = vec![txutils::Input::new(txin, txout, addressing)];
 
-        let outputs = {
-            let mut outputs = tx::Outputs::new();
-            outputs.push(tx::TxOut::new(output_addr.clone(), coin::Coin::new(831_051).unwrap()));
-            outputs
-        };
+        let outputs = vec![tx::TxOut::new(output_addr.clone(), coin::Coin::new(400_000).unwrap())];
 
-        let (txaux, fee) = wallet.new_transaction(&inputs, &outputs, &change_addr).unwrap();
+        let (txaux, fee) = wallet.new_transaction(
+            ProtocolMagic::new(PROTOCOL_MAGIC),
+            fee::SelectionPolicy::default(),
+            inputs.iter(),
+            outputs,
+            &txutils::OutputPolicy::One(change_addr.clone())).unwrap();
 
         info!("############## transaction prepared");
+        info!("  txaux {:?}", txaux);
+        info!("  tx id {}", txaux.tx.id());
         info!("  from address {}", base58::encode(&input_addr.to_bytes()));
         info!("  to address {}", base58::encode(&output_addr.to_bytes()));
+        info!("  change to address {}", base58::encode(&change_addr.to_bytes()));
         info!("  fee: {:?}", fee);
+
         // 3. send the transaction
         info!(" == Anounce New Tx ====================================");
-        let sender = command::AnnounceTx::new(txaux).execute(&mut connection)
-            .expect("announce new tx");
-
-        info!(" == Send New Tx =======================================");
-        let res = sender.execute(&mut connection)
-            .expect("sending the transaction");
-        info!("    {:?}", res);
+        command::SendTx::new(txaux).execute(&mut connection)
+            .expect("send new tx");
     }
 }

@@ -75,6 +75,7 @@ version = "0.1.0"
 dependencies = [
  "cbor_event 0.1.0",
  "cryptoxide 0.1.0",
+ "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
