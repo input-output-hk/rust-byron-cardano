@@ -19,6 +19,9 @@ pub enum Error {
     UnsupportedControl(ntt::protocol::ControlHeader),
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
+    UnexpectedResponse(),
+    ServerError(String),
+    TransactionRejected,
 }
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::ByteEncodingError(e) }
@@ -494,24 +497,24 @@ impl<T: Write+Read> Connection<T> {
 
 pub mod command {
     use std::io::{Read, Write};
-    use super::{LightId, Connection};
+    use super::{LightId, Connection, Result, Error};
     use cardano::{self, tx};
     use packet;
     use cbor_event::{de::RawCbor, se, self};
 
     pub trait Command<W: Read+Write> {
         type Output;
-        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str>;
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String>;
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()>;
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output>;
 
-        fn initial(&self, connection: &mut Connection<W>) -> Result<LightId, &'static str> {
+        fn initial(&self, connection: &mut Connection<W>) -> Result<LightId> {
             let id = connection.get_free_light_id();
             trace!("creating light connection: {}", id);
 
-            connection.new_light_connection(id).unwrap();
+            connection.new_light_connection(id)?;
             Ok(id)
         }
-        fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output, String> {
+        fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output> {
             let id = Command::initial(self, connection)?;
 
             Command::command(self, connection, id)?;
@@ -521,7 +524,7 @@ pub mod command {
 
             Ok(ret)
         }
-        fn terminate(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+        fn terminate(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
             connection.close_light_connection(id);
             Ok(())
         }
@@ -545,27 +548,22 @@ pub mod command {
 
     impl<W> Command<W> for GetBlockHeader where W: Read+Write {
         type Output = cardano::block::RawBlockHeaderMultiple;
-        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            connection.send_message(id, &packet::send_msg_getheaders(&self.from[..], &self.to)).unwrap();
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
+            connection.send_message(id, &packet::send_msg_getheaders(&self.from[..], &self.to))?;
             Ok(())
         }
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output> {
             // require the initial header
-            let dat = connection.wait_msg(id).unwrap();
+            let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(String::from("message block decoder failed with something unexpected")),
+                None => Err(Error::UnexpectedResponse()),
                 Some((0, dat)) => {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                 },
-                Some((1, dat)) => {
-                    Err(format!("server returned an error for GetHeaders: {}",
-                                RawCbor::from(dat).text().unwrap()))
-                },
-                Some((_n, _dat)) => {
-                    Err(String::from("message block decoder failed with something unexpected"))
-                }
+                Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
             }
         }
     }
@@ -580,17 +578,17 @@ pub mod command {
         pub fn from(from: &cardano::block::HeaderHash, to: &cardano::block::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
     }
 
-    fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock, &'static str> {
+    fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         match decode_sum_type(msg) {
-            None => Err("message block decoder failed with something unexpected"),
+            None => Err(Error::UnexpectedResponse()),
             Some((sumval, dat)) => {
                 if sumval == 0 {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlock::from_dat(v))
                 } else {
-                    Err("message block decoder failed with something unexpected")
+                    Err(Error::UnexpectedResponse())
                 }
             },
         }
@@ -598,14 +596,14 @@ pub mod command {
 
     impl<W> Command<W> for GetBlock where W: Read+Write {
         type Output = Vec<cardano::block::RawBlock>;
-        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
             // require the initial header
-            connection.send_message(id, &packet::send_msg_getblocks(&self.from, &self.to)).unwrap();
+            connection.send_message(id, &packet::send_msg_getblocks(&self.from, &self.to))?;
             Ok(())
         }
 
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
-            let msg_response = connection.wait_msg_eos(id).unwrap();
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output> {
+            let msg_response = connection.wait_msg_eos(id)?;
             let mut msgs = Vec::new();
             for response in msg_response.iter() {
                 let msg = strip_msg_response(&response[..])?;
@@ -632,61 +630,55 @@ pub mod command {
     impl<W> Command<W> for SendTx where W: Read+Write {
         type Output = ();
 
-        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<(), &'static str> {
-            connection.send_message(id, &packet::send_msg_announcetx(&self.0.tx.id())).unwrap();
+        fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
+            connection.send_message(id, &packet::send_msg_announcetx(&self.0.tx.id()))?;
             Ok(())
         }
 
-        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output, String> {
-            let dat = connection.wait_msg(id).unwrap();
+        fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output> {
+            let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(String::from("SendTx failed with something unexpected")),
+                None => Err(Error::UnexpectedResponse()),
                 Some((0, dat)) => {
                     let mut raw = RawCbor::from(dat);
-                    let arr = raw.array().unwrap();
-                    if arr != cbor_event::Len::Len(1) {
-                        return Err(format!("Peer rejected transaction '{}'", self.0.tx.id()))
+                    if raw.array()? != cbor_event::Len::Len(1) {
+                        return Err(Error::TransactionRejected)
                     }
-                    let txid: tx::TxId = raw.deserialize().unwrap();
+                    let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
 
                     // We now have to send the TxAux on the same connection.
-                    let msg = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
-                        .serialize(&1u8).unwrap() // == Right constructor of InvOrData (i.e. DataMsg)
-                        .serialize(&self.0).unwrap()
+                    let msg = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2))?
+                        .serialize(&1u8)? // == Right constructor of InvOrData (i.e. DataMsg)
+                        .serialize(&self.0)?
                         .finalize();
-                    connection.send_bytes(id, &msg[..]).unwrap();
+                    connection.send_bytes(id, &msg[..])?;
 
                     // Receive the ResMsg data type.
-                    let dat = connection.wait_msg(id).unwrap();
+                    let dat = connection.wait_msg(id)?;
                     let mut raw = RawCbor::from(&dat);
-                    if raw.array().unwrap() != cbor_event::Len::Len(2) {
-                        return Err(String::from("SendTx failed with something unexpected"))
+                    if raw.array()? != cbor_event::Len::Len(2) {
+                        return Err(Error::UnexpectedResponse())
                     }
-                    if raw.unsigned_integer().unwrap() != 1 {
-                        return Err(String::from("SendTx failed with something unexpected"))
+                    if raw.unsigned_integer()? != 1 {
+                        return Err(Error::UnexpectedResponse())
                     }
-                    let arr = raw.array().unwrap();
+                    let arr = raw.array()?;
                     if arr != cbor_event::Len::Len(2) {
-                        return Err(String::from("SendTx failed with something unexpected"))
+                        return Err(Error::UnexpectedResponse())
                     }
-                    let txid: tx::TxId = raw.deserialize().unwrap();
+                    let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
-                    let result = raw.bool().unwrap();
+                    let result = raw.bool()?;
                     if !result {
-                        return Err(format!("Peer rejected transaction '{}'", self.0.tx.id()))
+                        return Err(Error::TransactionRejected)
                     }
 
                     Ok(())
 
                 },
-                Some((1, dat)) => {
-                    Err(format!("Server returned an error for SendTx: {}",
-                                RawCbor::from(dat).text().unwrap()))
-                },
-                Some((_n, _dat)) => {
-                    Err(String::from("SendTx failed with something unexpected"))
-                }
+                Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
             }
         }
     }
