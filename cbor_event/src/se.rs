@@ -18,6 +18,11 @@ impl Serialize for u32 {
         serializer.write_unsigned_integer((*self) as u64)
     }
 }
+impl Serialize for u8 {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_unsigned_integer((*self) as u64)
+    }
+}
 impl<'a> Serialize for &'a [u8] {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_bytes(self)
