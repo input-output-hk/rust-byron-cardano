@@ -144,7 +144,7 @@ impl<'a> ConnectedPeer<'a> {
 
         // initialisation of the progress bar:
         let count = tip.date - best_tip.0.date;
-        let mut pbr = term.progress_bar(count as u64);
+        let pbr = term.progress_bar(count as u64);
         connection.get_blocks(&best_tip.0, best_tip.1, &tip, &mut |block_hash, block, block_raw| {
             let date = block.get_header().get_blockdate();
             pbr.inc(1);

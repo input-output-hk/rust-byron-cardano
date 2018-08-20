@@ -5,7 +5,6 @@ mod config;
 pub mod emoji;
 
 use console;
-use dialoguer;
 use indicatif;
 
 pub use self::config::{Config, ColorChoice};

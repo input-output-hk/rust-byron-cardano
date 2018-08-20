@@ -6,7 +6,6 @@ use super::error::{Error};
 use std::{path::PathBuf};
 use cardano::{hdwallet::{self, DerivationScheme}, address::ExtendedAddr, wallet, bip::bip39, block::{BlockDate}};
 use rand::random;
-use indicatif::ProgressBar;
 
 use utils::term::Term;
 
@@ -374,7 +373,7 @@ fn update_wallet_state_with_utxos<LS>(term: &mut Term, wallet: &Wallet, blockcha
 
     term.info(&format!("syncing wallet from {} to {}\n", from_date, blockchain_tip.date)).unwrap();
 
-    let mut progress = term.progress_bar(num_blocks as u64);
+    let progress = term.progress_bar(num_blocks as u64);
     progress.set_message("loading transactions... ");
 
     let mut last_block_date = from_date;
@@ -421,7 +420,7 @@ fn update_wallet_state_with_utxos<LS>(term: &mut Term, wallet: &Wallet, blockcha
     }
 }
 
-fn display_wallet_state_logs<LS>(term: &mut Term, wallet: &Wallet, state: &mut state::State<LS>)
+fn display_wallet_state_logs<LS>(term: &mut Term, wallet: &Wallet, _state: &mut state::State<LS>)
     where LS: lookup::AddressLookup
         , for<'de> LS::AddressOutput : serde::Deserialize<'de>
 {
