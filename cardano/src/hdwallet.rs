@@ -250,7 +250,7 @@ impl XPrv {
     }
 
     /// Create a `XPrv` from the given slice. This slice must be of size `XPRV_SIZE`
-    /// otherwise it will return `Result`.
+    /// otherwise it will return `Err`.
     ///
     fn from_slice(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != XPRV_SIZE {
@@ -412,7 +412,7 @@ impl XPub {
         Ok(Self::from_bytes(buf))
     }
 
-    /// create a `XPrv` from a given hexadecimal string
+    /// create a `XPub` from a given hexadecimal string
     ///
     /// ```
     /// use cardano::hdwallet::{XPub};
