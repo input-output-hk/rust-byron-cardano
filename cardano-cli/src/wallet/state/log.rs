@@ -1,15 +1,14 @@
 use storage::{append, lock::{self, Lock}};
-use std::{fmt, result, path::{Path}};
-use super::super::config;
+use std::{path::{PathBuf}, fmt, result};
 
-use super::lookup::{StatePtr, Utxo};
+use super::{ptr::{StatePtr}, utxo::{UTxO}};
 
+use serde;
 use serde_yaml;
 
 #[derive(Debug)]
 pub enum Error {
     LogNotFound,
-    ConfigError(config::Error),
     LogFormatError(String),
     LockError(lock::Error),
     AppendError(append::Error)
@@ -25,30 +24,42 @@ impl From<append::Error> for Error {
         }
     }
 }
-impl From<config::Error> for Error {
-    fn from(e: config::Error) -> Self { Error::ConfigError(e) }
-}
 
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Log {
+pub enum Log<A> {
     Checkpoint(StatePtr),
-    ReceivedFund(Utxo),
-    SpentFund(Utxo),
+    ReceivedFund(UTxO<A>),
+    SpentFund(UTxO<A>),
 }
-impl Log {
+impl<A: serde::Serialize> Log<A> {
     fn serialise(&self) -> Vec<u8> {
         serde_yaml::to_vec(self).unwrap()
     }
-
+}
+impl<A> Log<A>
+    where for<'de> A: serde::Deserialize<'de>
+{
     fn deserisalise(bytes: &[u8]) -> Result<Self> {
         serde_yaml::from_slice(bytes).map_err(|e|
             Error::LogFormatError(format!("log format error: {:?}", e))
         )
     }
 }
-impl fmt::Display for Log {
+impl<A> Log<A>
+{
+    pub fn map<F, U>(self, f: F) -> Log<U>
+        where F: FnOnce(A) -> U
+    {
+        match self {
+            Log::Checkpoint(ptr)    => Log::Checkpoint(ptr),
+            Log::ReceivedFund(utxo) => Log::ReceivedFund(utxo.map(f)),
+            Log::SpentFund(utxo)    => Log::SpentFund(utxo.map(f)),
+        }
+    }
+}
+impl<A: fmt::Display> fmt::Display for Log<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Log::Checkpoint(ptr) => write!(f, "Checkpoint at: {}", ptr),
@@ -65,9 +76,13 @@ impl LogLock {
     /// function to acquire the lock on the log file of a given wallet
     ///
     /// The lock will hold as long as the lifetime of the returned object.
-    pub fn acquire_wallet_log_lock<P: AsRef<Path>>(wallet_name: P) -> Result<Self> {
-        let root = config::wallet_path(wallet_name)?;
-        Ok(LogLock(Lock::lock(root.join(WALLET_LOG_FILE))?))
+    pub fn acquire_wallet_log_lock(wallet_path: PathBuf) -> Result<Self> {
+        Ok(LogLock(Lock::lock(wallet_path.join(WALLET_LOG_FILE))?))
+    }
+
+    pub fn delete_wallet_log_lock(self, wallet_path: PathBuf) -> ::std::io::Result<()> {
+        let file = wallet_path.join(WALLET_LOG_FILE);
+        ::std::fs::remove_file(file)
     }
 }
 
@@ -80,13 +95,38 @@ impl LogReader {
 
     pub fn release_lock(self) -> LogLock { LogLock(self.0.close()) }
 
-    pub fn next(&mut self) -> Result<Option<Log>> {
+    pub fn into_iter<A>(self) -> LogIterator<A>
+        where for<'de> A: serde::Deserialize<'de>
+    {
+        LogIterator {reader: self, _log_type: ::std::marker::PhantomData }
+    }
+    pub fn next<A>(&mut self) -> Result<Option<Log<A>>>
+        where for<'de> A: serde::Deserialize<'de>
+    {
         match self.0.next()? {
             None => Ok(None),
             Some(bytes) => {
                 let log = Log::deserisalise(&bytes)?;
                 Ok(Some(log))
             }
+        }
+    }
+}
+
+pub struct LogIterator<A> {
+    reader: LogReader,
+    _log_type: ::std::marker::PhantomData<A>
+}
+impl<A> Iterator for LogIterator<A>
+    where for<'de> A: serde::Deserialize<'de>
+{
+    type Item = Result<Log<A>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.reader.next() {
+            Err(err) => Some(Err(err)),
+            Ok(None) => None,
+            Ok(Some(log)) => Some(Ok(log))
         }
     }
 }
@@ -99,8 +139,8 @@ impl LogWriter {
 
     pub fn release_lock(self) -> LogLock { LogLock(self.0.close()) }
 
-    pub fn append(&mut self, log: &Log) -> Result<()> {
-        info!("recording wallet log: {}", log);
+    pub fn append<A: serde::Serialize+fmt::Debug>(&mut self, log: &Log<A>) -> Result<()> {
+        debug!("recording wallet log: {:?}", log);
         Ok(self.0.append_bytes(&log.serialise())?)
     }
 }

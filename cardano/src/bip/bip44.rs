@@ -254,6 +254,11 @@ pub struct Addressing {
     pub change: u32,
     pub index: Index,
 }
+impl fmt::Display for Addressing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.account.0, self.change, self.index.0)
+    }
+}
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum AddrType {

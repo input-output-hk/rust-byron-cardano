@@ -1,6 +1,7 @@
 pub mod config;
 pub mod commands;
 mod peer;
+pub mod iter;
 
 use std::path::PathBuf;
 
@@ -107,15 +108,6 @@ impl Blockchain {
         self.config.peers.iter()
     }
 
-    pub fn set_wallet_tag(&self, wallet_name: &str, hh: &block::HeaderHash) {
-        let tag = format!("wallet/{}", wallet_name);
-        tag::write_hash(&self.storage, &tag, hh)
-    }
-    pub fn remove_wallet_tag(&self, wallet_name: &str) {
-        let tag = format!("wallet/{}", wallet_name);
-        tag::remove_tag(&self.storage, &tag);
-    }
-
     pub fn load_tip(&self) -> (BlockRef, bool) {
         let genesis_ref = (BlockRef {
             hash: self.config.genesis.clone(),
@@ -139,5 +131,15 @@ impl Blockchain {
     }
     pub fn save_tip(&self, hh: &block::HeaderHash) {
         tag::write_hash(&self.storage, &LOCAL_BLOCKCHAIN_TIP_TAG, hh);
+    }
+
+    pub fn iter<'a>(&'a self, from: block::HeaderHash, to: block::HeaderHash) -> iter::Result<iter::Iter<'a>> {
+        iter::Iter::new(&self.storage, from, to)
+    }
+
+    pub fn iter_to_tip<'a>(&'a self, from: block::HeaderHash) -> iter::Result<iter::Iter<'a>> {
+        let to   = self.load_tip().0.hash;
+
+        self.iter(from, to)
     }
 }

@@ -29,4 +29,9 @@ impl Range {
 
     pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> { self.0.iter() }
 }
-
+impl Iterator for Range {
+    type Item = BlockHash;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop_front()
+    }
+}

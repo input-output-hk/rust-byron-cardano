@@ -113,7 +113,7 @@ impl BlockDate {
     pub fn next(&self) -> Self {
         match self {
             &BlockDate::Genesis(e) => BlockDate::Normal(SlotId { epoch: e, slotid: 0 }),
-            &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()),
+            &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()), // TODO next should wrap after full epoch
         }
     }
 
@@ -125,7 +125,7 @@ impl BlockDate {
     }
     pub fn slot_number(&self) -> usize {
         match self {
-            BlockDate::Genesis(eid) => (*eid as usize) * 21600,
+            BlockDate::Genesis(eid) => (*eid as usize) * 21600, // TODO de-hardcode this value
             BlockDate::Normal(sid)  => sid.slot_number()
         }
     }
@@ -196,12 +196,18 @@ impl fmt::Display for BlockHeader {
 }
 
 /// Block of either a genesis block or a normal block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Block {
     GenesisBlock(genesis::Block),
     MainBlock(normal::Block),
 }
 impl Block {
+    pub fn is_genesis_block(&self) -> bool {
+        match self {
+            &Block::GenesisBlock(_) => true,
+            &Block::MainBlock(_) => false
+        }
+    }
     pub fn get_header(&self) -> BlockHeader {
         match self {
             &Block::GenesisBlock(ref blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),

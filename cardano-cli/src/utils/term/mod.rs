@@ -62,6 +62,19 @@ impl Term {
         Progress::new_tick(self, 0)
     }
 
+    pub fn prompt(&mut self, prompt: &str) -> io::Result<String> {
+        use ::std::io::BufRead;
+
+        let mut out = self.stdout.lock();
+        write!(&mut out, "{}", prompt)?;
+        out.flush()?;
+        let stdin = io::stdin();
+        let mut lock = stdin.lock();
+        let mut output = String::new();
+        lock.read_line(&mut output)?;
+        Ok(output)
+    }
+
     pub fn password(&mut self, prompt: &str) -> io::Result<String> {
         let mut out = self.stdout.lock();
         write!(&mut out, "{}", prompt)?;

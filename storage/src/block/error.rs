@@ -1,6 +1,7 @@
 use types::{BlockHash};
 use std::{result, io};
 use cardano::{hash};
+use cardano::block::BlockDate;
 use cbor_event;
 
 #[derive(Debug)]
@@ -9,7 +10,8 @@ pub enum Error {
     IoError(io::Error),
     BlockEncodingError(cbor_event::Error),
     InvalidHeaderHash(hash::Error),
-    HashNotFound(BlockHash)
+    HashNotFound(BlockHash),
+    DateNotAvailable(BlockDate),
 }
 impl From<hash::Error> for Error {
     fn from(e: hash::Error) -> Self { Error::InvalidHeaderHash(e) }

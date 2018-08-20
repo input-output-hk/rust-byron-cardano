@@ -40,6 +40,10 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 /// A derivation path of HD wallet derivation indices which uses a CBOR encoding
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Path(Vec<u32>);
+impl Deref for Path {
+    type Target = [u32];
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
 impl AsRef<[u32]> for Path {
     fn as_ref(&self) -> &[u32] { self.0.as_ref() }
 }
