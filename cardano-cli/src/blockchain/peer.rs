@@ -144,11 +144,11 @@ impl<'a> ConnectedPeer<'a> {
 
         // initialisation of the progress bar:
         let count = tip.date - best_tip.0.date;
-        let mut pbr = term.progress_bar(count as u64);
+        let pbr = term.progress_bar(count as u64);
         connection.get_blocks(&best_tip.0, best_tip.1, &tip, &mut |block_hash, block, block_raw| {
             let date = block.get_header().get_blockdate();
-            pbr.advance(1);
-            pbr.message(&format!("downloading epoch {} -> ", date.get_epochid()));
+            pbr.inc(1);
+            pbr.set_message(&format!("downloading epoch {} -> ", date.get_epochid()));
 
             // Flush the previous epoch (if any).
             if date.is_genesis() {
@@ -181,7 +181,7 @@ impl<'a> ConnectedPeer<'a> {
 
             last_block = Some(block_hash.clone());
         }).unwrap();
-        pbr.end();
+        pbr.finish_and_clear();
 
         // Update the tip tag to point to the most recent block.
         if let Some(block_hash) = last_block {

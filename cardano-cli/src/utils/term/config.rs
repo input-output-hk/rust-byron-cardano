@@ -1,4 +1,8 @@
-use super::ColorChoice;
+pub enum ColorChoice {
+    Auto,
+    Always,
+    Never
+}
 
 /// Configuration for the output options
 pub struct Config {
