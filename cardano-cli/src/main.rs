@@ -195,7 +195,7 @@ fn blockchain_argument_template_definition<'a, 'b>() -> Arg<'a, 'b> {
         .value_name("TEMPLATE")
         .help("the template for the new blockchain")
         .required(false)
-        .possible_values(&["mainnet", "testnet"])
+        .possible_values(&["mainnet", "staging", "testnet"])
         .default_value("mainnet")
 }
 fn blockchain_argument_template_match<'a>(matches: &ArgMatches<'a>)
@@ -204,6 +204,7 @@ fn blockchain_argument_template_match<'a>(matches: &ArgMatches<'a>)
     match matches.value_of("BLOCKCHAIN_TEMPLATE") {
         None => blockchain::Config::mainnet(),
         Some("mainnet") => blockchain::Config::mainnet(),
+        Some("staging") => blockchain::Config::staging(),
         Some("testnet") => blockchain::Config::testnet(),
         Some(&_) => {
             // this should not be reachable as clap is handling
