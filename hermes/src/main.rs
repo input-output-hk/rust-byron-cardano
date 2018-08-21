@@ -61,7 +61,7 @@ fn main() {
                     .required(false)
                     .multiple(true)
                     .default_value("mainnet")
-                    .possible_values(&["mainnet", "testnet"])
+                    .possible_values(&["mainnet", "staging", "testnet"])
                 )
                 .arg(Arg::with_name("no-sync")
                     .long("no-sync")
@@ -87,6 +87,7 @@ fn main() {
             for template in args.values_of("TEMPLATE").unwrap() {
                 let net_cfg = match template {
                     "mainnet" => { net::Config::mainnet() },
+                    "staging" => { net::Config::staging() },
                     "testnet" => { net::Config::testnet() },
                     _         => {
                         // we do not support custom template yet.
