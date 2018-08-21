@@ -6,17 +6,17 @@ use super::{AddressLookup};
 use super::super::{utxo::{UTxO}};
 
 pub struct RandomIndexLookup {
-    generator: rindex::AddressGenerator<hdwallet::XPub>
+    generator: rindex::AddressGenerator<hdwallet::XPrv>
 }
 impl From<rindex::Wallet> for RandomIndexLookup {
     fn from(wallet: rindex::Wallet) -> Self {
         RandomIndexLookup {
-            generator: wallet.address_generator().public()
+            generator: wallet.address_generator()
         }
     }
 }
 impl RandomIndexLookup {
-    pub fn new(generator: rindex::AddressGenerator<hdwallet::XPub>) -> Self {
+    pub fn new(generator: rindex::AddressGenerator<hdwallet::XPrv>) -> Self {
         RandomIndexLookup {
             generator
         }
