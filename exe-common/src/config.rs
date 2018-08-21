@@ -228,6 +228,20 @@ pub mod net {
             }
         }
 
+        pub fn testnet() -> Self {
+            let mut peers = Peers::new();
+            peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-testnet.iohkdev.io:3000".to_string()));
+            peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/testnet".to_string()));
+            Config {
+                genesis: HeaderHash::from_hex(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
+                genesis_prev: HeaderHash::from_hex(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
+                epoch_start: 0,
+                epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
+                protocol_magic: ProtocolMagic::new(1097911063),
+                peers: peers
+            }
+        }
+
         pub fn from_file<P: AsRef<Path>>(p: P) -> Option<Self> {
             let path = p.as_ref();
             if ! path.is_file() {
