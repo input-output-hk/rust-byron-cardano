@@ -339,7 +339,8 @@ pub fn sync( mut term: Term
     match wallet.config.hdwallet_model {
         HDWalletModel::BIP44 => {
             let mut state = {
-                let lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+                let mut lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+                lookup_struct.prepare_next_account();
                 state::State::new(initial_ptr, lookup_struct)
             };
 
