@@ -275,9 +275,9 @@ impl Addressing {
     /// ```
     /// use cardano::bip::bip44::{Addressing, AddrType};
     ///
-    /// let addr = Addressing::new(0, AddrType::External).unwrap();
+    /// let addr = Addressing::new(0, AddrType::External, 0).unwrap();
     ///
-    /// assert!(Addressing::new(0x80000000, AddrType::External).is_err());
+    /// assert!(Addressing::new(0x80000000, AddrType::External, 0).is_err());
     /// ```
     pub fn new(account: u32, typ: AddrType, index: u32) -> Result<Self> {
         let change = match typ {
@@ -332,7 +332,7 @@ impl Addressing {
     /// ```
     /// use cardano::bip::bip44::{Addressing, AddrType, Index};
     ///
-    /// let addr = Addressing::new(0, AddrType::External).unwrap();
+    /// let addr = Addressing::new(0, AddrType::External, 0).unwrap();
     ///
     /// let next = addr.incr(32).unwrap().incr(10).unwrap();
     ///

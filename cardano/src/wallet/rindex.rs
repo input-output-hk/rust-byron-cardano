@@ -318,7 +318,7 @@ impl<K> AddressGenerator<K> {
     ///
     /// # Example
     ///
-    /// ```
+    /// TODO
     pub fn iter_with<'a, I>(self, iter: I) -> AddressIterator<K, I>
         where I: Iterator<Item = &'a Addressing>
     {
