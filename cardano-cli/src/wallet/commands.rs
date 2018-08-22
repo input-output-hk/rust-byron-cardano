@@ -261,34 +261,21 @@ pub fn status( mut term: Term
     // 1. get the wallet's blockchain
     let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
 
+
     // 2. prepare the wallet state
     let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-    match wallet.config.hdwallet_model {
-        HDWalletModel::BIP44 => {
-            let mut state = {
-                let lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
-                state::State::new(initial_ptr, lookup_struct)
-            };
+    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
 
-            update_wallet_state_with_logs(&wallet, &mut state);
+    update_wallet_state_with_logs(&wallet, &mut state);
 
-            term.simply(" * synced to block ").unwrap();
-            term.warn(&format!(" {} ({})", state.ptr.latest_known_hash, state.ptr.latest_addr.unwrap())).unwrap();
-            term.simply("\n").unwrap();
-        },
-        HDWalletModel::RandomIndex2Levels => {
-            let mut state = {
-                let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
-                state::State::new(initial_ptr, lookup_struct)
-            };
+    let total = state.total().unwrap();
 
-            update_wallet_state_with_logs(&wallet, &mut state);
-
-            term.simply(" * synced to block ").unwrap();
-            term.warn(&format!(" {} ({})", state.ptr.latest_known_hash, state.ptr.latest_addr.unwrap())).unwrap();
-            term.simply("\n").unwrap();
-        },
-    };
+    term.simply(" * balance ").unwrap();
+    term.success(&format!(" {}", total)).unwrap();
+    term.simply("\n").unwrap();
+    term.simply(" * synced to block ").unwrap();
+    term.warn(&format!(" {} ({})", state.ptr.latest_known_hash, state.ptr.latest_addr.unwrap())).unwrap();
+    term.simply("\n").unwrap();
 }
 
 pub fn log( mut term: Term

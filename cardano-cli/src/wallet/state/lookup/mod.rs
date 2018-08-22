@@ -2,6 +2,7 @@ use super::utxo::{UTxO};
 
 pub mod randomindex;
 pub mod sequentialindex;
+pub mod accum;
 
 pub trait AddressLookup {
     type Error        : ::std::fmt::Debug;
