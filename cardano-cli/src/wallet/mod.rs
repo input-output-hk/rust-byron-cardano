@@ -63,6 +63,12 @@ impl Wallet {
             config: config
         }
     }
+
+    pub unsafe fn destroy(self) -> ::std::io::Result<()> {
+        let dir = config::directory(self.root_dir.clone(), &self.name);
+        ::std::fs::remove_dir_all(dir)
+    }
+
     pub fn save(&self) {
         let dir = config::directory(self.root_dir.clone(), &self.name);
         fs::DirBuilder::new().recursive(true).create(dir.clone())

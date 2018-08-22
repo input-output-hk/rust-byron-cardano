@@ -82,7 +82,7 @@ impl Term {
             // TODO: there seems to be an issue with rust crate: console
             //       the password read line is not working or not returning
             //       at all on windows 10 's `cmd` or `PowerShell`
-            let line = dialoguer::Input::new(prompt).interact()?;
+            let line = dialoguer::Input::new(prompt).default("").interact()?;
             self.stdout.move_cursor_up(1)?;
             self.stdout.clear_line()?;
             Ok(line)
@@ -100,15 +100,16 @@ impl Term {
                 // TODO: there seems to be an issue with rust crate: console
                 //       the password read line is not working or not returning
                 //       at all on windows 10 's `cmd` or `PowerShell`
-                let line = dialoguer::Input::new(prompt).interact()?;
+                let line = dialoguer::Input::new(prompt).default("").interact()?;
                 self.stdout.move_cursor_up(1)?;
                 self.stdout.clear_line()?;
-                let line2 = dialoguer::Input::new(confirmation).interact()?;
+                let line2 = dialoguer::Input::new(confirmation).default("").interact()?;
                 self.stdout.move_cursor_up(1)?;
                 self.stdout.clear_line()?;
                 if line == line2 {
                     return Ok(line)
                 }
+                self.error(mismatch_err)?;
             }
         }
         #[cfg(not(windows))]

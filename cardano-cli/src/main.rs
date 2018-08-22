@@ -566,6 +566,11 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::log(term, root_dir, name);
         },
+        ("destroy", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::destroy(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
