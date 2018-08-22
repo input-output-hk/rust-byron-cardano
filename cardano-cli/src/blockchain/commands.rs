@@ -30,6 +30,31 @@ pub fn new( mut term: Term
     term.success(&format!("local blockchain `{}' created.\n", &name)).unwrap();
 }
 
+pub fn destroy( mut term: Term
+              , root_dir: PathBuf
+              , name: String
+              )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+
+    writeln!(term, "You are about to destroy the local blockchain {}.
+This means that all the blocks downloaded will be deleted and that the attached
+wallets won't be able to interact with this blockchain.",
+        ::console::style(&blockchain.name).bold().red(),
+    );
+
+    let confirmation = ::dialoguer::Confirmation::new("Are you sure?")
+        .use_line_input(true)
+        .clear(false)
+        .default(false)
+        .interact().unwrap();
+    if ! confirmation { ::std::process::exit(0); }
+
+    unsafe { blockchain.destroy() }.unwrap();
+
+    term.success("blockchain successfully destroyed").unwrap();
+}
+
 /// function to add a remote to the given blockchain
 ///
 /// It will create the appropriate tag refering to the blockchain
