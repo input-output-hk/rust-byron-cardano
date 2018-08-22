@@ -3,7 +3,7 @@ use super::{Wallet};
 use super::state::{log, state, lookup, ptr, iter::TransactionIterator, utxo::UTxO};
 use super::error::{Error};
 
-use std::{path::PathBuf};
+use std::{path::PathBuf, io::Write};
 use cardano::{hdwallet::{self, DerivationScheme}, address::ExtendedAddr, wallet, bip::bip39, block::{BlockDate}};
 use rand::random;
 
@@ -148,6 +148,34 @@ pub fn recover<D>( mut term: Term
 
     term.success(&format!("wallet `{}' successfully recovered.\n", &wallet.name)).unwrap();
 }
+
+pub fn destroy( mut term: Term
+              , root_dir: PathBuf
+              , name: String
+              )
+{
+    // load the wallet
+    let mut wallet = Wallet::load(root_dir.clone(), name);
+
+    writeln!(term, "You are about to destroy your wallet {}.
+This means that all the data associated to this wallet will be deleted on this device.
+The only way you will be able to reuse the wallet, recover the funds and create
+new transactions will be by recovering the wallet with the mnemonic words.",
+        ::console::style(&wallet.name).bold().red(),
+    );
+
+    let confirmation = ::dialoguer::Confirmation::new("Are you sure?")
+        .use_line_input(true)
+        .clear(false)
+        .default(false)
+        .interact().unwrap();
+    if ! confirmation { ::std::process::exit(0); }
+
+    unsafe { wallet.destroy() }.unwrap();
+
+    term.success("Wallet successfully destroyed.\n").unwrap()
+}
+
 
 pub fn attach( mut term: Term
              , root_dir: PathBuf
