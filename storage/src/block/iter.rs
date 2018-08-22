@@ -77,6 +77,28 @@ fn next_until_range(packreader: &mut PackReader<fs::File>, start_date: &BlockDat
     }
 }
 
+pub enum ReverseSearch {
+    Continue,
+    Found,
+    Abort,
+}
+
+fn block_reverse_search_from_tip<F>(storage: &Storage, first_block: &Block, find: F) -> Result<Option<Block>>
+    where F: Fn(&Block) -> Result<ReverseSearch>
+{
+    let mut current_blk = first_block.clone();
+    loop {
+        match find(&current_blk)? {
+            ReverseSearch::Continue => {
+                let blk = previous_block(&storage, &current_blk);
+                current_blk = blk;
+            },
+            ReverseSearch::Found => { return Ok(Some(current_blk)) },
+            ReverseSearch::Abort => { return Ok(None) },
+        };
+    }
+}
+
 impl Iter {
     pub fn start(params: &IterParams) -> Result<Self> {
 
