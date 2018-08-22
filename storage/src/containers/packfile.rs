@@ -1,4 +1,11 @@
 /// packfile format
+///
+/// a pack file is a collection of blobs, prefixed by their 32 bits size in BE:
+///
+/// SIZE (4 bytes BE)
+/// DATA (SIZE bytes)
+/// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
+///
 
 use std::io::{Read,Seek,SeekFrom};
 use std::io;

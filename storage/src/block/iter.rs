@@ -6,7 +6,7 @@ use super::super::{tag, blob};
 use super::super::epoch::{epoch_read_pack, epoch_open_packref};
 use super::super::containers::packfile;
 use super::super::types::{BlockHash, PackHash};
-use cardano::block::{HeaderHash, Block, RawBlock, EpochId, BlockDate};
+use cardano::block::{HeaderHash, Block, RawBlock, BlockDate};
 
 use std::{iter, fs, mem};
 use std::cmp::Ordering;

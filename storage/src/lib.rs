@@ -26,6 +26,7 @@ use types::*;
 use utils::tmpfile::*;
 
 use containers::packfile;
+use containers::indexfile;
 use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]
@@ -60,7 +61,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    lookups: BTreeMap<PackHash, pack::Lookup>,
+    lookups: BTreeMap<PackHash, indexfile::Lookup>,
 }
 
 impl Storage {
@@ -174,7 +175,7 @@ pub mod blob {
 
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
-    Packed(PackHash, pack::IndexOffset),
+    Packed(PackHash, indexfile::IndexOffset),
     Loose,
 }
 
@@ -182,12 +183,12 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
     for (packref, lookup) in storage.lookups.iter() {
         let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
         match nb {
-            pack::FanoutNb(0) => {},
-            _                 => {
+            indexfile::FanoutNb(0) => {},
+            _ => {
                 if lookup.bloom.search(hash) {
                     let idx_filepath = storage.config.get_index_filepath(packref);
-                    let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                    match pack::search_index(&mut idx_file, &lookup.params, hash, start, nb) {
+                    let mut idx_file = indexfile::Reader::init(idx_filepath).unwrap();
+                    match idx_file.search(&lookup.params, hash, start, nb) {
                         None       => {},
                         Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
                     }
@@ -209,8 +210,8 @@ pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockH
                 None         => { unreachable!(); },
                 Some(lookup) => {
                     let idx_filepath = storage.config.get_index_filepath(packref);
-                    let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                    let pack_offset = pack::resolve_index_offset(&mut idx_file, lookup, *iofs);
+                    let mut idx_file = indexfile::ReaderNoLookup::init(idx_filepath).unwrap();
+                    let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
                     let pack_filepath = storage.config.get_pack_filepath(packref);
                     let mut pack_file = packfile::Seeker::init(pack_filepath).unwrap();
                     pack_file.get_at_offset(pack_offset).ok().and_then(|x| Some(RawBlock(x)))
