@@ -303,22 +303,9 @@ pub fn log( mut term: Term
 
     // 2. prepare the wallet state
     let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-    match wallet.config.hdwallet_model {
-        HDWalletModel::BIP44 => {
-            let mut state = {
-                let lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
-                state::State::new(initial_ptr, lookup_struct)
-            };
-            display_wallet_state_logs(&mut term, &wallet, &mut state);
-        },
-        HDWalletModel::RandomIndex2Levels => {
-            let mut state = {
-                let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
-                state::State::new(initial_ptr, lookup_struct)
-            };
-            display_wallet_state_logs(&mut term, &wallet, &mut state);
-        },
-    };
+    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
+
+    display_wallet_state_logs(&mut term, &wallet, &mut state);
 }
 
 pub fn sync( mut term: Term
