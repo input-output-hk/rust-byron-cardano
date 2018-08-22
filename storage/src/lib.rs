@@ -25,6 +25,9 @@ use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 use types::*;
 use utils::tmpfile::*;
 
+use containers::packfile;
+use pack::{packreader_init, packreader_block_next};
+
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
@@ -209,8 +212,8 @@ pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockH
                     let mut idx_file = fs::File::open(idx_filepath).unwrap();
                     let pack_offset = pack::resolve_index_offset(&mut idx_file, lookup, *iofs);
                     let pack_filepath = storage.config.get_pack_filepath(packref);
-                    let mut pack_file = fs::File::open(pack_filepath).unwrap();
-                    pack::read_block_at(&mut pack_file, pack_offset).ok()
+                    let mut pack_file = packfile::Seeker::init(pack_filepath).unwrap();
+                    pack_file.get_at_offset(pack_offset).ok().and_then(|x| Some(RawBlock(x)))
                 }
             }
         }
@@ -293,11 +296,11 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
     let packhash_vec = tag::read(storage, tag).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
-    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+    let mut pack = packreader_init(&storage.config, &packhash);
 
     let mut current_state = None;
 
-    while let Some(raw_block) = pack.get_next() {
+    while let Some(raw_block) = packreader_block_next(&mut pack) {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();
@@ -357,11 +360,11 @@ fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: Heade
     let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
-    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+    let mut pack = packreader_init(&storage.config, &packhash);
 
     let mut current_state = None;
 
-    while let Some(raw_block) = pack.get_next() {
+    while let Some(raw_block) = packreader_block_next(&mut pack) {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();

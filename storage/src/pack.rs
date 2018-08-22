@@ -35,13 +35,14 @@ use cryptoxide::digest::Digest;
 use types::HASH_SIZE;
 use utils::bloom;
 use utils::tmpfile::{TmpFile};
+use utils::serialize::{read_offset, read_size, write_offset, write_size, offset_align4, Offset, Size, SIZE_SIZE, OFF_SIZE};
 use types::BlockHash;
 use cardano;
 
+use containers::packfile;
+
 const MAGIC : &[u8] = b"ADAPACK1";
 const MAGIC_SIZE : usize = 8;
-const OFF_SIZE : usize = 8;
-const SIZE_SIZE : usize = 4;
 
 const FANOUT_ELEMENTS : usize = 256;
 const FANOUT_SIZE : usize = FANOUT_ELEMENTS*SIZE_SIZE;
@@ -61,8 +62,6 @@ fn offset_offsets(bloom_size: u32, number_hashes: u32) -> u64 {
     offset_hashes(bloom_size) + HASH_SIZE as u64 * number_hashes as u64
 }
 
-type Offset = u64;
-type Size = u32;
 pub type IndexOffset = u32;
 
 // The parameters associated with the index file.
@@ -109,42 +108,6 @@ impl Bloom {
     }
 
     pub fn len(&self) -> usize { self.0.len() }
-}
-
-
-fn write_size(buf: &mut [u8], sz: Size) {
-    buf[0] = (sz >> 24) as u8;
-    buf[1] = (sz >> 16) as u8;
-    buf[2] = (sz >> 8) as u8;
-    buf[3] = sz as u8;
-}
-fn read_size(buf: &[u8]) -> Size {
-    ((buf[0] as Size) << 24)
-        | ((buf[1] as Size) << 16)
-        | ((buf[2] as Size) << 8)
-        | (buf[3] as Size)
-}
-
-fn write_offset(buf: &mut [u8], sz: Offset) {
-    buf[0] = (sz >> 56) as u8;
-    buf[1] = (sz >> 48) as u8;
-    buf[2] = (sz >> 40) as u8;
-    buf[3] = (sz >> 32) as u8;
-    buf[4] = (sz >> 24) as u8;
-    buf[5] = (sz >> 16) as u8;
-    buf[6] = (sz >> 8) as u8;
-    buf[7] = sz as u8;
-}
-
-fn read_offset(buf: &[u8]) -> Offset {
-    ((buf[0] as u64) << 56)
-        | ((buf[1] as u64) << 48)
-        | ((buf[2] as u64) << 40)
-        | ((buf[3] as u64) << 32)
-        | ((buf[4] as u64) << 24)
-        | ((buf[5] as u64) << 16)
-        | ((buf[6] as u64) << 8)
-        | ((buf[7] as u64))
 }
 
 fn file_read_offset(mut file: &fs::File) -> Offset {
@@ -349,26 +312,6 @@ impl Index {
     }
 }
 
-pub fn read_block_raw_next<R: Read>(mut file: R) -> io::Result<cardano::block::RawBlock> {
-    let mut sz_buf = [0u8;SIZE_SIZE];
-    file.read_exact(&mut sz_buf)?;
-    let sz = read_size(&sz_buf);
-    let mut v : Vec<u8> = repeat(0).take(sz as usize).collect();
-    file.read_exact(v.as_mut_slice())?;
-    if (v.len() % 4) != 0 {
-        let to_align = 4 - (v.len() % 4);
-        let mut align = [0u8;4];
-        file.read_exact(&mut align[0..to_align])?;
-    }
-    Ok(cardano::block::RawBlock::from_dat(v))
-}
-
-pub fn read_block_at(mut file: &fs::File, ofs: Offset) -> io::Result<cardano::block::RawBlock> {
-    file.seek(SeekFrom::Start(ofs))?;
-    let v = read_block_raw_next(file)?;
-    Ok(v)
-}
-
 // A Writer for a specific pack that accumulate some numbers for reportings,
 // index, blobs_hashes for index creation (in finalize)
 pub struct PackWriter {
@@ -429,116 +372,10 @@ impl PackWriter {
     }
 }
 
-pub struct RawBufPackWriter {
-    writer: PackWriter,
-    buffer: Vec<u8>,
-    last: Option<cardano::block::RawBlock>
-}
-impl RawBufPackWriter {
-    #[deprecated]
-    pub fn init(cfg: &super::StorageConfig) -> Self {
-        let writer = PackWriter::init(cfg);
-        RawBufPackWriter {
-            writer: writer,
-            buffer: Vec::new(),
-            last: None
-        }
-    }
-
-    #[deprecated]
-    pub fn append(&mut self, bytes: &[u8]) {
-        self.buffer.extend_from_slice(bytes);
-        debug!("recieved {} bytes", bytes.len());
-
-        while ! self.buffer.is_empty() {
-            debug!("reading buffer of length {}", self.buffer.len());
-            let read = {
-                let mut reader = ::std::io::BufReader::new(self.buffer.as_slice());
-                match read_block_raw_next(&mut reader) {
-                    Ok(block) => {
-                        let blk = block.decode().unwrap();
-                        info!("  - block {}", blk.get_header().get_slotid());
-                        let len = block.as_ref().len();
-                        self.writer.append(blk.get_header().compute_hash().bytes(), block.as_ref());
-                        self.last = Some(block);
-                        let pad_sz = if len % 4 != 0 { 4 - len % 4 } else { 0 };
-                        len + pad_sz + SIZE_SIZE
-                    },
-                    Err(err) => {
-                        if err.kind() == ::std::io::ErrorKind::UnexpectedEof {
-                            return; // not enough bytes
-                        }
-                        error!("while reading block: {:?}", err);
-                        panic!();
-                    }
-                }
-            };
-            debug!("updating buffer, removing {} bytes,", read);
-            self.buffer = Vec::from(&self.buffer[read..]);
-        }
-    }
-    #[deprecated]
-    pub fn last(& self) -> Option<cardano::block::Block> {
-        match &self.last {
-            Some(rb) => rb.decode().ok(),
-            None => None
-        }
-    }
-
-    #[deprecated]
-    pub fn finalize(&mut self) -> (super::PackHash, Index) {
-        self.writer.finalize()
-    }
+pub fn packreader_init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> packfile::Reader<fs::File> {
+    packfile::Reader::init(cfg.get_pack_filepath(packhash)).unwrap()
 }
 
-// A Reader
-pub struct PackReader<R> {
-    reader: R,
-    pub pos: Offset,
-    hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
-}
-
-fn align4(p: Offset) -> Offset {
-    if (p % 4) == 0 {
-        p
-    } else {
-        p + (4 - (p % 4))
-    }
-}
-
-impl PackReader<fs::File> {
-    pub fn init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> Self {
-        let file = fs::File::open(cfg.get_pack_filepath(packhash)).unwrap();
-        PackReader::from(file)
-    }
-}
-impl<R: Read> From<R> for PackReader<R> {
-    fn from(reader: R) -> Self {
-        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
-        PackReader { reader, pos: 0,  hash_context: ctxt }
-    }
-}
-impl<R: Read> PackReader<R> {
-    pub fn get_next(&mut self) -> Option<cardano::block::RawBlock> {
-        match read_block_raw_next(&mut self.reader) {
-            Err(err) => {
-                if err.kind() == ErrorKind::UnexpectedEof {
-                    None
-                } else {
-                    Err(err).unwrap()
-                }
-            }
-            Ok(block_raw) => {
-                self.hash_context.input(block_raw.as_ref());
-                self.pos += 4 + align4(block_raw.as_ref().len() as u64);
-                Some(block_raw)
-            },
-        }
-    }
-
-    pub fn finalize(&mut self) -> super::PackHash {
-        let mut packhash : super::PackHash = [0u8;HASH_SIZE];
-        self.hash_context.result(&mut packhash);
-        packhash
-    }
+pub fn packreader_block_next(reader: &mut packfile::Reader<fs::File>) -> Option<cardano::block::RawBlock> {
+    reader.get_next().and_then(|x| Some(cardano::block::RawBlock(x)))
 }
