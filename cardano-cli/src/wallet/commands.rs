@@ -36,13 +36,7 @@ pub fn new<D>( mut term: Term
     // 2. perform the seed generation from the entropy
 
     term.info("You can add a recovery wallet password. You can set no password, however you won't benefit from plausible deniability\n").unwrap();
-    let recovery_password              = term.password("recovery password: ").unwrap();
-    let recovery_password_confirmation = term.password("confirm password: ").unwrap();
-    if recovery_password != recovery_password_confirmation {
-        term.error("Not the same password.").unwrap();
-        ::std::process::exit(1);
-    }
-
+    let recovery_password = term.new_password("recovery password", "confirm password", "password mismatch ").unwrap();
     let mut seed = [0;hdwallet::XPRV_SIZE];
     wallet::keygen::generate_seed(&entropy, recovery_password.as_bytes(), &mut seed);
 
@@ -65,12 +59,7 @@ pub fn new<D>( mut term: Term
 
     // 4. encrypt the private key
     term.info("Set a wallet password. This is for local usage only, allows you to protect your cached private key and prevent from creating non desired transactions.\n").unwrap();
-    let password              = term.password("spending password: ").unwrap();
-    let password_confirmation = term.password("confirm password: ").unwrap();
-    if password != password_confirmation {
-        term.error("Not the same password.").unwrap();
-        ::std::process::exit(1);
-    }
+    let password = term.new_password("spending password", "confirm spending password", "password mismatch").unwrap();
     let encrypted_xprv = encrypt_primary_key(password.as_bytes(), &xprv);
 
     // 5. create the wallet
@@ -148,12 +137,7 @@ pub fn recover<D>( mut term: Term
 
     // 4. encrypt the private key
     term.info("Set a wallet password. This is for local usage only, allows you to protect your cached private key and prevent from creating non desired transactions.\n").unwrap();
-    let password              = term.password("spending password: ").unwrap();
-    let password_confirmation = term.password("confirm password: ").unwrap();
-    if password != password_confirmation {
-        term.error("Not the same password.").unwrap();
-        ::std::process::exit(1);
-    }
+    let password = term.new_password("spending password", "confirm spending password", "password mismatch").unwrap();
     let encrypted_xprv = encrypt_primary_key(password.as_bytes(), &xprv);
 
     // 5. create the wallet
