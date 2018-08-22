@@ -1,5 +1,5 @@
 use std::{result, io::{self, Write, Read}, fs::{self, OpenOptions}};
-use lock::{self, Lock};
+use utils::lock::{self, Lock};
 
 #[derive(Debug)]
 pub enum Error {

@@ -13,7 +13,6 @@ pub mod tag;
 pub mod epoch;
 pub mod refpack;
 pub mod utils;
-pub mod lock;
 pub mod append;
 use std::{fs, io, result};
 

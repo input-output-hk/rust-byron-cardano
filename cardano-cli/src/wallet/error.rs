@@ -1,5 +1,5 @@
 use cardano::hdwallet;
-use storage::lock;
+use storage::utils::lock;
 
 use super::state::log;
 
