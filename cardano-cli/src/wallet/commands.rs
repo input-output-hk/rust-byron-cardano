@@ -6,6 +6,7 @@ use super::error::{Error};
 use std::{path::PathBuf, io::Write};
 use cardano::{hdwallet::{self, DerivationScheme}, address::ExtendedAddr, wallet, bip::bip39, block::{BlockDate}};
 use rand::random;
+use console::{style};
 
 use utils::term::Term;
 
@@ -281,22 +282,11 @@ pub fn status( mut term: Term
 pub fn log( mut term: Term
           , root_dir: PathBuf
           , name: String
+          , pretty: bool
           )
 {
     // load the wallet
     let wallet = Wallet::load(root_dir.clone(), name);
-
-    if let Some(ref blk_name) = &wallet.config.attached_blockchain {
-        term.simply("Wallet ").unwrap();
-        term.warn(&wallet.name).unwrap();
-        term.simply(" on blockchain ").unwrap();
-        term.info(blk_name).unwrap();
-        term.simply("\n").unwrap();
-    } else {
-        term.info(&format!("Wallet {} status\n", &wallet.name)).unwrap();
-        term.warn("wallet not attached to a blockchain").unwrap();
-        return;
-    }
 
     // 1. get the wallet's blockchain
     let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
@@ -305,7 +295,7 @@ pub fn log( mut term: Term
     let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
     let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
 
-    display_wallet_state_logs(&mut term, &wallet, &mut state);
+    display_wallet_state_logs(&mut term, &wallet, &mut state, pretty);
 }
 
 pub fn sync( mut term: Term
@@ -407,7 +397,11 @@ fn update_wallet_state_with_utxos<LS>(term: &mut Term, wallet: &Wallet, blockcha
     }
 }
 
-fn display_wallet_state_logs<LS>(term: &mut Term, wallet: &Wallet, _state: &mut state::State<LS>)
+fn display_wallet_state_logs<LS>( term: &mut Term
+                                , wallet: &Wallet
+                                , state: &mut state::State<LS>
+                                , pretty: bool
+                                )
     where LS: lookup::AddressLookup
         , for<'de> LS::AddressOutput : serde::Deserialize<'de>
 {
@@ -426,25 +420,81 @@ fn display_wallet_state_logs<LS>(term: &mut Term, wallet: &Wallet, _state: &mut 
     for log in reader {
         match log {
             log::Log::Checkpoint(ptr) => {
-                term.simply(&format!("checkpoint {}.{}\n", ptr.latest_known_hash, ptr.latest_addr.unwrap())).unwrap();
+                if ! pretty {
+                    writeln!(term, "{} {} ({})",
+                        style("checkpoint").cyan(),
+                        style(ptr.latest_block_date()).white().bold(),
+                        style(ptr.latest_known_hash).yellow().bold()
+                    ).unwrap();
+                    writeln!(term, "").unwrap();
+                }
             },
             log::Log::ReceivedFund(utxo) => {
-                term.info(&format!("credit {}.{}\n", utxo.blockchain_ptr.latest_known_hash, utxo.blockchain_ptr.latest_addr.unwrap())).unwrap();
-                term.simply(&format!("transaction: {}{}", utxo.transaction_id, utxo.index_in_transaction)).unwrap();
-                // TODO: add address
-                // term.simply(&format!("Address: {}", state.mk_address(utxo.credited_address))).unwrap();
-                term.simply(&format!("Amount: {}", utxo.credited_value)).unwrap();
+                if pretty {
+                    display_utxo(term, utxo, false);
+                } else {
+                    dump_utxo(term, utxo, false);
+                }
             },
             log::Log::SpentFund(utxo) => {
-                term.info(&format!("debit  {}.{}\n", utxo.blockchain_ptr.latest_known_hash, utxo.blockchain_ptr.latest_addr.unwrap())).unwrap();
-                term.simply(&format!("transaction: {}{}", utxo.transaction_id, utxo.index_in_transaction)).unwrap();
-                // TODO: add address
-                // term.simply(&format!("Address: {}", state.mk_address(utxo.credited_address))).unwrap();
-                term.simply(&format!("Amount: {}", utxo.credited_value)).unwrap();
+                if pretty {
+                    display_utxo(term, utxo, true);
+                } else {
+                    dump_utxo(term, utxo, true);
+                }
             }
         }
     }
 }
+
+fn display_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
+    let ptr = format!("{:9}", format!("{}", utxo.blockchain_ptr.latest_block_date()));
+    let tid = format!("{}", utxo.transaction_id);
+    let tii = format!("{:03}", utxo.index_in_transaction);
+    const WIDTH : usize = 14;
+    let credit = if debit {
+        format!("{:>width$}", " ", width = WIDTH)
+    } else {
+        format!("{:>width$}", format!("{}", utxo.credited_value), width = WIDTH)
+    };
+    let debit = if debit {
+        format!("{:>width$}", format!("{}", utxo.credited_value), width = WIDTH)
+    } else {
+        format!("{:>width$}", " ", width = WIDTH)
+    };
+
+    writeln!(term, "{}|{}.{}|{}|{}",
+        style(ptr).white().bold(),
+        style(tid).magenta(),
+        style(tii).cyan(),
+        style(credit).green(),
+        style(debit).red()
+    ).unwrap()
+}
+
+fn dump_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
+    let title = if debit {
+        style("debit").red()
+    } else {
+        style("credit").green()
+    };
+    let amount = if debit {
+        style(format!("{}", utxo.credited_value)).red()
+    } else {
+        style(format!("{}", utxo.credited_value)).green()
+    };
+
+    writeln!(term, "{} {}.{}",
+        title,
+        style(utxo.transaction_id).magenta(),
+        style(utxo.index_in_transaction).cyan(),
+    ).unwrap();
+    writeln!(term, "Date {}", style(utxo.blockchain_ptr.latest_block_date()).white().bold()).unwrap();
+    writeln!(term, "Block {}", style(utxo.blockchain_ptr.latest_known_hash).yellow().bold()).unwrap();
+    writeln!(term, "Value {}", amount).unwrap();
+    writeln!(term, "").unwrap()
+}
+
 
 fn update_wallet_state_with_logs<LS>(wallet: &Wallet, state: &mut state::State<LS>)
     where LS: lookup::AddressLookup
