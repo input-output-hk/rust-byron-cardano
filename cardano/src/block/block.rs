@@ -6,7 +6,7 @@ use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
 use cbor_event::{self, de::RawCbor};
-use super::types::{HeaderHash, SlotId, EpochId};
+use super::types::{HeaderHash, EpochSlotId, EpochId};
 use super::genesis;
 use super::normal;
 use super::super::cbor::hs::util::decode_sum_type;
@@ -69,7 +69,7 @@ impl DerefMut for BlockHeaders {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockDate {
     Genesis(EpochId),
-    Normal(SlotId),
+    Normal(EpochSlotId),
 }
 impl ::std::ops::Sub<BlockDate> for BlockDate {
     type Output = usize;
@@ -112,7 +112,7 @@ impl BlockDate {
     }
     pub fn next(&self) -> Self {
         match self {
-            &BlockDate::Genesis(e) => BlockDate::Normal(SlotId { epoch: e, slotid: 0 }),
+            &BlockDate::Genesis(e) => BlockDate::Normal(EpochSlotId { epoch: e, slotid: 0 }),
             &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()), // TODO next should wrap after full epoch
         }
     }
