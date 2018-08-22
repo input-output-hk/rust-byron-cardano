@@ -51,6 +51,10 @@ impl Blockchain {
         blockchain
     }
 
+    pub unsafe fn destroy(self) -> ::std::io::Result<()> {
+        ::std::fs::remove_dir_all(self.dir)
+    }
+
     /// load the blockchain
     pub fn load(root_dir: PathBuf, name: String) -> Self {
         let dir = config::directory(root_dir, &name);

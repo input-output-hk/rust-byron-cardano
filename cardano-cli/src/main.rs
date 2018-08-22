@@ -278,6 +278,11 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::status(term, root_dir, name);
         },
+        ("destroy", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+
+            blockchain::commands::destroy(term, root_dir, name);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -365,6 +370,10 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(SubCommand::with_name("status")
             .about("print some details about the given blockchain")
+            .arg(blockchain_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name("destroy")
+            .about("destroy the given blockchain, deleting all the blocks downloaded from the disk.")
             .arg(blockchain_argument_name_definition())
         )
         .subcommand(SubCommand::with_name("log")
