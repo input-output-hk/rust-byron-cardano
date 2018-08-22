@@ -680,7 +680,9 @@ version = "0.1.0"
 dependencies = [
  "cardano 0.1.0",
  "cbor_event 0.1.0",
+ "env_logger 0.5.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

@@ -542,6 +542,10 @@ impl<'a> RawCbor<'a> {
         }
     }
 
+    pub fn bool(&mut self) -> Result<bool> {
+        self.special()?.unwrap_bool()
+    }
+
     pub fn deserialize<T>(&mut self) -> Result<T>
         where T: Deserialize
     {

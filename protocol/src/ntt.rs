@@ -1,5 +1,6 @@
 use std::io::{Write, Read};
 use std::{iter, io, result};
+use cardano::util::hex;
 
 pub type LightweightConnectionId = u32;
 
@@ -97,7 +98,7 @@ impl<W: Sized+Write+Read> Connection<W> {
 
     // emit utility
     fn emit(&mut self, step: &str, dat: &[u8]) -> Result<()> {
-        trace!("{} {:?}", step, dat);
+        trace!("{}, bytes({}): {:?}", step, dat.len(), hex::encode(dat));
         self.stream.write_all(dat)?;
         Ok(())
     }
@@ -133,13 +134,13 @@ impl<W: Sized+Write+Read> Connection<W> {
         let lwc = self.recv_u32()?;
         assert!(lwc < 0x400);
         let len = self.recv_u32()?;
-        println!("received lwc {} and len {}", lwc, len);
+        trace!("received lwc {} and len {}", lwc, len);
         Ok(())
     }
 
     pub fn recv_data(&mut self) -> Result<(LightweightConnectionId, Vec<u8>)> {
         let lwc = self.recv_u32()?;
-        println!("received lwc {}", lwc);
+        trace!("received data: {}", lwc);
         let len = self.recv_u32()?;
         let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
         self.stream.read_exact(&mut buf[..])?;
@@ -149,6 +150,7 @@ impl<W: Sized+Write+Read> Connection<W> {
     pub fn recv_len(&mut self, len: u32) -> Result<Vec<u8>> {
         let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
         self.stream.read_exact(&mut buf[..])?;
+        trace!("received({}): {:?}", buf.len(), hex::encode(&buf));
         Ok(buf)
     }
 }
