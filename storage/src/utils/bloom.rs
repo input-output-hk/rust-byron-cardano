@@ -1,4 +1,4 @@
-use bitmap;
+use utils::bitmap;
 
 const FNV_PRIME : u64 = 0x100000001b3;
 const FNV_OFFSET_BASIS : u64 = 0xcbf29ce484222325;

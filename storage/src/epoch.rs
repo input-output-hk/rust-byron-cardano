@@ -5,14 +5,16 @@ use cardano::util::{hex};
 
 use cardano;
 
-use super::{StorageConfig, BlockHash, PackHash, TmpFile, RefPack, pack::PackReader, header_to_blockhash, HASH_SIZE};
+use super::{StorageConfig, BlockHash, PackHash, RefPack, pack::PackReader, header_to_blockhash, HASH_SIZE};
+use super::utils::tmpfile;
+use super::utils::tmpfile::{TmpFile};
 
 pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &RefPack, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
     fs::create_dir_all(dir).unwrap();
 
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    super::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
+    tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
     refpack.write(&mut tmpfile).unwrap();
@@ -53,7 +55,7 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano
 
     // write the pack pointer
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    super::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
+    tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 }
 
 pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<PackHash> {

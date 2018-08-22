@@ -25,8 +25,6 @@
 // is present in this pack, there will be false positive in search.
 //
 
-use super::{TmpFile};
-
 use std::iter::repeat;
 use std::io::SeekFrom;
 use std::io;
@@ -35,7 +33,8 @@ use std::fs;
 use cryptoxide::blake2b;
 use cryptoxide::digest::Digest;
 use types::HASH_SIZE;
-use bloom;
+use utils::bloom;
+use utils::tmpfile::{TmpFile};
 use types::BlockHash;
 use cardano;
 

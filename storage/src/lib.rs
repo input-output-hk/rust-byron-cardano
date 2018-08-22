@@ -12,11 +12,9 @@ pub mod pack;
 pub mod tag;
 pub mod epoch;
 pub mod refpack;
-pub mod tmpfile;
+pub mod utils;
 pub mod lock;
 pub mod append;
-mod bitmap;
-mod bloom;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -26,7 +24,7 @@ use refpack::{RefPack};
 use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 
 use types::*;
-use tmpfile::*;
+use utils::tmpfile::*;
 
 #[derive(Debug)]
 pub enum Error {
