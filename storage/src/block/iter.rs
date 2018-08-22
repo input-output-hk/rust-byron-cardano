@@ -1,14 +1,15 @@
 //! objects to iterate through the blocks depending on the backend used
 //!
 
-use super::super::{Storage, StorageConfig, block_location, block_read_location, header_to_blockhash};
+use super::super::{Storage, StorageConfig, block_location, block_read, block_read_location, header_to_blockhash};
 use super::super::{tag, blob};
-use super::super::epoch::epoch_read_pack;
+use super::super::epoch::{epoch_read_pack, epoch_open_packref};
 use super::super::pack::{PackReader};
 use super::super::types::{BlockHash, PackHash};
 use cardano::block::{HeaderHash, Block, RawBlock, EpochId, BlockDate};
 
 use std::{iter, fs, mem};
+use std::cmp::Ordering;
 
 use super::error::{Error, Result};
 
@@ -74,6 +75,58 @@ fn next_until_range(packreader: &mut PackReader<fs::File>, start_date: &BlockDat
                 }
             },
         }
+    }
+}
+
+pub enum ReverseSearch {
+    Continue,
+    Found,
+    Abort,
+}
+
+fn block_reverse_search_from_tip<F>(storage: &Storage, first_block: &Block, find: F) -> Result<Option<Block>>
+    where F: Fn(&Block) -> Result<ReverseSearch>
+{
+    let mut current_blk = first_block.clone();
+    loop {
+        match find(&current_blk)? {
+            ReverseSearch::Continue => {
+                let blk = previous_block(&storage, &current_blk);
+                current_blk = blk;
+            },
+            ReverseSearch::Found => { return Ok(Some(current_blk)) },
+            ReverseSearch::Abort => { return Ok(None) },
+        };
+    }
+}
+
+pub fn resolve_date_to_blockhash(storage: &Storage, tip: &BlockHash, date: &BlockDate) -> Result<Option<BlockHash>> {
+    let epoch = date.get_epochid();
+    match epoch_open_packref(&storage.config, epoch) {
+        Ok(mut handle) => {
+            let slotid = match date {
+                BlockDate::Genesis(_) => 0,
+                BlockDate::Normal(sid) => sid.slotid,
+            };
+            let r = handle.getref_at_slotid(slotid)?;
+            Ok(r)
+        },
+        Err(_) => {
+            let tip_rblk = block_read(&storage, tip);
+            match tip_rblk {
+                None => return Ok(None),
+                Some(rblk) => {
+                    let blk = rblk.decode()?;
+                    let found = block_reverse_search_from_tip(storage, &blk, |x|
+                        match x.get_header().get_blockdate().cmp(date) {
+                            Ordering::Equal => Ok(ReverseSearch::Found),
+                            Ordering::Greater => Ok(ReverseSearch::Continue),
+                            Ordering::Less => Ok(ReverseSearch::Abort),
+                        })?;
+                    Ok(found.map(|x| header_to_blockhash(&x.get_header().compute_hash())))
+                }
+            }
+        },
     }
 }
 

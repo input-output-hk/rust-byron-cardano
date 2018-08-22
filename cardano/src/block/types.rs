@@ -124,27 +124,28 @@ impl fmt::Display for ChainDifficulty {
 }
 
 pub type EpochId = u32;
+pub type SlotId = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SlotId {
+pub struct EpochSlotId {
     pub epoch: EpochId,
-    pub slotid: u32,
+    pub slotid: SlotId,
 }
-impl SlotId {
+impl EpochSlotId {
     pub fn next(&self) -> Self {
-        SlotId { epoch: self.epoch, slotid: self.slotid + 1 }
+        EpochSlotId { epoch: self.epoch, slotid: self.slotid + 1 }
     }
     pub fn slot_number(&self) -> usize {
         (self.epoch as usize) * 21600 + (self.slotid as usize)
     }
 }
-impl fmt::Display for SlotId {
+impl fmt::Display for EpochSlotId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.epoch, self.slotid)
     }
 }
 
-impl ::std::ops::Sub<SlotId> for SlotId {
+impl ::std::ops::Sub<EpochSlotId> for EpochSlotId {
     type Output = usize;
     fn sub(self, rhs: Self) -> Self::Output {
         self.slot_number() - rhs.slot_number()
@@ -342,14 +343,14 @@ impl cbor_event::de::Deserialize for ChainDifficulty {
     }
 }
 
-impl cbor_event::se::Serialize for SlotId {
+impl cbor_event::se::Serialize for EpochSlotId {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(self.epoch as u64)?
             .write_unsigned_integer(self.slotid as u64)
     }
 }
-impl cbor_event::de::Deserialize for SlotId {
+impl cbor_event::de::Deserialize for EpochSlotId {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
         if len != cbor_event::Len::Len(2) {
@@ -357,6 +358,6 @@ impl cbor_event::de::Deserialize for SlotId {
         }
         let epoch  = raw.unsigned_integer()? as u32;
         let slotid = raw.unsigned_integer()? as u32;
-        Ok(SlotId { epoch: epoch, slotid: slotid })
+        Ok(EpochSlotId { epoch: epoch, slotid: slotid })
     }
 }

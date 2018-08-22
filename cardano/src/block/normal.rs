@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, btree_map};
 
 use cbor_event::{self, de::RawCbor};
 use super::types;
-use super::types::{HeaderHash, HeaderExtraData, SlotId, ChainDifficulty};
+use super::types::{HeaderHash, HeaderExtraData, EpochSlotId, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
@@ -607,7 +607,7 @@ impl cbor_event::de::Deserialize for BlockSignature {
 
 #[derive(Debug, Clone)]
 pub struct Consensus {
-    pub slot_id: SlotId,
+    pub slot_id: EpochSlotId,
     pub leader_key: hdwallet::XPub,
     pub chain_difficulty: ChainDifficulty,
     pub block_signature: BlockSignature,

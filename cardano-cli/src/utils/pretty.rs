@@ -297,7 +297,7 @@ impl Pretty for normal::BlockSignature {
     }
 }
 
-impl Pretty for types::SlotId {
+impl Pretty for types::EpochSlotId {
     fn to_pretty(&self) -> Val {
         Val::BlockDate(BlockDate::Normal(self.clone()))
     }
