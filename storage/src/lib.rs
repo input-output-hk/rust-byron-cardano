@@ -13,7 +13,7 @@ pub mod tag;
 pub mod epoch;
 pub mod refpack;
 pub mod utils;
-pub mod append;
+pub mod containers;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
