@@ -216,6 +216,11 @@ fn blockchain_argument_template_match<'a>(matches: &ArgMatches<'a>)
 
 fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
+        ("list", Some(matches)) => {
+            let detailed = matches.is_present("LIST_DETAILS");
+
+            blockchain::commands::list(term, root_dir, detailed);
+        },
         ("new", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
             let net_config = blockchain_argument_template_match(&matches);
@@ -292,6 +297,16 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(BLOCKCHAIN_COMMAND)
         .about("blockchain operations")
+        .subcommand(SubCommand::with_name("list")
+            .about("list local blockchains")
+            .arg(Arg::with_name("LIST_DETAILS")
+                .long("detailed")
+                .short("l")
+                .required(false)
+                .takes_value(false)
+                .help("display some information regarding the remotes")
+            )
+        )
         .subcommand(SubCommand::with_name("new")
             .about("create a new local blockchain")
             .arg(blockchain_argument_template_definition())
@@ -365,7 +380,7 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             )
             .arg(Arg::with_name("BLOCK_NO_PARSE")
                 .long("no-parse")
-                .help("don't parse the block, flush the bytes directl to the standard output (not subject to `--quiet' option)")
+                .help("don't parse the block, flush the bytes direct to the standard output (not subject to `--quiet' option)")
             )
         )
         .subcommand(SubCommand::with_name("status")
