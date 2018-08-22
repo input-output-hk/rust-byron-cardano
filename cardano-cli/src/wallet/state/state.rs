@@ -1,7 +1,7 @@
 use super::utxo::{UTxO, UTxOs};
 use super::log::{Log};
 use super::{lookup::{AddressLookup}, ptr::StatePtr};
-use cardano::{tx::TxIn};
+use cardano::{tx::TxIn, coin::{self, Coin}};
 use std::{fmt};
 
 #[derive(Debug)]
@@ -17,6 +17,15 @@ impl<T: AddressLookup> State<T> {
     }
 
     pub fn ptr<'a>(&'a self) -> &'a StatePtr { &self.ptr }
+
+    pub fn total(&self) -> coin::Result<Coin> {
+        self.utxos
+            .iter()
+            .map(|(_, v)| v.credited_value)
+            .fold(Ok(Coin::zero()), |acc, v| {
+                acc.and_then(|acc| acc + v)
+            })
+    }
 
     /// update the wallet state with the given logs
     /// This function is for initializing the State by recovering the logs.
