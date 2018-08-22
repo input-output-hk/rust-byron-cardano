@@ -6,6 +6,7 @@ pub mod emoji;
 
 use console;
 use indicatif;
+use dialoguer;
 
 pub use self::config::{Config, ColorChoice};
 
@@ -72,27 +73,50 @@ impl Term {
     }
 
     pub fn prompt(&mut self, prompt: &str) -> io::Result<String> {
-        self.write_line(prompt)?;
-        self.flush()?;
-        self.read_line()
+        dialoguer::Input::new(prompt).interact()
     }
 
     pub fn password(&mut self, prompt: &str) -> io::Result<String> {
-        self.write_line(prompt)?;
-        self.flush()?;
         #[cfg(windows)]
         {
             // TODO: there seems to be an issue with rust crate: console
             //       the password read line is not working or not returning
             //       at all on windows 10 's `cmd` or `PowerShell`
-            let line = self.read_line()?;
+            let line = dialoguer::Input::new(prompt).interact()?;
             self.stdout.move_cursor_up(1)?;
             self.stdout.clear_line()?;
             Ok(line)
         }
         #[cfg(not(windows))]
         {
-            self.read_secure_line()
+            dialoguer::PasswordInput::new(prompt).allow_empty_password(true).interact()
+        }
+    }
+
+    pub fn new_password(&mut self, prompt: &str, confirmation: &str, mismatch_err: &str) -> io::Result<String> {
+        #[cfg(windows)]
+        {
+            loop {
+                // TODO: there seems to be an issue with rust crate: console
+                //       the password read line is not working or not returning
+                //       at all on windows 10 's `cmd` or `PowerShell`
+                let line = dialoguer::Input::new(prompt).interact()?;
+                self.stdout.move_cursor_up(1)?;
+                self.stdout.clear_line()?;
+                let line2 = dialoguer::Input::new(confirmation).interact()?;
+                self.stdout.move_cursor_up(1)?;
+                self.stdout.clear_line()?;
+                if line == line2 {
+                    return Ok(line)
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            dialoguer::PasswordInput::new(prompt)
+                .allow_empty_password(true)
+                .confirm(confirmation, mismatch_err)
+                .interact()
         }
     }
 

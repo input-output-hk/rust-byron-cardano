@@ -7,7 +7,7 @@ authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
 
 [dependencies]
 console = "0.6.1"
-dialoguer = "0.1"
+dialoguer = { git = "https://github.com/primetype/dialoguer", rev = "bcd067b454bfc03b2a3dc5d4be314c9852265fac" }
 indicatif = "0.9"
 ansi_term = "0.11"
 pbr = "1.0"
