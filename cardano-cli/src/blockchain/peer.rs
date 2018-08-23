@@ -347,7 +347,7 @@ mod internal {
         }
 
         while let Some((hash, block_raw)) = blocks.pop() {
-            writer.append(&hash, block_raw.as_ref());
+            writer.append(&hash, block_raw.as_ref()).unwrap();
         }
 
         cur_hash
