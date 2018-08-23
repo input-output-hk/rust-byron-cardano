@@ -19,14 +19,12 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
-use refpack::{RefPack};
 use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 
 use types::*;
 use utils::tmpfile::*;
 
-use containers::packfile;
-use containers::indexfile;
+use containers::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]
@@ -293,7 +291,7 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
 //
 // If the pack is not valid, then an error is returned
 pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<()> {
-    let mut rp = RefPack::new();
+    let mut rp = reffile::Lookup::new();
     let packhash_vec = tag::read(storage, tag).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
@@ -314,7 +312,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                     return Err(Error::EpochExpectingGenesis)
                 }
                 current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
-                rp.push_back(hash.into_bytes());
+                rp.append_hash(hash.into_bytes());
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
@@ -335,10 +333,10 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                         let mut current_slotid = expected_slotid;
 
                         while current_slotid < slotid.slotid {
-                            rp.push_back_missing();
+                            rp.append_missing_hash();
                             current_slotid += 1;
                         }
-                        rp.push_back(hash.clone().into_bytes());
+                        rp.append_hash(hash.clone().into_bytes());
                         current_state = Some((current_epoch, current_slotid, hash));
                     },
                 }

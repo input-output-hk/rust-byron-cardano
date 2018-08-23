@@ -5,12 +5,12 @@ use cardano::util::{hex};
 
 use cardano;
 
-use super::{StorageConfig, PackHash, RefPack, packreader_init, packreader_block_next, header_to_blockhash};
+use super::{StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
 use super::utils::tmpfile;
 use super::utils::tmpfile::{TmpFile};
 use super::containers::{packfile, reffile};
 
-pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &RefPack, epochid: cardano::block::EpochId) {
+pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &reffile::Lookup, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
     fs::create_dir_all(dir).unwrap();
 
@@ -24,7 +24,7 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
 
 pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano::block::EpochId) {
     // read the pack and append the block hash as we find them in the refpack.
-    let mut rp = RefPack::new();
+    let mut rp = reffile::Lookup::new();
     let mut reader = packreader_init(config, packref);
 
     let mut current_slotid = cardano::block::BlockDate::Genesis(epochid);
@@ -35,10 +35,10 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano
         let blockdate = hdr.get_blockdate();
 
         while current_slotid != blockdate {
-            rp.push_back_missing();
+            rp.append_missing_hash();
             current_slotid = current_slotid.next();
         }
-        rp.push_back(header_to_blockhash(&hash));
+        rp.append_hash(header_to_blockhash(&hash));
         current_slotid = current_slotid.next();
     }
 

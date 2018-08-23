@@ -49,6 +49,12 @@ impl ::std::ops::DerefMut for Lookup {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
+impl From<Vec<BlockHash>> for Lookup {
+    fn from(other: Vec<BlockHash>) -> Self {
+        Lookup(other)
+    }
+}
+
 impl Lookup {
     pub fn new() -> Self {
         // TODO hardcoded size, maybe make it user parameter ?
@@ -72,6 +78,11 @@ impl Lookup {
             }
         }
         Ok(v)
+    }
+
+    pub fn to_path<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        let mut file = fs::File::create(path)?;
+        self.write(&mut file)
     }
 
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {

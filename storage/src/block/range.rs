@@ -4,12 +4,14 @@ use types::{BlockHash};
 
 use super::error::{Error, Result};
 use super::iter::{ReverseIter};
+use super::super::containers::reffile;
+use std::collections::VecDeque;
 
-pub struct Range(refpack::RefPack);
+pub struct Range(VecDeque<BlockHash>);
 impl Range {
     pub fn new(storage: &Storage, from: BlockHash, to: BlockHash) -> Result<Self> {
         let ri = ReverseIter::from(storage, &to[..])?;
-        let mut rp = refpack::RefPack::new();
+        let mut rp = VecDeque::new();
         let mut finished = false;
 
         for block in ri {
@@ -25,7 +27,10 @@ impl Range {
         }
     }
 
-    pub fn refpack(self) -> refpack::RefPack { self.0 }
+    pub fn refpack(self) -> reffile::Lookup {
+        let v : Vec<BlockHash> = self.0.into();
+        v.into()
+    }
 
     pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> { self.0.iter() }
 }
