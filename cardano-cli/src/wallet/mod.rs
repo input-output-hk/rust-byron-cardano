@@ -3,6 +3,7 @@ pub mod commands;
 mod error;
 mod result;
 pub mod state;
+mod utils;
 
 pub use self::error::{Error};
 pub use self::result::{Result};

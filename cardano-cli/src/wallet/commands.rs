@@ -77,7 +77,8 @@ pub fn recover<D>( mut term: Term
                  , name: String
                  , wallet_scheme: HDWalletModel
                  , derivation_scheme: DerivationScheme
-                 , _mnemonic_size: bip39::Type // TODO, check
+                 , mnemonic_size: bip39::Type
+                 , interactive: bool
                  , daedalus_seed: bool
                  , language: D
                  )
@@ -91,12 +92,17 @@ pub fn recover<D>( mut term: Term
 
     // 1. generate the mnemonics
     term.info("enter your mnemonics\n").unwrap();
-    // TODO, this prompting is poor
-    let mnemonics_string = term.prompt("mnemonics: ").unwrap();
+
+    let (string, mnemonics, entropy) = if interactive {
+        super::utils::prompt::mnemonics::interactive_input_words(&mut term, &language, mnemonic_size)
+    } else {
+        super::utils::prompt::mnemonics::input_mnemonic_phrase(&mut term, &language, mnemonic_size)
+
+    };
 
     // 3. perform the seed generation from the entropy
     let xprv = if daedalus_seed {
-        match wallet::rindex::RootKey::from_daedalus_mnemonics(derivation_scheme, &language, mnemonics_string) {
+        match wallet::rindex::RootKey::from_daedalus_mnemonics(derivation_scheme, &language, string.to_string()) {
             Err(err) => {
                 term.error(&format!("Invalid mnemonics: {:#?}\n", err)).unwrap();
                 ::std::process::exit(1)
@@ -104,22 +110,6 @@ pub fn recover<D>( mut term: Term
             Ok(root_key) => { (*root_key).clone() }
         }
     } else {
-       let mnemonics = match bip39::Mnemonics::from_string(&language, &mnemonics_string) {
-            Err(err) => {
-                term.error(&format!("Invalid mnemonics: {}\n", err)).unwrap();
-                ::std::process::exit(1);
-            },
-            Ok(string) => { string }
-        };
-
-        let entropy = match bip39::Entropy::from_mnemonics(&mnemonics) {
-            Err(err) => {
-                term.error(&format!("Invalid mnemonics: {}\n", err)).unwrap();
-                ::std::process::exit(1)
-            },
-            Ok(entropy) => { entropy },
-        };
-
         term.info("Enter the wallet recovery password (if the password is wrong, you won't know).\n").unwrap();
         let recovery_password = term.password("recovery password: ").unwrap();
 

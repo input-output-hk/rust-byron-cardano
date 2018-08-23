@@ -44,7 +44,7 @@ pub struct Term {
 
     pub style: Style,
 
-    stdout: console::Term
+    pub term: console::Term
 }
 impl Term {
     pub fn new(config: Config) -> Self {
@@ -55,10 +55,10 @@ impl Term {
             );
         }
 
-        let stdout = console::Term::buffered_stdout();
+        let term = console::Term::stdout();
         let style  = Style::new(&config.color);
 
-        Term { config, stdout, style }
+        Term { config, term, style }
     }
 
     pub fn progress_bar(&self, count: u64) -> indicatif::ProgressBar {
@@ -83,8 +83,8 @@ impl Term {
             //       the password read line is not working or not returning
             //       at all on windows 10 's `cmd` or `PowerShell`
             let line = dialoguer::Input::new(prompt).default("").interact()?;
-            self.stdout.move_cursor_up(1)?;
-            self.stdout.clear_line()?;
+            self.term.move_cursor_up(1)?;
+            self.term.clear_line()?;
             Ok(line)
         }
         #[cfg(not(windows))]
@@ -101,11 +101,11 @@ impl Term {
                 //       the password read line is not working or not returning
                 //       at all on windows 10 's `cmd` or `PowerShell`
                 let line = dialoguer::Input::new(prompt).default("").interact()?;
-                self.stdout.move_cursor_up(1)?;
-                self.stdout.clear_line()?;
+                self.term.move_cursor_up(1)?;
+                self.term.clear_line()?;
                 let line2 = dialoguer::Input::new(confirmation).default("").interact()?;
-                self.stdout.move_cursor_up(1)?;
-                self.stdout.clear_line()?;
+                self.term.move_cursor_up(1)?;
+                self.term.clear_line()?;
                 if line == line2 {
                     return Ok(line)
                 }
@@ -125,35 +125,35 @@ impl Term {
         write!(self, "{}", msg)
     }
     pub fn success(&mut self, msg: &str) -> io::Result<()> {
-        write!(&mut self.stdout, "{}", self.style.success.apply_to(msg))
+        write!(&mut self.term, "{}", self.style.success.apply_to(msg))
     }
     pub fn info(&mut self, msg: &str) -> io::Result<()> {
-        write!(&mut self.stdout, "{}", self.style.info.apply_to(msg))
+        write!(&mut self.term, "{}", self.style.info.apply_to(msg))
     }
     pub fn warn(&mut self, msg: &str) -> io::Result<()> {
-        write!(&mut self.stdout, "{}", self.style.warning.apply_to(msg))
+        write!(&mut self.term, "{}", self.style.warning.apply_to(msg))
     }
     pub fn error(&mut self, msg: &str) -> io::Result<()> {
-        write!(&mut self.stdout, "{}", self.style.error.apply_to(msg))
+        write!(&mut self.term, "{}", self.style.error.apply_to(msg))
     }
 }
 impl ::std::ops::Deref for Term {
     type Target = console::Term;
-    fn deref(&self) -> &Self::Target { &self.stdout }
+    fn deref(&self) -> &Self::Target { &self.term }
 }
 impl ::std::ops::DerefMut for Term {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.stdout }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.term }
 }
 impl io::Write for Term {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        io::Write::write(&mut self.stdout, buf)
+        io::Write::write(&mut self.term, buf)
     }
     fn flush(&mut self) -> io::Result<()> {
-        io::Write::flush(&mut self.stdout)
+        io::Write::flush(&mut self.term)
     }
 }
 impl io::Read for Term {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        io::Read::read(&mut self.stdout, buf)
+        io::Read::read(&mut self.term, buf)
     }
 }
