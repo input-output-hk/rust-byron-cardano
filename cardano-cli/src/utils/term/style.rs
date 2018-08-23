@@ -39,7 +39,7 @@ impl Style for block::genesis::BodyProof {
         console::style(self).yellow()
     }
 }
-impl Style for block::types::SlotId {
+impl Style for block::types::EpochSlotId {
     fn style(self) -> StyledObject<Self> {
         console::style(self)
             .white()
