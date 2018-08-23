@@ -108,7 +108,7 @@ pub fn resolve_date_to_blockhash(storage: &Storage, tip: &BlockHash, date: &Bloc
                 BlockDate::Genesis(_) => 0,
                 BlockDate::Normal(sid) => sid.slotid,
             };
-            let r = handle.getref_at_slotid(slotid)?;
+            let r = handle.getref_at_index(slotid)?;
             Ok(r)
         },
         Err(_) => {

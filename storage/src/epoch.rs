@@ -1,14 +1,14 @@
 use std::fs;
 use std::io;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read};
 use cardano::util::{hex};
 
 use cardano;
 
-use super::{StorageConfig, BlockHash, PackHash, RefPack, packreader_init, packreader_block_next, header_to_blockhash, HASH_SIZE};
+use super::{StorageConfig, PackHash, RefPack, packreader_init, packreader_block_next, header_to_blockhash};
 use super::utils::tmpfile;
 use super::utils::tmpfile::{TmpFile};
-use super::containers::packfile;
+use super::containers::{packfile, reffile};
 
 pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &RefPack, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
@@ -73,29 +73,9 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId)
     Ok(ph)
 }
 
-pub struct RefPackHandle {
-    handle: fs::File,
-}
-
-impl RefPackHandle {
-    pub fn getref_at_slotid(&mut self, slotid: cardano::block::SlotId) -> io::Result<Option<BlockHash>> {
-        let offset = slotid as usize * HASH_SIZE;
-        let mut buf = [0;HASH_SIZE];
-        self.handle.seek(SeekFrom::Start(offset as u64))?;
-        self.handle.read_exact(&mut buf)?;
-
-        // if all 0, then it's a empty slot otherwise return
-        for v in buf.iter() {
-            if *v != 0 {
-                return Ok(Some(buf))
-            }
-        }
-        return Ok(None)
-    }
-}
-
-pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<RefPackHandle> {
-    fs::File::open(config.get_epoch_refpack_filepath(epochid)).map(|x| RefPackHandle { handle: x })
+pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<reffile::Reader> {
+    let path = config.get_epoch_refpack_filepath(epochid);
+    reffile::Reader::open(path)
 }
 
 /// Try to open a packfile Reader on a specific epoch
@@ -122,12 +102,11 @@ pub fn epoch_open_pack_seeker() -> io::Result<Option<packfile::Seeker>> {
 }
 */
 
-pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<RefPack> {
-    let mut file = fs::File::open(config.get_epoch_refpack_filepath(epochid))?;
-    Ok(RefPack::read(&mut file).unwrap())
+pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<reffile::Reader> {
+    reffile::Reader::open(config.get_epoch_refpack_filepath(epochid))
 }
 
-pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<(PackHash, RefPack)> {
+pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<(PackHash, reffile::Reader)> {
     match epoch_read_pack(config, epochid) {
         Err(e) => Err(e),
         Ok(ph) => {
