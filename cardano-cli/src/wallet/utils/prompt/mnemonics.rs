@@ -1,9 +1,7 @@
-use cardano::{bip::bip39::{self, dictionary::Language}, block::{BlockDate}};
-use console::{self, style};
-use dialoguer::{self, Input, PasswordInput, Confirmation};
+use cardano::{bip::bip39::{self, dictionary::Language}};
+use console::{style};
+use dialoguer::{Input, Confirmation};
 use super::super::super::super::utils::term::{Term};
-
-use std::io::{Write};
 
 fn interactive_input_word<D>(term: &mut Term, dic: &D, idx: usize, count: usize) -> String
     where D: Language
@@ -27,8 +25,7 @@ fn interactive_input_word<D>(term: &mut Term, dic: &D, idx: usize, count: usize)
 type PromptedMnemonics = (bip39::MnemonicString, bip39::Mnemonics, bip39::Entropy);
 
 
-fn process_mnemonics<D>( term: &mut Term
-                       , dic: &D
+fn process_mnemonics<D>( dic: &D
                        , string: String
                        )
     -> bip39::Result<PromptedMnemonics>
@@ -41,15 +38,14 @@ fn process_mnemonics<D>( term: &mut Term
     Ok((string, mnemonics, entropy))
 }
 
-fn validate_mnemonics<D>( term: &mut Term
-                        , dic: &D
+fn validate_mnemonics<D>( dic: &D
                         , size: bip39::Type
                         , string: String
                         )
     -> Result<PromptedMnemonics, String>
         where D: Language
 {
-    match process_mnemonics(term, dic, string) {
+    match process_mnemonics(dic, string) {
         Err(err) => {
             debug!("error while processing mnemonics: {}", err);
             match err {
@@ -92,7 +88,7 @@ pub fn interactive_input_words<D>(term: &mut Term, dic: &D, size: bip39::Type) -
             }
         }
 
-        match validate_mnemonics(term, dic, size, string) {
+        match validate_mnemonics(dic, size, string) {
             Ok(res) => { return res; },
             Err(prompt) => {
                 while ! Confirmation::new(&prompt).clear(true).default(true).show_default(true).interact_on(&term.term).unwrap() {}
@@ -112,7 +108,7 @@ pub fn input_mnemonic_phrase<D>(term: &mut Term, dic: &D, size: bip39::Type) -> 
             .interact_on(&term.term)
             .unwrap();
 
-        match validate_mnemonics(term, dic, size, string) {
+        match validate_mnemonics(dic, size, string) {
             Ok(res) => { return res; },
             Err(prompt) => {
                 while ! Confirmation::new(&prompt).clear(true).default(true).show_default(true).interact_on(&term.term).unwrap() {}

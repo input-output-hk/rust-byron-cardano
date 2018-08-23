@@ -93,7 +93,7 @@ pub fn recover<D>( mut term: Term
     // 1. generate the mnemonics
     term.info("enter your mnemonics\n").unwrap();
 
-    let (string, mnemonics, entropy) = if interactive {
+    let (string, _, entropy) = if interactive {
         super::utils::prompt::mnemonics::interactive_input_words(&mut term, &language, mnemonic_size)
     } else {
         super::utils::prompt::mnemonics::input_mnemonic_phrase(&mut term, &language, mnemonic_size)
@@ -146,7 +146,7 @@ pub fn destroy( mut term: Term
               )
 {
     // load the wallet
-    let mut wallet = Wallet::load(root_dir.clone(), name);
+    let wallet = Wallet::load(root_dir.clone(), name);
 
     writeln!(term, "You are about to destroy your wallet {}.
 This means that all the data associated to this wallet will be deleted on this device.
@@ -306,7 +306,7 @@ pub fn sync( mut term: Term
         HDWalletModel::BIP44 => {
             let mut state = {
                 let mut lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
-                lookup_struct.prepare_next_account();
+                lookup_struct.prepare_next_account().unwrap();
                 state::State::new(initial_ptr, lookup_struct)
             };
 
@@ -389,7 +389,7 @@ fn update_wallet_state_with_utxos<LS>(term: &mut Term, wallet: &Wallet, blockcha
 
 fn display_wallet_state_logs<LS>( term: &mut Term
                                 , wallet: &Wallet
-                                , state: &mut state::State<LS>
+                                , _state: &mut state::State<LS>
                                 , pretty: bool
                                 )
     where LS: lookup::AddressLookup
