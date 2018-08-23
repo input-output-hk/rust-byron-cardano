@@ -3,6 +3,8 @@
 
 mod config;
 pub mod emoji;
+#[macro_use]
+pub mod style;
 
 use console;
 use indicatif;
@@ -50,9 +52,7 @@ impl Term {
     pub fn new(config: Config) -> Self {
         // make sure we are using a terminal for now
         if ! console::user_attended() {
-            panic!(
-                "We only support terminal"
-            );
+            warn!("There might be issue with non user attended terminal");
         }
 
         let term = console::Term::stdout();

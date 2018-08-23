@@ -6,9 +6,8 @@ use super::error::{Error};
 use std::{path::PathBuf, io::Write};
 use cardano::{hdwallet::{self, DerivationScheme}, address::ExtendedAddr, wallet, bip::bip39, block::{BlockDate}};
 use rand::random;
-use console::{style};
 
-use utils::term::Term;
+use utils::term::{Term, style::{Style}};
 
 use blockchain::{self, Blockchain};
 use serde;
@@ -412,9 +411,9 @@ fn display_wallet_state_logs<LS>( term: &mut Term
             log::Log::Checkpoint(ptr) => {
                 if ! pretty {
                     writeln!(term, "{} {} ({})",
-                        style("checkpoint").cyan(),
-                        style(ptr.latest_block_date()).white().bold(),
-                        style(ptr.latest_known_hash).yellow().bold()
+                        style!("checkpoint").cyan(),
+                        style!(ptr.latest_block_date()),
+                        style!(ptr.latest_known_hash)
                     ).unwrap();
                     writeln!(term, "").unwrap();
                 }
@@ -438,8 +437,8 @@ fn display_wallet_state_logs<LS>( term: &mut Term
 }
 
 fn display_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
-    let ptr = format!("{:9}", format!("{}", utxo.blockchain_ptr.latest_block_date()));
-    let tid = format!("{}", utxo.transaction_id);
+    let ptr = format!("{:9}", format!("{}", style!(utxo.blockchain_ptr.latest_block_date())));
+    let tid = format!("{}", style!(utxo.transaction_id));
     let tii = format!("{:03}", utxo.index_in_transaction);
     const WIDTH : usize = 14;
     let credit = if debit {
@@ -454,33 +453,33 @@ fn display_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
     };
 
     writeln!(term, "{}|{}.{}|{}|{}",
-        style(ptr).white().bold(),
-        style(tid).magenta(),
-        style(tii).cyan(),
-        style(credit).green(),
-        style(debit).red()
+        ptr,
+        tid,
+        style!(tii).yellow(),
+        style!(credit).green(),
+        style!(debit).red()
     ).unwrap()
 }
 
 fn dump_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
     let title = if debit {
-        style("debit").red()
+        style!("debit").red()
     } else {
-        style("credit").green()
+        style!("credit").green()
     };
     let amount = if debit {
-        style(format!("{}", utxo.credited_value)).red()
+        style!(format!("{}", utxo.credited_value)).red()
     } else {
-        style(format!("{}", utxo.credited_value)).green()
+        style!(format!("{}", utxo.credited_value)).green()
     };
 
     writeln!(term, "{} {}.{}",
         title,
-        style(utxo.transaction_id).magenta(),
-        style(utxo.index_in_transaction).cyan(),
+        style!(utxo.transaction_id),
+        style!(utxo.index_in_transaction).yellow(),
     ).unwrap();
-    writeln!(term, "Date {}", style(utxo.blockchain_ptr.latest_block_date()).white().bold()).unwrap();
-    writeln!(term, "Block {}", style(utxo.blockchain_ptr.latest_known_hash).yellow().bold()).unwrap();
+    writeln!(term, "Date {}", style!(utxo.blockchain_ptr.latest_block_date())).unwrap();
+    writeln!(term, "Block {}", style!(utxo.blockchain_ptr.latest_known_hash)).unwrap();
     writeln!(term, "Value {}", amount).unwrap();
     writeln!(term, "").unwrap()
 }

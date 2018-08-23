@@ -291,6 +291,8 @@ pub fn cat( mut term: Term
         Some(loc) => loc
     };
 
+    debug!("blk location: {:?}", block_location);
+
     match ::storage::block_read_location(&blockchain.storage, &block_location, hash.bytes()) {
         None        => {
             // this is a bug, we have a block location available for this hash
@@ -305,11 +307,7 @@ pub fn cat( mut term: Term
                 use utils::pretty::Pretty;
 
                 let blk = rblk.decode().unwrap();
-                let hdr = blk.get_header();
-                let computed_hash = hdr.compute_hash();
-                info!("blk location: {:?}", block_location);
-                info!("hash computed: {} expected: {}", computed_hash, hash);
-                println!("{}", blk.to_pretty())
+                blk.pretty(&mut term, 0).unwrap();
             }
         }
     }
