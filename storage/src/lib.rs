@@ -249,7 +249,7 @@ impl Default for PackParameters {
 }
 
 pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
-    let mut writer = pack::PackWriter::init(&storage.config);
+    let mut writer = pack::packwriter_init(&storage.config);
     let mut blob_packed = Vec::new();
 
     let block_hashes : Vec<BlockHash> = if let Some((from, to)) = params.range {
@@ -259,19 +259,19 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     };
     for bh in block_hashes {
         let blob = blob::read_raw(storage, &bh).unwrap();
-        writer.append(&bh, &blob[..]);
+        writer.append(&bh, &blob[..]).unwrap();
         blob_packed.push(bh);
         match params.limit_size {
             None => {},
             Some(sz) => {
-                if writer.get_current_size() >= sz {
+                if writer.pos >= sz {
                     break
                 }
             }
         }
     }
 
-    let (packhash, index) = writer.finalize();
+    let (packhash, index) = pack::packwriter_finalize(&storage.config, writer);
 
     let (lookup, tmpfile) = pack::create_index(storage, &index);
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();

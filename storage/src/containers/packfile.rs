@@ -7,15 +7,17 @@
 /// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
 ///
 
-use std::io::{Read,Seek,SeekFrom};
+use std::io::{Read,Seek,SeekFrom, Write};
 use std::io;
 use std::fs;
 use std::iter::repeat;
 use std::path::Path;
-use utils::serialize::{Offset, SIZE_SIZE, read_size, offset_align4};
-use types::{PackHash, HASH_SIZE};
+use utils::serialize::{Offset, Size, SIZE_SIZE, read_size, write_size, offset_align4};
+use utils::tmpfile::TmpFile;
+use types::{PackHash, BlockHash, HASH_SIZE};
 use cryptoxide::blake2b;
 use cryptoxide::digest::Digest;
+use containers::indexfile;
 
 /// A Stream Reader that also computes the hash of the sum of all data read
 pub struct Reader<R> {
@@ -119,5 +121,55 @@ impl<R> Reader<R> {
         let mut packhash = [0u8;HASH_SIZE];
         self.hash_context.result(&mut packhash);
         packhash
+    }
+}
+
+// A Writer for a specific pack that accumulate some numbers for reportings,
+// index, blobs_hashes for index creation (in finalize)
+pub struct Writer {
+    tmpfile: TmpFile,
+    index: indexfile::Index,
+    pub nb_blobs: u32,
+    pub pos: Offset, // offset in bytes of the current position (double as the current size of the pack)
+    hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
+}
+
+impl Writer {
+    pub fn init(tmpfile: TmpFile) -> Self {
+        let idx = indexfile::Index::new();
+        let ctxt = blake2b::Blake2b::new(32);
+        Writer {
+            tmpfile: tmpfile,
+            index: idx,
+            pos: 0,
+            nb_blobs: 0,
+            hash_context: ctxt,
+        }
+    }
+
+    pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
+        let len = block.len() as Size;
+        let mut sz_buf = [0u8;SIZE_SIZE];
+        write_size(&mut sz_buf, len);
+        self.tmpfile.write_all(&sz_buf[..])?;
+        self.tmpfile.write_all(block)?;
+        self.hash_context.input(block);
+
+        let pad = [0u8;SIZE_SIZE-1];
+        let pad_bytes = if (len % 4 as u32) != 0 {
+                            let pad_sz = 4 - len % 4;
+                            self.tmpfile.write_all(&pad[0..pad_sz as usize])?;
+                            pad_sz
+                        } else { 0 };
+        self.index.append(blockhash, self.pos);
+        self.pos += 4 + len as u64 + pad_bytes as u64;
+        self.nb_blobs += 1;
+        Ok(())
+    }
+
+    pub fn finalize(mut self) -> io::Result<(TmpFile, PackHash, indexfile::Index)> {
+        let mut packhash : PackHash = [0u8;HASH_SIZE];
+        self.hash_context.result(&mut packhash);
+        Ok((self.tmpfile, packhash, self.index))
     }
 }

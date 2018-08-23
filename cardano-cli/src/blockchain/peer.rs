@@ -6,6 +6,7 @@ use utils::term::Term;
 use storage::{self, tag};
 use std::ops::Deref;
 use std::time::SystemTime;
+use std::mem;
 
 pub struct ConnectedPeer<'a> {
     peer: Peer<'a>,
@@ -95,7 +96,7 @@ impl<'a> ConnectedPeer<'a> {
             };
         info!("First unstable epoch : {}", first_unstable_epoch);
 
-        let mut cur_epoch_state : Option<(EpochId, storage::pack::PackWriter, SystemTime)> = None;
+        let mut cur_epoch_state : Option<(EpochId, storage::containers::packfile::Writer, SystemTime)> = None;
 
         let mut last_block : Option<HeaderHash> = None;
 
@@ -106,7 +107,7 @@ impl<'a> ConnectedPeer<'a> {
             && !internal::epoch_exists(&peer.blockchain.storage, best_tip.0.date.get_epochid())
         {
             let epoch_id = best_tip.0.date.get_epochid();
-            let mut writer = storage::pack::PackWriter::init(&peer.blockchain.storage.config);
+            let mut writer = storage::pack::packwriter_init(&peer.blockchain.storage.config);
             let epoch_time_start = SystemTime::now();
 
             let prev_block = internal::append_blocks_to_epoch_reverse(
@@ -152,8 +153,10 @@ impl<'a> ConnectedPeer<'a> {
 
             // Flush the previous epoch (if any).
             if date.is_genesis() {
-                if let Some((epoch_id, writer, epoch_time_start)) = cur_epoch_state.as_mut() {
-                    internal::finish_epoch(&peer.blockchain.storage, *epoch_id, writer, epoch_time_start);
+                let mut writer_state = None;
+                mem::swap(&mut writer_state, &mut cur_epoch_state);
+                if let Some((epoch_id, writer, epoch_time_start)) = writer_state {
+                    internal::finish_epoch(&peer.blockchain.storage, epoch_id, writer, &epoch_time_start);
 
                     // Checkpoint the tip so we don't have to refetch
                     // everything if we get interrupted.
@@ -171,12 +174,12 @@ impl<'a> ConnectedPeer<'a> {
 
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if date.is_genesis() {
-                    cur_epoch_state = Some((date.get_epochid(), storage::pack::PackWriter::init(&peer.blockchain.storage.config), SystemTime::now()));
+                    cur_epoch_state = Some((date.get_epochid(), storage::pack::packwriter_init(&peer.blockchain.storage.config), SystemTime::now()));
                 }
 
                 // And append the block to the epoch pack.
                 let (_, writer, _) = &mut cur_epoch_state.as_mut().unwrap();
-                writer.append(&storage::types::header_to_blockhash(&block_hash), block_raw.as_ref());
+                writer.append(&storage::types::header_to_blockhash(&block_hash), block_raw.as_ref()).unwrap();
             }
 
             last_block = Some(block_hash.clone());
@@ -306,12 +309,12 @@ mod internal {
 
         info!("Packing epoch {}", epoch_id);
 
-        let mut writer = storage::pack::PackWriter::init(&storage.config);
+        let mut writer = storage::pack::packwriter_init(&storage.config);
         let epoch_time_start = SystemTime::now();
 
         append_blocks_to_epoch_reverse(&storage, epoch_id, &mut writer, last_block);
 
-        finish_epoch(storage, epoch_id, &mut writer, &epoch_time_start);
+        finish_epoch(storage, epoch_id, writer, &epoch_time_start);
 
         // TODO: delete the blocks from disk?
     }
@@ -327,7 +330,7 @@ mod internal {
     pub fn append_blocks_to_epoch_reverse(
         storage: &storage::Storage,
         epoch_id : EpochId,
-        writer : &mut storage::pack::PackWriter,
+        writer : &mut storage::containers::packfile::Writer,
         last_block: &HeaderHash)
         -> HeaderHash
     {
@@ -350,9 +353,9 @@ mod internal {
         cur_hash
     }
 
-    pub fn finish_epoch(storage: &storage::Storage, epoch_id : EpochId, writer : &mut storage::pack::PackWriter, epoch_time_start : &SystemTime)
+    pub fn finish_epoch(storage: &storage::Storage, epoch_id : EpochId, writer : storage::containers::packfile::Writer, epoch_time_start : &SystemTime)
     {
-        let (packhash, index) = writer.finalize();
+        let (packhash, index) = storage::pack::packwriter_finalize(&storage.config, writer);
         let (_, tmpfile) = storage::pack::create_index(&storage, &index);
         tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
         let epoch_time_elapsed = epoch_time_start.elapsed().unwrap();
