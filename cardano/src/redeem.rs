@@ -47,7 +47,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub const PUBLICKEY_SIZE : usize = 32;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct PublicKey([u8;PUBLICKEY_SIZE]);
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; PUBLICKEY_SIZE]) -> Self {
@@ -72,6 +72,16 @@ impl PublicKey {
 }
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] { &self.0 }
+}
+impl fmt::Debug for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.as_ref()))
+    }
+}
+impl fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.as_ref()))
+    }
 }
 
 pub const PRIVATEKEY_SIZE : usize = 64;

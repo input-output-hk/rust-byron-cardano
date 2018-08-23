@@ -8,7 +8,11 @@ use super::types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof(Blake2b256);
-
+impl fmt::Display for BodyProof {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 impl cbor_event::se::Serialize for BodyProof {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.serialize(&self.0)

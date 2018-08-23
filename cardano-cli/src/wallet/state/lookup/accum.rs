@@ -1,9 +1,5 @@
-use cardano::hdwallet;
-use cardano::address::ExtendedAddr;
-use cardano::wallet::{rindex, bip44};
-
 use super::{AddressLookup};
-use super::super::{utxo::{UTxO}, log::{Log}};
+use super::super::{utxo::{UTxO}};
 use serde;
 
 #[derive(Debug, Clone)]

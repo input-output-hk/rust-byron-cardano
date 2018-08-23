@@ -17,6 +17,7 @@ extern crate rand;
 extern crate log;
 extern crate humantime;
 
+#[macro_use]
 pub mod utils;
 pub mod blockchain;
 pub mod wallet;

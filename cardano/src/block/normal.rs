@@ -72,6 +72,13 @@ impl TxPayload {
         TxPayload::new(Vec::new())
     }
 }
+impl IntoIterator for TxPayload {
+    type Item     = <Vec<tx::TxAux> as IntoIterator>::Item;
+    type IntoIter = <Vec<tx::TxAux> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.txaux.into_iter()
+    }
+}
 impl ::std::ops::Deref for TxPayload {
     type Target = [tx::TxAux];
     fn deref(&self) -> &Self::Target { self.txaux.deref() }
