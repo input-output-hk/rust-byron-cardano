@@ -549,6 +549,7 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
             let mut mnemonic_length = wallet_argument_mnemonic_size_match(&matches);
             let mnemonic_lang   = wallet_argument_mnemonic_language_match(&matches);
             let daedalus_seed   = wallet_argument_daedalus_seed_match(&matches);
+            let interactive = matches.is_present("RECOVER_INTERACTIVE");
 
             if daedalus_seed {
                 if wallet_scheme != wallet::HDWalletModel::RandomIndex2Levels {
@@ -562,7 +563,7 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
                 }
             }
 
-            wallet::commands::recover(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, daedalus_seed, mnemonic_lang);
+            wallet::commands::recover(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, interactive, daedalus_seed, mnemonic_lang);
         },
         ("attach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
@@ -621,6 +622,11 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(wallet_argument_wallet_scheme())
             .arg(wallet_argument_mnemonic_language())
             .arg(wallet_argument_daedalus_seed())
+            .arg(Arg::with_name("RECOVER_INTERACTIVE")
+                .help("use interactive mode for recovering the mnemonic words")
+                .long("interactive")
+                .short("i")
+            )
         )
         .subcommand(SubCommand::with_name("destroy")
             .about("delete all data associated to the given wallet.")
