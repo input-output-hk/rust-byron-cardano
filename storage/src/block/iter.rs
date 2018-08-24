@@ -1,12 +1,12 @@
 //! objects to iterate through the blocks depending on the backend used
 //!
 
-use super::super::{Storage, StorageConfig, block_location, block_read, block_read_location, header_to_blockhash};
+use super::super::{Storage, StorageConfig, block_location, block_read, block_read_location, header_to_blockhash, packreader_init};
 use super::super::{tag, blob};
 use super::super::epoch::{epoch_read_pack, epoch_open_packref};
-use super::super::pack::{PackReader};
+use super::super::containers::packfile;
 use super::super::types::{BlockHash, PackHash};
-use cardano::block::{HeaderHash, Block, RawBlock, EpochId, BlockDate};
+use cardano::block::{HeaderHash, Block, RawBlock, BlockDate};
 
 use std::{iter, fs, mem};
 use std::cmp::Ordering;
@@ -28,7 +28,7 @@ pub struct Iter {
     end_date: BlockDate,
     epoch_packrefs: Vec<PackHash>,
     blocks: Vec<Block>,
-    packreader: Option<PackReader<fs::File>>,
+    packreader: Option<packfile::Reader<fs::File>>,
 }
 
 #[derive(Clone)]
@@ -60,12 +60,12 @@ fn previous_block(storage: &Storage, block: &Block) -> Block {
     blk
 }
 
-fn next_until_range(packreader: &mut PackReader<fs::File>, start_date: &BlockDate, end_date: &BlockDate) -> Result<Option<Block>> {
+fn next_until_range(packreader: &mut packfile::Reader<fs::File>, start_date: &BlockDate, end_date: &BlockDate) -> Result<Option<Block>> {
     loop {
         match packreader.get_next() {
             None => { return Ok(None) },
-            Some(ref b) => {
-                let mut blk = b.decode().unwrap();
+            Some(b) => {
+                let mut blk = RawBlock(b).decode().unwrap();
                 let blk_date = blk.get_header().get_blockdate();
                 if &blk_date > end_date {
                     return Ok(None)
@@ -108,7 +108,7 @@ pub fn resolve_date_to_blockhash(storage: &Storage, tip: &BlockHash, date: &Bloc
                 BlockDate::Genesis(_) => 0,
                 BlockDate::Normal(sid) => sid.slotid,
             };
-            let r = handle.getref_at_slotid(slotid)?;
+            let r = handle.getref_at_index(slotid)?;
             Ok(r)
         },
         Err(_) => {
@@ -237,7 +237,7 @@ impl Iter {
                         }
                     },
                     Some(pref) => {
-                        let packreader = PackReader::init(&self.config.storage, &pref);
+                        let packreader = packreader_init(&self.config.storage, &pref);
                         self.packreader = Some(packreader);
                         self.next()
                     }

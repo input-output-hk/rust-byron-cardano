@@ -2,7 +2,7 @@ pub mod net {
     use cardano::block::{HeaderHash,EpochId};
     use cardano::config::{ProtocolMagic};
     use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}};
-    use storage::tmpfile::{TmpFile};
+    use storage::utils::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
 

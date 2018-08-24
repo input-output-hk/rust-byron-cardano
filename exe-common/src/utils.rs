@@ -37,14 +37,14 @@ pub fn get_last_blockid(
     storage_config: &storage::config::StorageConfig,
     packref: &PackHash,
 ) -> Option<block::HeaderHash> {
-    let mut reader = storage::pack::PackReader::init(&storage_config, packref);
+    let mut reader = storage::pack::packreader_init(&storage_config, packref);
     let mut last_blk_raw = None;
 
     while let Some(blk_raw) = reader.get_next() {
         last_blk_raw = Some(blk_raw);
     }
     if let Some(blk_raw) = last_blk_raw {
-        let blk = blk_raw.decode().unwrap();
+        let blk = block::RawBlock(blk_raw).decode().unwrap();
         let hdr = blk.get_header();
         info!("last_blockid: {} {}", hdr.compute_hash(), hdr.get_slotid());
         Some(hdr.compute_hash())

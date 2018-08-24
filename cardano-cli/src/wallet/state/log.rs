@@ -1,4 +1,4 @@
-use storage::{append, lock::{self, Lock}};
+use storage::{containers::append, utils::lock::{self, Lock}};
 use std::{path::{PathBuf}, fmt, result};
 
 use super::{ptr::{StatePtr}, utxo::{UTxO}};

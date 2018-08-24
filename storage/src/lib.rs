@@ -12,21 +12,20 @@ pub mod pack;
 pub mod tag;
 pub mod epoch;
 pub mod refpack;
-pub mod tmpfile;
-pub mod lock;
-pub mod append;
-mod bitmap;
-mod bloom;
+pub mod utils;
+pub mod containers;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
-use refpack::{RefPack};
 use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
 
 use types::*;
-use tmpfile::*;
+use utils::tmpfile::*;
+
+use containers::{packfile, indexfile, reffile};
+use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]
 pub enum Error {
@@ -60,7 +59,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    lookups: BTreeMap<PackHash, pack::Lookup>,
+    lookups: BTreeMap<PackHash, indexfile::Lookup>,
 }
 
 impl Storage {
@@ -174,7 +173,7 @@ pub mod blob {
 
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
-    Packed(PackHash, pack::IndexOffset),
+    Packed(PackHash, indexfile::IndexOffset),
     Loose,
 }
 
@@ -182,12 +181,12 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
     for (packref, lookup) in storage.lookups.iter() {
         let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
         match nb {
-            pack::FanoutNb(0) => {},
-            _                 => {
+            indexfile::FanoutNb(0) => {},
+            _ => {
                 if lookup.bloom.search(hash) {
                     let idx_filepath = storage.config.get_index_filepath(packref);
-                    let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                    match pack::search_index(&mut idx_file, &lookup.params, hash, start, nb) {
+                    let mut idx_file = indexfile::Reader::init(idx_filepath).unwrap();
+                    match idx_file.search(&lookup.params, hash, start, nb) {
                         None       => {},
                         Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
                     }
@@ -209,11 +208,11 @@ pub fn block_read_location(storage: &Storage, loc: &BlockLocation, hash: &BlockH
                 None         => { unreachable!(); },
                 Some(lookup) => {
                     let idx_filepath = storage.config.get_index_filepath(packref);
-                    let mut idx_file = fs::File::open(idx_filepath).unwrap();
-                    let pack_offset = pack::resolve_index_offset(&mut idx_file, lookup, *iofs);
+                    let mut idx_file = indexfile::ReaderNoLookup::init(idx_filepath).unwrap();
+                    let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
                     let pack_filepath = storage.config.get_pack_filepath(packref);
-                    let mut pack_file = fs::File::open(pack_filepath).unwrap();
-                    pack::read_block_at(&mut pack_file, pack_offset).ok()
+                    let mut pack_file = packfile::Seeker::init(pack_filepath).unwrap();
+                    pack_file.get_at_offset(pack_offset).ok().and_then(|x| Some(RawBlock(x)))
                 }
             }
         }
@@ -250,7 +249,7 @@ impl Default for PackParameters {
 }
 
 pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
-    let mut writer = pack::PackWriter::init(&storage.config);
+    let mut writer = pack::packwriter_init(&storage.config);
     let mut blob_packed = Vec::new();
 
     let block_hashes : Vec<BlockHash> = if let Some((from, to)) = params.range {
@@ -260,19 +259,19 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
     };
     for bh in block_hashes {
         let blob = blob::read_raw(storage, &bh).unwrap();
-        writer.append(&bh, &blob[..]);
+        writer.append(&bh, &blob[..]).unwrap();
         blob_packed.push(bh);
         match params.limit_size {
             None => {},
             Some(sz) => {
-                if writer.get_current_size() >= sz {
+                if writer.pos >= sz {
                     break
                 }
             }
         }
     }
 
-    let (packhash, index) = writer.finalize();
+    let (packhash, index) = pack::packwriter_finalize(&storage.config, writer);
 
     let (lookup, tmpfile) = pack::create_index(storage, &index);
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
@@ -292,15 +291,15 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
 //
 // If the pack is not valid, then an error is returned
 pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<()> {
-    let mut rp = RefPack::new();
+    let mut rp = reffile::Lookup::new();
     let packhash_vec = tag::read(storage, tag).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
-    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+    let mut pack = packreader_init(&storage.config, &packhash);
 
     let mut current_state = None;
 
-    while let Some(raw_block) = pack.get_next() {
+    while let Some(raw_block) = packreader_block_next(&mut pack) {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();
@@ -313,7 +312,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                     return Err(Error::EpochExpectingGenesis)
                 }
                 current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
-                rp.push_back(hash.into_bytes());
+                rp.append_hash(hash.into_bytes());
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
@@ -334,10 +333,10 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                         let mut current_slotid = expected_slotid;
 
                         while current_slotid < slotid.slotid {
-                            rp.push_back_missing();
+                            rp.append_missing_hash();
                             current_slotid += 1;
                         }
-                        rp.push_back(hash.clone().into_bytes());
+                        rp.append_hash(hash.clone().into_bytes());
                         current_state = Some((current_epoch, current_slotid, hash));
                     },
                 }
@@ -360,11 +359,11 @@ fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: Heade
     let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
-    let mut pack = pack::PackReader::init(&storage.config, &packhash);
+    let mut pack = packreader_init(&storage.config, &packhash);
 
     let mut current_state = None;
 
-    while let Some(raw_block) = pack.get_next() {
+    while let Some(raw_block) = packreader_block_next(&mut pack) {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();

@@ -155,9 +155,10 @@ impl Api for HermesEndPoint {
 
                 if let Some(err) = err { return Err(err) };
 
-                let mut packfile = storage::pack::PackReader::from(&tmppack[..]);
+                let mut packfile = storage::containers::packfile::Reader::from(&tmppack[..]);
 
-                while let Some(block_raw) = packfile.get_next() {
+                while let Some(data) = packfile.get_next() {
+                    let block_raw = block::RawBlock(data);
                     let block = block_raw.decode()?;
                     let hdr = block.get_header();
 

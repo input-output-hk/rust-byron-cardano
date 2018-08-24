@@ -4,18 +4,18 @@
 //!
 
 use cardano::block::{EpochId, RawBlock};
-use storage::{StorageConfig, epoch::{epoch_read_pack}, pack::{PackReader}};
+use storage::{StorageConfig, epoch::{epoch_read_pack, epoch_open_pack_reader}, pack::packreader_init, containers::packfile};
 
 use std::{fs};
 
 use super::{Result, Error};
 
 /// Iterator over every blocks of a given epoch
-pub struct Iter(PackReader<fs::File>);
+pub struct Iter(packfile::Reader<fs::File>);
 impl Iter {
     pub fn new(storage: &StorageConfig, epoch: EpochId) -> Result<Self> {
         let packref = epoch_read_pack(storage, epoch)?;
-        let reader = PackReader::init(&storage, &packref);
+        let reader = packreader_init(&storage, &packref);
         Ok(Iter(reader))
     }
 
@@ -29,7 +29,7 @@ impl Iterator for Iter {
         // TODO, this is dodgy, there should be a Result to get from it
         //       should have at least `::io::Error` as we are using
         //       PackReader<**fs::File**>;
-        self.0.get_next().map(|raw_block| Ok(raw_block))
+        self.0.get_next().map(|raw_block| Ok(RawBlock(raw_block)))
     }
 }
 
@@ -56,19 +56,15 @@ impl<'a> Iterator for Epochs<'a> {
     type Item = Result<Iter>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match epoch_read_pack(&self.storage_config, self.epoch_id) {
-            Err(err) => {
-                if err.kind() == ::std::io::ErrorKind::NotFound {
-                    None
-                } else {
-                    Some(Err(Error::IoError(err)))
-                }
-            },
-            Ok(epoch_ref) => {
-                let iter = Iter(PackReader::init(&self.storage_config, &epoch_ref));
+        let r = epoch_open_pack_reader(&self.storage_config, self.epoch_id);
+        match r {
+            Err(e) => { Some(Err(Error::IoError(e))) },
+            Ok(None) => { None },
+            Ok(Some(r)) => {
+                let iter = Iter(r);
                 self.epoch_id += 1;
                 Some(Ok(iter))
-            }
+            },
         }
     }
 }
