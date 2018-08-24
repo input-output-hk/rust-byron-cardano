@@ -28,6 +28,7 @@ fn main() {
 
         .subcommand(blockchain_commands_definition())
         .subcommand(wallet_commands_definition())
+        .subcommand(transaction_commands_definition())
         .subcommand(debug_commands_definition())
         .get_matches();
 
