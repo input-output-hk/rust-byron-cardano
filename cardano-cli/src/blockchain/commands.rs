@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::io::{Write};
 
 use exe_common::config::net::Config;
+use storage;
 
 use utils::term::Term;
 
@@ -214,6 +215,34 @@ fn format_systemtime(time: ::std::time::SystemTime) -> String {
 }
 fn format_duration(duration: ::std::time::Duration) -> String {
     format!("{}", ::humantime::format_duration(duration))
+}
+
+pub fn log( mut term: Term
+          , root_dir: PathBuf
+          , name: String
+          , from: Option<String>
+          )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+
+    let from = if let Some(hash_hex) = from {
+        let hash = super::config::parse_block_hash(&mut term, &hash_hex);
+
+        if storage::block_location(&blockchain.storage, hash.bytes()).is_none() {
+            term.error(&format!("block hash `{}' is not present in the local blockchain\n", hash_hex)).unwrap();
+            ::std::process::exit(1);
+        }
+
+        hash
+    } else {
+        blockchain.load_tip().0.hash
+    };
+
+    for block in storage::block::iter::ReverseIter::from(&blockchain.storage, from).unwrap() {
+        use utils::pretty::Pretty;
+
+        block.pretty(&mut term, 0).unwrap();
+    }
 }
 
 pub fn forward( mut term: Term

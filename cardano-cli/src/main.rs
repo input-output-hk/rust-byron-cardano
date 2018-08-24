@@ -288,6 +288,12 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
 
             blockchain::commands::destroy(term, root_dir, name);
         },
+        ("log", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let hash = matches.value_of("HASH_BLOCK").map(|s| s.to_owned());
+
+            blockchain::commands::log(term, root_dir, name, hash);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
