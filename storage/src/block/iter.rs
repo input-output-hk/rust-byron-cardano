@@ -261,8 +261,7 @@ pub struct ReverseIter<'a> {
     current_block: Option<HeaderHash>
 }
 impl<'a> ReverseIter<'a> {
-    pub fn from(storage: &'a Storage, bh: &[u8]) -> Result<Self> {
-        let hh = HeaderHash::from_slice(&bh)?;
+    pub fn from(storage: &'a Storage, hh: HeaderHash) -> Result<Self> {
         if let None = block_location(storage, hh.bytes()) {
             return Err(Error::HashNotFound(hh.into_bytes()));
         }
@@ -274,7 +273,7 @@ impl<'a> ReverseIter<'a> {
     }
 
     pub fn new(storage: &'a Storage) -> Result<Self> {
-        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
+        let hh_bytes = match tag::read_hash(&storage, &tag::HEAD) {
             None => return Err(Error::NoTagHead),
             Some(t) => t
         };
