@@ -788,16 +788,15 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("Add an output to a transaction")
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
-            .about("Add an input to a transaction")
+            .about("Remove an input to a transaction")
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmOutput.as_string())
-            .about("Add an output to a transaction")
+            .about("Remove an output to a transaction")
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Status.as_string())
             .about("Status of a staging transaction")
         )
 }
-
 
 /* ------------------------------------------------------------------------- *
  *                Debug Sub Commands and helpers                            *
