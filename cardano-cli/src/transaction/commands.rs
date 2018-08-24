@@ -1,5 +1,6 @@
 use std::{path::PathBuf};
 use utils::term::{Term, style::{Style}};
+use super::core;
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term

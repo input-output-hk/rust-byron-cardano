@@ -1,5 +1,6 @@
 use std::{result, io::{self, Write, Read}, fs::{self, OpenOptions}};
 use utils::lock::{self, Lock};
+use utils::serialize::{write_size, read_size};
 
 #[derive(Debug)]
 pub enum Error {
@@ -155,19 +156,4 @@ impl Reader {
         }
         Ok(v)
     }
-}
-
-#[inline]
-fn write_size(buf: &mut [u8], sz: Size) {
-    buf[0] = (sz >> 24) as u8;
-    buf[1] = (sz >> 16) as u8;
-    buf[2] = (sz >> 8) as u8;
-    buf[3] = sz as u8;
-}
-#[inline]
-fn read_size(buf: &[u8]) -> Size {
-    ((buf[0] as Size) << 24)
-        | ((buf[1] as Size) << 16)
-        | ((buf[2] as Size) << 8)
-        | (buf[3] as Size)
 }
