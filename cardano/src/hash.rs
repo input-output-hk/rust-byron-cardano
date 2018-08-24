@@ -46,19 +46,20 @@ impl Blake2b256 {
         let mut out = [0;HASH_SIZE];
         b2b.input(buf);
         b2b.result(&mut out);
-        Self::from_bytes(out)
+        Self::from(out)
     }
 
     pub fn bytes<'a>(&'a self) -> &'a [u8;HASH_SIZE] { &self.0 }
     pub fn into_bytes(self) -> [u8;HASH_SIZE] { self.0 }
 
+    #[deprecated(note="use `From` trait instead")]
     pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
     pub fn from_slice(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != HASH_SIZE { return Err(Error::InvalidHashSize(bytes.len())); }
         let mut buf = [0;HASH_SIZE];
 
         buf[0..HASH_SIZE].clone_from_slice(bytes);
-        Ok(Self::from_bytes(buf))
+        Ok(Self::from(buf))
     }
     pub fn from_hex<S: AsRef<str>>(hex: &S) -> Result<Self> {
         let bytes = hex::decode(hex.as_ref())?;
@@ -74,6 +75,9 @@ impl fmt::Display for Blake2b256 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0[..]))
     }
+}
+impl From<[u8;HASH_SIZE]> for Blake2b256 {
+    fn from(bytes: [u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
 }
 impl cbor_event::de::Deserialize for Blake2b256 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
