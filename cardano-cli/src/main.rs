@@ -7,7 +7,7 @@ extern crate log;
 extern crate env_logger;
 
 use self::cardano_cli::utils::term;
-use self::cardano_cli::{blockchain, wallet, debug};
+use self::cardano_cli::{blockchain, wallet, transaction, debug};
 
 #[macro_use]
 extern crate clap;
@@ -741,19 +741,41 @@ impl TransactionCmd {
     }
 }
 
-fn subcommand_transaction<'a>(mut term: term::Term, _rootdir: PathBuf, matches: &ArgMatches<'a>) {
+fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
-        ("new", Some(matches)) => { unimplemented!() },
-        ("list", Some(matches)) => { unimplemented!() },
-        ("destroy", Some(matches)) => { unimplemented!() },
-        ("export", Some(matches)) => { unimplemented!() },
-        ("import", Some(matches)) => { unimplemented!() },
-        ("finalize", Some(matches)) => { unimplemented!() },
-        ("add-input", Some(matches)) => { unimplemented!() },
-        ("add-output", Some(matches)) => { unimplemented!() },
-        ("rm-output", Some(matches)) => { unimplemented!() },
-        ("rm-input", Some(matches)) => { unimplemented!() },
-        ("status", Some(matches)) => { unimplemented!() },
+        ("new", Some(matches)) => {
+            transaction::commands::new(term, root_dir);
+        },
+        ("list", Some(matches)) => {
+            transaction::commands::list(term, root_dir);
+        },
+        ("destroy", Some(matches)) => {
+            transaction::commands::destroy(term, root_dir);
+        },
+        ("export", Some(matches)) => {
+            transaction::commands::export(term, root_dir);
+        },
+        ("import", Some(matches)) => {
+            transaction::commands::import(term, root_dir);
+        },
+        ("finalize", Some(matches)) => {
+            transaction::commands::finalize(term, root_dir);
+        },
+        ("add-input", Some(matches)) => {
+            transaction::commands::add_input(term, root_dir);
+        },
+        ("add-output", Some(matches)) => {
+            transaction::commands::add_output(term, root_dir);
+        },
+        ("rm-output", Some(matches)) => {
+            transaction::commands::remove_output(term, root_dir);
+        },
+        ("rm-input", Some(matches)) => {
+            transaction::commands::remove_input(term, root_dir);
+        },
+        ("status", Some(matches)) => {
+            transaction::commands::status(term, root_dir);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
