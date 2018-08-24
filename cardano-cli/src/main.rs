@@ -398,7 +398,7 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(blockchain_argument_name_definition())
         )
         .subcommand(SubCommand::with_name("log")
-            .about("print some details about the given blockchain")
+            .about("print the block, one by one, from the given blockhash or the tip of the blockchain.")
             .arg(blockchain_argument_name_definition())
             .arg(Arg::with_name("HASH_BLOCK")
                 .value_name("HASH")
