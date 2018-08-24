@@ -36,15 +36,10 @@ fn main() {
     let root_dir = global_rootdir_match(&default_root_dir, &matches);
 
     match matches.subcommand() {
-        ("blockchain", Some(matches)) => {
-            subcommand_blockchain(term, root_dir, matches)
-        },
-        ("wallet", Some(matches)) => {
-            subcommand_wallet(term, root_dir, matches)
-        },
-        ("debug", Some(matches)) => {
-            subcommand_debug(term, root_dir, matches)
-        },
+        (BLOCKCHAIN_COMMAND, Some(matches))  => { subcommand_blockchain(term, root_dir, matches) },
+        (WALLET_COMMAND, Some(matches))      => { subcommand_wallet(term, root_dir, matches) },
+        (TRANSACTION_COMMAND, Some(matches)) => { subcommand_transaction(term, root_dir, matches) },
+        (DEBUG_COMMAND, Some(matches))       => { subcommand_debug(term, root_dir, matches) },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -717,6 +712,92 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             )
         )
 }
+
+/* ------------------------------------------------------------------------- *
+ *             Transaction Sub Commands and helpers                          *
+ * ------------------------------------------------------------------------- */
+
+const TRANSACTION_COMMAND : &'static str = "transaction";
+
+#[derive(Debug,Clone,Copy)]
+pub enum TransactionCmd {
+    New, List, Destroy, Export, Import, Finalize, AddInput, AddOutput, RmInput, RmOutput, Status,
+}
+impl TransactionCmd {
+    pub fn as_string(self) -> &'static str {
+        match self {
+            TransactionCmd::New => "new",
+            TransactionCmd::List => "list",
+            TransactionCmd::Destroy => "destroy",
+            TransactionCmd::Export => "export",
+            TransactionCmd::Import => "import",
+            TransactionCmd::Finalize => "finalize",
+            TransactionCmd::AddInput => "add-input",
+            TransactionCmd::AddOutput => "add-output",
+            TransactionCmd::RmInput => "rm-input",
+            TransactionCmd::RmOutput => "rm-output",
+            TransactionCmd::Status => "status",
+        }
+    }
+}
+
+fn subcommand_transaction<'a>(mut term: term::Term, _rootdir: PathBuf, matches: &ArgMatches<'a>) {
+    match matches.subcommand() {
+        ("new", Some(matches)) => { unimplemented!() },
+        ("list", Some(matches)) => { unimplemented!() },
+        ("destroy", Some(matches)) => { unimplemented!() },
+        ("export", Some(matches)) => { unimplemented!() },
+        ("import", Some(matches)) => { unimplemented!() },
+        ("finalize", Some(matches)) => { unimplemented!() },
+        ("add-input", Some(matches)) => { unimplemented!() },
+        ("add-output", Some(matches)) => { unimplemented!() },
+        ("rm-output", Some(matches)) => { unimplemented!() },
+        ("rm-input", Some(matches)) => { unimplemented!() },
+        ("status", Some(matches)) => { unimplemented!() },
+        _ => {
+            term.error(matches.usage()).unwrap();
+            ::std::process::exit(1)
+        }
+    }
+}
+fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
+    SubCommand::with_name(TRANSACTION_COMMAND)
+        .about("Transaction operations.")
+        .subcommand(SubCommand::with_name(TransactionCmd::New.as_string())
+            .about("Create a new empty staging transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::List.as_string())
+            .about("List all staging transactions open")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Destroy.as_string())
+            .about("Destroy a staging transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Export.as_string())
+            .about("Export a staging transaction for transfer into a human readable format")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Import.as_string())
+            .about("Import a human readable format transaction into a new staging transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Finalize.as_string())
+            .about("Finalize a staging a transaction into a transaction ready to send to the blockchain network")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
+            .about("Add an input to a transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
+            .about("Add an output to a transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
+            .about("Add an input to a transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmOutput.as_string())
+            .about("Add an output to a transaction")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Status.as_string())
+            .about("Status of a staging transaction")
+        )
+}
+
 
 /* ------------------------------------------------------------------------- *
  *                Debug Sub Commands and helpers                            *
