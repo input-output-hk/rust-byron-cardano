@@ -12,6 +12,55 @@ use utils::term::{Term, style::{Style}};
 use blockchain::{self, Blockchain};
 use serde;
 
+pub fn list( mut term: Term
+           , root_dir: PathBuf
+           , detailed: bool
+           )
+{
+    let wallets_dir = super::config::wallet_directory(&root_dir);
+    for entry in ::std::fs::read_dir(wallets_dir).unwrap() {
+        let entry = entry.unwrap();
+        if ! entry.file_type().unwrap().is_dir() {
+            term.warn(&format!("unexpected file in wallet directory: {:?}", entry.path())).unwrap();
+            continue;
+        }
+        let name = entry.file_name().into_string().unwrap_or_else(|err| {
+            panic!("invalid utf8... {:?}", err)
+        });
+
+        // load the wallet
+        let wallet = Wallet::load(root_dir.clone(), name);
+
+        let detail = if detailed {
+            if let Some(blk_name) = &wallet.config.attached_blockchain {
+                // 1. get the wallet's blockchain
+                let blockchain = load_attached_blockchain(&mut term, root_dir.clone(), wallet.config.attached_blockchain.clone());
+
+
+                // 2. prepare the wallet state
+                let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
+                let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
+
+                update_wallet_state_with_logs(&wallet, &mut state);
+
+                let total = state.total().unwrap();
+
+                format!("\t{}\t{}@{}",
+                    style!(total).green().bold(),
+                    style!(blk_name.as_str()).underlined().white(),
+                    style!(state.ptr.latest_block_date())
+                )
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        writeln!(term, "{}{}", style!(wallet.name).cyan().italic(), detail).unwrap();
+    }
+}
+
 /// function to create a new wallet
 ///
 pub fn new<D>( mut term: Term
