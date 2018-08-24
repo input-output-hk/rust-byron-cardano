@@ -597,6 +597,11 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::destroy(term, root_dir, name);
         },
+        ("list", Some(matches)) => {
+            let detailed = matches.is_present("WALLET_LIST_DETAILED");
+
+            wallet::commands::list(term, root_dir, detailed);
+        },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -606,6 +611,14 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name(WALLET_COMMAND)
         .about("wallet operations")
+        .subcommand(SubCommand::with_name("list")
+            .about("list all the wallets available")
+            .arg(Arg::with_name("WALLET_LIST_DETAILED")
+                .long("detailed")
+                .short("l")
+                .help("display some metadata information of the wallet")
+            )
+        )
         .subcommand(SubCommand::with_name("create")
             .about("create a new wallet")
             .arg(wallet_argument_mnemonic_size())

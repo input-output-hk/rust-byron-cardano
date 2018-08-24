@@ -8,6 +8,12 @@ use super::super::utils::password_encrypted::{self, Password};
 /// directory where all the wallet will be in
 pub const WALLETS_DIRECTORY : &'static str = "wallets";
 
+pub fn wallet_directory( root_dir: &PathBuf
+                       ) -> PathBuf
+{
+    root_dir.join(WALLETS_DIRECTORY)
+}
+
 /// handy function to compute the path to directory
 /// where all the wallet metadata will lie.
 pub fn directory( root_dir: PathBuf
