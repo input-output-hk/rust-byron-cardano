@@ -13,6 +13,11 @@ impl<'a, T: Serialize> Serialize for &'a T {
         serializer.serialize(*self)
     }
 }
+impl Serialize for u64 {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_unsigned_integer(*self)
+    }
+}
 impl Serialize for u32 {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_unsigned_integer((*self) as u64)

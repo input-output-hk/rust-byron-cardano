@@ -18,6 +18,12 @@ impl Deserialize for u32 {
     }
 }
 
+impl Deserialize for u64 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.unsigned_integer()
+    }
+}
+
 impl<T: Deserialize> Deserialize for Vec<T> {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         let len = raw.array()?;
