@@ -13,6 +13,7 @@ use hash::{Blake2b256};
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use config::{ProtocolMagic};
 use redeem;
+use tags::{SigningTag};
 
 use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
 use address::{ExtendedAddr, SpendingData};
@@ -126,7 +127,7 @@ impl TxInWitness {
     ///
     pub fn verify_tx(&self, protocol_magic: ProtocolMagic, tx: &Tx) -> bool {
         let vec = Serializer::new_vec()
-            .write_unsigned_integer(self.get_sign_tag()).expect("write sign tag")
+            .write_unsigned_integer(self.get_sign_tag() as u64).expect("write sign tag")
             .serialize(&protocol_magic).expect("serialize protocol magic")
             .serialize(&tx.id()).expect("serialize Tx's Id")
             .finalize();
@@ -137,11 +138,11 @@ impl TxInWitness {
         }
     }
 
-    fn get_sign_tag(&self) -> u64 {
+    fn get_sign_tag(&self) -> SigningTag {
         match self {
-            &TxInWitness::PkWitness(_, _) => 1,
+            &TxInWitness::PkWitness(_, _) => SigningTag::Tx,
             &TxInWitness::ScriptWitness(_, _) => unimplemented!(),
-            &TxInWitness::RedeemWitness(_, _) => 2,
+            &TxInWitness::RedeemWitness(_, _) => SigningTag::RedeemTx,
         }
     }
 
