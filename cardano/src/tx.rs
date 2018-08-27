@@ -325,34 +325,9 @@ impl cbor_event::de::Deserialize for Tx {
             return Err(cbor_event::Error::CustomError(format!("Invalid Tx: recieved array of {:?} elements", len)));
         }
 
-        let num_inputs = raw.array()?;
-        assert_eq!(num_inputs, cbor_event::Len::Indefinite);
-        let mut inputs = Vec::new();
-        while {
-            let t = raw.cbor_type()?;
-            if t == cbor_event::Type::Special {
-                let special = raw.special()?;
-                assert_eq!(special, cbor_event::Special::Break);
-                false
-            } else {
-                inputs.push(cbor_event::de::Deserialize::deserialize(raw)?);
-                true
-            }
-        } {}
-        let num_outputs = raw.array()?;
-        assert_eq!(num_outputs, cbor_event::Len::Indefinite);
-        let mut outputs = Vec::new();
-        while {
-            let t = raw.cbor_type()?;
-            if t == cbor_event::Type::Special {
-                let special = raw.special()?;
-                assert_eq!(special, cbor_event::Special::Break);
-                false
-            } else {
-                outputs.push(cbor_event::de::Deserialize::deserialize(raw)?);
-                true
-            }
-        } {}
+        // Note: these must be indefinite-size arrays.
+        let inputs = cbor_event::de::Deserialize::deserialize(raw)?;
+        let outputs = cbor_event::de::Deserialize::deserialize(raw)?;
 
         let map_len = raw.map()?;
         if ! map_len.is_null() {
@@ -362,11 +337,71 @@ impl cbor_event::de::Deserialize for Tx {
     }
 }
 
+/// A transaction witness is a vector of input witnesses
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct TxWitness {
+    pub in_witnesses: Vec<TxInWitness>
+}
+
+impl TxWitness {
+    pub fn new(in_witnesses: Vec<TxInWitness>) -> Self {
+        TxWitness { in_witnesses: in_witnesses }
+    }
+}
+
+impl ::std::ops::Deref for TxWitness {
+    type Target = Vec<TxInWitness>;
+    fn deref(&self) -> &Self::Target { &self.in_witnesses }
+}
+
+impl cbor_event::de::Deserialize for TxWitness {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        Ok(TxWitness::new(cbor_event::de::Deserialize::deserialize(raw)?))
+    }
+}
+
+impl cbor_event::se::Serialize for TxWitness {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+        txwitness_serialize(&self.in_witnesses, serializer)
+    }
+}
+
+pub fn txwitness_serialize<W>(in_witnesses: &Vec<TxInWitness>, serializer: Serializer<W>)
+    -> cbor_event::Result<Serializer<W>>
+    where W: ::std::io::Write
+{
+    cbor_event::se::serialize_fixed_array(in_witnesses.iter(), serializer)
+}
+
+/// A transaction witness is a vector of input witnesses
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct TxWitnesses {
+    pub witnesses: Vec<TxWitness>
+}
+
+impl TxWitnesses {
+    pub fn new(witnesses: Vec<TxWitness>) -> Self {
+        TxWitnesses { witnesses: witnesses }
+    }
+}
+
+impl ::std::ops::Deref for TxWitnesses {
+    type Target = Vec<TxWitness>;
+    fn deref(&self) -> &Self::Target { &self.witnesses }
+}
+
+impl cbor_event::se::Serialize for TxWitnesses
+{
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+        cbor_event::se::serialize_indefinite_array(self.iter(), serializer)
+    }
+}
+
 /// Tx with the vector of witnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
-    pub witnesses: Vec<TxInWitness>,
+    pub witnesses: TxWitness,
 }
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -375,7 +410,7 @@ impl fmt::Display for TxAux {
     }
 }
 impl TxAux {
-    pub fn new(tx: Tx, witnesses: Vec<TxInWitness>) -> Self {
+    pub fn new(tx: Tx, witnesses: TxWitness) -> Self {
         TxAux { tx: tx, witnesses: witnesses }
     }
 }
@@ -387,18 +422,7 @@ impl cbor_event::de::Deserialize for TxAux {
         }
 
         let tx = cbor_event::de::Deserialize::deserialize(raw)?;
-        let mut witnesses = Vec::new();
-        let len = raw.array()?;
-        let mut len = match len {
-            cbor_event::Len::Indefinite => {
-               return Err(cbor_event::Error::CustomError(format!("Invalid TxAux: recieved map of {:?} elements", len)));
-            },
-            cbor_event::Len::Len(len) => len
-        };
-        while len > 0 {
-            witnesses.push(cbor_event::de::Deserialize::deserialize(raw)?);
-            len -= 1;
-        }
+        let witnesses = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(TxAux::new(tx, witnesses))
     }
 }
@@ -414,7 +438,7 @@ pub fn txaux_serialize<W>(tx: &Tx, witnesses: &Vec<TxInWitness>, serializer: Ser
 {
     let serializer = serializer.write_array(cbor_event::Len::Len(2))?
                 .serialize(tx)?;
-    cbor_event::se::serialize_fixed_array(witnesses.iter(), serializer)
+    txwitness_serialize(witnesses, serializer)
 }
 
 #[derive(Debug, Clone)]
