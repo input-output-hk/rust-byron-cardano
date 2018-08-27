@@ -1,5 +1,5 @@
-use std::os::raw::{c_int, c_char};
-use std::{ffi, slice, ptr};
+use std::os::raw::{c_int};
+use std::{slice};
 
 use cardano::bip::bip39;
 
