@@ -126,7 +126,7 @@ impl TxInWitness {
     ///
     pub fn verify_tx(&self, protocol_magic: ProtocolMagic, tx: &Tx) -> bool {
         let vec = Serializer::new_vec()
-            .write_unsigned_integer(1).expect("write byte 0x01")
+            .write_unsigned_integer(self.get_sign_tag()).expect("write sign tag")
             .serialize(&protocol_magic).expect("serialize protocol magic")
             .serialize(&tx.id()).expect("serialize Tx's Id")
             .finalize();
@@ -134,6 +134,14 @@ impl TxInWitness {
             &TxInWitness::PkWitness(ref pk, ref sig)     => pk.verify(&vec, sig),
             &TxInWitness::ScriptWitness(_, _)            => unimplemented!(),
             &TxInWitness::RedeemWitness(ref pk, ref sig) => pk.verify(sig, &vec),
+        }
+    }
+
+    fn get_sign_tag(&self) -> u64 {
+        match self {
+            &TxInWitness::PkWitness(_, _) => 1,
+            &TxInWitness::ScriptWitness(_, _) => unimplemented!(),
+            &TxInWitness::RedeemWitness(_, _) => 2,
         }
     }
 
