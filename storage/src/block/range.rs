@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 pub struct Range(VecDeque<BlockHash>);
 impl Range {
     pub fn new(storage: &Storage, from: BlockHash, to: BlockHash) -> Result<Self> {
-        let ri = ReverseIter::from(storage, &to[..])?;
+        let ri = ReverseIter::from(storage, to.into())?;
         let mut rp = VecDeque::new();
         let mut finished = false;
 

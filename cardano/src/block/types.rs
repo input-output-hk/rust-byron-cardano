@@ -32,7 +32,8 @@ impl fmt::Display for HeaderHash {
 impl HeaderHash {
     pub fn bytes<'a>(&'a self) -> &'a [u8;HASH_SIZE] { self.0.bytes() }
     pub fn into_bytes(self) -> [u8;HASH_SIZE] { self.0.into_bytes() }
-    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from_bytes(bytes)) }
+    #[deprecated(note="use `From` trait instead")]
+    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(bytes)) }
     pub fn from_slice(bytes: &[u8]) -> hash::Result<Self> {
         Blake2b256::from_slice(bytes).map(|h| HeaderHash(h))
     }
@@ -40,6 +41,9 @@ impl HeaderHash {
         Blake2b256::from_hex(hex).map(|h| HeaderHash(h))
     }
     pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }
+}
+impl From<[u8;HASH_SIZE]> for HeaderHash {
+    fn from(bytes: [u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(bytes)) }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]

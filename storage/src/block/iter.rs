@@ -2,7 +2,7 @@
 //!
 
 use super::super::{Storage, StorageConfig, block_location, block_read, block_read_location, header_to_blockhash, packreader_init};
-use super::super::{tag, blob};
+use super::super::{blob};
 use super::super::epoch::{epoch_read_pack, epoch_open_packref};
 use super::super::containers::packfile;
 use super::super::types::{BlockHash, PackHash};
@@ -261,8 +261,7 @@ pub struct ReverseIter<'a> {
     current_block: Option<HeaderHash>
 }
 impl<'a> ReverseIter<'a> {
-    pub fn from(storage: &'a Storage, bh: &[u8]) -> Result<Self> {
-        let hh = HeaderHash::from_slice(&bh)?;
+    pub fn from(storage: &'a Storage, hh: HeaderHash) -> Result<Self> {
         if let None = block_location(storage, hh.bytes()) {
             return Err(Error::HashNotFound(hh.into_bytes()));
         }
@@ -271,14 +270,6 @@ impl<'a> ReverseIter<'a> {
             current_block: Some(hh)
         };
         Ok(ri)
-    }
-
-    pub fn new(storage: &'a Storage) -> Result<Self> {
-        let hh_bytes = match tag::read(&storage, &tag::HEAD) {
-            None => return Err(Error::NoTagHead),
-            Some(t) => t
-        };
-        Self::from(storage, &hh_bytes)
     }
 }
 impl<'a> iter::Iterator for ReverseIter<'a> {
