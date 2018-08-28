@@ -10,10 +10,13 @@ use std::collections::{BTreeSet, HashSet};
 use merkle;
 use tags;
 use cryptoxide::ed25519;
+use hdwallet::{Signature};
 
 #[derive(Debug)]
 pub enum Error {
+    BadBlockSig,
     BadTxWitness,
+    BadVssCertSig,
     DuplicateInputs,
     DuplicateSigningKeys,
     DuplicateVSSKeys,
@@ -22,7 +25,6 @@ pub enum Error {
     RedeemOutput,
     SelfSignedPSK,
     WrongBlockHash,
-    WrongBlockSignature,
     WrongDelegationProof,
     WrongExtraDataProof,
     WrongGenesisProof,
@@ -195,7 +197,7 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
                     };
 
                     if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
-                        return Err(Error::WrongBlockSignature);
+                        return Err(Error::BadBlockSig);
                     }
                 }
             }
@@ -308,26 +310,38 @@ pub fn verify_txaux(protocol_magic: ProtocolMagic, txaux: &tx::TxAux) -> Result<
     Ok(())
 }
 
-pub fn verify_vss_certificates(protocol_magic: ProtocolMagic, vss: &VssCertificates) -> Result<(), Error>
+pub fn verify_vss_certificates(protocol_magic: ProtocolMagic, vss_certs: &VssCertificates) -> Result<(), Error>
 {
     // check that there are no duplicate VSS keys
     let mut vss_keys = BTreeSet::new();
-    if !vss.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
+    if !vss_certs.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
         return Err(Error::DuplicateVSSKeys);
     }
 
     // check that there are no duplicate signing keys
     let mut signing_keys = HashSet::new();
-    if !vss.iter().all(|x| signing_keys.insert(x.signing_key)) {
+    if !vss_certs.iter().all(|x| signing_keys.insert(x.signing_key)) {
         return Err(Error::DuplicateSigningKeys);
     }
 
-    /*
-    for cert in vss {
-        data = "\x03" <> getProtocolMagic protocolMagic <> (cert.vss_key, cert.expiry_epoch)
-        cert.verify(data, sig)
+    // verify every certificate's signature
+    for vss_cert in vss_certs.iter() {
+
+        let mut buf = vec![];
+        {
+            let serializer = se::Serializer::new(&mut buf)
+                .serialize(&(tags::SigningTag::VssCert as u8)).unwrap()
+                .serialize(&protocol_magic).unwrap();
+            let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+            serializer
+                .serialize(&vss_cert.vss_key).unwrap()
+                .serialize(&vss_cert.expiry_epoch).unwrap();
+        }
+
+        if !vss_cert.signing_key.verify(&buf, &Signature::<()>::from_bytes(*vss_cert.signature.to_bytes())) {
+            return Err(Error::BadVssCertSig);
+        }
     }
-    */
 
     Ok(())
 }
