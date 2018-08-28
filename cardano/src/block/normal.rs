@@ -36,10 +36,7 @@ impl cbor_event::se::Serialize for BodyProof {
 }
 impl cbor_event::de::Deserialize for BodyProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BodyProof: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "BodyProof")?;
         let tx       = cbor_event::de::Deserialize::deserialize(raw)?;
         let mpc      = cbor_event::de::Deserialize::deserialize(raw)?;
         let proxy_sk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -137,10 +134,7 @@ impl cbor_event::se::Serialize for Body {
 }
 impl cbor_event::de::Deserialize for Body {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "Body")?;
         let tx  = raw.deserialize()?;
         let scc = raw.deserialize()?;
         let dlg = raw.deserialize()?;
@@ -267,10 +261,7 @@ impl cbor_event::se::Serialize for SignedCommitment {
 }
 impl cbor_event::de::Deserialize for SignedCommitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "SignedCommitment")?;
         let public_key = raw.deserialize()?;
         let commitment = raw.deserialize()?;
         let signature  = raw.deserialize()?;
@@ -293,10 +284,7 @@ impl cbor_event::se::Serialize for Commitment {
 }
 impl cbor_event::de::Deserialize for Commitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "Commitment")?;
         let shares = raw.deserialize()?;
         let proof  = raw.deserialize()?;
 
@@ -322,10 +310,7 @@ impl cbor_event::se::Serialize for SecretProof {
 }
 impl cbor_event::de::Deserialize for SecretProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "SecretProof")?;
         let extra_gen       = raw.deserialize()?;
         let proof           = raw.deserialize()?;
         let parallel_proofs = raw.deserialize()?;
@@ -465,10 +450,7 @@ impl cbor_event::se::Serialize for VssCertificate {
 }
 impl cbor_event::de::Deserialize for VssCertificate {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "VssCertificate")?;
         let vss_key      = raw.deserialize()?;
         let expiry_epoch = raw.unsigned_integer()? as u32;
         let signature    = raw.deserialize()?;
@@ -518,10 +500,7 @@ impl cbor_event::se::Serialize for BlockHeader {
 }
 impl cbor_event::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(5) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(5, "BlockHeader")?;
 
         let p_magic    = cbor_event::de::Deserialize::deserialize(raw)?;
         let prv_header = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -560,10 +539,7 @@ impl cbor_event::se::Serialize for Block {
 }
 impl cbor_event::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Block")?;
         let header = raw.deserialize()?;
         let body   = raw.deserialize()?;
         let extra  = raw.deserialize()?;
@@ -595,10 +571,7 @@ impl cbor_event::se::Serialize for ProxySecretKey {
 
 impl cbor_event::de::Deserialize for ProxySecretKey {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid ProxySecretKey: received array of {:?} elements", len)));
-        }
+        raw.tuple(4, "ProxySecretKey")?;
 
         let omega = cbor_event::de::Deserialize::deserialize(raw)?;
         let issuer_pk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -625,10 +598,7 @@ impl cbor_event::se::Serialize for ProxySignature {
 
 impl cbor_event::de::Deserialize for ProxySignature {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid ProxySignature: received array of {:?} elements", len)));
-        }
+        raw.tuple(2, "ProxySignature")?;
 
         let psk = cbor_event::de::Deserialize::deserialize(raw)?;
         let sig = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -673,10 +643,7 @@ impl cbor_event::se::Serialize for BlockSignature {
 }
 impl cbor_event::de::Deserialize for BlockSignature {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockSignature: received array of {:?} elements", len)));
-        }
+        raw.tuple(2, "BlockSignature")?;
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
@@ -714,10 +681,7 @@ impl cbor_event::se::Serialize for Consensus {
 }
 impl cbor_event::de::Deserialize for Consensus {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "Consensus")?;
         let slot_id = cbor_event::de::Deserialize::deserialize(raw)?;
         let leader_key = cbor_event::de::Deserialize::deserialize(raw)?;
         let chain_difficulty = cbor_event::de::Deserialize::deserialize(raw)?;

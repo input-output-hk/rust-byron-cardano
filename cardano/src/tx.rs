@@ -42,10 +42,7 @@ impl TxOut {
 }
 impl cbor_event::de::Deserialize for TxOut {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxOut: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "TxOut")?;
         let addr = cbor_event::de::Deserialize::deserialize(raw)?;
         let val  = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(TxOut::new(addr, val))
@@ -175,10 +172,7 @@ impl cbor_event::se::Serialize for TxInWitness {
 }
 impl cbor_event::de::Deserialize for TxInWitness {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxInWitness: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "TxInWitness")?;
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
@@ -188,10 +182,7 @@ impl cbor_event::de::Deserialize for TxInWitness {
                 }
                 let bytes = raw.bytes()?;
                 let mut raw = RawCbor::from(&bytes);
-                let len = raw.array()?;
-                if len != cbor_event::Len::Len(2) {
-                    return Err(cbor_event::Error::CustomError(format!("Invalid TxInWitness::PkWitness: recieved array of {:?} elements", len)));
-                }
+                raw.tuple(2, "TxInWitness::PkWitness")?;
                 let pk  = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 let sig = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 Ok(TxInWitness::PkWitness(pk, sig))
@@ -203,10 +194,7 @@ impl cbor_event::de::Deserialize for TxInWitness {
                 }
                 let bytes = raw.bytes()?;
                 let mut raw = RawCbor::from(&bytes);
-                let len = raw.array()?;
-                if len != cbor_event::Len::Len(2) {
-                    return Err(cbor_event::Error::CustomError(format!("Invalid TxInWitness::PkRedeemWitness: recieved array of {:?} elements", len)));
-                }
+                raw.tuple(2, "TxInWitness::PkRedeemWitness")?;
                 let pk  = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 let sig = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 Ok(TxInWitness::RedeemWitness(pk, sig))
@@ -244,10 +232,7 @@ impl cbor_event::se::Serialize for TxIn {
 }
 impl cbor_event::de::Deserialize for TxIn {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxInWitness: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "TxIn")?;
         let sum_type_idx = raw.unsigned_integer()?;
         if sum_type_idx != 0 {
             return Err(cbor_event::Error::CustomError(format!("Unsupported TxIn: {}", sum_type_idx)));
@@ -258,10 +243,7 @@ impl cbor_event::de::Deserialize for TxIn {
         }
         let bytes = raw.bytes()?;
         let mut raw = RawCbor::from(&bytes);
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxInWitness::PkRedeemWitness: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "TxIn")?;
         let id  = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let idx = raw.unsigned_integer()?;
         Ok(TxIn::new(id, idx as u32))
@@ -321,10 +303,7 @@ impl cbor_event::se::Serialize for Tx {
 }
 impl cbor_event::de::Deserialize for Tx {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Tx: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Tx")?;
 
         // Note: these must be indefinite-size arrays.
         let inputs = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -417,11 +396,7 @@ impl TxAux {
 }
 impl cbor_event::de::Deserialize for TxAux {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxAux: recieved array of {:?} elements", len)));
-        }
-
+        raw.tuple(2, "TxAux")?;
         let tx = cbor_event::de::Deserialize::deserialize(raw)?;
         let witnesses = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(TxAux::new(tx, witnesses))
@@ -472,10 +447,7 @@ impl cbor_event::se::Serialize for TxProof {
 }
 impl cbor_event::de::Deserialize for TxProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid TxProof: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "TxProof")?;
         let number = raw.unsigned_integer()?;
         let root   = cbor_event::de::Deserialize::deserialize(raw)?;
         let witnesses = cbor_event::de::Deserialize::deserialize(raw)?;

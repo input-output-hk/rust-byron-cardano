@@ -31,10 +31,7 @@ impl se::Serialize for HandlerSpec {
 }
 impl de::Deserialize for HandlerSpec {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid HandlerSpec: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "HandlerSpec")?;
         let t = raw.unsigned_integer()?;
         if t != 0 {
             return Err(cbor_event::Error::CustomError(format!("Invalid value, expected 0, received {}", t)));
@@ -161,10 +158,7 @@ impl se::Serialize for Handshake {
 }
 impl cbor_event::de::Deserialize for Handshake {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Handshake: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "Handshake")?;
         let pm   = raw.deserialize()?;
         let v    = raw.deserialize()?;
         let ins  = raw.deserialize()?;
@@ -244,10 +238,7 @@ impl fmt::Display for BlockHeaderResponse {
 }
 impl de::Deserialize for BlockHeaderResponse {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "BlockHeaderResponse")?;
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
             0 => {
@@ -269,10 +260,7 @@ pub enum BlockResponse {
 }
 impl de::Deserialize for BlockResponse {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeaderResponse: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "BlockResponse")?;
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
             0 => {

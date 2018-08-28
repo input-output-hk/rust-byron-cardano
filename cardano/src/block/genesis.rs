@@ -94,10 +94,7 @@ impl cbor_event::se::Serialize for BlockHeader {
 }
 impl cbor_event::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(5) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(5, "BlockHeader")?;
         let p_magic    = cbor_event::de::Deserialize::deserialize(raw)?;
         let prv_header = cbor_event::de::Deserialize::deserialize(raw)?;
         let body_proof = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -131,10 +128,7 @@ impl cbor_event::se::Serialize for Block {
 }
 impl cbor_event::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Block")?;
         let header = raw.deserialize()?;
         let body   = raw.deserialize()?;
         let extra  = raw.deserialize()?;
@@ -156,10 +150,7 @@ impl cbor_event::se::Serialize for Consensus {
 }
 impl cbor_event::de::Deserialize for Consensus {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "Consensus")?;
         let epoch = raw.unsigned_integer()? as u32;
         let chain_difficulty = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(Consensus { epoch, chain_difficulty })

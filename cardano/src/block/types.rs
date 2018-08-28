@@ -175,10 +175,7 @@ impl cbor_event::se::Serialize for Version {
 }
 impl cbor_event::de::Deserialize for Version {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Version: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Version")?;
         let major = raw.unsigned_integer()? as u32;
         let minor = raw.unsigned_integer()? as u32;
         let revision = raw.unsigned_integer()? as u32;
@@ -197,10 +194,7 @@ impl cbor_event::se::Serialize for BlockVersion {
 }
 impl cbor_event::de::Deserialize for BlockVersion {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockVersion: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "BlockVersion")?;
         let major = raw.unsigned_integer()? as u16;
         let minor = raw.unsigned_integer()? as u16;
         let revision = raw.unsigned_integer()? as u8;
@@ -218,10 +212,7 @@ impl cbor_event::se::Serialize for SoftwareVersion {
 }
 impl cbor_event::de::Deserialize for SoftwareVersion {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid SoftwareVersion: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "SoftwareVersion")?;
         let name  = raw.text()?;
         let version = raw.unsigned_integer()? as u32;
 
@@ -262,10 +253,7 @@ impl cbor_event::se::Serialize for HeaderExtraData {
 }
 impl cbor_event::de::Deserialize for HeaderExtraData {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid HeaderExtraData: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "HeaderExtraData")?;
         let block_version    = cbor_event::de::Deserialize::deserialize(raw)?;
         let software_version = cbor_event::de::Deserialize::deserialize(raw)?;
         let attributes       = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -345,10 +333,7 @@ impl cbor_event::se::Serialize for ChainDifficulty {
 }
 impl cbor_event::de::Deserialize for ChainDifficulty {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(1) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid ChainDifficulty: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(1, "ChainDifficulty")?;
         Ok(ChainDifficulty(raw.unsigned_integer()?))
     }
 }
@@ -362,10 +347,7 @@ impl cbor_event::se::Serialize for EpochSlotId {
 }
 impl cbor_event::de::Deserialize for EpochSlotId {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid SlotId: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "SlotId")?;
         let epoch  = raw.unsigned_integer()? as u32;
         let slotid = raw.unsigned_integer()? as u32;
         Ok(EpochSlotId { epoch: epoch, slotid: slotid })

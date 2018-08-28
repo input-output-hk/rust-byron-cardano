@@ -476,6 +476,15 @@ impl<'a> RawCbor<'a> {
         Ok(len)
     }
 
+    /// Expect an array of a specified length. Must be a definite-length array.
+    pub fn tuple(&mut self, expected_len: u64, error_location: &'static str) -> Result<()> {
+        let actual_len = self.array()?;
+        match actual_len {
+            Len::Len(len) if expected_len == len => Ok(()),
+            _ => Err(Error::WrongLen(expected_len, actual_len, error_location)),
+        }
+    }
+
     /// cbor map
     ///
     /// The function fails if the type of the given RawCbor is not `Type::Map`.

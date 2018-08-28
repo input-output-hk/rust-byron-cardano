@@ -387,10 +387,7 @@ impl cbor_event::de::Deserialize for ExtendedAddr {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = cbor::hs::util::raw_with_crc32(raw)?;
         let mut raw = RawCbor::from(&bytes);
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid ExtendedAddr: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "ExtendedAddr")?;
         let addr = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let attributes = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let addr_type = cbor_event::de::Deserialize::deserialize(&mut raw)?;
