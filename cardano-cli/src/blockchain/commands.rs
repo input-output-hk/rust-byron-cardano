@@ -8,6 +8,7 @@ use utils::term::Term;
 
 use super::peer;
 use super::Blockchain;
+use cardano::{self, block::{RawBlock}};
 
 /// function to create and initialise a given new blockchain
 ///
@@ -302,15 +303,8 @@ pub fn pull( mut term: Term
     forward(term, root_dir, name, None)
 }
 
-pub fn cat( mut term: Term
-          , root_dir: PathBuf
-          , name: String
-          , hash_str: String
-          , no_parse: bool
-          )
+fn get_block(mut term: &mut Term, blockchain: &Blockchain, hash_str: &str) -> RawBlock
 {
-    let blockchain = Blockchain::load(root_dir.clone(), name.clone());
-
     let hash = super::config::parse_block_hash(&mut term, &hash_str);
     let block_location = match ::storage::block_location(&blockchain.storage, hash.bytes()) {
         None => {
@@ -328,17 +322,28 @@ pub fn cat( mut term: Term
             // but we were not able to read the block.
             panic!("the impossible happened, we have a block location of this given block `{}'", hash)
         },
-        Some(rblk) => {
-            if no_parse {
-                ::std::io::stdout().write(rblk.as_ref()).unwrap();
-                ::std::io::stdout().flush().unwrap();
-            } else {
-                use utils::pretty::Pretty;
+        Some(rblk) => rblk
+    }
+}
 
-                let blk = rblk.decode().unwrap();
-                blk.pretty(&mut term, 0).unwrap();
-            }
-        }
+pub fn cat( mut term: Term
+          , root_dir: PathBuf
+          , name: String
+          , hash_str: &str
+          , no_parse: bool
+          )
+{
+    let blockchain = Blockchain::load(root_dir.clone(), name.clone());
+    let rblk = get_block(&mut term, &blockchain, hash_str);
+
+    if no_parse {
+        ::std::io::stdout().write(rblk.as_ref()).unwrap();
+        ::std::io::stdout().flush().unwrap();
+    } else {
+        use utils::pretty::Pretty;
+
+        let blk = rblk.decode().unwrap();
+        blk.pretty(&mut term, 0).unwrap();
     }
 }
 
@@ -397,4 +402,65 @@ pub fn status( mut term: Term
         term.success(&format!("{}", tip.date)).unwrap();
         term.simply("\n").unwrap();
     }
+}
+
+pub fn verify_block( mut term: Term
+                   , root_dir: PathBuf
+                   , name: String
+                   , hash_str: &str
+                   )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+    let hash = super::config::parse_block_hash(&mut term, &hash_str);
+    let rblk = get_block(&mut term, &blockchain, hash_str);
+    match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &rblk) {
+        Ok(()) => {
+            term.success("Ok").unwrap();
+            term.simply("\n").unwrap();
+        }
+        Err(err) => {
+            term.error("Error: ").unwrap();
+            term.simply(&format!("{:?}", err)).unwrap();
+            term.simply("\n").unwrap();
+            ::std::process::exit(1);
+        }
+    };
+}
+
+pub fn verify_chain( mut term: Term
+                   , root_dir: PathBuf
+                   , name: String
+                   )
+{
+    let blockchain = Blockchain::load(root_dir, name);
+
+    let mut bad_blocks = 0;
+    let mut nr_blocks = 0;
+
+    for rblk in blockchain.iter_to_tip(blockchain.config.genesis.clone()).unwrap() {
+        nr_blocks += 1;
+        // FIXME: inefficient - the iterator has already decoded the block.
+        let rblk = rblk.unwrap();
+        let blk = rblk.decode().unwrap();
+        let hash = blk.get_header().compute_hash();
+        println!("block {} {}", hash, blk.get_header().get_blockdate());
+        match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &rblk) {
+            Ok(()) => {},
+            Err(err) => {
+                bad_blocks += 1;
+                term.error(&format!("Block {} ({}) is invalid: {:?}", hash, blk.get_header().get_blockdate(), err)).unwrap();
+                term.simply("\n").unwrap();
+                //::std::process::exit(1);
+            }
+        }
+    }
+
+    if bad_blocks > 0 {
+        term.error(&format!("{} out of {} blocks are invalid", bad_blocks, nr_blocks)).unwrap();
+        term.simply("\n").unwrap();
+        ::std::process::exit(1);
+    }
+
+    term.success(&format!("All {} blocks are valid", nr_blocks)).unwrap();
+    term.simply("\n").unwrap();
 }
