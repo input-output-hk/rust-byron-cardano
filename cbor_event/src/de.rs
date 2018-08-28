@@ -1,6 +1,6 @@
 //! CBOR deserialisation tooling
 
-use std::{fmt, ops::{Deref}, collections::BTreeMap};
+use std::{self, fmt, ops::{Deref}, collections::BTreeMap};
 use error::Error;
 use result::Result;
 use types::{Type, Special, Bytes};
@@ -14,20 +14,34 @@ pub trait Deserialize : Sized {
 
 impl Deserialize for u8 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
-        // FIXME: overflow
-        raw.unsigned_integer().map(|v| v as u8)
+        let n = raw.unsigned_integer()?;
+        if n > std::u8::MAX as u64 {
+            Err(Error::ExpectedU8)
+        } else {
+            Ok(n as Self)
+        }
     }
 }
 
 impl Deserialize for u16 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
-        raw.unsigned_integer().map(|v| v as u16)
+        let n = raw.unsigned_integer()?;
+        if n > std::u16::MAX as u64 {
+            Err(Error::ExpectedU16)
+        } else {
+            Ok(n as Self)
+        }
     }
 }
 
 impl Deserialize for u32 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
-        raw.unsigned_integer().map(|v| v as u32)
+        let n = raw.unsigned_integer()?;
+        if n > std::u32::MAX as u64 {
+            Err(Error::ExpectedU32)
+        } else {
+            Ok(n as Self)
+        }
     }
 }
 
