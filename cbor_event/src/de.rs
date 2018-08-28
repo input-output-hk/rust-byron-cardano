@@ -560,6 +560,11 @@ impl<'a> RawCbor<'a> {
         self.special()?.unwrap_bool()
     }
 
+    pub fn eof(&mut self) -> Result<()> {
+        if !self.0.is_empty() { return Err(Error::TrailingData) }
+        Ok(())
+    }
+
     pub fn deserialize<T>(&mut self) -> Result<T>
         where T: Deserialize
     {

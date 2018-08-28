@@ -26,6 +26,7 @@ pub enum Error {
     InvalidTextError(::std::string::FromUtf8Error),
     CannotParse(Type, Vec<u8>),
     IoError(::std::io::Error),
+    TrailingData,
 
     CustomError(String)
 }
@@ -56,6 +57,7 @@ impl fmt::Display for Error {
             InvalidTextError(utf8_error) => write!(f, "Invalid cbor: expected a valid utf8 string text. {:?}", utf8_error),
             CannotParse(t, bytes) => write!(f, "Invalid cbor: cannot parse the cbor object `{:?}' with the following bytes {:?}", t, bytes),
             IoError(io_error) => write!(f, "Invalid cbor: I/O error: {:?}.", io_error),
+            TrailingData => write!(f, "Unexpected trailing data in CBOR"),
             CustomError(err) => write!(f, "Invalid cbor: {}", err)
         }
     }

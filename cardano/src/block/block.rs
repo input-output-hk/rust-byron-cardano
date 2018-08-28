@@ -5,7 +5,7 @@ use std::{fmt};
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::RawCbor, de::Deserialize};
 use super::types::{HeaderHash, EpochSlotId, EpochId};
 use super::genesis;
 use super::normal;
@@ -20,20 +20,29 @@ pub struct RawBlockHeader(pub Vec<u8>);
 #[derive(Debug, Clone)]
 pub struct RawBlock(pub Vec<u8>);
 
+/// Deserialize a buffer into type `T` and check that there is no
+/// trailing data.
+fn decode_complete<T>(data: &[u8]) -> cbor_event::Result<T>
+    where T: Deserialize
+{
+    let mut raw = RawCbor::from(data);
+    let res = raw.deserialize()?;
+    raw.eof()?;
+    Ok(res)
+}
+
 impl RawBlockHeaderMultiple {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeaderMultiple(dat) }
-    pub fn decode(&self) -> cbor_event::Result<Vec<BlockHeader>> {
-        RawCbor::from(&self.0).deserialize()
-    }
+    pub fn decode(&self) -> cbor_event::Result<Vec<BlockHeader>> { decode_complete(&self.0) }
 }
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
-    pub fn decode(&self) -> cbor_event::Result<BlockHeader> { RawCbor::from(&self.0[..]).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<BlockHeader> { decode_complete(&self.0) }
     pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0) }
 }
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
-    pub fn decode(&self) -> cbor_event::Result<Block> { RawCbor::from(&self.0).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<Block>  { decode_complete(&self.0) }
     pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode()?;
