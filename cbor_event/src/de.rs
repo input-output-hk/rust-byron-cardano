@@ -51,6 +51,12 @@ impl Deserialize for u64 {
     }
 }
 
+impl Deserialize for bool {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.bool()
+    }
+}
+
 impl<T: Deserialize> Deserialize for Vec<T> {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         let len = raw.array()?;

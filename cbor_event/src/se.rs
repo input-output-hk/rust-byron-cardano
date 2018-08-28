@@ -33,6 +33,11 @@ impl Serialize for u8 {
         serializer.write_unsigned_integer((*self) as u64)
     }
 }
+impl Serialize for bool {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_special(Special::Bool(*self))
+    }
+}
 impl<'a> Serialize for &'a [u8] {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_bytes(self)
