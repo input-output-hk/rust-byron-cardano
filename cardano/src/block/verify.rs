@@ -189,11 +189,11 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
 
                     // verify the signature
                     let to_sign = MainToSign {
-                        previous_header: hdr.previous_header.clone(), // FIXME: don't clone
-                        body_proof: hdr.body_proof.clone(), // FIXME: don't clone
-                        slot: hdr.consensus.slot_id,
-                        chain_difficulty: hdr.consensus.chain_difficulty,
-                        extra_data: hdr.extra_data.clone(), // FIXME: don't clone
+                        previous_header: &hdr.previous_header,
+                        body_proof: &hdr.body_proof,
+                        slot: &hdr.consensus.slot_id,
+                        chain_difficulty: &hdr.consensus.chain_difficulty,
+                        extra_data: &hdr.extra_data,
                     };
 
                     if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
@@ -224,16 +224,16 @@ fn hash_vss_certs(vss_certs: &VssCertificates) -> hash::Blake2b256 {
 }
 
 #[derive(Debug, Clone)]
-struct MainToSign
+struct MainToSign<'a>
 {
-    previous_header: HeaderHash,
-    body_proof: BodyProof,
-    slot: EpochSlotId,
-    chain_difficulty: ChainDifficulty,
-    extra_data: HeaderExtraData,
+    previous_header: &'a HeaderHash,
+    body_proof: &'a BodyProof,
+    slot: &'a EpochSlotId,
+    chain_difficulty: &'a ChainDifficulty,
+    extra_data: &'a HeaderExtraData,
 }
 
-impl cbor_event::se::Serialize for MainToSign {
+impl<'a> cbor_event::se::Serialize for MainToSign<'a> {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.write_array(cbor_event::Len::Len(5))?
             .serialize(&self.previous_header)?
