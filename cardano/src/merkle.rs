@@ -44,7 +44,7 @@ impl MerkleNode {
             xs[0].serialize(se::Serializer::new(&mut bs)).unwrap();
             MerkleNode::Leaf(Hash::new(&bs))
         } else {
-            let i = power_of_two(xs.len());
+            let i = xs.len().checked_next_power_of_two().unwrap() >> 1;
             let a = MerkleNode::make_tree(&xs[0..i]);
             let b = MerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
@@ -59,16 +59,5 @@ impl MerkleNode {
             MerkleNode::Branch(hash, _, _) => hash,
             MerkleNode::Leaf(hash) => hash
         }
-    }
-}
-
-/// Return the largest power of two smaller than `x`.
-fn power_of_two(x: usize) -> usize {
-    assert!(x > 0);
-    let mut y: usize = 1;
-    loop {
-        let y2 = y.checked_mul(2).unwrap();
-        if y2 >= x { return y; }
-        y = y2;
     }
 }
