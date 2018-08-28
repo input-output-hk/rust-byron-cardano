@@ -229,15 +229,12 @@ impl Commitments{
 }
 impl cbor_event::se::Serialize for Commitments {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_tag(258)?)
+        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for Commitments {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let tag = raw.tag()?;
-        if tag != 258 {
-            return Err(cbor_event::Error::CustomError(format!("Unexpected tag, expeced 258, received {}", tag)));
-        }
+        raw.set_tag()?;
         Ok(Commitments(raw.deserialize()?))
     }
 }
@@ -414,15 +411,12 @@ impl VssCertificates {
 }
 impl cbor_event::se::Serialize for VssCertificates {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_tag(258)?)
+        cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for VssCertificates {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let tag = raw.tag()?;
-        if tag != 258 {
-            return Err(cbor_event::Error::CustomError(format!("Unexpected tag, expeced 258, received {}", tag)));
-        }
+        raw.set_tag()?;
         Ok(VssCertificates(raw.deserialize()?))
     }
 }

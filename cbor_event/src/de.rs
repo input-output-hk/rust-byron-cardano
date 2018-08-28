@@ -529,6 +529,14 @@ impl<'a> RawCbor<'a> {
         }
     }
 
+    pub fn set_tag(&mut self) -> Result<()> {
+        let tag = self.tag()?;
+        if tag != 258 {
+            return Err(Error::ExpectedSetTag);
+        }
+        Ok(())
+    }
+
     pub fn special(&mut self) -> Result<Special> {
         self.cbor_expect_type(Type::Special)?;
         let b = self.get(0)? & 0b0001_1111;

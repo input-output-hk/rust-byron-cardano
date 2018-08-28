@@ -19,6 +19,7 @@ pub enum Error {
     /// Were expecting a different [`Type`](../enum.Type.html). The first
     /// element is the expected type, the second is the current type.
     Expected(Type, Type),
+    ExpectedSetTag,
     /// this may happens when deserialising a [`RawCbor`](../de/struct.RawCbor.html);
     UnknownLenType(u8),
     IndefiniteLenNotSupported(Type),
@@ -49,6 +50,7 @@ impl fmt::Display for Error {
             ExpectedI64 => write!(f, "Invalid cbor: expected 64bit long negative integer"),
             NotEnough(got, exp) => write!(f, "Invalid cbor: not enough bytes, expect {} bytes but received {} bytes.", exp, got),
             Expected(exp, got) => write!(f, "Invalid cbor: not the right type, expected `{:?}' byte received `{:?}'.", exp, got),
+            ExpectedSetTag => write!(f, "Invalid cbor: expected set tag"),
             UnknownLenType(byte) => write!(f, "Invalid cbor: not the right sub type: 0b{:05b}", byte),
             IndefiniteLenNotSupported(t) => write!(f, "Invalid cbor: indefinite length not supported for cbor object of type `{:?}'.", t),
             InvalidTextError(utf8_error) => write!(f, "Invalid cbor: expected a valid utf8 string text. {:?}", utf8_error),

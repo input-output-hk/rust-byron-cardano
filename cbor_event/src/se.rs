@@ -421,7 +421,7 @@ impl<W: Write+Sized> Serializer<W> {
     /// write a tag
     ///
     /// in cbor a tag should be followed by a tagged object. You are responsible
-    /// to making sur you are writing the tagged object just after this
+    /// to making sure you are writing the tagged object just after this
     ///
     /// # Example
     ///
@@ -439,6 +439,11 @@ impl<W: Write+Sized> Serializer<W> {
     ///
     pub fn write_tag(self, tag: u64) -> Result<Self> {
         self.write_type(Type::Tag, tag)
+    }
+
+    /// write a tag that indicates that the following list is a finite set
+    pub fn write_set_tag(self) -> Result<Self> {
+        self.write_type(Type::Tag, 258)
     }
 
     /// write a special value in cbor
