@@ -133,8 +133,8 @@ impl fmt::Display for ChainDifficulty {
     }
 }
 
-pub type EpochId = u32;
-pub type SlotId = u32;
+pub type EpochId = u64; // == EpochIndex
+pub type SlotId = u16; // == LocalSlotIndex
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpochSlotId {
@@ -340,16 +340,14 @@ impl cbor_event::de::Deserialize for ChainDifficulty {
 
 impl cbor_event::se::Serialize for EpochSlotId {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(2))?
-            .write_unsigned_integer(self.epoch as u64)?
-            .write_unsigned_integer(self.slotid as u64)
+        serializer.serialize(&(&self.epoch, &self.slotid))
     }
 }
 impl cbor_event::de::Deserialize for EpochSlotId {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         raw.tuple(2, "SlotId")?;
-        let epoch  = raw.unsigned_integer()? as u32;
-        let slotid = raw.unsigned_integer()? as u32;
+        let epoch  = raw.deserialize()?;
+        let slotid = raw.deserialize()?;
         Ok(EpochSlotId { epoch: epoch, slotid: slotid })
     }
 }

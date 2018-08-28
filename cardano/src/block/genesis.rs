@@ -151,8 +151,8 @@ impl cbor_event::se::Serialize for Consensus {
 impl cbor_event::de::Deserialize for Consensus {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         raw.tuple(2, "Consensus")?;
-        let epoch = raw.unsigned_integer()? as u32;
-        let chain_difficulty = cbor_event::de::Deserialize::deserialize(raw)?;
+        let epoch = raw.deserialize()?;
+        let chain_difficulty = raw.deserialize()?;
         Ok(Consensus { epoch, chain_difficulty })
     }
 }

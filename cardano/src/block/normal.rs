@@ -452,7 +452,7 @@ impl cbor_event::de::Deserialize for VssCertificate {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         raw.tuple(4, "VssCertificate")?;
         let vss_key      = raw.deserialize()?;
-        let expiry_epoch = raw.unsigned_integer()? as u32;
+        let expiry_epoch = raw.deserialize()?;
         let signature    = raw.deserialize()?;
         let signing_key  = raw.deserialize()?;
 
