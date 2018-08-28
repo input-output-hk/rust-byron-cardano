@@ -12,6 +12,19 @@ pub trait Deserialize : Sized {
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
 }
 
+impl Deserialize for u8 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        // FIXME: overflow
+        raw.unsigned_integer().map(|v| v as u8)
+    }
+}
+
+impl Deserialize for u16 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.unsigned_integer().map(|v| v as u16)
+    }
+}
+
 impl Deserialize for u32 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         raw.unsigned_integer().map(|v| v as u32)
@@ -80,6 +93,16 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
             }
         }
         Ok(vec)
+    }
+}
+
+impl<T: Deserialize> Deserialize for Option<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        match raw.array()? {
+            Len::Len(0) => Ok(None),
+            Len::Len(1) => Ok(Some(raw.deserialize()?)),
+            len => Err(Error::CustomError(format!("Invalid Option<T>: received array of {:?} elements", len)))
+        }
     }
 }
 

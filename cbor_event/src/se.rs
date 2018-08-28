@@ -23,6 +23,11 @@ impl Serialize for u32 {
         serializer.write_unsigned_integer((*self) as u64)
     }
 }
+impl Serialize for u16 {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_unsigned_integer((*self) as u64)
+    }
+}
 impl Serialize for u8 {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_unsigned_integer((*self) as u64)
@@ -53,6 +58,19 @@ impl<'a, A, B, C> Serialize for (&'a A, &'a B, &'a C)
                   .serialize(self.0)?
                   .serialize(self.1)?
                   .serialize(self.2)
+    }
+}
+
+impl<T> Serialize for Option<T>
+    where T: Serialize
+{
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        match self {
+            None => serializer.write_array(Len::Len(0)),
+            Some(x) => {
+                serializer.write_array(Len::Len(1))?.serialize(x)
+            }
+        }
     }
 }
 
