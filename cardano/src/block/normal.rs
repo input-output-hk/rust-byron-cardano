@@ -640,7 +640,7 @@ impl cbor_event::de::Deserialize for ProxySignature {
 #[derive(Debug, Clone)]
 pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
-    ProxyLight(Vec<cbor_event::Value>),
+    ProxyLight(Vec<cbor_event::Value>), // TODO: decode
     ProxyHeavy(ProxySignature),
 }
 impl BlockSignature {
