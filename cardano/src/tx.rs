@@ -658,9 +658,7 @@ mod tests {
         let tx : Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
         let txinwitness : TxInWitness = RawCbor::from(TX_IN_WITNESS).deserialize().expect("to decode a `TxInWitness`");
 
-        let witnesses = vec![txinwitness];
-
-        let txaux = TxAux::new(tx, witnesses);
+        let txaux = TxAux::new(tx, TxWitness::new(vec![txinwitness]));
 
         assert!(cbor_event::test_encode_decode(&txaux).expect("encode/decode TxAux"));
     }
