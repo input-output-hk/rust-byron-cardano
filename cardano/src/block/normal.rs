@@ -277,9 +277,9 @@ pub struct Commitment {
 }
 impl cbor_event::se::Serialize for Commitment {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        let serializer = serializer.write_array(cbor_event::Len::Len(2))?
-            .serialize(&self.proof)?;
-        cbor_event::se::serialize_fixed_map(self.shares.iter(), serializer)
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        let serializer = cbor_event::se::serialize_fixed_map(self.shares.iter(), serializer)?;
+        serializer.serialize(&self.proof)
     }
 }
 impl cbor_event::de::Deserialize for Commitment {
