@@ -113,8 +113,8 @@ impl cbor_event::de::Deserialize for TxPayload {
 pub struct Body {
     pub tx: TxPayload,
     pub ssc: SscPayload,
-    pub delegation: cbor_event::Value,
-    pub update: cbor_event::Value
+    pub delegation: cbor_event::Value, // TODO: decode
+    pub update: cbor_event::Value // TODO: decode
 }
 impl Body {
     pub fn new(tx: TxPayload, ssc: SscPayload, dlg: cbor_event::Value, upd: cbor_event::Value) -> Self {
@@ -157,6 +157,18 @@ pub enum SscPayload {
     SharesPayload(SharesMap, VssCertificates),
     CertificatesPayload(VssCertificates),
 }
+
+impl SscPayload {
+    pub fn get_vss_certificates(&self) -> &VssCertificates {
+        match &self {
+            SscPayload::CommitmentsPayload(_, vss) => vss,
+            SscPayload::OpeningsPayload(_, vss) => vss,
+            SscPayload::SharesPayload(_, vss) => vss,
+            SscPayload::CertificatesPayload(vss) => vss
+        }
+    }
+}
+
 impl cbor_event::se::Serialize for SscPayload {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         match self {
@@ -408,6 +420,19 @@ impl VssCertificates {
     pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
         self.0.iter()
     }
+
+    // For historical reasons, SSC proofs are computed by hashing the
+    // serialization of a map of StakeholderIds to VssCertificates
+    // (where StakeholderId is computed from each VssCertificate's
+    // signing key), rather than the serialization of a set of
+    // VssCertificates that's actually stored in the block.
+    pub fn serialize_for_proof<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        let mut hash = BTreeMap::<address::StakeholderId, &VssCertificate>::new();
+        for vss_cert in self.0.iter() {
+            hash.insert(address::StakeholderId::new(&vss_cert.signing_key), vss_cert);
+        };
+        cbor_event::se::serialize_fixed_map(hash.iter(), serializer)
+    }
 }
 impl cbor_event::se::Serialize for VssCertificates {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
@@ -512,7 +537,7 @@ impl cbor_event::de::Deserialize for BlockHeader {
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
-    pub extra: cbor_event::Value
+    pub extra: cbor_event::Value // TODO: decode
 }
 impl Block {
     pub fn new(h: BlockHeader, b: Body, e: cbor_event::Value) -> Self {
@@ -548,11 +573,75 @@ impl cbor_event::de::Deserialize for Block {
 
 type SignData = ();
 
+type ProxyCert = hdwallet::Signature<()>;
+
+#[derive(Debug, Clone)]
+pub struct ProxySecretKey {
+    pub omega: u64,
+    pub issuer_pk: vss::PublicKey,
+    pub delegate_pk: vss::PublicKey,
+    pub cert: ProxyCert,
+}
+
+impl cbor_event::se::Serialize for ProxySecretKey {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(4))?
+            .serialize(&self.omega)?
+            .serialize(&self.issuer_pk)?
+            .serialize(&self.delegate_pk)?
+            .serialize(&self.cert)
+    }
+}
+
+impl cbor_event::de::Deserialize for ProxySecretKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let len = raw.array()?;
+        if len != cbor_event::Len::Len(4) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid ProxySecretKey: received array of {:?} elements", len)));
+        }
+
+        let omega = cbor_event::de::Deserialize::deserialize(raw)?;
+        let issuer_pk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let delegate_pk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let cert = cbor_event::de::Deserialize::deserialize(raw)?;
+
+        Ok(ProxySecretKey { omega, issuer_pk, delegate_pk, cert })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProxySignature {
+    pub psk: ProxySecretKey,
+    pub sig: hdwallet::Signature<()>,
+}
+
+impl cbor_event::se::Serialize for ProxySignature {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?
+            .serialize(&self.psk)?
+            .serialize(&self.sig)
+    }
+}
+
+impl cbor_event::de::Deserialize for ProxySignature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let len = raw.array()?;
+        if len != cbor_event::Len::Len(2) {
+            return Err(cbor_event::Error::CustomError(format!("Invalid ProxySignature: received array of {:?} elements", len)));
+        }
+
+        let psk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let sig = cbor_event::de::Deserialize::deserialize(raw)?;
+
+        Ok(ProxySignature { psk, sig })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
     ProxyLight(Vec<cbor_event::Value>),
-    ProxyHeavy(Vec<cbor_event::Value>),
+    ProxyHeavy(ProxySignature),
 }
 impl BlockSignature {
     pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8;hdwallet::SIGNATURE_SIZE]> {
@@ -575,9 +664,9 @@ impl cbor_event::se::Serialize for BlockSignature {
                 cbor_event::se::serialize_fixed_array(v.iter(), serializer)
             },
             &BlockSignature::ProxyHeavy(ref v) => {
-                let serializer = serializer.write_array(cbor_event::Len::Len(2))?
-                    .write_unsigned_integer(2)?;
-                cbor_event::se::serialize_fixed_array(v.iter(), serializer)
+                serializer.write_array(cbor_event::Len::Len(2))?
+                    .write_unsigned_integer(2)?
+                    .serialize(v)
             },
         }
     }
@@ -586,7 +675,7 @@ impl cbor_event::de::Deserialize for BlockSignature {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
         if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockSignature: recieved array of {:?} elements", len)));
+            return Err(cbor_event::Error::CustomError(format!("Invalid BlockSignature: received array of {:?} elements", len)));
         }
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
@@ -597,7 +686,8 @@ impl cbor_event::de::Deserialize for BlockSignature {
                 Ok(BlockSignature::ProxyLight(raw.deserialize()?))
             },
             2 => {
-                Ok(BlockSignature::ProxyHeavy(raw.deserialize()?))
+                Ok(BlockSignature::ProxyHeavy(
+                    cbor_event::de::Deserialize::deserialize(raw)?))
             },
             _ => {
                 Err(cbor_event::Error::CustomError(format!("Unsupported BlockSignature: {}", sum_type_idx)))

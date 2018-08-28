@@ -21,6 +21,7 @@ use bip::bip39;
 
 use std::{fmt, result};
 use std::marker::PhantomData;
+use std::hash::{Hash, Hasher};
 use util::{hex, securemem};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
@@ -452,6 +453,11 @@ impl PartialEq for XPub {
     fn eq(&self, rhs: &XPub) -> bool { fixed_time_eq(self.as_ref(), rhs.as_ref()) }
 }
 impl Eq for XPub {}
+impl Hash for XPub {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.0)
+    }
+}
 impl fmt::Display for XPub {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))

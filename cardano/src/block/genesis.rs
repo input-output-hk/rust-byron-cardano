@@ -7,7 +7,7 @@ use super::types;
 use super::types::{HeaderHash, ChainDifficulty};
 
 #[derive(Debug, Clone)]
-pub struct BodyProof(Blake2b256);
+pub struct BodyProof(pub Blake2b256);
 impl fmt::Display for BodyProof {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
