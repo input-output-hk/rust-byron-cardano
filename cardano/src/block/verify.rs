@@ -205,10 +205,10 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
             }
 
             // check tx
-            body.tx.iter().try_for_each(|txaux| verify_txaux(protocol_magic, &txaux))?;
+            body.tx.iter().try_for_each(|txaux| txaux.verify(protocol_magic))?;
 
             // check ssc
-            verify_vss_certificates(protocol_magic, body.ssc.get_vss_certificates())?;
+            body.ssc.get_vss_certificates().verify(protocol_magic)?;
 
             // check delegation
 
@@ -272,90 +272,93 @@ pub fn verify_proxy_sig<T>(
         &buf, &Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
 }
 
-pub fn verify_txaux(protocol_magic: ProtocolMagic, txaux: &tx::TxAux) -> Result<(), Error>
-{
-    // check that there are no duplicate inputs
-    let mut inputs = BTreeSet::new();
-    if !txaux.tx.inputs.iter().all(|x| inputs.insert(x)) {
-        return Err(Error::DuplicateInputs);
-    }
-
-    // check that there are no duplicate outputs
-    /*
-    let mut outputs = BTreeSet::new();
-    if !txaux.tx.outputs.iter().all(|x| outputs.insert(x.address.addr)) {
-        return Err(Error::DuplicateOutputs);
-    }
-    */
-
-    // check that all outputs have a non-zero amount
-    if !txaux.tx.outputs.iter().all(|x| x.value > coin::Coin::zero()) {
-        return Err(Error::ZeroCoin);
-    }
-
-    // Note: we don't need to check against MAX_COIN because Coin's
-    // constructor already has.
-
-    // check that none of the outputs are redeem addresses
-    if txaux.tx.outputs.iter().any(|x| x.address.addr_type == address::AddrType::ATRedeem) {
-        return Err(Error::RedeemOutput);
-    }
-
-    // TODO: check address attributes?
-
-    // verify transaction witnesses
-    if txaux.witnesses.is_empty() {
-        return Err(Error::NoTxWitnesses);
-    }
-
-    txaux.witnesses.iter().try_for_each(|witness| {
-        if !witness.verify_tx(protocol_magic, &txaux.tx) {
-            return Err(Error::BadTxWitness);
-        }
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-pub fn verify_vss_certificates(protocol_magic: ProtocolMagic, vss_certs: &VssCertificates) -> Result<(), Error>
-{
-    // check that there are no duplicate VSS keys
-    let mut vss_keys = BTreeSet::new();
-    if !vss_certs.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
-        return Err(Error::DuplicateVSSKeys);
-    }
-
-    // check that there are no duplicate signing keys
-    let mut signing_keys = HashSet::new();
-    if !vss_certs.iter().all(|x| signing_keys.insert(x.signing_key)) {
-        return Err(Error::DuplicateSigningKeys);
-    }
-
-    // verify every certificate's signature
-    for vss_cert in vss_certs.iter() {
-
-        let mut buf = vec![];
-        {
-            let serializer = se::Serializer::new(&mut buf)
-                .serialize(&(tags::SigningTag::VssCert as u8)).unwrap()
-                .serialize(&protocol_magic).unwrap();
-            let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
-            serializer
-                .serialize(&vss_cert.vss_key).unwrap()
-                .serialize(&vss_cert.expiry_epoch).unwrap();
-        }
-
-        if !vss_cert.signing_key.verify(&buf, &Signature::<()>::from_bytes(*vss_cert.signature.to_bytes())) {
-            return Err(Error::BadVssCertSig);
-        }
-    }
-
-    Ok(())
-}
-
 pub trait Verify {
     fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
+}
+
+impl Verify for tx::TxAux {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    {
+        // check that there are no duplicate inputs
+        let mut inputs = BTreeSet::new();
+        if !self.tx.inputs.iter().all(|x| inputs.insert(x)) {
+            return Err(Error::DuplicateInputs);
+        }
+
+        // check that there are no duplicate outputs
+        /*
+        let mut outputs = BTreeSet::new();
+        if !self.tx.outputs.iter().all(|x| outputs.insert(x.address.addr)) {
+            return Err(Error::DuplicateOutputs);
+        }
+        */
+
+        // check that all outputs have a non-zero amount
+        if !self.tx.outputs.iter().all(|x| x.value > coin::Coin::zero()) {
+            return Err(Error::ZeroCoin);
+        }
+
+        // Note: we don't need to check against MAX_COIN because Coin's
+        // constructor already has.
+
+        // check that none of the outputs are redeem addresses
+        if self.tx.outputs.iter().any(|x| x.address.addr_type == address::AddrType::ATRedeem) {
+            return Err(Error::RedeemOutput);
+        }
+
+        // TODO: check address attributes?
+
+        // verify transaction witnesses
+        if self.witnesses.is_empty() {
+            return Err(Error::NoTxWitnesses);
+        }
+
+        self.witnesses.iter().try_for_each(|witness| {
+            if !witness.verify_tx(protocol_magic, &self.tx) {
+                return Err(Error::BadTxWitness);
+            }
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Verify for VssCertificates {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+        // check that there are no duplicate VSS keys
+        let mut vss_keys = BTreeSet::new();
+        if !self.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
+            return Err(Error::DuplicateVSSKeys);
+        }
+
+        // check that there are no duplicate signing keys
+        let mut signing_keys = HashSet::new();
+        if !self.iter().all(|x| signing_keys.insert(x.signing_key)) {
+            return Err(Error::DuplicateSigningKeys);
+        }
+
+        // verify every certificate's signature
+        for vss_cert in self.iter() {
+
+            let mut buf = vec![];
+            {
+                let serializer = se::Serializer::new(&mut buf)
+                    .serialize(&(tags::SigningTag::VssCert as u8)).unwrap()
+                    .serialize(&protocol_magic).unwrap();
+                let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+                serializer
+                    .serialize(&vss_cert.vss_key).unwrap()
+                    .serialize(&vss_cert.expiry_epoch).unwrap();
+            }
+
+            if !vss_cert.signing_key.verify(&buf, &Signature::<()>::from_bytes(*vss_cert.signature.to_bytes())) {
+                return Err(Error::BadVssCertSig);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Verify for update::UpdateProposal {
