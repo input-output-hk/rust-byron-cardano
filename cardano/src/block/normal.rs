@@ -6,12 +6,13 @@ use std::collections::{BTreeMap, btree_map};
 use cbor_event::{self, de::RawCbor};
 use super::types;
 use super::types::{HeaderHash, HeaderExtraData, EpochSlotId, ChainDifficulty};
+use super::update;
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
-    pub proxy_sk: Blake2b256, // delegation hash
+    pub proxy_sk: Blake2b256, // hash of DlgPayload
     pub update: Blake2b256, // UpdateProof (hash of UpdatePayload)
 }
 impl BodyProof {
@@ -110,12 +111,12 @@ impl cbor_event::de::Deserialize for TxPayload {
 pub struct Body {
     pub tx: TxPayload,
     pub ssc: SscPayload,
-    pub delegation: cbor_event::Value, // TODO: decode
-    pub update: cbor_event::Value // TODO: decode
+    pub delegation: cbor_event::Value, // TODO: decode into DlgPayload
+    pub update: update::UpdatePayload,
 }
 impl Body {
-    pub fn new(tx: TxPayload, ssc: SscPayload, dlg: cbor_event::Value, upd: cbor_event::Value) -> Self {
-        Body { tx: tx, ssc: ssc, delegation: dlg, update: upd }
+    pub fn new(tx: TxPayload, ssc: SscPayload, delegation: cbor_event::Value, update: update::UpdatePayload) -> Self {
+        Body { tx, ssc, delegation, update }
     }
 }
 impl fmt::Display for Body {
@@ -554,8 +555,8 @@ type ProxyCert = hdwallet::Signature<()>;
 #[derive(Debug, Clone)]
 pub struct ProxySecretKey {
     pub omega: u64,
-    pub issuer_pk: vss::PublicKey,
-    pub delegate_pk: vss::PublicKey,
+    pub issuer_pk: hdwallet::XPub,
+    pub delegate_pk: hdwallet::XPub,
     pub cert: ProxyCert,
 }
 

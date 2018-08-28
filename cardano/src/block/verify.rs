@@ -1,5 +1,6 @@
 use block::*;
 use self::normal::{VssCertificates, BlockSignature, ProxySignature, BodyProof, SscPayload};
+use self::update;
 use tx;
 use coin;
 use address;
@@ -9,13 +10,14 @@ use cbor_event::{self, se};
 use std::collections::{BTreeSet, HashSet};
 use merkle;
 use tags;
-use cryptoxide::ed25519;
 use hdwallet::{Signature};
 
 #[derive(Debug)]
 pub enum Error {
     BadBlockSig,
     BadTxWitness,
+    BadUpdateProposalSig,
+    BadUpdateVoteSig,
     BadVssCertSig,
     DuplicateInputs,
     DuplicateSigningKeys,
@@ -211,6 +213,11 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
             // check delegation
 
             // check update
+            if let Some(proposal) = &body.update.proposal {
+                proposal.verify(protocol_magic)?;
+            }
+
+            body.update.votes.iter().try_for_each(|vote| vote.verify(protocol_magic))?;
         }
     };
 
@@ -254,14 +261,15 @@ pub fn verify_proxy_sig<T>(
 {
     let mut buf = vec!['0' as u8, '1' as u8];
 
-    buf.extend(&proxy_sig.psk.issuer_pk.0);
+    buf.extend(proxy_sig.psk.issuer_pk.as_ref());
 
     se::Serializer::new(&mut buf)
         .serialize(&(tag as u8)).unwrap()
         .serialize(&protocol_magic).unwrap()
         .serialize(data).unwrap();
 
-    ed25519::verify(&buf, &proxy_sig.psk.delegate_pk.0[0..32], &proxy_sig.sig.as_ref())
+    proxy_sig.psk.delegate_pk.verify(
+        &buf, &Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
 }
 
 pub fn verify_txaux(protocol_magic: ProtocolMagic, txaux: &tx::TxAux) -> Result<(), Error>
@@ -344,4 +352,60 @@ pub fn verify_vss_certificates(protocol_magic: ProtocolMagic, vss_certs: &VssCer
     }
 
     Ok(())
+}
+
+pub trait Verify {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
+}
+
+impl Verify for update::UpdateProposal {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    {
+        // CoinPortion fields in block_version_mod and
+        // block_version_mod.softfork_rule are checked by
+        // CoinPortion::new().
+
+        // SoftwareVersion is checked by SoftwareVersion::new().
+
+        // SystemTags are checked by SystemTag::new().
+
+        // Check the signature on the update proposal.
+        let mut buf = vec![];
+
+        let to_sign = update::UpdateProposalToSign {
+            block_version: &self.block_version.clone(),
+            block_version_mod: &self.block_version_mod.clone(),
+            software_version: &self.software_version.clone(),
+            data: &self.data.clone(),
+            attributes: &self.attributes.clone(),
+        };
+
+        se::Serializer::new(&mut buf)
+            .serialize(&(tags::SigningTag::USProposal as u8)).unwrap()
+            .serialize(&protocol_magic).unwrap()
+            .serialize(&to_sign).unwrap();
+
+        if !self.from.verify(&buf, &Signature::<()>::from_bytes(*self.signature.to_bytes())) {
+            return Err(Error::BadUpdateProposalSig);
+        }
+
+        Ok(())
+    }
+}
+
+impl Verify for update::UpdateVote {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    {
+        let mut buf = vec![];
+        se::Serializer::new(&mut buf)
+            .serialize(&(tags::SigningTag::USVote as u8)).unwrap()
+            .serialize(&protocol_magic).unwrap()
+            .serialize(&(&self.proposal_id, &self.decision)).unwrap();
+
+        if !self.key.verify(&buf, &Signature::<()>::from_bytes(*self.signature.to_bytes())) {
+            return Err(Error::BadUpdateVoteSig);
+        }
+
+        Ok(())
+    }
 }

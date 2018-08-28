@@ -8,6 +8,7 @@ pub mod genesis; /* genesis block related value */
 pub mod normal; /* normal block related value */
 pub mod block;
 pub mod verify;
+pub mod update;
 
 pub use block::types::*;
 pub use block::block::*;

@@ -351,3 +351,60 @@ impl cbor_event::de::Deserialize for EpochSlotId {
         Ok(EpochSlotId { epoch: epoch, slotid: slotid })
     }
 }
+
+pub type Attributes = cbor_event::Value; // TODO
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct CoinPortion(u64);
+
+pub const COIN_PORTION_DENOMINATOR: u64 = 1_000_000_000_000_000;
+
+impl CoinPortion {
+    pub fn new(n: u64) -> cbor_event::Result<Self> {
+        if n > COIN_PORTION_DENOMINATOR {
+            return Err(cbor_event::Error::CustomError(format!("Coin portion {} is greater than {}", n, COIN_PORTION_DENOMINATOR)));
+        }
+        Ok(CoinPortion(n))
+    }
+}
+
+impl cbor_event::se::Serialize for CoinPortion {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for CoinPortion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        Ok(CoinPortion::new(raw.deserialize()?)?)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct SystemTag(String);
+
+const MAX_SYSTEM_TAG_LENGTH : usize = 10;
+
+impl SystemTag {
+    pub fn new(s: String) -> cbor_event::Result<Self> {
+        if s.len() > MAX_SYSTEM_TAG_LENGTH {
+            return Err(cbor_event::Error::CustomError(format!("System tag '{}' is too long", s)));
+        }
+        if !s.chars().all(|c| char::is_ascii(&c)) {
+            return Err(cbor_event::Error::CustomError(format!("System tag '{}' contains non-ASCII characters", s)));
+        }
+        Ok(SystemTag(s))
+    }
+}
+
+impl cbor_event::se::Serialize for SystemTag {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for SystemTag {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        Ok(SystemTag::new(raw.deserialize()?)?)
+    }
+}
