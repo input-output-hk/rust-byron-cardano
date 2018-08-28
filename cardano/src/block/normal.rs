@@ -308,7 +308,7 @@ impl cbor_event::se::Serialize for SecretProof {
             .serialize(&self.extra_gen)?
             .serialize(&self.proof)?
             .serialize(&self.parallel_proofs)?;
-        cbor_event::se::serialize_fixed_array(self.commitments.iter(), serializer)
+        cbor_event::se::serialize_indefinite_array(self.commitments.iter(), serializer)
     }
 }
 impl cbor_event::de::Deserialize for SecretProof {
