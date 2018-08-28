@@ -38,6 +38,11 @@ impl Serialize for bool {
         serializer.write_special(Special::Bool(*self))
     }
 }
+impl Serialize for String {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_text(self)
+    }
+}
 impl<'a> Serialize for &'a [u8] {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_bytes(self)
