@@ -1,6 +1,7 @@
 use std::{path::PathBuf, io::Write};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
+use cardano::{tx::{TxId}, coin::{Coin}};
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term
@@ -82,11 +83,26 @@ pub fn status( mut term: Term
 pub fn add_input( mut term: Term
                 , root_dir: PathBuf
                 , id_str: &str
+                , input: Option<(TxId, u32, Coin)>
                 )
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    unimplemented!()
+    let input = if let Some(input) = input {
+        core::Input {
+            transaction_id: input.0,
+            index_in_transaction: input.1,
+            expected_value: input.2
+        }
+    } else {
+        // TODO, implement interactive mode
+        unimplemented!()
+    };
+
+    match staging.add_input(input) {
+        Err(err) => panic!("{:?}", err),
+        Ok(())   => ()
+    }
 }
 
 pub fn add_output( mut term: Term

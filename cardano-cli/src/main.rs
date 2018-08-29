@@ -753,6 +753,30 @@ fn transaction_argument_name_match<'a, 'b>(matches: &'b ArgMatches<'a>) -> &'b s
         None => { unreachable!() }
     }
 }
+fn transaction_argument_txid_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_TXID")
+        .help("A Transaction identifier in hexadecimal")
+        .required(false)
+        .requires("TRANSACTION_INDEX")
+}
+fn transaction_argument_index_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_INDEX")
+        .help("The index of the unspent output in the transaction")
+        .requires("TRANSACTION_AMOUNT")
+}
+fn transaction_argument_amount_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_AMOUNT")
+        .help("The value to expect in the input")
+}
+fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32, cardano::coin::Coin)> {
+    if ! matches.is_present("TRANSACTION_TXID") { return None; }
+    let txid = value_t!(matches, "TRANSACTION_TXID", cardano::tx::TxId).unwrap_or_else(|e| e.exit());
+
+    let index = value_t!(matches, "TRANSACTION_INDEX", u32).unwrap_or_else(|e| e.exit());
+    let coin = value_t!(matches, "TRANSACTION_AMOUNT", cardano::coin::Coin).unwrap_or_else(|e| e.exit());
+
+    Some((txid, index, coin))
+}
 
 fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
@@ -781,7 +805,9 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("add-input", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::add_input(term, root_dir, id);
+            let input = transaction_argument_input_match(&matches);
+
+            transaction::commands::add_input(term, root_dir, id, input);
         },
         ("add-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -840,6 +866,9 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
             .about("Add an input to a transaction")
             .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_txid_definition())
+            .arg(transaction_argument_index_definition())
+            .arg(transaction_argument_amount_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
             .about("Add an output to a transaction")
