@@ -84,6 +84,11 @@ impl Lock {
     }
 
     fn acquire(&self) -> Result<()> {
+        if let Some(dir) = self.lock_path().parent() {
+            if ! dir.is_dir() {
+                fs::create_dir_all(dir)?;
+            }
+        }
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
