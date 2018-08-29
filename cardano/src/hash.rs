@@ -61,8 +61,8 @@ impl Blake2b256 {
         buf[0..HASH_SIZE].clone_from_slice(bytes);
         Ok(Self::from(buf))
     }
-    pub fn from_hex<S: AsRef<str>>(hex: &S) -> Result<Self> {
-        let bytes = hex::decode(hex.as_ref())?;
+    pub fn from_hex(hex: &str) -> Result<Self> {
+        let bytes = hex::decode(hex)?;
         Self::from_slice(&bytes)
     }
 }
