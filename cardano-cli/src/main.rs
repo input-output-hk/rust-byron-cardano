@@ -742,40 +742,62 @@ impl TransactionCmd {
     }
 }
 
+fn transaction_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
+    Arg::with_name("TRANSACTION_ID")
+        .help("the transaction staging identifier")
+        .required(true)
+}
+fn transaction_argument_name_match<'a, 'b>(matches: &'b ArgMatches<'a>) -> &'b str {
+    match matches.value_of("TRANSACTION_ID") {
+        Some(r) => { r },
+        None => { unreachable!() }
+    }
+}
+
 fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
-        ("new", Some(matches)) => {
+        ("new", _) => {
             transaction::commands::new(term, root_dir);
         },
-        ("list", Some(matches)) => {
+        ("list", _) => {
             transaction::commands::list(term, root_dir);
         },
         ("destroy", Some(matches)) => {
-            transaction::commands::destroy(term, root_dir);
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::destroy(term, root_dir, id);
         },
         ("export", Some(matches)) => {
-            transaction::commands::export(term, root_dir);
+            let id = transaction_argument_name_match(&matches);
+            let file = matches.value_of("EXPORT_FILE");
+            transaction::commands::export(term, root_dir, id, file);
         },
         ("import", Some(matches)) => {
-            transaction::commands::import(term, root_dir);
+            let file = matches.value_of("IMPORT_FILE");
+            transaction::commands::import(term, root_dir, file);
         },
         ("finalize", Some(matches)) => {
-            transaction::commands::finalize(term, root_dir);
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::finalize(term, root_dir, id);
         },
         ("add-input", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
             transaction::commands::add_input(term, root_dir);
         },
         ("add-output", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
             transaction::commands::add_output(term, root_dir);
         },
         ("rm-output", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
             transaction::commands::remove_output(term, root_dir);
         },
         ("rm-input", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
             transaction::commands::remove_input(term, root_dir);
         },
         ("status", Some(matches)) => {
-            transaction::commands::status(term, root_dir);
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::status(term, root_dir, id);
         },
         _ => {
             term.error(matches.usage()).unwrap();
@@ -794,30 +816,46 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Destroy.as_string())
             .about("Destroy a staging transaction")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Export.as_string())
             .about("Export a staging transaction for transfer into a human readable format")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("EXPORT_FILE")
+                .help("optional file to export the staging transaction to (default will display the export to stdout)")
+                .required(false)
+            )
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Import.as_string())
             .about("Import a human readable format transaction into a new staging transaction")
+            .arg(Arg::with_name("IMPORT_FILE")
+                .help("optional file to import the staging transaction from (default will read stdin)")
+                .required(false)
+            )
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Finalize.as_string())
             .about("Finalize a staging a transaction into a transaction ready to send to the blockchain network")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
             .about("Add an input to a transaction")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
             .about("Add an output to a transaction")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
             .about("Remove an input to a transaction")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmOutput.as_string())
             .about("Remove an output to a transaction")
+            .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Status.as_string())
             .about("Status of a staging transaction")
+            .arg(transaction_argument_name_definition())
         )
 }
 

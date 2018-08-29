@@ -11,6 +11,8 @@ use cardano::{hash, redeem, coin::{Coin}, block::{self, BlockDate, HeaderHash}, 
 
 pub use console::{StyledObject};
 
+use super::super::super::transaction;
+
 pub trait Style: Sized {
     fn style(self) -> StyledObject<Self>;
 }
@@ -20,7 +22,17 @@ impl<'a> Style for &'a str {
         console::style(self)
     }
 }
+impl<'a, T: Style> Style for &'a T {
+    fn style(self) -> StyledObject<Self> {
+        console::style(self)
+    }
+}
 
+impl Style for transaction::core::StagingId {
+    fn style(self) -> StyledObject<Self> {
+        console::style(self).white().bold().underlined()
+    }
+}
 impl Style for Coin {
     fn style(self) -> StyledObject<Self> {
         console::style(self)
