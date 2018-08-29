@@ -10,13 +10,13 @@ use super::peer;
 use super::Blockchain;
 use cardano::{self, block::{RawBlock}};
 
-/// function to create and initialise a given new blockchain
+/// function to create and initialize a given new blockchain
 ///
 /// It will mainly create the subdirectories needed for the storage
 /// of blocks, epochs and tags.
 ///
 /// If the given blockchain configuration provides some preset peers
-/// each peer will be initialised with an associated tag pointing to
+/// each peer will be initialized with an associated tag pointing to
 /// the genesis hash of the blockchain (given in the same configuration
 /// structure `Config`).
 ///
@@ -95,7 +95,7 @@ wallets won't be able to interact with this blockchain.",
 
 /// function to add a remote to the given blockchain
 ///
-/// It will create the appropriate tag refering to the blockchain
+/// It will create the appropriate tag referring to the blockchain
 /// genesis hash. This is because when add a new peer we don't assume
 /// anything more than the genesis block.
 ///
