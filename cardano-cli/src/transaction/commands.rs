@@ -63,6 +63,7 @@ pub fn finalize( mut term: Term
                , id_str: &str
                )
 {
+    let mut staging = load_staging(&mut term, root_dir, id_str);
     unimplemented!()
 }
 
@@ -80,29 +81,38 @@ pub fn status( mut term: Term
 
 pub fn add_input( mut term: Term
                 , root_dir: PathBuf
+                , id_str: &str
                 )
 {
+    let mut staging = load_staging(&mut term, root_dir, id_str);
+
     unimplemented!()
 }
 
 pub fn add_output( mut term: Term
                  , root_dir: PathBuf
+                 , id_str: &str
                  )
 {
+    let mut staging = load_staging(&mut term, root_dir, id_str);
     unimplemented!()
 }
 
 pub fn remove_input( mut term: Term
                    , root_dir: PathBuf
+                   , id_str: &str
                    )
 {
+    let mut staging = load_staging(&mut term, root_dir, id_str);
     unimplemented!()
 }
 
 pub fn remove_output( mut term: Term
                     , root_dir: PathBuf
+                    , id_str: &str
                     )
 {
+    let mut staging = load_staging(&mut term, root_dir, id_str);
     unimplemented!()
 }
 

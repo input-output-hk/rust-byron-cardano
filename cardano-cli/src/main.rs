@@ -781,19 +781,19 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("add-input", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::add_input(term, root_dir);
+            transaction::commands::add_input(term, root_dir, id);
         },
         ("add-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::add_output(term, root_dir);
+            transaction::commands::add_output(term, root_dir, id);
         },
         ("rm-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::remove_output(term, root_dir);
+            transaction::commands::remove_output(term, root_dir, id);
         },
         ("rm-input", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::remove_input(term, root_dir);
+            transaction::commands::remove_input(term, root_dir, id);
         },
         ("status", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
