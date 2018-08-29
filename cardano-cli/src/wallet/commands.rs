@@ -7,7 +7,7 @@ use std::{path::PathBuf, io::Write};
 use cardano::{hdwallet::{self, DerivationScheme}, address::ExtendedAddr, wallet, bip::bip39, block::{BlockDate}};
 use rand::random;
 
-use utils::term::{Term, style::{Style}};
+use utils::{term::{Term, style::{Style}}, prompt};
 
 use blockchain::{self, Blockchain};
 use serde;
@@ -142,10 +142,9 @@ pub fn recover<D>( mut term: Term
     term.info("enter your mnemonics\n").unwrap();
 
     let (string, _, entropy) = if interactive {
-        super::utils::prompt::mnemonics::interactive_input_words(&mut term, &language, mnemonic_size)
+        prompt::mnemonics::interactive_input_words(&mut term, &language, mnemonic_size)
     } else {
-        super::utils::prompt::mnemonics::input_mnemonic_phrase(&mut term, &language, mnemonic_size)
-
+        prompt::mnemonics::input_mnemonic_phrase(&mut term, &language, mnemonic_size)
     };
 
     // 3. perform the seed generation from the entropy
