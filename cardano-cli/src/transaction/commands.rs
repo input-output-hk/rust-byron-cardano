@@ -25,7 +25,22 @@ pub fn list( mut term: Term
            , root_dir: PathBuf
            )
 {
-    unimplemented!()
+    let transactions_dir = core::config::transaction_directory(root_dir.clone());
+
+    for entry in ::std::fs::read_dir(transactions_dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_dir() {
+            term.warn(&format!("unexpected directory in transaction directory: {:?}", entry.path())).unwrap();
+            continue;
+        }
+        let name = entry.file_name().into_string().unwrap_or_else(|err| {
+            panic!("invalid utf8... {:?}", err)
+        });
+
+        let staging = load_staging(&mut term, root_dir.clone(), name.as_str());
+
+        writeln!(term, "{}", style!(staging.id())).unwrap();
+    }
 }
 
 pub fn destroy( mut term: Term
