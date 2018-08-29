@@ -68,9 +68,6 @@ impl Operation {
 /// transaction later on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Input {
-    /// the name of the wallet the Input is associated from
-    pub wallet: String,
-
     /// the transaction Id, along with the index in the transaction
     /// this will be enough to retrieve the exact transaction from
     /// the wallet logs
@@ -99,12 +96,6 @@ impl Input {
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Output {
-    /// The wallet name where we are sending funds to.
-    ///
-    /// while not strictly necessary this will be handy to have for debug
-    /// purpose.
-    pub wallet: String,
-
     /// the address we are sending funds to.
     pub address: ExtendedAddr,
 
