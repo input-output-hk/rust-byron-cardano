@@ -16,7 +16,7 @@ pub struct UTxO<A> {
     /// in which transaction of the blockchain the unspent output (TxOut)
     /// is.
     pub transaction_id: TxId,
-    /// a Transaction is a lift of inputs and outputs. `index_in_transaction`
+    /// a Transaction is a list of inputs and outputs. `index_in_transaction`
     /// is the index within the outputs of the unspent transaction.
     pub index_in_transaction: u32,
 
