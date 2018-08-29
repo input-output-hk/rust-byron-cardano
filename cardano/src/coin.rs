@@ -19,12 +19,15 @@ pub enum Error {
     /// Max bound being: `MAX_COIN`.
     OutOfBound(u64),
 
+    ParseIntError,
+
     Negative
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::OutOfBound(ref v) => write!(f, "Coin of value {} is out of bound. Max coin value: {}.", v, MAX_COIN),
+            &Error::ParseIntError     => write!(f, "Cannot parse a valid integer"),
             &Error::Negative          => write!(f, "Coin cannot hold a negative value"),
         }
     }
@@ -83,6 +86,16 @@ impl ::std::ops::Deref for Coin {
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)
+    }
+}
+impl ::std::str::FromStr for Coin {
+    type Err = Error;
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+        let v : u64 = match s.parse() {
+            Err(_) => return Err(Error::ParseIntError),
+            Ok(v) => v
+        };
+        Coin::new(v)
     }
 }
 impl cbor_event::se::Serialize for Coin {
