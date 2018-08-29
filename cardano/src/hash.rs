@@ -79,6 +79,12 @@ impl fmt::Display for Blake2b256 {
 impl From<[u8;HASH_SIZE]> for Blake2b256 {
     fn from(bytes: [u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
 }
+impl ::std::str::FromStr for Blake2b256 {
+    type Err = Error;
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+        Self::from_hex(s)
+    }
+}
 impl cbor_event::de::Deserialize for Blake2b256 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
