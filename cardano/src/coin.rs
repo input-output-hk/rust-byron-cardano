@@ -93,10 +93,7 @@ impl cbor_event::se::Serialize for Coin {
 impl cbor_event::de::Deserialize for Coin {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Coin::new(raw.unsigned_integer()?).map_err(|err| {
-            match err {
-                Error::OutOfBound(v) => cbor_event::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN)),
-                Error::Negative => cbor_event::Error::CustomError("coin cannot hold negative value".to_owned()),
-            }
+            cbor_event::Error::CustomError(format!("{}", err))
         })
     }
 }
