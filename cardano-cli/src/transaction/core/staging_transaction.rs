@@ -188,7 +188,7 @@ impl StagingTransaction {
     pub fn remove_input(&mut self, txin: TxIn) -> append::Result<()> {
         // we can only remove existing inputs
         assert!(
-            self.transaction.lookup_input(txin.clone()).is_none(),
+            self.transaction.lookup_input(txin.clone()).is_some(),
             "cannot remove input, it is not present in the transaction ({:#?})",
             txin
         );
