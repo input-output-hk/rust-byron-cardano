@@ -762,17 +762,21 @@ fn transaction_argument_txid_definition<'a, 'b>() -> Arg<'a, 'b> {
 fn transaction_argument_index_definition<'a, 'b>() -> Arg<'a, 'b> {
     Arg::with_name("TRANSACTION_INDEX")
         .help("The index of the unspent output in the transaction")
-        .requires("TRANSACTION_AMOUNT")
 }
 fn transaction_argument_amount_definition<'a, 'b>() -> Arg<'a, 'b> {
     Arg::with_name("TRANSACTION_AMOUNT")
         .help("The value in lovelace")
 }
-fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32, cardano::coin::Coin)> {
+fn transaction_argument_txin_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32)> {
     if ! matches.is_present("TRANSACTION_TXID") { return None; }
     let txid = value_t!(matches, "TRANSACTION_TXID", cardano::tx::TxId).unwrap_or_else(|e| e.exit());
 
     let index = value_t!(matches, "TRANSACTION_INDEX", u32).unwrap_or_else(|e| e.exit());
+
+    Some((txid, index))
+}
+fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32, cardano::coin::Coin)> {
+    let (txid, index) = transaction_argument_txin_match(&matches)?;
     let coin = value_t!(matches, "TRANSACTION_AMOUNT", cardano::coin::Coin).unwrap_or_else(|e| e.exit());
 
     Some((txid, index, coin))
@@ -781,7 +785,6 @@ fn transaction_argument_address_definition<'a, 'b>() -> Arg<'a, 'b>
 {
     Arg::with_name("TRANSACTION_ADDRESS")
         .help("Address to send funds too")
-        .requires("TRANSACTION_AMOUNT")
 }
 fn transaction_argument_output_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::address::ExtendedAddr, cardano::coin::Coin)> {
     if ! matches.is_present("TRANSACTION_ADDRESS") { return None; }
@@ -831,11 +834,15 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("rm-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::remove_output(term, root_dir, id);
+            let address = value_t!(matches, "TRANSACTION_ADDRESS", cardano::address::ExtendedAddr).ok();
+
+            transaction::commands::remove_output(term, root_dir, id, address);
         },
         ("rm-input", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::remove_input(term, root_dir, id);
+            let txin = transaction_argument_txin_match(&matches);
+
+            transaction::commands::remove_input(term, root_dir, id, txin);
         },
         ("status", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -883,22 +890,25 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("Add an input to a transaction")
             .arg(transaction_argument_name_definition())
             .arg(transaction_argument_txid_definition())
-            .arg(transaction_argument_index_definition())
+            .arg(transaction_argument_index_definition().requires("TRANSACTION_AMOUNT"))
             .arg(transaction_argument_amount_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
             .about("Add an output to a transaction")
             .arg(transaction_argument_name_definition())
-            .arg(transaction_argument_address_definition())
+            .arg(transaction_argument_address_definition().requires("TRANSACTION_AMOUNT"))
             .arg(transaction_argument_amount_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
             .about("Remove an input to a transaction")
             .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_txid_definition())
+            .arg(transaction_argument_index_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmOutput.as_string())
             .about("Remove an output to a transaction")
             .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_address_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Status.as_string())
             .about("Status of a staging transaction")

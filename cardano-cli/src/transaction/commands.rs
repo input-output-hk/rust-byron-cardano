@@ -1,7 +1,7 @@
 use std::{path::PathBuf, io::Write};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
-use cardano::{tx::{TxId}, coin::{Coin}, address::{ExtendedAddr}};
+use cardano::{tx::{TxId, TxIn}, coin::{Coin}, address::{ExtendedAddr}};
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term
@@ -132,19 +132,44 @@ pub fn add_output( mut term: Term
 pub fn remove_input( mut term: Term
                    , root_dir: PathBuf
                    , id_str: &str
+                   , input: Option<(TxId, u32)>
                    )
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
-    unimplemented!()
+
+    let txin = if let Some(input) = input {
+        TxIn {
+            id: input.0,
+            index: input.1
+        }
+    } else {
+        // TODO, implement interactive mode
+        unimplemented!()
+    };
+
+    match staging.remove_input(txin) {
+        Err(err) => panic!("{:?}", err),
+        Ok(())   => ()
+    }
 }
 
 pub fn remove_output( mut term: Term
                     , root_dir: PathBuf
                     , id_str: &str
+                    , address: Option<ExtendedAddr>
                     )
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
-    unimplemented!()
+
+    if let Some(addr) = address {
+        match staging.remove_outputs_for(&addr) {
+            Err(err) => panic!("{:?}", err),
+            Ok(())   => ()
+        }
+    } else {
+        // TODO, implement interactive mode
+        unimplemented!()
+    };
 }
 
 pub fn export( mut term: Term
