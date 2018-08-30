@@ -766,7 +766,7 @@ fn transaction_argument_index_definition<'a, 'b>() -> Arg<'a, 'b> {
 }
 fn transaction_argument_amount_definition<'a, 'b>() -> Arg<'a, 'b> {
     Arg::with_name("TRANSACTION_AMOUNT")
-        .help("The value to expect in the input")
+        .help("The value in lovelace")
 }
 fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32, cardano::coin::Coin)> {
     if ! matches.is_present("TRANSACTION_TXID") { return None; }
@@ -776,6 +776,20 @@ fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(car
     let coin = value_t!(matches, "TRANSACTION_AMOUNT", cardano::coin::Coin).unwrap_or_else(|e| e.exit());
 
     Some((txid, index, coin))
+}
+fn transaction_argument_address_definition<'a, 'b>() -> Arg<'a, 'b>
+{
+    Arg::with_name("TRANSACTION_ADDRESS")
+        .help("Address to send funds too")
+        .requires("TRANSACTION_AMOUNT")
+}
+fn transaction_argument_output_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::address::ExtendedAddr, cardano::coin::Coin)> {
+    if ! matches.is_present("TRANSACTION_ADDRESS") { return None; }
+
+    let address = value_t!(matches, "TRANSACTION_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+    let coin = value_t!(matches, "TRANSACTION_AMOUNT", cardano::coin::Coin).unwrap_or_else(|e| e.exit());
+
+    Some((address, coin))
 }
 
 fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
@@ -811,7 +825,9 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("add-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::add_output(term, root_dir, id);
+            let output = transaction_argument_output_match(&matches);
+
+            transaction::commands::add_output(term, root_dir, id, output);
         },
         ("rm-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -873,6 +889,8 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
             .about("Add an output to a transaction")
             .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_address_definition())
+            .arg(transaction_argument_amount_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
             .about("Remove an input to a transaction")
