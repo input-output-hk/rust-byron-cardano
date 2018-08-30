@@ -1,7 +1,6 @@
 use storage::{containers::append, utils::lock::{self, Lock}};
 use cardano::{address::{ExtendedAddr}, tx::{TxIn}};
 use std::{path::PathBuf};
-use serde_yaml;
 
 use super::{config, StagingId, Operation, Transaction, Input, Output};
 use super::operation::{ParsingOperationError};
