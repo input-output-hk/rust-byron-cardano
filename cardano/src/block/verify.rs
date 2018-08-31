@@ -419,6 +419,7 @@ mod tests {
     use merkle;
     use address;
     use cbor_event;
+    use std::fmt::Debug;
 
     #[test]
     #[should_panic]
@@ -450,7 +451,9 @@ mod tests {
         coin::Coin::new(45_000_000_000_000_001).unwrap();
     }
 
-    fn expect_error<T>(res: &Result<T, Error>, expected: Error) {
+    fn expect_error<T, Error>(res: &Result<T, Error>, expected: Error)
+        where Error: Debug
+    {
         match res {
             Err(err) if mem::discriminant(&expected) == mem::discriminant(err) => {},
             Err(err) => panic!("Expected error {:?} but got {:?}", expected, err),
@@ -648,6 +651,14 @@ mod tests {
                 mblk.body.delegation = cbor_event::Value::U64(123);
             }
             expect_error(&verify_block(pm, &hash2, &blk), Error::WrongDelegationProof);
+        }
+
+        // add trailing data
+        {
+            let mut rblk = BLOCK1.to_vec();
+            rblk.push(123);
+            let rblk = RawBlock(rblk);
+            expect_error(&rblk.decode(), cbor_event::Error::TrailingData);
         }
 
         // TODO: SelfSignedPSK, WrongGenesisProof
