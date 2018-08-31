@@ -345,7 +345,7 @@ pub fn cat( mut term: Term
 
         let blk = rblk.decode().unwrap();
         if debug {
-            println!("{:?}", blk);
+            writeln!(term, "{:#?}", blk).unwrap();
         } else {
             blk.pretty(&mut term, 0).unwrap();
         }
@@ -458,7 +458,7 @@ pub fn verify_chain( mut term: Term
         let rblk = rblk.unwrap();
         let blk = rblk.decode().unwrap();
         let hash = blk.get_header().compute_hash();
-        println!("block {} {}", hash, blk.get_header().get_blockdate());
+        writeln!(term, "block {} {}", hash, blk.get_header().get_blockdate()).unwrap();
         match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &blk) {
             Ok(()) => {},
             Err(err) => {
