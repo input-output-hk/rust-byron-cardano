@@ -8,18 +8,18 @@ use super::operation::{ParsingOperationError};
 pub struct StagingTransaction {
     /// the unique Staging ID associated to this staging
     /// transaction
-    id: StagingId,
+    pub id: StagingId,
 
     /// keep the vector of operations associated to this transaction
-    operations: Vec<Operation>,
+    pub operations: Vec<Operation>,
 
     /// the transaction under construction
-    transaction: Transaction,
+    pub transaction: Transaction,
 
     /// keep a lock to the staging transaction file for as long as this object
     /// exist. This will prevent having code that opens the same staging
     /// transaction multiple time.
-    writer: append::Writer
+    pub writer: append::Writer
 }
 
 const MAGIC_TRANSACTION_V1 : &'static [u8] = b"TRANSACTION_V1";
@@ -95,6 +95,14 @@ impl StagingTransaction {
 
     /// get the transaction
     pub fn transaction(&self) -> &Transaction { &self.transaction }
+
+    pub fn is_finalizing_pending(&self) -> bool {
+        self.transaction().is_finalizing_pending()
+    }
+
+    pub fn to_tx_aux(&self) -> TxAux {
+        self.transaction().to_tx_aux()
+    }
 
     /// retrieve a `StagingTransaction` from the given staging id. It will
     /// try to lock the staging file, to parse it and apply every operations
