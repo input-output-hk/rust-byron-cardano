@@ -105,3 +105,19 @@ pub struct Output {
     /// The desired amount to send to the associated address
     pub amount: Coin
 }
+impl From<Output> for TxOut {
+    fn from(o: Output) -> Self {
+        TxOut {
+            address: o.address,
+            value: o.amount
+        }
+    }
+}
+impl<'a> From<&'a Output> for TxOut {
+    fn from(o: &'a Output) -> Self {
+        TxOut {
+            address: o.address.clone(),
+            value: o.amount
+        }
+    }
+}
