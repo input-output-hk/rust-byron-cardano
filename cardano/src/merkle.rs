@@ -39,7 +39,9 @@ impl MerkleNode {
     fn make_tree<T>(xs: &[T]) -> Self
         where T: se::Serialize
     {
-        if xs.len() == 1 {
+        if xs.is_empty() {
+            panic!("make_tree applied to empty list")
+        } else if xs.len() == 1 {
             let mut bs = vec![0u8];
             xs[0].serialize(se::Serializer::new(&mut bs)).unwrap();
             MerkleNode::Leaf(Hash::new(&bs))
