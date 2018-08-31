@@ -275,8 +275,9 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
             let name = blockchain_argument_name_match(&matches);
             let hash = matches.value_of("HASH_BLOCK").unwrap();
             let no_parse = matches.is_present("BLOCK_NO_PARSE");
+            let debug = matches.is_present("DEBUG");
 
-            blockchain::commands::cat(term, root_dir, name, hash, no_parse);
+            blockchain::commands::cat(term, root_dir, name, hash, no_parse, debug);
         },
         ("status", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
@@ -397,6 +398,10 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .arg(Arg::with_name("BLOCK_NO_PARSE")
                 .long("no-parse")
                 .help("don't parse the block, flush the bytes direct to the standard output (not subject to `--quiet' option)")
+            )
+            .arg(Arg::with_name("DEBUG")
+                .long("debug")
+                .help("dump the block in debug format")
             )
         )
         .subcommand(SubCommand::with_name("status")

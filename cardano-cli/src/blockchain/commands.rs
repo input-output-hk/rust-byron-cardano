@@ -331,6 +331,7 @@ pub fn cat( mut term: Term
           , name: String
           , hash_str: &str
           , no_parse: bool
+          , debug: bool
           )
 {
     let blockchain = Blockchain::load(root_dir.clone(), name.clone());
@@ -343,7 +344,11 @@ pub fn cat( mut term: Term
         use utils::pretty::Pretty;
 
         let blk = rblk.decode().unwrap();
-        blk.pretty(&mut term, 0).unwrap();
+        if debug {
+            println!("{:?}", blk);
+        } else {
+            blk.pretty(&mut term, 0).unwrap();
+        }
     }
 }
 
