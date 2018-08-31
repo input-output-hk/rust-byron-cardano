@@ -88,6 +88,11 @@ pub fn add_input( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
+    if staging.is_finalizing_pending() {
+        term.error("Cannot add input to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
+
     let input = if let Some(input) = input {
         core::Input {
             transaction_id: input.0,
@@ -113,6 +118,11 @@ pub fn add_output( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
+    if staging.is_finalizing_pending() {
+        term.error("Cannot add output to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
+
     let output = if let Some(output) = output {
         core::Output {
             address: output.0,
@@ -137,6 +147,11 @@ pub fn remove_input( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
+    if staging.is_finalizing_pending() {
+        term.error("Cannot remove input to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
+
     let txin = if let Some(input) = input {
         TxIn {
             id: input.0,
@@ -160,6 +175,11 @@ pub fn remove_output( mut term: Term
                     )
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
+
+    if staging.is_finalizing_pending() {
+        term.error("Cannot remove output to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
 
     if let Some(addr) = address {
         match staging.remove_outputs_for(&addr) {
