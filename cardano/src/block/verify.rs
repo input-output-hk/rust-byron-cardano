@@ -42,6 +42,10 @@ impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::EncodingError(e) }
 }
 
+pub trait Verify {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
+}
+
 pub fn verify_block(protocol_magic: ProtocolMagic,
                     block_hash: &HeaderHash,
                     blk: &Block) -> Result<(), Error>
@@ -49,168 +53,11 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
     match blk {
 
         Block::GenesisBlock(blk) => {
-            let hdr = &blk.header;
-
-            if hdr.protocol_magic != protocol_magic {
-                return Err(Error::WrongMagic);
-            }
-
-            // check body proof
-            if hash::Blake2b256::new(&cbor!(&blk.body).unwrap()) != hdr.body_proof.0 {
-                return Err(Error::WrongGenesisProof);
-            }
+            blk.verify(protocol_magic)?;
         },
 
         Block::MainBlock(blk) => {
-
-            let hdr = &blk.header;
-            let body = &blk.body;
-
-            if hdr.protocol_magic != protocol_magic {
-                return Err(Error::WrongMagic);
-            }
-
-            // check extra data
-
-            // Note: the application name length restriction is
-            // enforced by the SoftwareVersion constructor.
-
-            // check tx
-            body.tx.iter().try_for_each(|txaux| txaux.verify(protocol_magic))?;
-
-            // check ssc
-            body.ssc.get_vss_certificates().verify(protocol_magic)?;
-
-            // check delegation
-
-            // check update
-            if let Some(proposal) = &body.update.proposal {
-                proposal.verify(protocol_magic)?;
-            }
-
-            body.update.votes.iter().try_for_each(|vote| vote.verify(protocol_magic))?;
-
-            // check tx merkle root
-            let mut txs = vec![];
-            for txaux in body.tx.iter() {
-                txs.push(&txaux.tx);
-            }
-            let merkle_root = merkle::MerkleTree::new(&txs).get_root_hash();
-            if merkle_root != hdr.body_proof.tx.root {
-                return Err(Error::WrongMerkleRoot);
-            }
-
-            // check tx proof
-            if hdr.body_proof.tx.number as usize != body.tx.len() {
-                return Err(Error::WrongTxProof);
-            }
-
-            let mut witnesses = vec![];
-            for txaux in body.tx.iter() {
-                let mut in_witnesses = vec![];
-                for in_witness in txaux.witness.iter() {
-                    in_witnesses.push(in_witness.clone());
-                }
-                witnesses.push(tx::TxWitness::new(in_witnesses));
-            }
-            if hash::Blake2b256::new(&cbor!(&tx::TxWitnesses::new(witnesses)).unwrap()) != hdr.body_proof.tx.witnesses_hash {
-                return Err(Error::WrongTxProof);
-            }
-
-            // check mpc proof
-            match hdr.body_proof.mpc {
-                SscProof::Commitments(h1, h2) => {
-                    match &body.ssc {
-                        SscPayload::CommitmentsPayload(commitments, vss_certs) => {
-                            if hash::Blake2b256::new(&cbor!(&commitments).unwrap()) != h1
-                                || hash_vss_certs(&vss_certs) != h2
-                            {
-                                return Err(Error::WrongMpcProof);
-                            }
-                        },
-                        _ => return Err(Error::WrongMpcProof)
-                    };
-                },
-                SscProof::Openings(h1, h2) => {
-                    match &body.ssc {
-                        SscPayload::OpeningsPayload(openings_map, vss_certs) => {
-                            if hash::Blake2b256::new(&cbor!(&openings_map).unwrap()) != h1
-                                || hash_vss_certs(&vss_certs) != h2
-                            {
-                                return Err(Error::WrongMpcProof);
-                            }
-                        },
-                        _ => return Err(Error::WrongMpcProof)
-                    };
-                },
-                SscProof::Shares(h1, h2) => {
-                    match &body.ssc {
-                        SscPayload::SharesPayload(shares_map, vss_certs) => {
-                            if hash::Blake2b256::new(&cbor!(&shares_map).unwrap()) != h1
-                                || hash_vss_certs(&vss_certs) != h2
-                            {
-                                return Err(Error::WrongMpcProof);
-                            }
-                        },
-                        _ => return Err(Error::WrongMpcProof)
-                    };
-                },
-                SscProof::Certificate(h) => {
-                    match &body.ssc {
-                        SscPayload::CertificatesPayload(vss_certs) => {
-                            if hash_vss_certs(&vss_certs) != h
-                            {
-                                return Err(Error::WrongMpcProof);
-                            }
-                        },
-                        _ => return Err(Error::WrongMpcProof)
-                    };
-                },
-            };
-
-            // check delegation proof
-            if hash::Blake2b256::new(&cbor!(&body.delegation).unwrap()) != hdr.body_proof.proxy_sk {
-                return Err(Error::WrongDelegationProof);
-            }
-
-            // check update proof
-            if hash::Blake2b256::new(&cbor!(&body.update).unwrap()) != hdr.body_proof.update {
-                return Err(Error::WrongUpdateProof);
-            }
-
-            // check extra data proof
-            if hash::Blake2b256::new(&cbor!(&blk.extra).unwrap()) != hdr.extra_data.extra_data_proof {
-                return Err(Error::WrongExtraDataProof);
-            }
-
-            // check consensus
-
-            // FIXME: check slotid?
-
-            match &hdr.consensus.block_signature {
-                BlockSignature::Signature(_) => panic!("not implemented"),
-                BlockSignature::ProxyLight(_) => panic!("not implemented"),
-                BlockSignature::ProxyHeavy(proxy_sig) => {
-
-                    // check against self-signed PSKs
-                    if proxy_sig.psk.issuer_pk == proxy_sig.psk.delegate_pk {
-                        return Err(Error::SelfSignedPSK);
-                    }
-
-                    // verify the signature
-                    let to_sign = MainToSign {
-                        previous_header: &hdr.previous_header,
-                        body_proof: &hdr.body_proof,
-                        slot: &hdr.consensus.slot_id,
-                        chain_difficulty: &hdr.consensus.chain_difficulty,
-                        extra_data: &hdr.extra_data,
-                    };
-
-                    if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
-                        return Err(Error::BadBlockSig);
-                    }
-                }
-            }
+            blk.verify(protocol_magic)?;
         }
     };
 
@@ -219,6 +66,185 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
     }
 
     Ok(())
+}
+
+impl Verify for genesis::Block {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+        let hdr = &self.header;
+
+        if hdr.protocol_magic != protocol_magic {
+            return Err(Error::WrongMagic);
+        }
+
+        // check body proof
+        if hash::Blake2b256::new(&cbor!(&self.body).unwrap()) != hdr.body_proof.0 {
+            return Err(Error::WrongGenesisProof);
+        }
+
+        Ok(())
+    }
+}
+
+impl Verify for normal::Block {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+        let hdr = &self.header;
+        let body = &self.body;
+
+        if hdr.protocol_magic != protocol_magic {
+            return Err(Error::WrongMagic);
+        }
+
+        // check extra data
+
+        // Note: the application name length restriction is
+        // enforced by the SoftwareVersion constructor.
+
+        // check tx
+        body.tx.iter().try_for_each(|txaux| txaux.verify(protocol_magic))?;
+
+        // check ssc
+        body.ssc.get_vss_certificates().verify(protocol_magic)?;
+
+        // check delegation
+        // TODO
+
+        // check update
+        body.update.verify(protocol_magic)?;
+
+        // check tx merkle root
+        let mut txs = vec![];
+        for txaux in body.tx.iter() {
+            txs.push(&txaux.tx);
+        }
+        let merkle_root = merkle::MerkleTree::new(&txs).get_root_hash();
+        if merkle_root != hdr.body_proof.tx.root {
+            return Err(Error::WrongMerkleRoot);
+        }
+
+        // check tx proof
+        if hdr.body_proof.tx.number as usize != body.tx.len() {
+            return Err(Error::WrongTxProof);
+        }
+
+        let mut witnesses = vec![];
+        for txaux in body.tx.iter() {
+            let mut in_witnesses = vec![];
+            for in_witness in txaux.witness.iter() {
+                in_witnesses.push(in_witness.clone());
+            }
+            witnesses.push(tx::TxWitness::new(in_witnesses));
+        }
+        if hash::Blake2b256::new(&cbor!(&tx::TxWitnesses::new(witnesses)).unwrap()) != hdr.body_proof.tx.witnesses_hash {
+            return Err(Error::WrongTxProof);
+        }
+
+        // check mpc proof
+        match hdr.body_proof.mpc {
+            SscProof::Commitments(h1, h2) => {
+                match &body.ssc {
+                    SscPayload::CommitmentsPayload(commitments, vss_certs) => {
+                        if hash::Blake2b256::new(&cbor!(&commitments).unwrap()) != h1
+                            || hash_vss_certs(&vss_certs) != h2
+                        {
+                            return Err(Error::WrongMpcProof);
+                        }
+                    },
+                    _ => return Err(Error::WrongMpcProof)
+                };
+            },
+            SscProof::Openings(h1, h2) => {
+                match &body.ssc {
+                    SscPayload::OpeningsPayload(openings_map, vss_certs) => {
+                        if hash::Blake2b256::new(&cbor!(&openings_map).unwrap()) != h1
+                            || hash_vss_certs(&vss_certs) != h2
+                        {
+                            return Err(Error::WrongMpcProof);
+                        }
+                    },
+                    _ => return Err(Error::WrongMpcProof)
+                };
+            },
+            SscProof::Shares(h1, h2) => {
+                match &body.ssc {
+                    SscPayload::SharesPayload(shares_map, vss_certs) => {
+                        if hash::Blake2b256::new(&cbor!(&shares_map).unwrap()) != h1
+                            || hash_vss_certs(&vss_certs) != h2
+                        {
+                            return Err(Error::WrongMpcProof);
+                        }
+                    },
+                    _ => return Err(Error::WrongMpcProof)
+                };
+            },
+            SscProof::Certificate(h) => {
+                match &body.ssc {
+                    SscPayload::CertificatesPayload(vss_certs) => {
+                        if hash_vss_certs(&vss_certs) != h
+                        {
+                            return Err(Error::WrongMpcProof);
+                        }
+                    },
+                    _ => return Err(Error::WrongMpcProof)
+                };
+            },
+        };
+
+        // check delegation proof
+        if hash::Blake2b256::new(&cbor!(&body.delegation).unwrap()) != hdr.body_proof.proxy_sk {
+            return Err(Error::WrongDelegationProof);
+        }
+
+        // check update proof
+        if hash::Blake2b256::new(&cbor!(&body.update).unwrap()) != hdr.body_proof.update {
+            return Err(Error::WrongUpdateProof);
+        }
+
+        // check extra data proof
+        if hash::Blake2b256::new(&cbor!(&self.extra).unwrap()) != hdr.extra_data.extra_data_proof {
+            return Err(Error::WrongExtraDataProof);
+        }
+
+        // check consensus
+        // FIXME: check slotid?
+        match &hdr.consensus.block_signature {
+            BlockSignature::Signature(_) => panic!("not implemented"),
+            BlockSignature::ProxyLight(_) => panic!("not implemented"),
+            BlockSignature::ProxyHeavy(proxy_sig) => {
+
+                // check against self-signed PSKs
+                if proxy_sig.psk.issuer_pk == proxy_sig.psk.delegate_pk {
+                    return Err(Error::SelfSignedPSK);
+                }
+
+                // verify the signature
+                let to_sign = MainToSign {
+                    previous_header: &hdr.previous_header,
+                    body_proof: &hdr.body_proof,
+                    slot: &hdr.consensus.slot_id,
+                    chain_difficulty: &hdr.consensus.chain_difficulty,
+                    extra_data: &hdr.extra_data,
+                };
+
+                if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
+                    return Err(Error::BadBlockSig);
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Verify for update::UpdatePayload {
+    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+        if let Some(proposal) = &self.proposal {
+            proposal.verify(protocol_magic)?;
+        }
+
+        self.votes.iter().try_for_each(|vote| vote.verify(protocol_magic))?;
+
+        Ok(())
+    }
 }
 
 fn hash_vss_certs(vss_certs: &VssCertificates) -> hash::Blake2b256 {
@@ -267,10 +293,6 @@ pub fn verify_proxy_sig<T>(
 
     proxy_sig.psk.delegate_pk.verify(
         &buf, &Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
-}
-
-pub trait Verify {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
 }
 
 impl Verify for tx::TxAux {
