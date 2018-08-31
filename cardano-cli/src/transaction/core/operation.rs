@@ -1,4 +1,4 @@
-use cardano::{tx::{TxId, TxIn}, coin::{Coin}, address::{ExtendedAddr}};
+use cardano::{tx::{TxId, TxOut, TxIn, TxInWitness}, coin::{Coin}, address::{ExtendedAddr}};
 use serde_yaml;
 
 #[derive(Debug)]
@@ -34,6 +34,9 @@ pub enum Operation {
     /// transaction's outputs.
     ///
     RemoveOutput(u32),
+
+    /// add a transaction signature
+    Signature(TxInWitness)
 }
 impl Operation {
     // For now, Operation will be serialised in YAML (thanks to serde).

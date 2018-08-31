@@ -1,5 +1,5 @@
 use super::{Operation, Input, Output};
-use cardano::{tx::{TxIn}};
+use cardano::{tx::{Tx, TxIn, TxInWitness, TxAux}};
 
 /// describe a transaction in its most reduce representation
 ///
@@ -18,13 +18,15 @@ use cardano::{tx::{TxIn}};
 pub struct Transaction {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
+    pub witnesses: Vec<TxInWitness>,
 }
 impl Transaction {
     /// create an empty transaction
     pub fn new() -> Self {
         Transaction {
             inputs: Vec::new(),
-            outputs: Vec::new()
+            outputs: Vec::new(),
+            witnesses: Vec::new()
         }
     }
 
@@ -34,7 +36,8 @@ impl Transaction {
             Operation::AddInput(input)     => self.inputs.push(input),
             Operation::AddOutput(output)   => self.outputs.push(output),
             Operation::RemoveInput(txin)   => self.remove_input(txin),
-            Operation::RemoveOutput(index) => self.remove_output(index)
+            Operation::RemoveOutput(index) => self.remove_output(index),
+            Operation::Signature(witness)  => self.witnesses.push(witness)
         }
 
         self
@@ -46,6 +49,22 @@ impl Transaction {
     /// accessor to all of the transaction's outputs. Ordered as it is in the
     /// transaction.
     pub fn outputs<'a>(&'a self) -> &'a [Output] { self.outputs.as_ref() }
+
+    pub fn signature<'a>(&'a self) -> &'a [TxInWitness] { self.witnesses.as_ref() }
+
+    pub fn is_finalizing_pending(&self) -> bool { ! self.signature().is_empty() }
+
+    pub fn to_tx_aux(&self) -> TxAux {
+        let tx = Tx::new_with(
+            self.inputs.iter().map(|i| i.extract_txin()).collect(),
+            self.outputs.iter().map(|o| o.into()).collect()
+        );
+
+        TxAux {
+            tx: tx,
+            witnesses: self.witnesses.clone()
+        }
+    }
 
     fn remove_output(&mut self, index: u32) {
         let output = self.outputs.remove(index as usize);
