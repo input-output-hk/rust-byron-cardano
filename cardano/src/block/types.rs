@@ -69,27 +69,31 @@ impl Default for BlockVersion {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct SoftwareVersion {
-    pub application_name: String,
+    application_name: String,
     pub application_version: u32
 }
 
 const MAX_APPLICATION_NAME_LENGTH : usize = 12;
 
 impl SoftwareVersion {
-    pub fn new(name: String, version: u32) -> cbor_event::Result<Self> {
+    pub fn new(name: &str, version: u32) -> cbor_event::Result<Self> {
         if name.len() > MAX_APPLICATION_NAME_LENGTH {
             return Err(cbor_event::Error::CustomError(format!("Received application name '{}' is too long", name)));
         }
         Ok(SoftwareVersion {
-            application_name: name,
+            application_name: name.to_string(),
             application_version: version
         })
+    }
+
+    pub fn application_name(&self) -> &String {
+        &self.application_name
     }
 }
 impl Default for SoftwareVersion {
     fn default() -> Self {
         SoftwareVersion::new(
-            env!("CARGO_PKG_NAME").to_string(),
+            env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap()
         ).unwrap()
     }
@@ -216,7 +220,7 @@ impl cbor_event::de::Deserialize for SoftwareVersion {
         let name  = raw.text()?;
         let version = raw.unsigned_integer()? as u32;
 
-        Ok(SoftwareVersion::new(name.to_string(), version)?)
+        Ok(SoftwareVersion::new(&name, version)?)
     }
 }
 

@@ -418,18 +418,28 @@ pub fn verify_block( mut term: Term
     let blockchain = Blockchain::load(root_dir, name);
     let hash = super::config::parse_block_hash(&mut term, &hash_str);
     let rblk = get_block(&mut term, &blockchain, hash_str);
-    match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &rblk) {
-        Ok(()) => {
-            term.success("Ok").unwrap();
-            term.simply("\n").unwrap();
-        }
+    match rblk.decode() {
+        Ok(blk) => {
+            match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &blk) {
+                Ok(()) => {
+                    term.success("Ok").unwrap();
+                    term.simply("\n").unwrap();
+                }
+                Err(err) => {
+                    term.error("Error: ").unwrap();
+                    term.simply(&format!("{:?}", err)).unwrap();
+                    term.simply("\n").unwrap();
+                    ::std::process::exit(1);
+                }
+            };
+        },
         Err(err) => {
             term.error("Error: ").unwrap();
             term.simply(&format!("{:?}", err)).unwrap();
             term.simply("\n").unwrap();
             ::std::process::exit(1);
         }
-    };
+    }
 }
 
 pub fn verify_chain( mut term: Term
@@ -449,7 +459,7 @@ pub fn verify_chain( mut term: Term
         let blk = rblk.decode().unwrap();
         let hash = blk.get_header().compute_hash();
         println!("block {} {}", hash, blk.get_header().get_blockdate());
-        match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &rblk) {
+        match cardano::block::verify_block(blockchain.config.protocol_magic, &hash, &blk) {
             Ok(()) => {},
             Err(err) => {
                 bad_blocks += 1;

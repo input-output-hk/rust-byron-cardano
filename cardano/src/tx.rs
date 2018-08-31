@@ -334,6 +334,10 @@ impl ::std::ops::Deref for TxWitness {
     fn deref(&self) -> &Self::Target { &self.in_witnesses }
 }
 
+impl ::std::ops::DerefMut for TxWitness {
+    fn deref_mut(&mut self) -> &mut Vec<TxInWitness> { &mut self.in_witnesses }
+}
+
 impl cbor_event::de::Deserialize for TxWitness {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Ok(TxWitness::new(cbor_event::de::Deserialize::deserialize(raw)?))
@@ -356,7 +360,7 @@ pub fn txwitness_serialize<W>(in_witnesses: &Vec<TxInWitness>, serializer: Seria
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxWitnesses {
-    pub witnesses: Vec<TxWitness>
+    pub witnesses: Vec<TxWitness> // FIXME: rename to in_witnesses
 }
 
 impl TxWitnesses {
@@ -381,7 +385,7 @@ impl cbor_event::se::Serialize for TxWitnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
-    pub witnesses: TxWitness,
+    pub witnesses: TxWitness, // FIXME: rename to witness
 }
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

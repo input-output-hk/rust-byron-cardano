@@ -78,8 +78,11 @@ impl IntoIterator for TxPayload {
     }
 }
 impl ::std::ops::Deref for TxPayload {
-    type Target = [tx::TxAux];
-    fn deref(&self) -> &Self::Target { self.txaux.deref() }
+    type Target = Vec<tx::TxAux>;
+    fn deref(&self) -> &Self::Target { &self.txaux }
+}
+impl ::std::ops::DerefMut for TxPayload {
+    fn deref_mut(&mut self) -> &mut Vec<tx::TxAux> { &mut self.txaux }
 }
 impl cbor_event::se::Serialize for TxPayload {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
@@ -403,8 +406,8 @@ impl cbor_event::de::Deserialize for DecShare {
 #[derive(Debug, Clone)]
 pub struct VssCertificates(Vec<VssCertificate>);
 impl VssCertificates {
-    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
-        self.0.iter()
+    pub fn new(vss_certs: Vec<VssCertificate>) -> Self {
+        VssCertificates(vss_certs)
     }
 
     // For historical reasons, SSC proofs are computed by hashing the
@@ -420,6 +423,16 @@ impl VssCertificates {
         cbor_event::se::serialize_fixed_map(hash.iter(), serializer)
     }
 }
+
+impl ::std::ops::Deref for VssCertificates {
+    type Target = Vec<VssCertificate>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl ::std::ops::DerefMut for VssCertificates {
+    fn deref_mut(&mut self) -> &mut Vec<VssCertificate> { &mut self.0 }
+}
+
 impl cbor_event::se::Serialize for VssCertificates {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_set_tag()?)
@@ -487,7 +500,7 @@ impl BlockHeader {
             consensus: c,
             extra_data: ed
         }
-}
+    }
 }
 impl cbor_event::se::Serialize for BlockHeader {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
