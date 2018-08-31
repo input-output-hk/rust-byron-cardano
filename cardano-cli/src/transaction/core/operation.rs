@@ -39,21 +39,21 @@ pub enum Operation {
     Signature(TxInWitness)
 }
 impl Operation {
-    // For now, Operation will be serialised in YAML (thanks to serde).
+    // For now, Operation will be serialized in YAML (thanks to serde).
     //
     // This will make parsing the data easier (we don't have to code any
     // custom format) and the debugging of the data too (we can open the file
     // and check what is being written)
 
 
-    /// serialisation of the operation within the transaction
+    /// serialization of the operation within the transaction
     ///
     /// This is mainly for internal purpose only
     pub fn serialize(&self) -> Vec<u8> {
         serde_yaml::to_vec(self).unwrap()
     }
 
-    /// deserialisation of the operation within the transaction
+    /// deserialization of the operation within the transaction
     pub fn deserialize(bytes: &[u8]) -> Result<Self, ParsingOperationError> {
         serde_yaml::from_slice(bytes).map_err(|e|
             ParsingOperationError::Yaml(format!("operation format error: {:?}", e))
