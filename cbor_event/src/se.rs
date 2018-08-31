@@ -469,7 +469,8 @@ impl<W: Write+Sized> Serializer<W> {
         self.write_type(Type::Tag, tag)
     }
 
-    /// write a tag that indicates that the following list is a finite set
+    /// Write a tag that indicates that the following list is a finite
+    /// set. See https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml.
     pub fn write_set_tag(self) -> Result<Self> {
         self.write_type(Type::Tag, 258)
     }
