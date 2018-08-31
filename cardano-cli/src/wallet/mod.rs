@@ -12,7 +12,7 @@ use self::config::{decrypt_primary_key};
 
 use self::state::log::{LogLock, LogWriter};
 
-use std::{path::PathBuf, fs, io::{Read, Write}};
+use std::{path::PathBuf, fs, io::{Read, Write}, collections::{BTreeMap}};
 use cardano::{wallet, hdwallet::{XPub, XPUB_SIZE}};
 use storage::utils::{tmpfile::{TmpFile}};
 use serde_yaml;
@@ -172,4 +172,43 @@ impl Wallet {
             root_key
         ))
     }
+}
+
+pub struct Wallets(BTreeMap<String, Wallet>);
+impl Wallets {
+    pub fn new() -> Self { Wallets(BTreeMap::new())}
+
+    pub fn load(root_dir: PathBuf) -> Result<Self> {
+        let mut wallets = Wallets::new();
+
+        let wallets_dir = config::wallet_directory(&root_dir);
+        for entry in ::std::fs::read_dir(wallets_dir).unwrap() {
+            let entry = entry.unwrap();
+            if ! entry.file_type().unwrap().is_dir() {
+                warn!("unexpected file in wallet directory: {:?}", entry.path());
+                continue;
+            }
+            let name = entry.file_name().into_string().unwrap_or_else(|err| {
+                panic!("invalid utf8... {:?}", err)
+            });
+
+            // load the wallet
+            let wallet = Wallet::load(root_dir.clone(), name);
+
+            wallets.insert(wallet.name.clone(), wallet);
+        }
+        Ok(wallets)
+    }
+}
+impl ::std::ops::Deref for Wallets {
+    type Target = BTreeMap<String, Wallet>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+impl ::std::ops::DerefMut for Wallets {
+    fn deref_mut(& mut self) -> &mut Self::Target { &mut self.0 }
+}
+impl IntoIterator for Wallets {
+    type Item     = <BTreeMap<String, Wallet> as IntoIterator>::Item;
+    type IntoIter = <BTreeMap<String, Wallet> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }

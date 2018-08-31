@@ -1,5 +1,5 @@
 use super::config::{encrypt_primary_key, Config, HDWalletModel};
-use super::{Wallet};
+use super::{Wallet, Wallets};
 use super::state::{log, state, lookup, ptr, iter::TransactionIterator, utxo::UTxO};
 use super::error::{Error};
 
@@ -17,20 +17,8 @@ pub fn list( mut term: Term
            , detailed: bool
            )
 {
-    let wallets_dir = super::config::wallet_directory(&root_dir);
-    for entry in ::std::fs::read_dir(wallets_dir).unwrap() {
-        let entry = entry.unwrap();
-        if ! entry.file_type().unwrap().is_dir() {
-            term.warn(&format!("unexpected file in wallet directory: {:?}", entry.path())).unwrap();
-            continue;
-        }
-        let name = entry.file_name().into_string().unwrap_or_else(|err| {
-            panic!("invalid utf8... {:?}", err)
-        });
-
-        // load the wallet
-        let wallet = Wallet::load(root_dir.clone(), name);
-
+    let wallets = Wallets::load(root_dir.clone()).unwrap();
+    for (_, wallet) in wallets {
         let detail = if detailed {
             if let Some(blk_name) = &wallet.config.attached_blockchain {
                 // 1. get the wallet's blockchain
