@@ -108,7 +108,7 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
             let mut witnesses = vec![];
             for txaux in body.tx.iter() {
                 let mut in_witnesses = vec![];
-                for in_witness in txaux.witnesses.iter() {
+                for in_witness in txaux.witness.iter() {
                     in_witnesses.push(in_witness.clone());
                 }
                 witnesses.push(tx::TxWitness::new(in_witnesses));
@@ -306,12 +306,12 @@ impl Verify for tx::TxAux {
         // TODO: check address attributes?
 
         // verify transaction witnesses
-        if self.witnesses.is_empty() {
+        if self.witness.is_empty() {
             return Err(Error::NoTxWitnesses);
         }
 
-        self.witnesses.iter().try_for_each(|witness| {
-            if !witness.verify_tx(protocol_magic, &self.tx) {
+        self.witness.iter().try_for_each(|in_witness| {
+            if !in_witness.verify_tx(protocol_magic, &self.tx) {
                 return Err(Error::BadTxWitness);
             }
             Ok(())
@@ -527,7 +527,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].witnesses.clear();
+                mblk.body.tx[0].witness.clear();
             }
             expect_error(&verify_block(pm, &hash, &blk), Error::NoTxWitnesses);
         }

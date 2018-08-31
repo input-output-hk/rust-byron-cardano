@@ -135,7 +135,7 @@ impl Pretty for tx::TxAux {
         where W: Write
     {
         pretty_object(f, indent, "tx", self.tx)?;
-        pretty_object(f, indent, "witnesses", self.witnesses.in_witnesses)?;
+        pretty_object(f, indent, "witnesses", self.witness.in_witnesses)?;
         Ok(())
     }
 }

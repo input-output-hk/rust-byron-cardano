@@ -360,18 +360,18 @@ pub fn txwitness_serialize<W>(in_witnesses: &Vec<TxInWitness>, serializer: Seria
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxWitnesses {
-    pub witnesses: Vec<TxWitness> // FIXME: rename to in_witnesses
+    pub in_witnesses: Vec<TxWitness>
 }
 
 impl TxWitnesses {
-    pub fn new(witnesses: Vec<TxWitness>) -> Self {
-        TxWitnesses { witnesses: witnesses }
+    pub fn new(in_witnesses: Vec<TxWitness>) -> Self {
+        TxWitnesses { in_witnesses: in_witnesses }
     }
 }
 
 impl ::std::ops::Deref for TxWitnesses {
     type Target = Vec<TxWitness>;
-    fn deref(&self) -> &Self::Target { &self.witnesses }
+    fn deref(&self) -> &Self::Target { &self.in_witnesses }
 }
 
 impl cbor_event::se::Serialize for TxWitnesses
@@ -385,40 +385,40 @@ impl cbor_event::se::Serialize for TxWitnesses
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
-    pub witnesses: TxWitness, // FIXME: rename to witness
+    pub witness: TxWitness,
 }
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Tx:\n{}", self.tx)?;
-        writeln!(f, "witnesses: {:?}\n", self.witnesses)
+        writeln!(f, "witnesses: {:?}\n", self.witness)
     }
 }
 impl TxAux {
-    pub fn new(tx: Tx, witnesses: TxWitness) -> Self {
-        TxAux { tx: tx, witnesses: witnesses }
+    pub fn new(tx: Tx, witness: TxWitness) -> Self {
+        TxAux { tx: tx, witness: witness }
     }
 }
 impl cbor_event::de::Deserialize for TxAux {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         raw.tuple(2, "TxAux")?;
         let tx = cbor_event::de::Deserialize::deserialize(raw)?;
-        let witnesses = cbor_event::de::Deserialize::deserialize(raw)?;
-        Ok(TxAux::new(tx, witnesses))
+        let witness = cbor_event::de::Deserialize::deserialize(raw)?;
+        Ok(TxAux::new(tx, witness))
     }
 }
 impl cbor_event::se::Serialize for TxAux {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
-        txaux_serialize(&self.tx, &self.witnesses, serializer)
+        txaux_serialize(&self.tx, &self.witness, serializer)
     }
 }
 
-pub fn txaux_serialize<W>(tx: &Tx, witnesses: &Vec<TxInWitness>, serializer: Serializer<W>)
+pub fn txaux_serialize<W>(tx: &Tx, in_witnesses: &Vec<TxInWitness>, serializer: Serializer<W>)
     -> cbor_event::Result<Serializer<W>>
     where W: ::std::io::Write
 {
     let serializer = serializer.write_array(cbor_event::Len::Len(2))?
                 .serialize(tx)?;
-    txwitness_serialize(witnesses, serializer)
+    txwitness_serialize(in_witnesses, serializer)
 }
 
 #[derive(Debug, Clone)]
