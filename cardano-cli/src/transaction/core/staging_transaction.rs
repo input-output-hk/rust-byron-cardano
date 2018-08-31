@@ -1,5 +1,5 @@
 use storage::{containers::append, utils::lock::{self, Lock}};
-use cardano::{address::{ExtendedAddr}, tx::{TxIn}};
+use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxIn, TxAux}};
 use std::{path::PathBuf};
 
 use super::{config, StagingId, Operation, Transaction, Input, Output};
@@ -72,6 +72,7 @@ impl StagingTransaction {
     /// reconstruct a staging transaction from an `Export`.
     ///
     pub fn import(root_dir: PathBuf, export: Export) -> append::Result<Self> {
+        debug!("transaction file's magic `{}'", export.magic);
         let mut st = Self::new_with(root_dir, export.staging_id)?;
 
         for input in export.transaction.inputs {
@@ -267,12 +268,14 @@ impl From<append::Error> for StagingTransactionParseError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Export {
     staging_id: StagingId,
+    magic: String,
     transaction: Transaction
 }
 impl From<StagingTransaction> for Export {
     fn from(st: StagingTransaction) -> Self {
         Export {
             staging_id: st.id,
+            magic: hex::encode(MAGIC_TRANSACTION_V1),
             transaction: st.transaction
         }
     }
@@ -281,6 +284,7 @@ impl<'a> From<&'a StagingTransaction> for Export {
     fn from(st: &'a StagingTransaction) -> Self {
         Export {
             staging_id: st.id,
+            magic: hex::encode(MAGIC_TRANSACTION_V1),
             transaction: st.transaction.clone()
         }
     }
