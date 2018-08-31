@@ -12,17 +12,6 @@ pub trait Deserialize : Sized {
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
 }
 
-/// Deserialize a buffer into type `T` and check that there is no
-/// trailing data.
-pub fn decode_complete<T>(data: &[u8]) -> Result<T>
-    where T: Deserialize
-{
-    let mut raw = RawCbor::from(data);
-    let res = raw.deserialize()?;
-    raw.eof()?;
-    Ok(res)
-}
-
 impl Deserialize for u8 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
         let n = raw.unsigned_integer()?;
@@ -629,15 +618,23 @@ impl<'a> RawCbor<'a> {
         self.special()?.unwrap_bool()
     }
 
-    pub fn eof(&mut self) -> Result<()> {
-        if !self.0.is_empty() { return Err(Error::TrailingData) }
-        Ok(())
-    }
-
     pub fn deserialize<T>(&mut self) -> Result<T>
         where T: Deserialize
     {
         Deserialize::deserialize(self)
+    }
+
+    /// Deserialize a value of type `T` and check that there is no
+    /// trailing data.
+    pub fn deserialize_complete<T>(&mut self) -> Result<T>
+        where T: Deserialize
+    {
+        let v = self.deserialize()?;
+        if ! self.is_empty() {
+            Err(Error::TrailingData)
+        } else {
+            Ok(v)
+        }
     }
 }
 impl<'a> From<&'a [u8]> for RawCbor<'a> {
