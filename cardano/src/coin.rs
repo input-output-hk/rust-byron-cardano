@@ -163,6 +163,9 @@ impl From<Coin> for u64 {
 impl From<u32> for Coin {
     fn from(c: u32) -> Coin { Coin(c as u64) }
 }
-pub fn sum_coins(coins: &[Coin]) -> Result<Coin> {
-    coins.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
+
+pub fn sum_coins<I>(coin_iter: I) -> Result<Coin>
+    where I: Iterator<Item = Coin>
+{
+    coin_iter.fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
 }
