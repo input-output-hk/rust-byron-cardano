@@ -7,7 +7,7 @@ use cardano::block;
 pub const OLDEST_BLOCK : &str = "OLDEST_BLOCK";
 pub const HEAD : &str = "HEAD";
 
-pub fn get_epoch_tag(epoch: u32) -> String {
+pub fn get_epoch_tag(epoch: block::EpochId) -> String {
     format!("EPOCH_{}", epoch)
 }
 

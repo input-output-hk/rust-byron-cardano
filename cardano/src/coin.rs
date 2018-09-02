@@ -76,6 +76,10 @@ impl Coin {
         if v <= MAX_COIN { Ok(Coin(v)) } else { Err(Error::OutOfBound(v)) }
     }
 }
+impl ::std::ops::Deref for Coin {
+    type Target = u64;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)

@@ -70,22 +70,32 @@ impl Default for BlockVersion {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct SoftwareVersion {
     application_name: String,
-    application_version: u32
+    pub application_version: u32
 }
+
+const MAX_APPLICATION_NAME_LENGTH : usize = 12;
+
 impl SoftwareVersion {
-    pub fn new(name: String, version: u32) -> Self {
-        SoftwareVersion {
-            application_name: name,
-            application_version: version
+    pub fn new(name: &str, version: u32) -> cbor_event::Result<Self> {
+        if name.len() > MAX_APPLICATION_NAME_LENGTH {
+            return Err(cbor_event::Error::CustomError(format!("Received application name '{}' is too long", name)));
         }
+        Ok(SoftwareVersion {
+            application_name: name.to_string(),
+            application_version: version
+        })
+    }
+
+    pub fn application_name(&self) -> &String {
+        &self.application_name
     }
 }
 impl Default for SoftwareVersion {
     fn default() -> Self {
         SoftwareVersion::new(
-            env!("CARGO_PKG_NAME").to_string(),
+            env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap()
-        )
+        ).unwrap()
     }
 }
 
@@ -127,8 +137,8 @@ impl fmt::Display for ChainDifficulty {
     }
 }
 
-pub type EpochId = u32;
-pub type SlotId = u32;
+pub type EpochId = u64; // == EpochIndex
+pub type SlotId = u16; // == LocalSlotIndex
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpochSlotId {
@@ -169,10 +179,7 @@ impl cbor_event::se::Serialize for Version {
 }
 impl cbor_event::de::Deserialize for Version {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Version: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Version")?;
         let major = raw.unsigned_integer()? as u32;
         let minor = raw.unsigned_integer()? as u32;
         let revision = raw.unsigned_integer()? as u32;
@@ -191,10 +198,7 @@ impl cbor_event::se::Serialize for BlockVersion {
 }
 impl cbor_event::de::Deserialize for BlockVersion {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockVersion: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "BlockVersion")?;
         let major = raw.unsigned_integer()? as u16;
         let minor = raw.unsigned_integer()? as u16;
         let revision = raw.unsigned_integer()? as u8;
@@ -212,14 +216,11 @@ impl cbor_event::se::Serialize for SoftwareVersion {
 }
 impl cbor_event::de::Deserialize for SoftwareVersion {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid SoftwareVersion: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "SoftwareVersion")?;
         let name  = raw.text()?;
         let version = raw.unsigned_integer()? as u32;
 
-        Ok(SoftwareVersion::new(name.to_string(), version))
+        Ok(SoftwareVersion::new(&name, version)?)
     }
 }
 
@@ -256,10 +257,7 @@ impl cbor_event::se::Serialize for HeaderExtraData {
 }
 impl cbor_event::de::Deserialize for HeaderExtraData {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid HeaderExtraData: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "HeaderExtraData")?;
         let block_version    = cbor_event::de::Deserialize::deserialize(raw)?;
         let software_version = cbor_event::de::Deserialize::deserialize(raw)?;
         let attributes       = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -339,29 +337,78 @@ impl cbor_event::se::Serialize for ChainDifficulty {
 }
 impl cbor_event::de::Deserialize for ChainDifficulty {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(1) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid ChainDifficulty: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(1, "ChainDifficulty")?;
         Ok(ChainDifficulty(raw.unsigned_integer()?))
     }
 }
 
 impl cbor_event::se::Serialize for EpochSlotId {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(2))?
-            .write_unsigned_integer(self.epoch as u64)?
-            .write_unsigned_integer(self.slotid as u64)
+        serializer.serialize(&(&self.epoch, &self.slotid))
     }
 }
 impl cbor_event::de::Deserialize for EpochSlotId {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid SlotId: recieved array of {:?} elements", len)));
-        }
-        let epoch  = raw.unsigned_integer()? as u32;
-        let slotid = raw.unsigned_integer()? as u32;
+        raw.tuple(2, "SlotId")?;
+        let epoch  = raw.deserialize()?;
+        let slotid = raw.deserialize()?;
         Ok(EpochSlotId { epoch: epoch, slotid: slotid })
+    }
+}
+
+pub type Attributes = cbor_event::Value; // TODO
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct CoinPortion(u64);
+
+pub const COIN_PORTION_DENOMINATOR: u64 = 1_000_000_000_000_000;
+
+impl CoinPortion {
+    pub fn new(n: u64) -> cbor_event::Result<Self> {
+        if n > COIN_PORTION_DENOMINATOR {
+            return Err(cbor_event::Error::CustomError(format!("Coin portion {} is greater than {}", n, COIN_PORTION_DENOMINATOR)));
+        }
+        Ok(CoinPortion(n))
+    }
+}
+
+impl cbor_event::se::Serialize for CoinPortion {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for CoinPortion {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        Ok(CoinPortion::new(raw.deserialize()?)?)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct SystemTag(String);
+
+const MAX_SYSTEM_TAG_LENGTH : usize = 10;
+
+impl SystemTag {
+    pub fn new(s: String) -> cbor_event::Result<Self> {
+        if s.len() > MAX_SYSTEM_TAG_LENGTH {
+            return Err(cbor_event::Error::CustomError(format!("System tag '{}' is too long", s)));
+        }
+        if !s.chars().all(|c| char::is_ascii(&c)) {
+            return Err(cbor_event::Error::CustomError(format!("System tag '{}' contains non-ASCII characters", s)));
+        }
+        Ok(SystemTag(s))
+    }
+}
+
+impl cbor_event::se::Serialize for SystemTag {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for SystemTag {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        Ok(SystemTag::new(raw.deserialize()?)?)
     }
 }

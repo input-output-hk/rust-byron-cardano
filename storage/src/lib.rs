@@ -19,7 +19,7 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use std::collections::BTreeMap;
-use cardano::block::{HeaderHash, BlockDate, RawBlock, Block};
+use cardano::block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId};
 
 use types::*;
 use utils::tmpfile::*;
@@ -34,11 +34,11 @@ pub enum Error {
     CborBlockError(cbor_event::Error),
     // ** RefPack creation errors
     RefPackError(refpack::Error),
-    RefPackUnexpectedGenesis(u32),
+    RefPackUnexpectedGenesis(SlotId),
     // ** Epoch pack assumption errors
     EpochExpectingGenesis,
-    EpochError(u32, u32),
-    EpochSlotRewind(u32, u32),
+    EpochError(EpochId, EpochId),
+    EpochSlotRewind(EpochId, SlotId),
     EpochChainInvalid(BlockDate, HeaderHash, HeaderHash),
     NoSuchTag
 }
@@ -347,7 +347,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
     refpack::write_refpack(&storage.config, tag, &rp).map_err(From::from)
 }
 
-pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: u32) {
+pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: EpochId) {
     let mut previous_header = genesis_hash;
     for epochid in 0..count {
         println!("check epoch {}'s integrity", epochid);
@@ -355,7 +355,7 @@ pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: u32) 
     }
 }
 
-fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: HeaderHash) -> Result<HeaderHash> {
+fn epoch_integrity_check(storage: &Storage, epochid: EpochId, last_known_hash: HeaderHash) -> Result<HeaderHash> {
     let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
     packhash[..].clone_from_slice(packhash_vec.as_slice());
@@ -391,7 +391,7 @@ fn epoch_integrity_check(storage: &Storage, epochid: u32, last_known_hash: Heade
                             return Err(Error::EpochError(current_epoch, slotid.epoch));
                         }
                         if slotid.slotid < expected_slotid {
-                            return Err(Error::EpochSlotRewind(current_epoch, slotid.epoch));
+                            return Err(Error::EpochSlotRewind(current_epoch, slotid.slotid));
                         }
                         if prevhash != current_prevhash {
                             return Err(Error::EpochChainInvalid(date.clone(), prevhash, current_prevhash))

@@ -13,7 +13,17 @@ impl<'a, T: Serialize> Serialize for &'a T {
         serializer.serialize(*self)
     }
 }
+impl Serialize for u64 {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_unsigned_integer(*self)
+    }
+}
 impl Serialize for u32 {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_unsigned_integer((*self) as u64)
+    }
+}
+impl Serialize for u16 {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_unsigned_integer((*self) as u64)
     }
@@ -21,6 +31,16 @@ impl Serialize for u32 {
 impl Serialize for u8 {
     fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
         serializer.write_unsigned_integer((*self) as u64)
+    }
+}
+impl Serialize for bool {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_special(Special::Bool(*self))
+    }
+}
+impl Serialize for String {
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        serializer.write_text(self)
     }
 }
 impl<'a> Serialize for &'a [u8] {
@@ -48,6 +68,19 @@ impl<'a, A, B, C> Serialize for (&'a A, &'a B, &'a C)
                   .serialize(self.0)?
                   .serialize(self.1)?
                   .serialize(self.2)
+    }
+}
+
+impl<T> Serialize for Option<T>
+    where T: Serialize
+{
+    fn serialize<W: Write+Sized>(&self, serializer: Serializer<W>) -> Result<Serializer<W>> {
+        match self {
+            None => serializer.write_array(Len::Len(0)),
+            Some(x) => {
+                serializer.write_array(Len::Len(1))?.serialize(x)
+            }
+        }
     }
 }
 
@@ -416,7 +449,7 @@ impl<W: Write+Sized> Serializer<W> {
     /// write a tag
     ///
     /// in cbor a tag should be followed by a tagged object. You are responsible
-    /// to making sur you are writing the tagged object just after this
+    /// to making sure you are writing the tagged object just after this
     ///
     /// # Example
     ///
@@ -434,6 +467,12 @@ impl<W: Write+Sized> Serializer<W> {
     ///
     pub fn write_tag(self, tag: u64) -> Result<Self> {
         self.write_type(Type::Tag, tag)
+    }
+
+    /// Write a tag that indicates that the following list is a finite
+    /// set. See https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml.
+    pub fn write_set_tag(self) -> Result<Self> {
+        self.write_type(Type::Tag, 258)
     }
 
     /// write a special value in cbor

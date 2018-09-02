@@ -24,7 +24,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 // TODO: decode to 35 bytes public-key http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PublicKey(Vec<u8>);
+pub struct PublicKey(pub Vec<u8>);
 impl cbor_event::se::Serialize for PublicKey {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(&self.0)

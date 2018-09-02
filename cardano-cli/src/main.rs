@@ -273,10 +273,11 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
         },
         ("cat", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
-            let hash = matches.value_of("HASH_BLOCK").unwrap().to_owned();
+            let hash = matches.value_of("HASH_BLOCK").unwrap();
             let no_parse = matches.is_present("BLOCK_NO_PARSE");
+            let debug = matches.is_present("DEBUG");
 
-            blockchain::commands::cat(term, root_dir, name, hash, no_parse);
+            blockchain::commands::cat(term, root_dir, name, hash, no_parse, debug);
         },
         ("status", Some(matches)) => {
             let name = blockchain_argument_name_match(&matches);
@@ -293,6 +294,16 @@ fn subcommand_blockchain<'a>(mut term: term::Term, root_dir: PathBuf, matches: &
             let hash = matches.value_of("HASH_BLOCK").map(|s| s.to_owned());
 
             blockchain::commands::log(term, root_dir, name, hash);
+        },
+        ("verify-block", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            let hash = matches.value_of("HASH_BLOCK").unwrap();
+
+            blockchain::commands::verify_block(term, root_dir, name, hash);
+        },
+        ("verify", Some(matches)) => {
+            let name = blockchain_argument_name_match(&matches);
+            blockchain::commands::verify_chain(term, root_dir, name);
         },
         _ => {
             term.error(matches.usage()).unwrap();
@@ -388,6 +399,10 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
                 .long("no-parse")
                 .help("don't parse the block, flush the bytes direct to the standard output (not subject to `--quiet' option)")
             )
+            .arg(Arg::with_name("DEBUG")
+                .long("debug")
+                .help("dump the block in debug format")
+            )
         )
         .subcommand(SubCommand::with_name("status")
             .about("print some details about the given blockchain")
@@ -405,6 +420,19 @@ fn blockchain_commands_definition<'a, 'b>() -> App<'a, 'b> {
                 .required(false)
                 .help("The hash to start from (instead of the local blockchain's tip).")
             )
+        )
+        .subcommand(SubCommand::with_name("verify-block")
+            .about("verify the specified block")
+            .arg(blockchain_argument_name_definition())
+            .arg(Arg::with_name("HASH_BLOCK")
+                .value_name("HASH")
+                .required(true)
+                .help("The hash of the block to verify.")
+            )
+        )
+        .subcommand(SubCommand::with_name("verify")
+            .about("verify all blocks in the chain")
+            .arg(blockchain_argument_name_definition())
         )
 }
 

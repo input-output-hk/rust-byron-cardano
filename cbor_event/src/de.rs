@@ -1,6 +1,6 @@
 //! CBOR deserialisation tooling
 
-use std::{fmt, ops::{Deref}, collections::BTreeMap};
+use std::{self, fmt, ops::{Deref}, collections::BTreeMap};
 use error::Error;
 use result::Result;
 use types::{Type, Special, Bytes};
@@ -12,9 +12,54 @@ pub trait Deserialize : Sized {
     fn deserialize<'a>(&mut RawCbor<'a>) -> Result<Self>;
 }
 
+impl Deserialize for u8 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        let n = raw.unsigned_integer()?;
+        if n > std::u8::MAX as u64 {
+            Err(Error::ExpectedU8)
+        } else {
+            Ok(n as Self)
+        }
+    }
+}
+
+impl Deserialize for u16 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        let n = raw.unsigned_integer()?;
+        if n > std::u16::MAX as u64 {
+            Err(Error::ExpectedU16)
+        } else {
+            Ok(n as Self)
+        }
+    }
+}
+
 impl Deserialize for u32 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
-        raw.unsigned_integer().map(|v| v as u32)
+        let n = raw.unsigned_integer()?;
+        if n > std::u32::MAX as u64 {
+            Err(Error::ExpectedU32)
+        } else {
+            Ok(n as Self)
+        }
+    }
+}
+
+impl Deserialize for u64 {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.unsigned_integer()
+    }
+}
+
+impl Deserialize for bool {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        raw.bool()
+    }
+}
+
+impl Deserialize for String {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<String> {
+        raw.text()
     }
 }
 
@@ -74,6 +119,16 @@ impl<K: Deserialize+Ord, V: Deserialize> Deserialize for BTreeMap<K,V> {
             }
         }
         Ok(vec)
+    }
+}
+
+impl<T: Deserialize> Deserialize for Option<T> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> Result<Self> {
+        match raw.array()? {
+            Len::Len(0) => Ok(None),
+            Len::Len(1) => Ok(Some(raw.deserialize()?)),
+            len => Err(Error::CustomError(format!("Invalid Option<T>: received array of {:?} elements", len)))
+        }
     }
 }
 
@@ -470,6 +525,15 @@ impl<'a> RawCbor<'a> {
         Ok(len)
     }
 
+    /// Expect an array of a specified length. Must be a definite-length array.
+    pub fn tuple(&mut self, expected_len: u64, error_location: &'static str) -> Result<()> {
+        let actual_len = self.array()?;
+        match actual_len {
+            Len::Len(len) if expected_len == len => Ok(()),
+            _ => Err(Error::WrongLen(expected_len, actual_len, error_location)),
+        }
+    }
+
     /// cbor map
     ///
     /// The function fails if the type of the given RawCbor is not `Type::Map`.
@@ -523,6 +587,14 @@ impl<'a> RawCbor<'a> {
         }
     }
 
+    pub fn set_tag(&mut self) -> Result<()> {
+        let tag = self.tag()?;
+        if tag != 258 {
+            return Err(Error::ExpectedSetTag);
+        }
+        Ok(())
+    }
+
     pub fn special(&mut self) -> Result<Special> {
         self.cbor_expect_type(Type::Special)?;
         let b = self.get(0)? & 0b0001_1111;
@@ -550,6 +622,19 @@ impl<'a> RawCbor<'a> {
         where T: Deserialize
     {
         Deserialize::deserialize(self)
+    }
+
+    /// Deserialize a value of type `T` and check that there is no
+    /// trailing data.
+    pub fn deserialize_complete<T>(&mut self) -> Result<T>
+        where T: Deserialize
+    {
+        let v = self.deserialize()?;
+        if ! self.is_empty() {
+            Err(Error::TrailingData)
+        } else {
+            Ok(v)
+        }
     }
 }
 impl<'a> From<&'a [u8]> for RawCbor<'a> {

@@ -2,7 +2,6 @@ use cardano::wallet::scheme::{Wallet};
 use cardano::wallet::bip44;
 use cardano::hdwallet;
 use cardano::bip;
-use cardano::config;
 use cardano::address;
 use cardano::util;
 

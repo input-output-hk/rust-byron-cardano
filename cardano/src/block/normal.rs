@@ -6,12 +6,13 @@ use std::collections::{BTreeMap, btree_map};
 use cbor_event::{self, de::RawCbor};
 use super::types;
 use super::types::{HeaderHash, HeaderExtraData, EpochSlotId, ChainDifficulty};
+use super::update;
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
-    pub proxy_sk: Blake2b256, // delegation hash
+    pub proxy_sk: Blake2b256, // hash of DlgPayload
     pub update: Blake2b256, // UpdateProof (hash of UpdatePayload)
 }
 impl BodyProof {
@@ -36,10 +37,7 @@ impl cbor_event::se::Serialize for BodyProof {
 }
 impl cbor_event::de::Deserialize for BodyProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BodyProof: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "BodyProof")?;
         let tx       = cbor_event::de::Deserialize::deserialize(raw)?;
         let mpc      = cbor_event::de::Deserialize::deserialize(raw)?;
         let proxy_sk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -80,8 +78,11 @@ impl IntoIterator for TxPayload {
     }
 }
 impl ::std::ops::Deref for TxPayload {
-    type Target = [tx::TxAux];
-    fn deref(&self) -> &Self::Target { self.txaux.deref() }
+    type Target = Vec<tx::TxAux>;
+    fn deref(&self) -> &Self::Target { &self.txaux }
+}
+impl ::std::ops::DerefMut for TxPayload {
+    fn deref_mut(&mut self) -> &mut Vec<tx::TxAux> { &mut self.txaux }
 }
 impl cbor_event::se::Serialize for TxPayload {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
@@ -113,12 +114,12 @@ impl cbor_event::de::Deserialize for TxPayload {
 pub struct Body {
     pub tx: TxPayload,
     pub ssc: SscPayload,
-    pub delegation: cbor_event::Value,
-    pub update: cbor_event::Value
+    pub delegation: cbor_event::Value, // TODO: decode into DlgPayload
+    pub update: update::UpdatePayload,
 }
 impl Body {
-    pub fn new(tx: TxPayload, ssc: SscPayload, dlg: cbor_event::Value, upd: cbor_event::Value) -> Self {
-        Body { tx: tx, ssc: ssc, delegation: dlg, update: upd }
+    pub fn new(tx: TxPayload, ssc: SscPayload, delegation: cbor_event::Value, update: update::UpdatePayload) -> Self {
+        Body { tx, ssc, delegation, update }
     }
 }
 impl fmt::Display for Body {
@@ -137,10 +138,7 @@ impl cbor_event::se::Serialize for Body {
 }
 impl cbor_event::de::Deserialize for Body {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "Body")?;
         let tx  = raw.deserialize()?;
         let scc = raw.deserialize()?;
         let dlg = raw.deserialize()?;
@@ -157,6 +155,18 @@ pub enum SscPayload {
     SharesPayload(SharesMap, VssCertificates),
     CertificatesPayload(VssCertificates),
 }
+
+impl SscPayload {
+    pub fn get_vss_certificates(&self) -> &VssCertificates {
+        match &self {
+            SscPayload::CommitmentsPayload(_, vss) => vss,
+            SscPayload::OpeningsPayload(_, vss) => vss,
+            SscPayload::SharesPayload(_, vss) => vss,
+            SscPayload::CertificatesPayload(vss) => vss
+        }
+    }
+}
+
 impl cbor_event::se::Serialize for SscPayload {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         match self {
@@ -229,15 +239,12 @@ impl Commitments{
 }
 impl cbor_event::se::Serialize for Commitments {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_tag(258)?)
+        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for Commitments {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let tag = raw.tag()?;
-        if tag != 258 {
-            return Err(cbor_event::Error::CustomError(format!("Unexpected tag, expeced 258, received {}", tag)));
-        }
+        raw.set_tag()?;
         Ok(Commitments(raw.deserialize()?))
     }
 }
@@ -258,10 +265,7 @@ impl cbor_event::se::Serialize for SignedCommitment {
 }
 impl cbor_event::de::Deserialize for SignedCommitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "SignedCommitment")?;
         let public_key = raw.deserialize()?;
         let commitment = raw.deserialize()?;
         let signature  = raw.deserialize()?;
@@ -277,17 +281,14 @@ pub struct Commitment {
 }
 impl cbor_event::se::Serialize for Commitment {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        let serializer = serializer.write_array(cbor_event::Len::Len(2))?
-            .serialize(&self.proof)?;
-        cbor_event::se::serialize_fixed_map(self.shares.iter(), serializer)
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        let serializer = cbor_event::se::serialize_fixed_map(self.shares.iter(), serializer)?;
+        serializer.serialize(&self.proof)
     }
 }
 impl cbor_event::de::Deserialize for Commitment {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "Commitment")?;
         let shares = raw.deserialize()?;
         let proof  = raw.deserialize()?;
 
@@ -308,15 +309,12 @@ impl cbor_event::se::Serialize for SecretProof {
             .serialize(&self.extra_gen)?
             .serialize(&self.proof)?
             .serialize(&self.parallel_proofs)?;
-        cbor_event::se::serialize_fixed_array(self.commitments.iter(), serializer)
+        cbor_event::se::serialize_indefinite_array(self.commitments.iter(), serializer)
     }
 }
 impl cbor_event::de::Deserialize for SecretProof {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "SecretProof")?;
         let extra_gen       = raw.deserialize()?;
         let proof           = raw.deserialize()?;
         let parallel_proofs = raw.deserialize()?;
@@ -408,21 +406,41 @@ impl cbor_event::de::Deserialize for DecShare {
 #[derive(Debug, Clone)]
 pub struct VssCertificates(Vec<VssCertificate>);
 impl VssCertificates {
-    pub fn iter(&self) -> ::std::slice::Iter<VssCertificate> {
-        self.0.iter()
+    pub fn new(vss_certs: Vec<VssCertificate>) -> Self {
+        VssCertificates(vss_certs)
+    }
+
+    // For historical reasons, SSC proofs are computed by hashing the
+    // serialization of a map of StakeholderIds to VssCertificates
+    // (where StakeholderId is computed from each VssCertificate's
+    // signing key), rather than the serialization of a set of
+    // VssCertificates that's actually stored in the block.
+    pub fn serialize_for_proof<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        let mut hash = BTreeMap::<address::StakeholderId, &VssCertificate>::new();
+        for vss_cert in self.0.iter() {
+            hash.insert(address::StakeholderId::new(&vss_cert.signing_key), vss_cert);
+        };
+        cbor_event::se::serialize_fixed_map(hash.iter(), serializer)
     }
 }
+
+impl ::std::ops::Deref for VssCertificates {
+    type Target = Vec<VssCertificate>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl ::std::ops::DerefMut for VssCertificates {
+    fn deref_mut(&mut self) -> &mut Vec<VssCertificate> { &mut self.0 }
+}
+
 impl cbor_event::se::Serialize for VssCertificates {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_tag(258)?)
+        cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for VssCertificates {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let tag = raw.tag()?;
-        if tag != 258 {
-            return Err(cbor_event::Error::CustomError(format!("Unexpected tag, expeced 258, received {}", tag)));
-        }
+        raw.set_tag()?;
         Ok(VssCertificates(raw.deserialize()?))
     }
 }
@@ -446,12 +464,9 @@ impl cbor_event::se::Serialize for VssCertificate {
 }
 impl cbor_event::de::Deserialize for VssCertificate {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Body: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "VssCertificate")?;
         let vss_key      = raw.deserialize()?;
-        let expiry_epoch = raw.unsigned_integer()? as u32;
+        let expiry_epoch = raw.deserialize()?;
         let signature    = raw.deserialize()?;
         let signing_key  = raw.deserialize()?;
 
@@ -485,7 +500,7 @@ impl BlockHeader {
             consensus: c,
             extra_data: ed
         }
-}
+    }
 }
 impl cbor_event::se::Serialize for BlockHeader {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
@@ -499,10 +514,7 @@ impl cbor_event::se::Serialize for BlockHeader {
 }
 impl cbor_event::de::Deserialize for BlockHeader {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(5) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockHeader: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(5, "BlockHeader")?;
 
         let p_magic    = cbor_event::de::Deserialize::deserialize(raw)?;
         let prv_header = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -518,7 +530,7 @@ impl cbor_event::de::Deserialize for BlockHeader {
 pub struct Block {
     pub header: BlockHeader,
     pub body: Body,
-    pub extra: cbor_event::Value
+    pub extra: cbor_event::Value // TODO: decode
 }
 impl Block {
     pub fn new(h: BlockHeader, b: Body, e: cbor_event::Value) -> Self {
@@ -541,10 +553,7 @@ impl cbor_event::se::Serialize for Block {
 }
 impl cbor_event::de::Deserialize for Block {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(3) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Block: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(3, "Block")?;
         let header = raw.deserialize()?;
         let body   = raw.deserialize()?;
         let extra  = raw.deserialize()?;
@@ -554,11 +563,69 @@ impl cbor_event::de::Deserialize for Block {
 
 type SignData = ();
 
+type ProxyCert = hdwallet::Signature<()>;
+
+#[derive(Debug, Clone)]
+pub struct ProxySecretKey {
+    pub omega: u64,
+    pub issuer_pk: hdwallet::XPub,
+    pub delegate_pk: hdwallet::XPub,
+    pub cert: ProxyCert,
+}
+
+impl cbor_event::se::Serialize for ProxySecretKey {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(4))?
+            .serialize(&self.omega)?
+            .serialize(&self.issuer_pk)?
+            .serialize(&self.delegate_pk)?
+            .serialize(&self.cert)
+    }
+}
+
+impl cbor_event::de::Deserialize for ProxySecretKey {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.tuple(4, "ProxySecretKey")?;
+
+        let omega = cbor_event::de::Deserialize::deserialize(raw)?;
+        let issuer_pk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let delegate_pk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let cert = cbor_event::de::Deserialize::deserialize(raw)?;
+
+        Ok(ProxySecretKey { omega, issuer_pk, delegate_pk, cert })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProxySignature {
+    pub psk: ProxySecretKey,
+    pub sig: hdwallet::Signature<()>,
+}
+
+impl cbor_event::se::Serialize for ProxySignature {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?
+            .serialize(&self.psk)?
+            .serialize(&self.sig)
+    }
+}
+
+impl cbor_event::de::Deserialize for ProxySignature {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.tuple(2, "ProxySignature")?;
+
+        let psk = cbor_event::de::Deserialize::deserialize(raw)?;
+        let sig = cbor_event::de::Deserialize::deserialize(raw)?;
+
+        Ok(ProxySignature { psk, sig })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum BlockSignature {
     Signature(hdwallet::Signature<SignData>),
-    ProxyLight(Vec<cbor_event::Value>),
-    ProxyHeavy(Vec<cbor_event::Value>),
+    ProxyLight(Vec<cbor_event::Value>), // TODO: decode
+    ProxyHeavy(ProxySignature),
 }
 impl BlockSignature {
     pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8;hdwallet::SIGNATURE_SIZE]> {
@@ -581,19 +648,16 @@ impl cbor_event::se::Serialize for BlockSignature {
                 cbor_event::se::serialize_fixed_array(v.iter(), serializer)
             },
             &BlockSignature::ProxyHeavy(ref v) => {
-                let serializer = serializer.write_array(cbor_event::Len::Len(2))?
-                    .write_unsigned_integer(2)?;
-                cbor_event::se::serialize_fixed_array(v.iter(), serializer)
+                serializer.write_array(cbor_event::Len::Len(2))?
+                    .write_unsigned_integer(2)?
+                    .serialize(v)
             },
         }
     }
 }
 impl cbor_event::de::Deserialize for BlockSignature {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid BlockSignature: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(2, "BlockSignature")?;
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
             0 => {
@@ -603,7 +667,8 @@ impl cbor_event::de::Deserialize for BlockSignature {
                 Ok(BlockSignature::ProxyLight(raw.deserialize()?))
             },
             2 => {
-                Ok(BlockSignature::ProxyHeavy(raw.deserialize()?))
+                Ok(BlockSignature::ProxyHeavy(
+                    cbor_event::de::Deserialize::deserialize(raw)?))
             },
             _ => {
                 Err(cbor_event::Error::CustomError(format!("Unsupported BlockSignature: {}", sum_type_idx)))
@@ -630,10 +695,7 @@ impl cbor_event::se::Serialize for Consensus {
 }
 impl cbor_event::de::Deserialize for Consensus {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(4) {
-            return Err(cbor_event::Error::CustomError(format!("Invalid Consensus: recieved array of {:?} elements", len)));
-        }
+        raw.tuple(4, "Consensus")?;
         let slot_id = cbor_event::de::Deserialize::deserialize(raw)?;
         let leader_key = cbor_event::de::Deserialize::deserialize(raw)?;
         let chain_difficulty = cbor_event::de::Deserialize::deserialize(raw)?;

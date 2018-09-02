@@ -1,6 +1,7 @@
 use std::fmt;
 
 use types::Type;
+use len;
 
 /// all expected error for cbor parsing and serialising
 #[derive(Debug)]
@@ -19,12 +20,15 @@ pub enum Error {
     /// Were expecting a different [`Type`](../enum.Type.html). The first
     /// element is the expected type, the second is the current type.
     Expected(Type, Type),
+    ExpectedSetTag,
     /// this may happens when deserialising a [`RawCbor`](../de/struct.RawCbor.html);
     UnknownLenType(u8),
     IndefiniteLenNotSupported(Type),
+    WrongLen(u64, len::Len, &'static str),
     InvalidTextError(::std::string::FromUtf8Error),
     CannotParse(Type, Vec<u8>),
     IoError(::std::io::Error),
+    TrailingData,
 
     CustomError(String)
 }
@@ -49,11 +53,16 @@ impl fmt::Display for Error {
             ExpectedI64 => write!(f, "Invalid cbor: expected 64bit long negative integer"),
             NotEnough(got, exp) => write!(f, "Invalid cbor: not enough bytes, expect {} bytes but received {} bytes.", exp, got),
             Expected(exp, got) => write!(f, "Invalid cbor: not the right type, expected `{:?}' byte received `{:?}'.", exp, got),
+            ExpectedSetTag => write!(f, "Invalid cbor: expected set tag"),
             UnknownLenType(byte) => write!(f, "Invalid cbor: not the right sub type: 0b{:05b}", byte),
             IndefiniteLenNotSupported(t) => write!(f, "Invalid cbor: indefinite length not supported for cbor object of type `{:?}'.", t),
+            WrongLen(expected_len, actual_len, error_location) =>
+                write!(f, "Invalid cbor: expected tuple '{}' of length {} but got length {:?}.",
+                       error_location, expected_len, actual_len),
             InvalidTextError(utf8_error) => write!(f, "Invalid cbor: expected a valid utf8 string text. {:?}", utf8_error),
             CannotParse(t, bytes) => write!(f, "Invalid cbor: cannot parse the cbor object `{:?}' with the following bytes {:?}", t, bytes),
             IoError(io_error) => write!(f, "Invalid cbor: I/O error: {:?}.", io_error),
+            TrailingData => write!(f, "Unexpected trailing data in CBOR"),
             CustomError(err) => write!(f, "Invalid cbor: {}", err)
         }
     }

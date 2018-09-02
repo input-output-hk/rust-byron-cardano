@@ -38,11 +38,7 @@ pub mod util {
     }
 
     pub fn decode_sum_type(raw: &mut RawCbor) -> cbor_event::Result<u64> {
-        let len = raw.array()?;
-        if len != cbor_event::Len::Len(2) {
-            return Err(cbor_event::Error::CustomError(
-                format!("Expected sum type but got array of {:?} elements", len)));
-        }
+        raw.tuple(2, "SumType")?;
         Ok(raw.unsigned_integer()?)
     }
 

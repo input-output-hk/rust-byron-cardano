@@ -23,17 +23,21 @@ pub struct RawBlock(pub Vec<u8>);
 impl RawBlockHeaderMultiple {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeaderMultiple(dat) }
     pub fn decode(&self) -> cbor_event::Result<Vec<BlockHeader>> {
-        RawCbor::from(&self.0).deserialize()
+        RawCbor::from(&self.0).deserialize_complete()
     }
 }
 impl RawBlockHeader {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlockHeader(dat) }
-    pub fn decode(&self) -> cbor_event::Result<BlockHeader> { RawCbor::from(&self.0[..]).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<BlockHeader> {
+        RawCbor::from(&self.0).deserialize_complete()
+    }
     pub fn compute_hash(&self) -> HeaderHash { HeaderHash::new(&self.0) }
 }
 impl RawBlock {
     pub fn from_dat(dat: Vec<u8>) -> Self { RawBlock(dat) }
-    pub fn decode(&self) -> cbor_event::Result<Block> { RawCbor::from(&self.0).deserialize() }
+    pub fn decode(&self) -> cbor_event::Result<Block> {
+        RawCbor::from(&self.0).deserialize_complete()
+    }
     pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode()?;

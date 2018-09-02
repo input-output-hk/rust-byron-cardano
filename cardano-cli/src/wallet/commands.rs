@@ -201,7 +201,7 @@ This means that all the data associated to this wallet will be deleted on this d
 The only way you will be able to reuse the wallet, recover the funds and create
 new transactions will be by recovering the wallet with the mnemonic words.",
         ::console::style(&wallet.name).bold().red(),
-    );
+    ).unwrap();
 
     let confirmation = ::dialoguer::Confirmation::new("Are you sure?")
         .use_line_input(true)

@@ -49,3 +49,5 @@ pub mod wallet;
 pub mod block;
 
 pub mod vss;
+pub mod merkle;
+pub mod tags;
