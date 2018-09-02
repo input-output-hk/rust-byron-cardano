@@ -13,7 +13,8 @@ pub enum Error {
     IoError(io::Error),
     LogFormatError(String),
     LockError(lock::Error),
-    AppendError(append::Error)
+    AppendError(append::Error),
+    UnsupportedLogFormat(Vec<u8>)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -93,7 +94,9 @@ impl<A> Log<A>
         {
             let mut magic = [0u8; 4];
             reader.read_exact(&mut magic)?;
-            assert!(magic == MAGIC);
+            if magic != MAGIC {
+                return Err(Error::UnsupportedLogFormat(magic.iter().cloned().collect()));
+            }
         }
 
         let ptr = {
@@ -115,7 +118,7 @@ impl<A> Log<A>
         let t = {
             let t = serialize::utils::read_u32(&mut reader)?;
             let b = serialize::utils::read_u64(&mut reader)?;
-            assert!(b == 0u64);
+            debug_assert!(b == 0u64);
             t
         };
 
