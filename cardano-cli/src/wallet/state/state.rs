@@ -36,16 +36,16 @@ impl<T: AddressLookup> State<T> {
         for log in iter {
             match log {
                 Log::Checkpoint(known_ptr) => self.ptr = known_ptr,
-                Log::ReceivedFund(utxo) => {
+                Log::ReceivedFund(ptr, utxo) => {
                     self.lookup_struct.acknowledge(&utxo.credited_address)?;
-                    self.ptr = utxo.blockchain_ptr.clone();
+                    self.ptr = ptr;
 
                     if let Some(utxo) = self.utxos.insert(utxo.extract_txin(), utxo) {
                         error!("This UTxO was already in the UTxOs collection `{}'", utxo);
                         panic!("The Wallet LOG file seems corrupted");
                     };
                 },
-                Log::SpentFund(utxo) => {
+                Log::SpentFund(ptr, utxo) => {
                     match self.utxos.remove(&utxo.extract_txin()) {
                         Some(_) => { },
                         None    => {
@@ -54,32 +54,34 @@ impl<T: AddressLookup> State<T> {
                         }
                     };
                     self.lookup_struct.acknowledge(&utxo.credited_address)?;
-                    self.ptr = utxo.blockchain_ptr.clone();
+                    self.ptr = ptr;
                 },
             }
         }
         Ok(())
     }
 
-    pub fn forward_with_txins<'a, I: IntoIterator<Item = &'a TxIn>>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
+    pub fn forward_with_txins<'a, I>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
         where T::AddressOutput: Clone
+            , I: IntoIterator<Item = (StatePtr, &'a TxIn)>
     {
         let mut events = Vec::new();
-        for txin in iter {
+        for (ptr, txin) in iter {
             if let Some(utxo) = self.utxos.remove(&txin) {
-                events.push(Log::SpentFund(utxo.clone()));
+                events.push(Log::SpentFund(ptr, utxo.clone()));
             }
         }
         Ok(events)
     }
-    pub fn forward_with_utxos<I: IntoIterator<Item = UTxO<T::AddressInput>>>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
+    pub fn forward_with_utxos<I>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
         where T::AddressOutput: Clone
+            , I: IntoIterator<Item = (StatePtr, UTxO<T::AddressInput>)>
     {
         let mut events = Vec::new();
-        for utxo in iter {
+        for (ptr, utxo) in iter {
             if let Some(utxo) = self.lookup_struct.lookup(utxo)? {
-                self.ptr = utxo.blockchain_ptr.clone();
-                events.push(Log::ReceivedFund(utxo.clone()));
+                self.ptr = ptr.clone();
+                events.push(Log::ReceivedFund(ptr, utxo.clone()));
                 self.utxos.insert(utxo.extract_txin(), utxo);
             }
         }

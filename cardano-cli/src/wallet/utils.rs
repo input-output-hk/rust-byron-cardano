@@ -5,7 +5,7 @@
 //!
 
 use super::{Wallet};
-use super::state::{log, state, lookup, iter::TransactionIterator, utxo::UTxO};
+use super::state::{log, state, lookup, iter::TransactionIterator, utxo::UTxO, ptr::{StatePtr}};
 use super::error::{Error};
 
 use std::{path::PathBuf, io::Write};
@@ -53,7 +53,9 @@ pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
         }
 
         {
-            let logs = state.forward_with_txins(txaux.tx.inputs.iter()).unwrap();
+            let logs = state.forward_with_txins(
+                txaux.tx.inputs.iter().map(|txin| (ptr.clone(), txin))
+            ).unwrap();
             let log_lock = lock_wallet_log(&wallet);
             let mut writer = log::LogWriter::open(log_lock).unwrap();
             for log in logs { writer.append(&log).unwrap(); }
@@ -63,13 +65,14 @@ pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
             let txid = txaux.tx.id();
             let logs = state.forward_with_utxos(
                 txaux.tx.outputs.into_iter().enumerate().map(|(idx, txout)| {
-                    UTxO {
+                    ( ptr.clone()
+                    , UTxO {
                         transaction_id: txid.clone(),
                         index_in_transaction: idx as u32,
-                        blockchain_ptr: ptr.clone(),
                         credited_address: txout.address,
                         credited_value: txout.value
-                    }
+                      }
+                    )
                 })
             ).unwrap();
 
@@ -112,26 +115,26 @@ pub fn display_wallet_state_logs<LS>( term: &mut Term
                     writeln!(term, "").unwrap();
                 }
             },
-            log::Log::ReceivedFund(utxo) => {
+            log::Log::ReceivedFund(ptr, utxo) => {
                 if pretty {
-                    display_utxo(term, utxo, false);
+                    display_utxo(term, ptr, utxo, false);
                 } else {
-                    dump_utxo(term, utxo, false);
+                    dump_utxo(term, ptr, utxo, false);
                 }
             },
-            log::Log::SpentFund(utxo) => {
+            log::Log::SpentFund(ptr, utxo) => {
                 if pretty {
-                    display_utxo(term, utxo, true);
+                    display_utxo(term, ptr, utxo, true);
                 } else {
-                    dump_utxo(term, utxo, true);
+                    dump_utxo(term, ptr, utxo, true);
                 }
             }
         }
     }
 }
 
-pub fn display_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
-    let ptr = format!("{:9}", format!("{}", style!(utxo.blockchain_ptr.latest_block_date())));
+pub fn display_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: bool) {
+    let ptr = format!("{:9}", format!("{}", style!(ptr.latest_block_date())));
     let tid = format!("{}", style!(utxo.transaction_id));
     let tii = format!("{:03}", utxo.index_in_transaction);
     const WIDTH : usize = 14;
@@ -155,7 +158,7 @@ pub fn display_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
     ).unwrap()
 }
 
-pub fn dump_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
+pub fn dump_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: bool) {
     let title = if debit {
         style!("debit").red()
     } else {
@@ -172,8 +175,8 @@ pub fn dump_utxo<L>(term: &mut Term, utxo: UTxO<L>, debit: bool) {
         style!(utxo.transaction_id),
         style!(utxo.index_in_transaction).yellow(),
     ).unwrap();
-    writeln!(term, "Date {}", style!(utxo.blockchain_ptr.latest_block_date())).unwrap();
-    writeln!(term, "Block {}", style!(utxo.blockchain_ptr.latest_known_hash)).unwrap();
+    writeln!(term, "Date {}", style!(ptr.latest_block_date())).unwrap();
+    writeln!(term, "Block {}", style!(ptr.latest_known_hash)).unwrap();
     writeln!(term, "Value {}", amount).unwrap();
     writeln!(term, "").unwrap()
 }

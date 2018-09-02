@@ -1,8 +1,6 @@
 use cardano::{coin::{Coin}, tx::{TxIn, TxId, TxOut}, address::{ExtendedAddr}};
 use std::{fmt, collections::{BTreeMap}};
 
-use super::ptr::{StatePtr};
-
 /// Unspent Transaction Output (aka. UTxO). This is a transaction
 /// that may be spent, that is, as far as known of the state of the
 /// wallet, unspent yet.
@@ -19,11 +17,6 @@ pub struct UTxO<A> {
     /// a Transaction is a list of inputs and outputs. `index_in_transaction`
     /// is the index within the outputs of the unspent transaction.
     pub index_in_transaction: u32,
-
-    /// conveniently keep a pointer to the block within the blockchain where
-    /// the transaction lies. This is handy because cardano-cli does not
-    /// keep a database of the transactions.
-    pub blockchain_ptr: StatePtr,
 
     /// this is the credited address, it can have multiple forms:
     ///
@@ -57,7 +50,6 @@ impl<A> UTxO<A> {
         UTxO {
             transaction_id: self.transaction_id,
             index_in_transaction: self.index_in_transaction,
-            blockchain_ptr: self.blockchain_ptr,
             credited_value: self.credited_value,
             credited_address: f(self.credited_address)
         }
@@ -79,12 +71,11 @@ impl UTxO<ExtendedAddr> {
 impl<A: fmt::Display> fmt::Display for UTxO<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!( f
-              , "{} received {}Ada-Lovelace in transaction id `{}.{}' ({})"
+              , "{} received {}Ada-Lovelace in transaction id `{}.{}'"
               , self.credited_address
               , self.credited_value
               , self.transaction_id
               , self.index_in_transaction
-              , self.blockchain_ptr
               )
     }
 }
