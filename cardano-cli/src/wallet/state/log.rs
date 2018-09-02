@@ -131,7 +131,7 @@ impl<A> Log<A>
                 let utxo = serde_yaml::from_slice(reader).map_err(|e|
                     Error::LogFormatError(format!("log format error: {:?}", e))
                 )?;
-                Ok(Log::ReceivedFund(ptr, utxo))
+                Ok(Log::SpentFund(ptr, utxo))
             },
             _ => {
                 panic!("cannot parse log event of type: `{}'", t)
