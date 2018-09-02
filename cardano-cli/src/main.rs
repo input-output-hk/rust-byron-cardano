@@ -618,9 +618,13 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
         },
         ("log", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
-            let pretty = matches.is_present("LOG_PRETTY");
 
-            wallet::commands::log(term, root_dir, name, pretty);
+            wallet::commands::log(term, root_dir, name, false);
+        },
+        ("statement", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::log(term, root_dir, name, true);
         },
         ("destroy", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
@@ -702,15 +706,13 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("print some status information from the given wallet (funds, transactions...)")
             .arg(wallet_argument_name_definition())
         )
+        .subcommand(SubCommand::with_name("statement")
+            .about("print the wallet statement")
+            .arg(wallet_argument_name_definition())
+        )
         .subcommand(SubCommand::with_name("log")
             .about("print the wallet logs")
             .arg(wallet_argument_name_definition())
-            .arg(Arg::with_name("LOG_PRETTY")
-                .help("display the transaction history")
-                .long("history")
-                .short("h")
-                .required(false)
-            )
         )
 }
 
