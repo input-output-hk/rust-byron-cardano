@@ -322,6 +322,25 @@ pub fn log( mut term: Term
     display_wallet_state_logs(&mut term, &wallet, &mut state, pretty);
 }
 
+pub fn utxos( mut term: Term
+            , root_dir: PathBuf
+            , name: String
+            )
+{
+    // load the wallet
+    let wallet = Wallet::load(root_dir.clone(), name);
+
+    // 1. get the wallet's blockchain
+    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
+
+    // 2. prepare the wallet state
+    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
+    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
+    update_wallet_state_with_logs(&wallet, &mut state);
+
+    display_wallet_state_utxos(&mut term, state);
+}
+
 pub fn sync( mut term: Term
            , root_dir: PathBuf
            , name: String

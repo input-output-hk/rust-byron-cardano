@@ -83,6 +83,21 @@ pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
     }
 }
 
+pub fn display_wallet_state_utxos<LS>( term: &mut Term
+                                     , state: state::State<LS>
+                                     )
+    where LS: lookup::AddressLookup
+        , for<'de> LS::AddressOutput : serde::Deserialize<'de>
+{
+    for (_, utxo) in state.utxos {
+        writeln!(term, "{}.{} {}",
+            style!(utxo.transaction_id),
+            style!(utxo.index_in_transaction).yellow(),
+            style!(utxo.credited_value).green()
+        ).unwrap()
+    }
+}
+
 pub fn display_wallet_state_logs<LS>( term: &mut Term
                                     , wallet: &Wallet
                                     , _state: &mut state::State<LS>

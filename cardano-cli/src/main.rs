@@ -621,6 +621,11 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::log(term, root_dir, name, false);
         },
+        ("utxos", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::utxos(term, root_dir, name);
+        },
         ("statement", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
 
@@ -712,6 +717,10 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(SubCommand::with_name("log")
             .about("print the wallet logs")
+            .arg(wallet_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name("utxos")
+            .about("print the wallet's available funds")
             .arg(wallet_argument_name_definition())
         )
 }
