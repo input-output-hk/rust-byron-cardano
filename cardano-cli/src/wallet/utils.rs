@@ -134,7 +134,7 @@ pub fn display_wallet_state_logs<LS>( term: &mut Term
 }
 
 pub fn display_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: bool) {
-    let ptr = format!("{:9}", format!("{}", style!(ptr.latest_block_date())));
+    let ptr = format!("{}", style!(ptr.latest_block_date()));
     let tid = format!("{}", style!(utxo.transaction_id));
     let tii = format!("{:03}", utxo.index_in_transaction);
     const WIDTH : usize = 14;
@@ -149,8 +149,8 @@ pub fn display_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: boo
         format!("{:>width$}", " ", width = WIDTH)
     };
 
-    writeln!(term, "{}|{}.{}|{}|{}",
-        ptr,
+    writeln!(term, "{:9}|{}.{}|{}|{}",
+        ::console::pad_str(&ptr, 9, ::console::Alignment::Left, None),
         tid,
         style!(tii).yellow(),
         style!(credit).green(),
