@@ -1,7 +1,7 @@
-use std::{path::PathBuf, io::Write};
+use std::{path::PathBuf, io::Write, iter};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
-use cardano::{tx::{TxId, TxIn}, coin::{Coin}, address::{ExtendedAddr}};
+use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term
@@ -74,6 +74,26 @@ pub fn status( mut term: Term
              )
 {
     let staging = load_staging(&mut term, root_dir, id_str);
+
+    let trans = staging.transaction();
+    let inputs = trans.inputs();
+    let input_total = sum_coins(inputs.into_iter().map(|x| x.expected_value)).unwrap();
+    let txaux = staging.to_tx_aux();
+    let output_total = txaux.tx.get_output_total().unwrap();
+    let difference = {
+        let i : u64 = input_total.into();
+        let o : u64 = output_total.into();
+        (i as i64) - (o as i64)
+    };
+
+    let fee_alg = LinearFee::default();
+    let fake_witnesses : Vec<TxInWitness> = iter::repeat(TxInWitness::fake()).take(inputs.len()).collect();
+    let fee = fee_alg.calculate_for_txaux_component(&txaux.tx, &fake_witnesses).unwrap();
+
+    println!("input-total: {}", input_total);
+    println!("output-total: {}", output_total);
+    println!("actual-fee: {}", difference);
+    println!("fee: {}", fee.to_coin());
 
     let export = staging.export();
 
