@@ -154,7 +154,7 @@ impl Wallet {
                 */
                 let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), input_addressing.iter());
                 assert_eq!(witnesses.len(), fake_witnesses.len());
-                let txaux = tx::TxAux::new(tx, tx::TxWitness::new(witnesses));
+                let txaux = tx::TxAux::new(tx, tx::TxWitness::from(witnesses));
                 return Ok((txaux, txaux_fee))
             } else {
                 // already above..

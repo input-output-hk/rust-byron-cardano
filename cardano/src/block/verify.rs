@@ -132,7 +132,7 @@ impl Verify for normal::Block {
             for in_witness in txaux.witness.iter() {
                 in_witnesses.push(in_witness.clone());
             }
-            witnesses.push(tx::TxWitness::new(in_witnesses));
+            witnesses.push(tx::TxWitness::from(in_witnesses));
         }
         if hash::Blake2b256::new(&cbor!(&tx::TxWitnesses::new(witnesses)).unwrap()) != hdr.body_proof.tx.witnesses_hash {
             return Err(Error::WrongTxProof);

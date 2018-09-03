@@ -1,5 +1,5 @@
 use super::{Operation, Input, Output};
-use cardano::{tx::{Tx, TxIn, TxInWitness, TxAux}};
+use cardano::{tx::{Tx, TxIn, TxWitness, TxInWitness, TxAux}};
 
 /// describe a transaction in its most reduce representation
 ///
@@ -18,7 +18,7 @@ use cardano::{tx::{Tx, TxIn, TxInWitness, TxAux}};
 pub struct Transaction {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
-    pub witnesses: Vec<TxInWitness>,
+    pub witnesses: TxWitness,
 }
 impl Transaction {
     /// create an empty transaction
@@ -26,7 +26,7 @@ impl Transaction {
         Transaction {
             inputs: Vec::new(),
             outputs: Vec::new(),
-            witnesses: Vec::new()
+            witnesses: TxWitness::new(),
         }
     }
 
@@ -62,7 +62,7 @@ impl Transaction {
 
         TxAux {
             tx: tx,
-            witnesses: self.witnesses.clone()
+            witness: self.witnesses.iter().cloned().collect()
         }
     }
 

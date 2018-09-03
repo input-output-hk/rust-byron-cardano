@@ -107,9 +107,9 @@ impl<A> Log<A>
 
             let hh = HeaderHash::from(hash);
             let bd = if slot == 0xFFFFFFFFFFFFFFFF {
-                BlockDate::Genesis(gen as u32)
+                BlockDate::Genesis(gen as u64)
             } else {
-                BlockDate::Normal(EpochSlotId { epoch: gen as u32, slotid: slot as u32 })
+                BlockDate::Normal(EpochSlotId { epoch: gen as u64, slotid: slot as u16 })
             };
 
             StatePtr::new(bd, hh)
