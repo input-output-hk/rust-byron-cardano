@@ -1,5 +1,5 @@
 //! Blockchain network specific config (ProtocolMagic)
-//! 
+//!
 //! there are some settings that need to be set in order to guarantee
 //! operability with the appropriate network or different option.
 //!
