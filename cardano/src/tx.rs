@@ -426,6 +426,14 @@ pub fn txaux_serialize<W>(tx: &Tx, in_witnesses: &Vec<TxInWitness>, serializer: 
     txwitness_serialize(in_witnesses, serializer)
 }
 
+pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
+    // TODO don't actually produce any bytes, but instead just count.
+    // we don't expect error here, a real counter would not error..
+    let ser = cbor_event::se::Serializer::new_vec();
+    let bytes = txaux_serialize(tx, in_witnesses, ser).unwrap().finalize();
+    bytes.len()
+}
+
 #[derive(Debug, Clone)]
 pub struct TxProof {
     pub number: u32,

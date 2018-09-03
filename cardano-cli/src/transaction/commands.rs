@@ -2,6 +2,7 @@ use std::{path::PathBuf, io::Write, iter};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
 use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
+use cardano::tx;
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term
@@ -90,10 +91,13 @@ pub fn status( mut term: Term
     let fake_witnesses : Vec<TxInWitness> = iter::repeat(TxInWitness::fake()).take(inputs.len()).collect();
     let fee = fee_alg.calculate_for_txaux_component(&txaux.tx, &fake_witnesses).unwrap();
 
+    let txbytes_length = tx::txaux_serialize_size(&txaux.tx, &fake_witnesses);
+
     println!("input-total: {}", input_total);
     println!("output-total: {}", output_total);
     println!("actual-fee: {}", difference);
     println!("fee: {}", fee.to_coin());
+    println!("tx-bytes: {}", txbytes_length);
 
     let export = staging.export();
 
