@@ -1,15 +1,19 @@
 use std::{path::PathBuf, io::Write, iter};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
+use super::super::blockchain::{Blockchain};
 use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
 use cardano::tx;
 
 /// function to create a new empty transaction
 pub fn new( mut term: Term
           , root_dir: PathBuf
+          , blockchain: String
           )
 {
-    let staging = match StagingTransaction::new(root_dir) {
+    let blockchain = Blockchain::load(root_dir.clone(), blockchain);
+
+    let staging = match StagingTransaction::new(root_dir, blockchain.config.protocol_magic) {
         Err(err) => {
             // we should not expect errors at this time, but if it happens
             // we need to report it to the user

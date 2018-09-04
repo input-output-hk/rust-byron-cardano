@@ -1,5 +1,5 @@
-use storage::{containers::append, utils::lock::{self, Lock}};
-use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxIn, TxAux}};
+use storage::{containers::append, utils::{serialize, lock::{self, Lock}}};
+use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxIn, TxAux}, config::{ProtocolMagic}};
 use std::{path::PathBuf};
 
 use super::{config, StagingId, Operation, Transaction, Input, Output};
@@ -9,6 +9,9 @@ pub struct StagingTransaction {
     /// the unique Staging ID associated to this staging
     /// transaction
     pub id: StagingId,
+
+    /// blockchain's identifier
+    pub protocol_magic: ProtocolMagic,
 
     /// keep the vector of operations associated to this transaction
     pub operations: Vec<Operation>,
@@ -25,7 +28,7 @@ pub struct StagingTransaction {
 const MAGIC_TRANSACTION_V1 : &'static [u8] = b"TRANSACTION_V1";
 
 impl StagingTransaction {
-    fn new_with(root_dir: PathBuf, id: StagingId) -> append::Result<Self> {
+    fn new_with(root_dir: PathBuf, protocol_magic: ProtocolMagic, id: StagingId) -> append::Result<Self> {
         let path = config::transaction_file(root_dir, id);
 
         if path.is_file() {
@@ -36,8 +39,14 @@ impl StagingTransaction {
         let lock = Lock::lock(path)?;
         let mut w = append::Writer::open(lock)?;
         w.append_bytes(MAGIC_TRANSACTION_V1)?;
+        {
+            let mut bytes = Vec::with_capacity(4);
+            serialize::utils::write_u32(&mut bytes, *protocol_magic)?;
+            w.append_bytes(&bytes)?;
+        }
         Ok(StagingTransaction {
             id: id,
+            protocol_magic: protocol_magic,
             operations: Vec::new(),
             transaction: Transaction::new(),
             writer: w
@@ -49,9 +58,9 @@ impl StagingTransaction {
     /// The `root_dir` is necessary as it will create the file (and the necessary
     /// directories) where the transactions will be stored
     ///
-    pub fn new(root_dir: PathBuf) -> append::Result<Self> {
+    pub fn new(root_dir: PathBuf, protocol_magic: ProtocolMagic) -> append::Result<Self> {
         let id = StagingId::generate();
-        Self::new_with(root_dir, id)
+        Self::new_with(root_dir, protocol_magic, id)
     }
 
     /// destroy the staging transaction from the file system
@@ -73,7 +82,7 @@ impl StagingTransaction {
     ///
     pub fn import(root_dir: PathBuf, export: Export) -> append::Result<Self> {
         debug!("transaction file's magic `{}'", export.magic);
-        let mut st = Self::new_with(root_dir, export.staging_id)?;
+        let mut st = Self::new_with(root_dir, export.protocol_magic, export.staging_id)?;
 
         for input in export.transaction.inputs {
             st.add_input(input)?;
@@ -129,6 +138,15 @@ impl StagingTransaction {
                 }
             },
         }
+        let protocol_magic = reader.next()?;
+        let protocol_magic = match protocol_magic {
+            None => { return Err(StagingTransactionParseError::MissingProtocolMagic) },
+            Some(protocol_magic) => {
+                ProtocolMagic::from(
+                    serialize::utils::read_u32(&mut protocol_magic.as_slice())?
+                )
+            }
+        };
 
         let mut operations = Vec::new();
         let mut transaction = Transaction::new();
@@ -143,6 +161,7 @@ impl StagingTransaction {
 
         Ok(StagingTransaction {
             id : id,
+            protocol_magic: protocol_magic,
             operations : operations,
             transaction: transaction,
             writer: w
@@ -249,6 +268,9 @@ pub enum StagingTransactionParseError {
     /// a corrupted of the file or an unsupported staging transaction file.
     NoMagic,
 
+    /// error happens when we are missing a protocol magic from the staging file
+    MissingProtocolMagic,
+
     /// Expected a magic transaction identifier, but received the following bytes
     /// instead
     InvalidMagic(Vec<u8>),
@@ -259,6 +281,11 @@ pub enum StagingTransactionParseError {
 impl From<ParsingOperationError> for StagingTransactionParseError {
     fn from(e: ParsingOperationError) -> Self {
         StagingTransactionParseError::Operation(e)
+    }
+}
+impl From<::std::io::Error> for StagingTransactionParseError {
+    fn from(e: ::std::io::Error) -> Self {
+        StagingTransactionParseError::AppendFile(append::Error::IoError(e))
     }
 }
 impl From<lock::Error> for StagingTransactionParseError {
@@ -277,12 +304,14 @@ impl From<append::Error> for StagingTransactionParseError {
 pub struct Export {
     staging_id: StagingId,
     magic: String,
+    protocol_magic: ProtocolMagic,
     transaction: Transaction
 }
 impl From<StagingTransaction> for Export {
     fn from(st: StagingTransaction) -> Self {
         Export {
             staging_id: st.id,
+            protocol_magic: st.protocol_magic,
             magic: hex::encode(MAGIC_TRANSACTION_V1),
             transaction: st.transaction
         }
@@ -292,6 +321,7 @@ impl<'a> From<&'a StagingTransaction> for Export {
     fn from(st: &'a StagingTransaction) -> Self {
         Export {
             staging_id: st.id,
+            protocol_magic: st.protocol_magic,
             magic: hex::encode(MAGIC_TRANSACTION_V1),
             transaction: st.transaction.clone()
         }

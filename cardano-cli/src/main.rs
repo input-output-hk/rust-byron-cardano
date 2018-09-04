@@ -808,8 +808,9 @@ fn transaction_argument_output_match<'a>(matches: &ArgMatches<'a>) -> Option<(ca
 
 fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
     match matches.subcommand() {
-        ("new", _) => {
-            transaction::commands::new(term, root_dir);
+        ("new", Some(matches)) => {
+            let blockchain = blockchain_argument_name_match(&matches);
+            transaction::commands::new(term, root_dir, blockchain);
         },
         ("list", _) => {
             transaction::commands::list(term, root_dir);
@@ -870,6 +871,9 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .about("Transaction operations.")
         .subcommand(SubCommand::with_name(TransactionCmd::New.as_string())
             .about("Create a new empty staging transaction")
+            .arg(blockchain_argument_name_definition()
+                .help("Transaction are linked to a blockchain to be valid")
+            )
         )
         .subcommand(SubCommand::with_name(TransactionCmd::List.as_string())
             .about("List all staging transactions open")
