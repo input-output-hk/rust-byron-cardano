@@ -16,6 +16,10 @@ pub enum ParsingOperationError {
 pub enum Operation {
     AddInput(Input),
     AddOutput(Output),
+    AddChange(Change),
+
+    /// for now the unique identifier of a change address is the address itself
+    RemoveChange(ExtendedAddr),
 
     /// use the unique identifier of the input. While as for the
     /// remove output we could use the index position within the
@@ -119,5 +123,19 @@ impl<'a> From<&'a Output> for TxOut {
             address: o.address.clone(),
             value: o.amount
         }
+    }
+}
+
+/// a change address in the transaction model
+///
+/// TODO: adds support for percentage of the change to distribute
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Change {
+    /// the address we are sending funds to.
+    pub address: ExtendedAddr,
+}
+impl From<ExtendedAddr> for Change {
+    fn from(o: ExtendedAddr) -> Self {
+        Change { address: o }
     }
 }

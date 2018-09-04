@@ -1,5 +1,5 @@
-use super::{Operation, Input, Output};
-use cardano::{tx::{Tx, TxIn, TxWitness, TxInWitness, TxAux}};
+use super::{Operation, Input, Output, Change};
+use cardano::{tx::{Tx, TxIn, TxWitness, TxInWitness, TxAux}, address::{ExtendedAddr}};
 
 /// describe a transaction in its most reduce representation
 ///
@@ -18,6 +18,7 @@ use cardano::{tx::{Tx, TxIn, TxWitness, TxInWitness, TxAux}};
 pub struct Transaction {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
+    pub changes: Vec<Change>,
     pub witnesses: TxWitness,
 }
 impl Transaction {
@@ -26,6 +27,7 @@ impl Transaction {
         Transaction {
             inputs: Vec::new(),
             outputs: Vec::new(),
+            changes: Vec::new(),
             witnesses: TxWitness::new(),
         }
     }
@@ -35,9 +37,11 @@ impl Transaction {
         match operation {
             Operation::AddInput(input)     => self.inputs.push(input),
             Operation::AddOutput(output)   => self.outputs.push(output),
+            Operation::AddChange(change)   => self.changes.push(change),
             Operation::RemoveInput(txin)   => self.remove_input(txin),
             Operation::RemoveOutput(index) => self.remove_output(index),
-            Operation::Signature(witness)  => self.witnesses.push(witness)
+            Operation::RemoveChange(addr)  => self.remove_change(addr),
+            Operation::Signature(witness)  => self.witnesses.push(witness),
         }
 
         self
@@ -50,7 +54,12 @@ impl Transaction {
     /// transaction.
     pub fn outputs<'a>(&'a self) -> &'a [Output] { self.outputs.as_ref() }
 
+    /// returns reference to the change
+    pub fn changes<'a>(&'a self) -> &'a [Change] { self.changes.as_ref() }
+
     pub fn signature<'a>(&'a self) -> &'a [TxInWitness] { self.witnesses.as_ref() }
+
+    pub fn has_change(&self) -> bool { ! self.changes.is_empty() }
 
     pub fn is_finalizing_pending(&self) -> bool { ! self.signature().is_empty() }
 
@@ -66,6 +75,18 @@ impl Transaction {
         }
     }
 
+    fn remove_change(&mut self, addr: ExtendedAddr) {
+        let mut index = 0;
+
+        // we are not using `0..inputs.len()` because we are potentially removing
+        // items as we go along
+        while index != self.changes.len() {
+            if self.changes[index].address == addr {
+                let change = self.changes.remove(index);
+                debug!("removing change: {:#?}", change);
+            } else { index += 1; }
+        }
+    }
     fn remove_output(&mut self, index: u32) {
         let output = self.outputs.remove(index as usize);
 
