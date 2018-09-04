@@ -14,15 +14,13 @@ use cardano::{address::ExtendedAddr, block::{BlockDate}};
 use utils::{term::{Term, style::{Style}}};
 
 use blockchain::{Blockchain};
-use serde;
 
 pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
                                          , wallet: &Wallet
                                          , blockchain: &Blockchain
                                          , state: &mut state::State<LS>
                                          )
-    where LS: lookup::AddressLookup<AddressInput = ExtendedAddr>
-        , for<'de> LS::AddressOutput : serde::Deserialize<'de> + serde::Serialize + Clone + ::std::fmt::Debug
+    where LS: lookup::AddressLookup
 {
     let blockchain_tip = blockchain.load_tip().0;
 
@@ -87,7 +85,6 @@ pub fn display_wallet_state_utxos<LS>( term: &mut Term
                                      , state: state::State<LS>
                                      )
     where LS: lookup::AddressLookup
-        , for<'de> LS::AddressOutput : serde::Deserialize<'de>
 {
     for (_, utxo) in state.utxos {
         writeln!(term, "{}.{} {}",
@@ -104,11 +101,10 @@ pub fn display_wallet_state_logs<LS>( term: &mut Term
                                     , pretty: bool
                                     )
     where LS: lookup::AddressLookup
-        , for<'de> LS::AddressOutput : serde::Deserialize<'de>
 {
     let log_lock = lock_wallet_log(&wallet);
     let reader = log::LogReader::open(log_lock).unwrap();
-    let reader : log::LogIterator<LS::AddressOutput> = reader.into_iter();
+    let reader : log::LogIterator<lookup::Address> = reader.into_iter();
     let reader = reader.filter_map(|r| {
         match r {
             Err(err) => {
@@ -199,7 +195,6 @@ pub fn dump_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: bool) 
 
 pub fn update_wallet_state_with_logs<LS>(wallet: &Wallet, state: &mut state::State<LS>)
     where LS: lookup::AddressLookup
-        , for<'de> LS::AddressOutput : serde::Deserialize<'de>
 {
     let log_lock = lock_wallet_log(wallet);
     state.update_with_logs(

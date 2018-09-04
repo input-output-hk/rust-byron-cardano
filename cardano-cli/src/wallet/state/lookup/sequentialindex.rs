@@ -2,7 +2,7 @@ use cardano::wallet::{bip44};
 use std::collections::BTreeMap;
 use cardano::address::ExtendedAddr;
 
-use super::{AddressLookup};
+use super::{AddressLookup, Address};
 use super::super::{utxo::{UTxO}};
 
 pub const DEFAULT_GAP_LIMIT: u32 = 20;
@@ -100,19 +100,23 @@ impl SequentialBip44Lookup {
 
 impl AddressLookup for SequentialBip44Lookup {
     type Error = bip44::bip44::Error;
-    type AddressInput = ExtendedAddr;
-    type AddressOutput = bip44::Addressing;
 
-    fn lookup(&mut self, utxo: UTxO<Self::AddressInput>) -> Result<Option<UTxO<Self::AddressOutput>>> {
+    fn lookup(&mut self, utxo: UTxO<ExtendedAddr>) -> Result<Option<UTxO<Address>>> {
         let addressing = self.expected.get(&utxo.credited_address).cloned();
         if let Some(addressing) = addressing {
             self.threshold_generate(addressing)?;
 
-            Ok(Some(utxo.map(|_| addressing)))
+            Ok(Some(utxo.map(|_| addressing.into())))
         } else { Ok(None) }
     }
 
-    fn acknowledge(&mut self, address: &Self::AddressOutput) -> Result<()> {
-        self.threshold_generate(address.clone())
+    fn acknowledge<A: Into<Address>>(&mut self, address: A) -> Result<()> {
+        match address.into() {
+            Address::Bip44(address) => self.threshold_generate(address),
+            _ => {
+                error!("unsupported address (expected bip44 addressing)");
+                Err(bip44::bip44::Error::InvalidType(0))
+            }
+        }
     }
 }

@@ -1,14 +1,13 @@
 use super::utxo::{UTxO, UTxOs};
 use super::log::{Log};
-use super::{lookup::{AddressLookup}, ptr::StatePtr};
-use cardano::{tx::TxIn, coin::{self, Coin}};
-use std::{fmt};
+use super::{lookup::{AddressLookup, Address}, ptr::StatePtr};
+use cardano::{tx::TxIn, coin::{self, Coin}, address::ExtendedAddr};
 
 #[derive(Debug)]
 pub struct State<T: AddressLookup> {
     pub ptr: StatePtr,
     pub lookup_struct: T,
-    pub utxos: UTxOs<T::AddressOutput>
+    pub utxos: UTxOs<Address>
 }
 
 impl<T: AddressLookup> State<T> {
@@ -30,14 +29,13 @@ impl<T: AddressLookup> State<T> {
     /// update the wallet state with the given logs
     /// This function is for initializing the State by recovering the logs.
     ///
-    pub fn update_with_logs<I: IntoIterator<Item = Log<T::AddressOutput>>>(&mut self, iter: I) -> Result<(), T::Error>
-        where T::AddressOutput: fmt::Display
+    pub fn update_with_logs<I: IntoIterator<Item = Log<Address>>>(&mut self, iter: I) -> Result<(), T::Error>
     {
         for log in iter {
             match log {
                 Log::Checkpoint(known_ptr) => self.ptr = known_ptr,
                 Log::ReceivedFund(ptr, utxo) => {
-                    self.lookup_struct.acknowledge(&utxo.credited_address)?;
+                    self.lookup_struct.acknowledge(utxo.credited_address.clone())?;
                     self.ptr = ptr;
 
                     if let Some(utxo) = self.utxos.insert(utxo.extract_txin(), utxo) {
@@ -53,7 +51,7 @@ impl<T: AddressLookup> State<T> {
                             panic!("The Wallet LOG file seems corrupted");
                         }
                     };
-                    self.lookup_struct.acknowledge(&utxo.credited_address)?;
+                    self.lookup_struct.acknowledge(utxo.credited_address.clone())?;
                     self.ptr = ptr;
                 },
             }
@@ -61,9 +59,8 @@ impl<T: AddressLookup> State<T> {
         Ok(())
     }
 
-    pub fn forward_with_txins<'a, I>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
-        where T::AddressOutput: Clone
-            , I: IntoIterator<Item = (StatePtr, &'a TxIn)>
+    pub fn forward_with_txins<'a, I>(&mut self, iter: I) -> Result<Vec<Log<Address>>, T::Error>
+        where I: IntoIterator<Item = (StatePtr, &'a TxIn)>
     {
         let mut events = Vec::new();
         for (ptr, txin) in iter {
@@ -73,9 +70,8 @@ impl<T: AddressLookup> State<T> {
         }
         Ok(events)
     }
-    pub fn forward_with_utxos<I>(&mut self, iter: I) -> Result<Vec<Log<T::AddressOutput>>, T::Error>
-        where T::AddressOutput: Clone
-            , I: IntoIterator<Item = (StatePtr, UTxO<T::AddressInput>)>
+    pub fn forward_with_utxos<I>(&mut self, iter: I) -> Result<Vec<Log<Address>>, T::Error>
+        where I: IntoIterator<Item = (StatePtr, UTxO<ExtendedAddr>)>
     {
         let mut events = Vec::new();
         for (ptr, utxo) in iter {
