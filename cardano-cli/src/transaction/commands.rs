@@ -89,7 +89,7 @@ pub fn sign( mut term: Term
             if let Some(utxo) = state.utxos.get(&txin) {
                 term.info(
                     &format!(
-                        "signing input {}.{} ({})",
+                        "signing input {}.{} ({})\n",
                         style!(input.transaction_id),
                         style!(input.index_in_transaction),
                         style!(name)
