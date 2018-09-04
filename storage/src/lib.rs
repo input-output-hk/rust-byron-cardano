@@ -154,13 +154,7 @@ pub mod blob {
     }
 
     pub fn read(storage: &super::Storage, hash: &super::BlockHash) -> Result<RawBlock> {
-        let mut content = Vec::new();
-        let path = storage.config.get_blob_filepath(&hash);
-
-        let mut file = fs::File::open(path)?;
-        file.read_to_end(&mut content)?;
-
-        Ok(RawBlock::from_dat(content))
+        Ok(RawBlock::from_dat(self::read_raw(storage, hash)?))
     }
 
     pub fn exist(storage: &super::Storage, hash: &super::BlockHash) -> bool {
