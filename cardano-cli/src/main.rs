@@ -733,7 +733,7 @@ const TRANSACTION_COMMAND : &'static str = "transaction";
 
 #[derive(Debug,Clone,Copy)]
 pub enum TransactionCmd {
-    New, List, Destroy, Export, Import, Sign, AddInput, AddOutput, RmInput, RmOutput, Status,
+    New, List, Destroy, Export, Import, Sign, InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, Status,
 }
 impl TransactionCmd {
     pub fn as_string(self) -> &'static str {
@@ -744,6 +744,8 @@ impl TransactionCmd {
             TransactionCmd::Export => "export",
             TransactionCmd::Import => "import",
             TransactionCmd::Sign => "sign",
+            TransactionCmd::InputSelect => "input-select",
+            TransactionCmd::AddChange => "add-change",
             TransactionCmd::AddInput => "add-input",
             TransactionCmd::AddOutput => "add-output",
             TransactionCmd::RmInput => "rm-input",
@@ -845,6 +847,14 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
 
             transaction::commands::add_output(term, root_dir, id, output);
         },
+        ("add-change", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::add_change(term, root_dir, id);
+        },
+        ("input-select", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::input_select(term, root_dir, id);
+        }
         ("rm-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
             let address = value_t!(matches, "TRANSACTION_ADDRESS", cardano::address::ExtendedAddr).ok();
@@ -900,6 +910,15 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(SubCommand::with_name(TransactionCmd::Sign.as_string())
             .about("Finalize a staging a transaction into a transaction ready to send to the blockchain network")
+            .arg(transaction_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::InputSelect.as_string())
+            .about("Select input automatically using a wallet (or a set of wallets), and a input selection algorithm")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("WALLET_NAME").required(true).multiple(true).help("wallet name to use for the selection")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddChange.as_string())
+            .about("Add a change address to a transaction")
             .arg(transaction_argument_name_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
