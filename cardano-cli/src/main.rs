@@ -441,9 +441,9 @@ fn wallet_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
         .help("the wallet name")
         .required(true)
 }
-fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> String {
+fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> wallet::WalletName {
     match matches.value_of("WALLET_NAME") {
-        Some(r) => { r.to_owned() },
+        Some(r) => { wallet::WalletName::new(r.to_owned()).expect("Wallet name is invalid. cannot contains . and /") },
         None => { unreachable!() }
     }
 }

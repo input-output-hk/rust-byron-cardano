@@ -1,5 +1,5 @@
 use super::config::{encrypt_primary_key, Config, HDWalletModel};
-use super::{Wallet, Wallets};
+use super::{WalletName, Wallet, Wallets};
 use super::state::{lookup};
 use super::utils::{*};
 
@@ -44,7 +44,7 @@ pub fn list( mut term: Term
 ///
 pub fn new<D>( mut term: Term
              , root_dir: PathBuf
-             , name: String
+             , name: WalletName
              , wallet_scheme: HDWalletModel
              , derivation_scheme: DerivationScheme
              , mnemonic_size: bip39::Type
@@ -101,7 +101,7 @@ pub fn new<D>( mut term: Term
 
 pub fn recover<D>( mut term: Term
                  , root_dir: PathBuf
-                 , name: String
+                 , name: WalletName
                  , wallet_scheme: HDWalletModel
                  , derivation_scheme: DerivationScheme
                  , mnemonic_size: bip39::Type
@@ -168,7 +168,7 @@ pub fn recover<D>( mut term: Term
 
 pub fn destroy( mut term: Term
               , root_dir: PathBuf
-              , name: String
+              , name: WalletName
               )
 {
     // load the wallet
@@ -196,7 +196,7 @@ new transactions will be by recovering the wallet with the mnemonic words.",
 
 pub fn attach( mut term: Term
              , root_dir: PathBuf
-             , name: String
+             , name: WalletName
              , blockchain_name: String
              )
 {
@@ -227,7 +227,7 @@ pub fn attach( mut term: Term
 
 pub fn detach( mut term: Term
              , root_dir: PathBuf
-             , name: String
+             , name: WalletName
              )
 {
     // load the wallet
@@ -250,7 +250,7 @@ pub fn detach( mut term: Term
 
 pub fn status( mut term: Term
              , root_dir: PathBuf
-             , name: String
+             , name: WalletName
              )
 {
     // load the wallet
@@ -258,7 +258,7 @@ pub fn status( mut term: Term
 
     if let Some(ref blk_name) = &wallet.config.attached_blockchain {
         term.simply("Wallet ").unwrap();
-        term.warn(&wallet.name).unwrap();
+        term.warn(&format!("{}", &wallet.name)).unwrap();
         term.simply(" on blockchain ").unwrap();
         term.info(blk_name).unwrap();
         term.simply("\n").unwrap();
@@ -289,7 +289,7 @@ pub fn status( mut term: Term
 
 pub fn log( mut term: Term
           , root_dir: PathBuf
-          , name: String
+          , name: WalletName
           , pretty: bool
           )
 {
@@ -303,7 +303,7 @@ pub fn log( mut term: Term
 
 pub fn utxos( mut term: Term
             , root_dir: PathBuf
-            , name: String
+            , name: WalletName
             )
 {
     // load the wallet
@@ -316,7 +316,7 @@ pub fn utxos( mut term: Term
 
 pub fn sync( mut term: Term
            , root_dir: PathBuf
-           , name: String
+           , name: WalletName
            )
 
 {

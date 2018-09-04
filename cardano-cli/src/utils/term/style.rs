@@ -12,6 +12,7 @@ use cardano::{hash, redeem, coin::{Coin}, block::{self, BlockDate, HeaderHash}, 
 pub use console::{StyledObject};
 
 use super::super::super::transaction;
+use super::super::super::wallet::{WalletName};
 
 pub trait Style: Sized {
     fn style(self) -> StyledObject<Self>;
@@ -114,6 +115,11 @@ impl Style for redeem::Signature {
 impl Style for address::StakeholderId {
     fn style(self) -> StyledObject<Self> {
         console::style(self).yellow().dim()
+    }
+}
+impl Style for WalletName {
+    fn style(self) -> StyledObject<Self> {
+        console::style(self).white()
     }
 }
 
