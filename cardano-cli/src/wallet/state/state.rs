@@ -47,7 +47,7 @@ impl<T: AddressLookup> State<T> {
         }
 
         if let Some(ptr) = ptr {
-           Ok(Ok(State { ptr: ptr, lookup_struct: lookup_struct, utxos: UTxOs::new() }))
+           Ok(Ok(State { ptr: ptr, lookup_struct: lookup_struct, utxos: utxos }))
         } else {
             Ok(Err(lookup_struct))
         }
