@@ -43,7 +43,15 @@ impl WalletName {
         self.0.clone()
     }
 }
-
+impl ::std::str::FromStr for WalletName {
+    type Err = &'static str;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match Self::new(s.to_owned()) {
+            Some(wn) => Ok(wn),
+            None => Err("Invalid Wallet Name")
+        }
+    }
+}
 impl fmt::Display for WalletName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)

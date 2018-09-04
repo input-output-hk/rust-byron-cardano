@@ -2,7 +2,7 @@ use std::{path::PathBuf, io::Write, iter, collections::BTreeMap};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
 use super::super::blockchain::{Blockchain};
-use super::super::wallet::{Wallets, self};
+use super::super::wallet::{Wallets, self, WalletName};
 use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
 use cardano::tx;
 
@@ -303,6 +303,21 @@ pub fn import( mut term: Term
     writeln!(&mut term, "Staging transaction `{}' successfully imported",
         style!(staging.id())
     );
+}
+
+pub fn input_select( mut term: Term
+                   , root_dir: PathBuf
+                   , id_str: &str
+                   , wallets: Vec<WalletName>
+                   )
+{
+    use ::cardano::{fee, tx};
+
+    let alg = fee::LinearFee::default();
+    let selection_policy = fee::SelectionPolicy::default();
+
+//    let (fee, selected_inputs, change)
+//        = alg.compute(selection_policy, inputs, outputs
 }
 
 /// helper function to load a staging file
