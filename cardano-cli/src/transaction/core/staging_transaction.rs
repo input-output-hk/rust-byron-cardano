@@ -1,5 +1,5 @@
 use storage::{containers::append, utils::{serialize, lock::{self, Lock}}};
-use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxIn, TxAux}, config::{ProtocolMagic}};
+use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxInWitness, TxIn, TxAux}, config::{ProtocolMagic}};
 use std::{path::PathBuf};
 
 use super::{config, StagingId, Operation, Transaction, Input, Output};
@@ -181,6 +181,10 @@ impl StagingTransaction {
         self.transaction.update_with(transaction_op.clone());
         self.operations.push(transaction_op);
         Ok(())
+    }
+
+    pub fn add_signature(&mut self, signature: TxInWitness) -> append::Result<()> {
+        self.append(Operation::Signature(signature))
     }
 
     /// add the given input to the transaction

@@ -1,7 +1,8 @@
-use std::{path::PathBuf, io::Write, iter};
+use std::{path::PathBuf, io::Write, iter, collections::BTreeMap};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
 use super::super::blockchain::{Blockchain};
+use super::super::wallet::{Wallets, self};
 use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
 use cardano::tx;
 
@@ -64,13 +65,53 @@ pub fn destroy( mut term: Term
     }
 }
 
-pub fn finalize( mut term: Term
-               , root_dir: PathBuf
-               , id_str: &str
-               )
+pub fn sign( mut term: Term
+           , root_dir: PathBuf
+           , id_str: &str
+           )
 {
-    let mut staging = load_staging(&mut term, root_dir, id_str);
-    unimplemented!()
+    let mut signatures = Vec::new();
+    let mut staging = load_staging(&mut term, root_dir.clone(), id_str);
+    let mut wallets = BTreeMap::new();
+    for (name, wallet) in Wallets::load(root_dir.clone()).unwrap() {
+        let state = wallet::utils::create_wallet_state_from_logs(&mut term, &wallet, root_dir.clone(), wallet::state::lookup::accum::Accum::default());
+        wallets.insert(name, (wallet, state));
+    }
+
+    let txid = staging.to_tx_aux().tx.id();
+    let protocol_magic = staging.protocol_magic;
+
+    // TODO: ignore already signed inputs
+    for input in staging.transaction().inputs() {
+        let txin = input.extract_txin();
+        let mut signature = None;
+        for (name, (wallet, state)) in wallets.iter() {
+            if let Some(utxo) = state.utxos.get(&txin) {
+                term.info(
+                    &format!(
+                        "signing input {}.{} ({})",
+                        style!(input.transaction_id),
+                        style!(input.index_in_transaction),
+                        style!(name)
+                    )
+                ).unwrap();
+
+                signature = Some(wallet::utils::wallet_sign_tx(
+                    &mut term, wallet, protocol_magic, &txid, &utxo.credited_address
+                ));
+            }
+        }
+
+        if let Some(signature) = signature {
+            signatures.push(signature);
+        } else {
+            panic!("cannot sign input {:#?}", input)
+        }
+    }
+
+    for signature in signatures {
+        staging.add_signature(signature).unwrap();
+    }
 }
 
 pub fn status( mut term: Term

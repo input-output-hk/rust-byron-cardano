@@ -7,9 +7,10 @@
 use super::{Wallet};
 use super::state::{log, ptr, state, lookup, iter::TransactionIterator, utxo::UTxO, ptr::{StatePtr}};
 use super::error::{Error};
+use super::config::{HDWalletModel};
 
 use std::{path::PathBuf, io::Write};
-use cardano::{address::ExtendedAddr, block::{BlockDate}};
+use cardano::{address::ExtendedAddr, block::{BlockDate}, config::ProtocolMagic, tx::{TxInWitness, TxId}};
 
 use utils::{term::{Term, style::{Style}}};
 
@@ -294,6 +295,30 @@ pub fn load_attached_blockchain(term: &mut Term, root_dir: PathBuf, name: Option
         Some(blockchain) => {
             Blockchain::load(root_dir, blockchain)
         }
+    }
+}
+
+pub fn wallet_sign_tx(term: &mut Term, wallet: &Wallet, protocol_magic: ProtocolMagic, txid: &TxId, address: &lookup::Address) -> TxInWitness
+{
+    match wallet.config.hdwallet_model {
+        HDWalletModel::BIP44 => {
+            let wallet = load_bip44_lookup_structure(term, wallet);
+            if let lookup::Address::Bip44(addressing) = address {
+                let xprv = wallet.get_private_key(addressing);
+                TxInWitness::new(protocol_magic, &*xprv, txid)
+            } else {
+                panic!()
+            }
+        },
+        HDWalletModel::RandomIndex2Levels => {
+            let wallet = load_randomindex_lookup_structure(term, wallet);
+            if let lookup::Address::RIndex(addressing) = address {
+                let xprv = wallet.get_private_key(addressing);
+                TxInWitness::new(protocol_magic, &xprv, txid)
+            } else {
+                panic!()
+            }
+        },
     }
 }
 
