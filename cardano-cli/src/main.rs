@@ -853,7 +853,9 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("input-select", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::input_select(term, root_dir, id);
+            let wallets = values_t!(matches, "WALLET_NAME", wallet::WalletName).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::input_select(term, root_dir, id, wallets);
         }
         ("rm-output", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -915,7 +917,7 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name(TransactionCmd::InputSelect.as_string())
             .about("Select input automatically using a wallet (or a set of wallets), and a input selection algorithm")
             .arg(transaction_argument_name_definition())
-            .arg(Arg::with_name("WALLET_NAME").required(true).multiple(true).help("wallet name to use for the selection")
+            .arg(Arg::with_name("WALLET_NAME").required(true).multiple(true).help("wallet name to use for the selection"))
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddChange.as_string())
             .about("Add a change address to a transaction")
