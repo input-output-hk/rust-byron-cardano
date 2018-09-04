@@ -188,7 +188,7 @@ impl<'a> ConnectedPeer<'a> {
 
             last_block = Some(block_hash.clone());
         }).unwrap();
-        pbr.finish_and_clear();
+        pbr.finish();
 
         // Update the tip tag to point to the most recent block.
         if let Some(block_hash) = last_block {
