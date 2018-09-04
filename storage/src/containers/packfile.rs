@@ -18,6 +18,11 @@ use types::{PackHash, BlockHash, HASH_SIZE};
 use cryptoxide::blake2b;
 use cryptoxide::digest::Digest;
 use containers::indexfile;
+use magic;
+use super::super::Result;
+
+const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
+const VERSION: magic::Version = 1;
 
 /// A Stream Reader that also computes the hash of the sum of all data read
 pub struct Reader<R> {
@@ -32,15 +37,17 @@ pub struct Seeker<R> {
 }
 
 impl Reader<fs::File> {
-    pub fn init<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let file = fs::File::open(path)?;
+    pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut file = fs::File::open(path)?;
+        magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
         Ok(Reader::from(file))
     }
 }
 
 impl Seeker<fs::File> {
-    pub fn init<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let file = fs::File::open(path)?;
+    pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut file = fs::File::open(path)?;
+        magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
         Ok(Seeker::from(file))
     }
 }
@@ -135,16 +142,17 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn init(tmpfile: TmpFile) -> Self {
+    pub fn init(mut tmpfile: TmpFile) -> Result<Self> {
+        magic::write_header(&mut tmpfile, FILE_TYPE, VERSION)?;
         let idx = indexfile::Index::new();
         let ctxt = blake2b::Blake2b::new(32);
-        Writer {
+        Ok(Writer {
             tmpfile: tmpfile,
             index: idx,
             pos: 0,
             nb_blobs: 0,
             hash_context: ctxt,
-        }
+        })
     }
 
     pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {

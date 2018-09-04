@@ -22,7 +22,6 @@
 ///
 
 use std::iter::repeat;
-use std::io;
 use std::io::{Write,Read,Seek,SeekFrom};
 use std::fs;
 use std::path::Path;
@@ -30,16 +29,18 @@ use types::{BlockHash, HASH_SIZE};
 use utils::bloom;
 use utils::tmpfile::{TmpFile};
 use utils::serialize::{read_offset, read_size, write_offset, write_size, Offset, SIZE_SIZE, OFF_SIZE};
+use magic;
+use super::super::Result;
 
-const MAGIC : &[u8] = b"ADAPACK1";
-const MAGIC_SIZE : usize = 8;
+const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
+const VERSION: magic::Version = 1;
 
 const FANOUT_ELEMENTS : usize = 256;
 const FANOUT_SIZE : usize = FANOUT_ELEMENTS*SIZE_SIZE;
 
-const HEADER_SIZE : usize = BLOOM_OFFSET as usize;
+const HEADER_SIZE : usize = BLOOM_OFFSET as usize - magic::HEADER_SIZE;
 
-const FANOUT_OFFSET : usize = MAGIC_SIZE + 8;
+const FANOUT_OFFSET : usize = magic::HEADER_SIZE;
 const BLOOM_OFFSET : usize = FANOUT_OFFSET + FANOUT_SIZE;
 
 // calculate the file offset from where the hashes are stored
@@ -130,7 +131,9 @@ impl Index {
         self.offsets.push(offset);
     }
 
-    pub fn write_to_tmpfile(&self, tmpfile: &mut TmpFile) -> io::Result<Lookup> {
+    pub fn write_to_tmpfile(&self, tmpfile: &mut TmpFile) -> Result<Lookup> {
+        magic::write_header(tmpfile, FILE_TYPE, VERSION)?;
+
         let mut hdr_buf = [0u8;HEADER_SIZE];
 
         let entries = self.hashes.len();
@@ -140,9 +143,8 @@ impl Index {
         let bloom_size = default_bloom_size(entries);
         let params = Params { bloom_size: bloom_size };
 
-        hdr_buf[0..8].clone_from_slice(&MAGIC[..]);
-        write_size(&mut hdr_buf[8..12], bloom_size as u32);
-        write_size(&mut hdr_buf[12..16], 0);
+        write_size(&mut hdr_buf[0..4], bloom_size as u32);
+        write_size(&mut hdr_buf[4..8], 0);
 
         // write fanout to hdr_buf
         let fanout = {
@@ -159,7 +161,7 @@ impl Index {
             }
 
             for i in 0..FANOUT_ELEMENTS {
-                let ofs = FANOUT_OFFSET + i * SIZE_SIZE; /* start at 16, because 0..8 is the magic, followed by size, and padding */
+                let ofs = FANOUT_OFFSET + i * SIZE_SIZE - magic::HEADER_SIZE; /* start at 16, because 0..8 is the magic, followed by size, and padding */
                 write_size(&mut hdr_buf[ofs..ofs+SIZE_SIZE], fanout_incr[i]);
             }
             Fanout(fanout_incr)
@@ -193,18 +195,16 @@ impl Index {
 }
 
 impl Lookup {
-    pub fn read_from_file(mut file: &fs::File) -> io::Result<Self> {
+    pub fn read_from_file(file: &mut fs::File) -> Result<Self> {
+        magic::check_header(file, FILE_TYPE, VERSION, VERSION)?;
         let mut hdr_buf = [0u8;HEADER_SIZE];
 
         file.read_exact(&mut hdr_buf)?;
-        if &hdr_buf[0..8] != MAGIC {
-            return Err(io::Error::last_os_error());
-        }
-        let bloom_size = read_size(&hdr_buf[8..12]);
+        let bloom_size = read_size(&hdr_buf[0..4]);
 
         let mut fanout = [0u32;FANOUT_ELEMENTS];
         for i in 0..FANOUT_ELEMENTS {
-            let ofs = FANOUT_OFFSET+i*SIZE_SIZE;
+            let ofs = FANOUT_OFFSET+i*SIZE_SIZE - magic::HEADER_SIZE;
             fanout[i] = read_size(&hdr_buf[ofs..ofs+SIZE_SIZE])
         }
         let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
@@ -231,7 +231,7 @@ fn file_read_hash(mut file: &fs::File) -> BlockHash {
     buf
 }
 
-pub fn dump_file(file: &mut fs::File) -> io::Result<(Lookup, Vec<BlockHash>)> {
+pub fn dump_file(file: &mut fs::File) -> Result<(Lookup, Vec<BlockHash>)> {
     let lookup = Lookup::read_from_file(file)?;
 
     let mut v = Vec::new();
@@ -250,7 +250,7 @@ pub struct ReaderNoLookup<R> {
 }
 
 impl ReaderNoLookup<fs::File> {
-    pub fn init<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut file = fs::File::open(path)?;
         // TODO : just read the magic
         let _ = Lookup::read_from_file(&mut file)?;
@@ -271,7 +271,7 @@ pub struct Reader<R> {
 }
 
 impl Reader<fs::File> {
-    pub fn init<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut file = fs::File::open(path)?;
         let lookup = Lookup::read_from_file(&mut file)?;
         Ok(Reader { lookup: lookup, handle: file })

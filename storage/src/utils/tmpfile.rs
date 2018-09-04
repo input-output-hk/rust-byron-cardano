@@ -34,7 +34,7 @@ impl TmpFile {
         // to error out correctly in every cases rename fail, however in a case of a hash, since the hash is suppose
         // to represent the same file, some error like EEXIST can be ignored, but some should be raised.
         // NOTE2: also we consider that the rename is atomic for the tmpfile abstraction to work correctly,
-        // but it mostly depends on the actual filesystem. for most case it should be atomic.
+        // but it mostly depends on the actual filesystem. POSIX requires it to be atomic.
         match fs::rename(&self.path, path) {
             _ => {},
         };

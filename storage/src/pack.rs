@@ -1,8 +1,7 @@
-
-use std::io;
 use std::fs;
 use utils::tmpfile::{TmpFile};
 use cardano;
+use super::Result;
 
 use containers::packfile;
 use containers::indexfile;
@@ -17,22 +16,22 @@ pub fn open_index(storage_config: &super::StorageConfig, pack: &super::PackHash)
     fs::File::open(storage_config.get_index_filepath(pack)).unwrap()
 }
 
-pub fn dump_index(storage_config: &super::StorageConfig, pack: &super::PackHash) -> io::Result<(indexfile::Lookup, Vec<super::BlockHash>)> {
+pub fn dump_index(storage_config: &super::StorageConfig, pack: &super::PackHash) -> Result<(indexfile::Lookup, Vec<super::BlockHash>)> {
     let mut file = open_index(storage_config, pack);
     indexfile::dump_file(&mut file)
 }
 
-pub fn read_index_fanout(storage_config: &super::StorageConfig, pack: &super::PackHash) -> io::Result<indexfile::Lookup> {
+pub fn read_index_fanout(storage_config: &super::StorageConfig, pack: &super::PackHash) -> Result<indexfile::Lookup> {
     let mut file = open_index(storage_config, pack);
     indexfile::Lookup::read_from_file(&mut file)
 }
 
-pub fn index_get_header(file: &fs::File) -> io::Result<indexfile::Lookup> {
+pub fn index_get_header(file: &mut fs::File) -> Result<indexfile::Lookup> {
     indexfile::Lookup::read_from_file(file)
 }
 
-pub fn packwriter_init(cfg: &super::StorageConfig) -> packfile::Writer {
-    let tmpfile = TmpFile::create(cfg.get_filetype_dir(super::StorageFileType::Pack)).unwrap();
+pub fn packwriter_init(cfg: &super::StorageConfig) -> Result<packfile::Writer> {
+    let tmpfile = TmpFile::create(cfg.get_filetype_dir(super::StorageFileType::Pack))?;
     packfile::Writer::init(tmpfile)
 }
 

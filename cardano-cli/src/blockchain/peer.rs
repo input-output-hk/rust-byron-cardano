@@ -107,7 +107,7 @@ impl<'a> ConnectedPeer<'a> {
             && !internal::epoch_exists(&peer.blockchain.storage, best_tip.0.date.get_epochid())
         {
             let epoch_id = best_tip.0.date.get_epochid();
-            let mut writer = storage::pack::packwriter_init(&peer.blockchain.storage.config);
+            let mut writer = storage::pack::packwriter_init(&peer.blockchain.storage.config).unwrap();
             let epoch_time_start = SystemTime::now();
 
             let prev_block = internal::append_blocks_to_epoch_reverse(
@@ -174,7 +174,11 @@ impl<'a> ConnectedPeer<'a> {
 
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if date.is_genesis() {
-                    cur_epoch_state = Some((date.get_epochid(), storage::pack::packwriter_init(&peer.blockchain.storage.config), SystemTime::now()));
+                    cur_epoch_state = Some((
+                        date.get_epochid(),
+                        storage::pack::packwriter_init(&peer.blockchain.storage.config).unwrap(),
+                        SystemTime::now()
+                    ));
                 }
 
                 // And append the block to the epoch pack.
@@ -309,7 +313,7 @@ mod internal {
 
         info!("Packing epoch {}", epoch_id);
 
-        let mut writer = storage::pack::packwriter_init(&storage.config);
+        let mut writer = storage::pack::packwriter_init(&storage.config).unwrap();
         let epoch_time_start = SystemTime::now();
 
         append_blocks_to_epoch_reverse(&storage, epoch_id, &mut writer, last_block);

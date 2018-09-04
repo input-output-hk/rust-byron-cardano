@@ -14,6 +14,7 @@ pub mod epoch;
 pub mod refpack;
 pub mod utils;
 pub mod containers;
+pub mod magic;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -30,10 +31,12 @@ use pack::{packreader_init, packreader_block_next};
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
+    MissingMagic,
+    WrongFileType(magic::FileType, magic::FileType),
+    VersionTooOld(magic::Version, magic::Version),
+    VersionTooNew(magic::Version, magic::Version),
     BlockError(block::Error),
     CborBlockError(cbor_event::Error),
-    // ** RefPack creation errors
-    RefPackError(refpack::Error),
     RefPackUnexpectedGenesis(SlotId),
     // ** Epoch pack assumption errors
     EpochExpectingGenesis,
@@ -47,9 +50,6 @@ impl From<io::Error> for Error {
 }
 impl From<block::Error> for Error {
     fn from(e: block::Error) -> Self { Error::BlockError(e) }
-}
-impl From<refpack::Error> for Error {
-    fn from(e: refpack::Error) -> Self { Error::RefPackError(e) }
 }
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborBlockError(e) }
@@ -130,10 +130,15 @@ pub mod blob {
     use std::io::{Read,Write};
     use super::{Result, Error};
     use cardano::block::RawBlock;
+    use magic;
+
+    const FILE_TYPE: magic::FileType = 0x424c4f42; // = BLOB
+    const VERSION: magic::Version = 1;
 
     pub fn write(storage: &super::Storage, hash: &super::BlockHash, block: &[u8]) -> Result<()> {
         let path = storage.config.get_blob_filepath(&hash);
         let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Blob);
+        magic::write_header(&mut tmp_file, FILE_TYPE, VERSION)?;
         tmp_file.write_all(block)?;
         tmp_file.render_permanent(&path).map_err(|e| Error::IoError(e))
     }
@@ -143,6 +148,7 @@ pub mod blob {
         let path = storage.config.get_blob_filepath(&hash);
 
         let mut file = fs::File::open(path)?;
+        magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
         file.read_to_end(&mut content)?;
         Ok(content)
     }
@@ -249,7 +255,7 @@ impl Default for PackParameters {
 }
 
 pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
-    let mut writer = pack::packwriter_init(&storage.config);
+    let mut writer = pack::packwriter_init(&storage.config).unwrap();
     let mut blob_packed = Vec::new();
 
     let block_hashes : Vec<BlockHash> = if let Some((from, to)) = params.range {
