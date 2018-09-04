@@ -733,7 +733,7 @@ const TRANSACTION_COMMAND : &'static str = "transaction";
 
 #[derive(Debug,Clone,Copy)]
 pub enum TransactionCmd {
-    New, List, Destroy, Export, Import, Sign, InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, Status,
+    New, List, Destroy, Export, Import, Sign, InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, RmChange, Status,
 }
 impl TransactionCmd {
     pub fn as_string(self) -> &'static str {
@@ -750,6 +750,7 @@ impl TransactionCmd {
             TransactionCmd::AddOutput => "add-output",
             TransactionCmd::RmInput => "rm-input",
             TransactionCmd::RmOutput => "rm-output",
+            TransactionCmd::RmChange => "rm-change",
             TransactionCmd::Status => "status",
         }
     }
@@ -849,7 +850,9 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         },
         ("add-change", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
-            transaction::commands::add_change(term, root_dir, id);
+            let address = value_t!(matches, "CHANGE_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::add_change(term, root_dir, id, address);
         },
         ("input-select", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -868,6 +871,12 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
             let txin = transaction_argument_txin_match(&matches);
 
             transaction::commands::remove_input(term, root_dir, id, txin);
+        },
+        ("rm-change", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let address = value_t!(matches, "CHANGE_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::remove_change(term, root_dir, id, address);
         },
         ("status", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -922,6 +931,12 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name(TransactionCmd::AddChange.as_string())
             .about("Add a change address to a transaction")
             .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("CHANGE_ADDRESS").required(true).help("address to send the change to"))
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmChange.as_string())
+            .about("Remove a change address from a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("CHANGE_ADDRESS").required(true).help("address to remove"))
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
             .about("Add an input to a transaction")

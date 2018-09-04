@@ -215,6 +215,30 @@ pub fn add_output( mut term: Term
     }
 }
 
+pub fn add_change( mut term: Term
+                 , root_dir: PathBuf
+                 , id_str: &str
+                 , change: ExtendedAddr
+                 )
+{
+    let mut staging = load_staging(&mut term, root_dir, id_str);
+
+    if staging.is_finalizing_pending() {
+        term.error("Cannot add change to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
+
+    if staging.transaction.has_change() {
+        term.error("multiple change address not supported yet").unwrap();
+        ::std::process::exit(1);
+    }
+
+    match staging.add_change(change.into()) {
+        Err(err) => panic!("{:?}", err),
+        Ok(())   => ()
+    }
+}
+
 pub fn remove_input( mut term: Term
                    , root_dir: PathBuf
                    , id_str: &str
@@ -266,6 +290,25 @@ pub fn remove_output( mut term: Term
         // TODO, implement interactive mode
         unimplemented!()
     };
+}
+
+pub fn remove_change( mut term: Term
+                    , root_dir: PathBuf
+                    , id_str: &str
+                    , change: ExtendedAddr
+                    )
+{
+    let mut staging = load_staging(&mut term, root_dir, id_str);
+
+    if staging.is_finalizing_pending() {
+        term.error("Cannot remove change addresses to a staging transaction with signatures in").unwrap();
+        ::std::process::exit(1);
+    }
+
+    match staging.remove_change(change) {
+        Err(err) => panic!("{:?}", err),
+        Ok(())   => ()
+    }
 }
 
 pub fn export( mut term: Term

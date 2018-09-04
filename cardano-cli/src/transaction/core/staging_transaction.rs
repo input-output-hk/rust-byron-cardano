@@ -2,7 +2,7 @@ use storage::{containers::append, utils::{serialize, lock::{self, Lock}}};
 use cardano::{util::{hex}, address::{ExtendedAddr}, tx::{TxInWitness, TxIn, TxAux}, config::{ProtocolMagic}};
 use std::{path::PathBuf};
 
-use super::{config, StagingId, Operation, Transaction, Input, Output};
+use super::{config, StagingId, Operation, Transaction, Input, Output, Change};
 use super::operation::{ParsingOperationError};
 
 pub struct StagingTransaction {
@@ -205,6 +205,15 @@ impl StagingTransaction {
         self.append(Operation::AddInput(input))
     }
 
+    pub fn add_change(&mut self, change: Change) -> append::Result<()> {
+        assert!(
+            ! self.transaction.has_change(),
+            "We do not support multiple change addresses yet"
+        );
+
+        self.append(Operation::AddChange(change))
+    }
+
     pub fn add_output(&mut self, output: Output) -> append::Result<()> {
         // we don't need to check anything here, we don't mind
         // reusing twice the same address/output
@@ -226,6 +235,16 @@ impl StagingTransaction {
         );
 
         self.append(Operation::RemoveInput(txin))
+    }
+
+    /// remove the input associated to the given `TxIn`
+    ///
+    /// # panic
+    ///
+    /// This function will panic if the TxIn does not match any inputs
+    ///
+    pub fn remove_change(&mut self, address: ExtendedAddr) -> append::Result<()> {
+        self.append(Operation::RemoveChange(address))
     }
 
     /// remove the output at the given index
