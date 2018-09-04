@@ -155,7 +155,7 @@ pub fn add_input( mut term: Term
                 , input: Option<(TxId, u32, Option<Coin>)>
                 )
 {
-    let mut staging = load_staging(&mut term, root_dir, id_str);
+    let mut staging = load_staging(&mut term, root_dir.clone(), id_str);
 
     if staging.is_finalizing_pending() {
         term.error("Cannot add input to a staging transaction with signatures in").unwrap();
@@ -163,17 +163,17 @@ pub fn add_input( mut term: Term
     }
 
     let input = if let Some(input) = input {
-        let expected_value = match input.2 {
+        match input.2 {
             None => {
-                term.error("you need a coin value associated. discovery not implemented");
-                ::std::process::exit(1);
+                find_input_in_all_utxos(&mut term, root_dir.clone(), input.0, input.1)
             },
-            Some(v) => { v },
-        };
-        core::Input {
-            transaction_id: input.0,
-            index_in_transaction: input.1,
-            expected_value: expected_value,
+            Some(v) => {
+                core::Input {
+                    transaction_id: input.0,
+                    index_in_transaction: input.1,
+                    expected_value: v,
+                }
+            },
         }
     } else {
         // TODO, implement interactive mode
@@ -324,4 +324,26 @@ fn load_staging(term: &mut Term, root_dir: PathBuf, id_str: &str) -> StagingTran
         },
         Ok(st) => st
     }
+}
+
+// ----------------------------------- helpers ---------------------------------
+
+// find_input_in_all_utxos(&mut term, root_dir.clone(), &input.0, input.1)
+fn find_input_in_all_utxos(term: &mut Term, root_dir: PathBuf, txid: TxId, index: u32) -> core::Input {
+    let txin = TxIn { id: txid, index: index };
+    for (_, wallet) in Wallets::load(root_dir.clone()).unwrap() {
+        let state = wallet::utils::create_wallet_state_from_logs(term, &wallet, root_dir.clone(), wallet::state::lookup::accum::Accum::default());
+
+        if let Some(utxo) = state.utxos.get(&txin) {
+            let txin = utxo.extract_txin();
+            return core::Input {
+                transaction_id: txin.id,
+                index_in_transaction: txin.index,
+                expected_value: utxo.credited_value,
+            };
+        }
+    }
+
+    term.error(&format!("No input found")).unwrap();
+    ::std::process::exit(1);
 }
