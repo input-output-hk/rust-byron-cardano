@@ -24,7 +24,7 @@ impl<T: AddressLookup> State<T> {
             match log {
                 Log::Checkpoint(known_ptr) => ptr = Some(known_ptr),
                 Log::ReceivedFund(known_ptr, utxo) => {
-                    lookup_struct.acknowledge(utxo.credited_address.clone())?;
+                    lookup_struct.acknowledge(utxo.credited_addressing.clone())?;
                     ptr = Some(known_ptr);
 
                     if let Some(utxo) = utxos.insert(utxo.extract_txin(), utxo) {
@@ -40,7 +40,7 @@ impl<T: AddressLookup> State<T> {
                             panic!("The Wallet LOG file seems corrupted");
                         }
                     };
-                    lookup_struct.acknowledge(utxo.credited_address.clone())?;
+                    lookup_struct.acknowledge(utxo.credited_addressing.clone())?;
                     ptr = Some(known_ptr);
                 },
             }

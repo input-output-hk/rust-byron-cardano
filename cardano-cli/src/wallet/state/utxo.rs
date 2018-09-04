@@ -28,7 +28,9 @@ pub struct UTxO<A> {
     /// the wallet or by other tool that could be working on the transactions
     /// without needing to use the fund credited in this `UTxO`.
     ///
-    pub credited_address: A,
+    pub credited_address: ExtendedAddr,
+
+    pub credited_addressing: A,
 
     /// the amount credited in this `UTxO`
     pub credited_value: Coin,
@@ -51,14 +53,11 @@ impl<A> UTxO<A> {
             transaction_id: self.transaction_id,
             index_in_transaction: self.index_in_transaction,
             credited_value: self.credited_value,
-            credited_address: f(self.credited_address)
+            credited_addressing: f(self.credited_addressing),
+            credited_address: self.credited_address
         }
     }
-}
-impl UTxO<ExtendedAddr> {
-    /// in the case of an anonymized `UTxO` it is possible to reconstruct
-    /// the original `TxOut` that credited the funds to this `UTxO`.
-    ///
+
     /// This `TxOut` is equal to the one that can be found in the original
     /// blockchain.
     pub fn extract_txout(&self) -> TxOut {

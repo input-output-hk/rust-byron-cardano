@@ -25,6 +25,10 @@ impl RandomIndexLookup {
     pub fn get_private_key(&self, addr: &rindex::Addressing) -> XPrv {
         self.generator.key(addr)
     }
+
+    pub fn get_address(&self, addr: &rindex::Addressing) -> ExtendedAddr {
+        self.generator.address(addr)
+    }
 }
 impl AddressLookup for RandomIndexLookup {
     type Error = rindex::Error;

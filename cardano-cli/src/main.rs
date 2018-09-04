@@ -595,6 +595,14 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::recover(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, interactive, daedalus_seed, mnemonic_lang);
         },
+        ("address", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+            let account = value_t!(matches, "ACCOUNT_INDEX", u32).unwrap_or_else(|e| e.exit());
+            let index   = value_t!(matches, "ADDRESS_INDEX", u32).unwrap_or_else(|e| e.exit());
+            let is_internal = matches.is_present("INTERNAL_ADDRESS");
+
+            wallet::commands::address(term, root_dir, name, account, is_internal, index);
+        },
         ("attach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
             let blockchain = blockchain_argument_name_match(&matches);
@@ -683,6 +691,13 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
         .subcommand(SubCommand::with_name("destroy")
             .about("delete all data associated to the given wallet.")
             .arg(wallet_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name("address")
+            .about("create a new address")
+            .arg(wallet_argument_name_definition())
+            .arg(Arg::with_name("ACCOUNT_INDEX").required(true))
+            .arg(Arg::with_name("ADDRESS_INDEX").required(true))
+            .arg(Arg::with_name("INTERNAL_ADDRESS").long("internal"))
         )
         .subcommand(SubCommand::with_name("attach")
             .about("Attach the existing wallet to the existing local blockchain. Detach first to attach to an other blockchain.")

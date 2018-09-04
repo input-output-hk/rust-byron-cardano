@@ -68,7 +68,8 @@ pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
                     , UTxO {
                         transaction_id: txid.clone(),
                         index_in_transaction: idx as u32,
-                        credited_address: txout.address,
+                        credited_address: txout.address.clone(),
+                        credited_addressing: txout.address,
                         credited_value: txout.value
                       }
                     )

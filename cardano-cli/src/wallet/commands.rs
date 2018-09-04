@@ -342,3 +342,38 @@ pub fn sync( mut term: Term
         },
     };
 }
+
+pub fn address( mut term: Term
+              , root_dir: PathBuf
+              , name: WalletName
+              , account: u32
+              , is_internal: bool
+              , index: u32
+              )
+{
+    // load the wallet
+    let wallet = Wallet::load(root_dir.clone(), name);
+
+    let addr = match wallet.config.hdwallet_model {
+        HDWalletModel::BIP44 => {
+            let mut lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+            let account = match ::cardano::bip::bip44::Account::new(account) {
+                Err(err) => panic!("{:#?}", err),
+                Ok(account) => account
+            };
+            let change = if is_internal { account.internal().unwrap() } else { account.external().unwrap() };
+            let addressing = match change.index(index) {
+                Err(err) => panic!("{:#?}", err),
+                Ok(addressing) => addressing
+            };
+            lookup_struct.get_address(&addressing)
+        },
+        HDWalletModel::RandomIndex2Levels => {
+            let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
+            let addressing = ::cardano::wallet::rindex::Addressing(account, index);
+            lookup_struct.get_address(&addressing)
+        }
+    };
+
+    writeln!(term, "{}", style!(addr));
+}
