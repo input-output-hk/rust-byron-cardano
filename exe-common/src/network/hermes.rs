@@ -1,4 +1,4 @@
-use cardano::block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash};
+use cardano::{block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash}, tx::{TxAux}};
 use cardano::hash::HASH_SIZE;
 use storage;
 use std::io::Write;
@@ -209,5 +209,9 @@ impl Api for HermesEndPoint {
         }
 
         Ok(())
+    }
+
+    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool> {
+        Ok(false)
     }
 }

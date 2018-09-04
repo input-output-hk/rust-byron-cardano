@@ -1,4 +1,4 @@
-use cardano::block::{Block, BlockHeader, RawBlock, HeaderHash, BlockDate};
+use cardano::{block::{Block, BlockHeader, RawBlock, HeaderHash, BlockDate}, tx::{TxAux}};
 use network::{Result};
 
 /// Api to abstract the network interaction and do the
@@ -26,6 +26,8 @@ pub trait Api {
                     , got_block: &mut F
                     ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
+
+    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

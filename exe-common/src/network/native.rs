@@ -3,7 +3,7 @@ use mstream::{MStream, MetricStart, MetricStats};
 use cardano::{config::{ProtocolMagic}};
 use rand;
 use std::{net::{SocketAddr, ToSocketAddrs}, ops::{Deref, DerefMut}};
-use cardano::block::{Block, BlockHeader, RawBlock, HeaderHash};
+use cardano::{block::{Block, BlockHeader, RawBlock, HeaderHash}, tx::{TxAux}};
 use protocol::command::*;
 
 use network::{Error, Result};
@@ -82,6 +82,14 @@ impl Api for PeerPool {
             None => panic!("We expect at lease one connection on any native peer"),
             Some(conn) => conn.get_blocks(from, inclusive, to, got_block)
         }
+    }
+
+    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool> {
+        let mut sent = false;
+        for connection in self.connections.iter_mut() {
+            sent |= connection.send_transaction(txaux.clone())?;
+        }
+        Ok(sent)
     }
 }
 
@@ -251,5 +259,9 @@ impl Api for OpenPeer {
         }
 
         Ok(())
+    }
+
+    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool> {
+        Ok(SendTx::new(txaux).execute(&mut self.0).map(|_| true)?)
     }
 }
