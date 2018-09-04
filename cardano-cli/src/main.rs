@@ -925,7 +925,7 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("Add an input to a transaction")
             .arg(transaction_argument_name_definition())
             .arg(transaction_argument_txid_definition())
-            .arg(transaction_argument_index_definition().requires("TRANSACTION_AMOUNT"))
+            .arg(transaction_argument_index_definition())
             .arg(transaction_argument_amount_definition())
         )
         .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
