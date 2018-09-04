@@ -83,11 +83,12 @@ impl<'a> Iter<'a> {
         let iterator = match storage::block_location(&storage, from.bytes()) {
             None => panic!(),
             Some(storage::BlockLocation::Loose) => {
-                let range = storage::block::Range::new(
+                let mut range = storage::block::Range::new(
                     storage,
                     from.bytes().clone(),
                     to.bytes().clone()
                 ).unwrap(); // TODO
+                range.next();
                 IteratorType::Loose(storage, range)
             },
             Some(location) => {
@@ -144,11 +145,12 @@ impl<'a> Iterator for Iter<'a> {
             match self.iterator.next() {
                 None => {
                     if ! self.iterator.is_loose() {
-                        let range = storage::block::Range::new(
+                        let mut range = storage::block::Range::new(
                             &self.storage,
                             self.last_known_block_hash.clone().unwrap().into_bytes(),
                             self.ending_at.bytes().clone()
                         ).unwrap(); // TODO
+                        range.next(); // remove the last known block hash (it was the one in the last epoch)
                         self.iterator = IteratorType::Loose(&self.storage, range);
                         self.next()
                     } else {
