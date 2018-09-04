@@ -354,13 +354,35 @@ pub fn input_select( mut term: Term
                    , wallets: Vec<WalletName>
                    )
 {
-    use ::cardano::{fee, tx};
+    use ::cardano::{fee::{self, SelectionAlgorithm}, tx, txutils};
 
     let alg = fee::LinearFee::default();
     let selection_policy = fee::SelectionPolicy::default();
 
-//    let (fee, selected_inputs, change)
-//        = alg.compute(selection_policy, inputs, outputs
+    let staging = load_staging(&mut term, root_dir, id_str);
+
+    if ! staging.transaction().has_change() {
+        term.error("cannot select inputs if no change").unwrap();
+        ::std::process::exit(1);
+    }
+
+    let change_address = staging.transaction().changes()[0].address.clone();
+    let output_policy = txutils::OutputPolicy::One(change_address.clone());
+
+    let (fee, selected_inputs, change)
+        = match alg.compute(selection_policy, inputs, outputs, &output_policy) {
+            Err(err) => { panic!("error {:#?}", err) },
+            Ok(v) => v
+    };
+
+    if change != Coin::zero() {
+        term.info(&format!("using the change address: {} with value {}", change_address, change)).unwrap();
+        // add/remove the output change
+        staging.remove_change(change_address.clone()).unwrap();
+        staging.add_output(core::Output { address : change_address, amount: change }).unwrap();
+    }
+
+    unimplemented!()
 }
 
 /// helper function to load a staging file
