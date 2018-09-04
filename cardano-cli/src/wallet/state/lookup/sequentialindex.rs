@@ -1,6 +1,6 @@
 use cardano::wallet::{bip44};
 use std::collections::BTreeMap;
-use cardano::address::ExtendedAddr;
+use cardano::{address::ExtendedAddr, hdwallet::XPrv};
 
 use super::{AddressLookup, Address};
 use super::super::{utxo::{UTxO}};
@@ -47,6 +47,12 @@ impl SequentialBip44Lookup {
             accounts: Vec::new(),
             gap_limit: DEFAULT_GAP_LIMIT,
         }
+    }
+
+    pub fn get_private_key(&self, addr: &bip44::Addressing) -> bip44::IndexLevel<XPrv> {
+        self.wallet.account(self.wallet.derivation_scheme(), addr.account.get_scheme_value())
+                   .change(self.wallet.derivation_scheme(), addr.address_type())
+                   .index(self.wallet.derivation_scheme(), addr.index.get_scheme_value())
     }
 
     fn mut_generate_from(&mut self, account: &bip44::bip44::Account, change: u32, start: &bip44::Index, nb: u32) -> Result<()> {

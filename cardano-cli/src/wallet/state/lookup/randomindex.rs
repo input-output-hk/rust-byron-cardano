@@ -1,5 +1,5 @@
 use cardano::hdwallet;
-use cardano::address::ExtendedAddr;
+use cardano::{address::ExtendedAddr, hdwallet::XPrv};
 use cardano::wallet::rindex;
 
 use super::{AddressLookup, Address};
@@ -20,6 +20,10 @@ impl RandomIndexLookup {
         RandomIndexLookup {
             generator
         }
+    }
+
+    pub fn get_private_key(&self, addr: &rindex::Addressing) -> XPrv {
+        self.generator.key(addr)
     }
 }
 impl AddressLookup for RandomIndexLookup {

@@ -370,7 +370,7 @@ impl AddressGenerator<XPub> {
         }
     }
 
-    fn key(&self, path: &Addressing) -> Result<XPub> {
+    pub fn key(&self, path: &Addressing) -> Result<XPub> {
         Ok(
             self.cached_key
                 .derive(self.derivation_scheme, path.0)?
@@ -412,7 +412,7 @@ impl AddressGenerator<XPrv> {
         }
     }
 
-    fn key(&self, path: &Addressing) -> XPrv {
+    pub fn key(&self, path: &Addressing) -> XPrv {
         self.cached_key
             .derive(self.derivation_scheme, path.0)
             .derive(self.derivation_scheme, path.1)
