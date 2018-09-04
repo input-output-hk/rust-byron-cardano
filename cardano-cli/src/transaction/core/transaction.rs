@@ -16,10 +16,11 @@ use cardano::{tx::{Tx, TxIn, TxWitness, TxInWitness, TxAux}, address::{ExtendedA
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
-    pub changes: Vec<Change>,
+    pub inputs:    Vec<Input>,
+    pub outputs:   Vec<Output>,
+    pub changes:   Vec<Change>,
     pub witnesses: TxWitness,
+    pub finalized: bool
 }
 impl Transaction {
     /// create an empty transaction
@@ -29,6 +30,7 @@ impl Transaction {
             outputs: Vec::new(),
             changes: Vec::new(),
             witnesses: TxWitness::new(),
+            finalized: false,
         }
     }
 
@@ -42,6 +44,7 @@ impl Transaction {
             Operation::RemoveOutput(index) => self.remove_output(index),
             Operation::RemoveChange(addr)  => self.remove_change(addr),
             Operation::Signature(witness)  => self.witnesses.push(witness),
+            Operation::Finalize            => self.finalize(),
         }
 
         self
@@ -61,7 +64,9 @@ impl Transaction {
 
     pub fn has_change(&self) -> bool { ! self.changes.is_empty() }
 
-    pub fn is_finalizing_pending(&self) -> bool { ! self.signature().is_empty() }
+    pub fn finalize(&mut self) { self.finalized = true; }
+
+    pub fn finalized(&self) -> bool { self.finalized }
 
     pub fn to_tx_aux(&self) -> TxAux {
         let tx = Tx::new_with(

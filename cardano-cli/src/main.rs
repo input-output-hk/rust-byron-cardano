@@ -748,7 +748,8 @@ const TRANSACTION_COMMAND : &'static str = "transaction";
 
 #[derive(Debug,Clone,Copy)]
 pub enum TransactionCmd {
-    New, List, Destroy, Export, Import, Sign, InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, RmChange, Status,
+    New, List, Destroy, Export, Import, Sign, Finalize, Send,
+    InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, RmChange, Status,
 }
 impl TransactionCmd {
     pub fn as_string(self) -> &'static str {
@@ -758,7 +759,9 @@ impl TransactionCmd {
             TransactionCmd::Destroy => "destroy",
             TransactionCmd::Export => "export",
             TransactionCmd::Import => "import",
+            TransactionCmd::Send => "send",
             TransactionCmd::Sign => "sign",
+            TransactionCmd::Finalize => "finalize",
             TransactionCmd::InputSelect => "input-select",
             TransactionCmd::AddChange => "add-change",
             TransactionCmd::AddInput => "add-input",
@@ -845,6 +848,17 @@ fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: 
         ("import", Some(matches)) => {
             let file = matches.value_of("IMPORT_FILE");
             transaction::commands::import(term, root_dir, file);
+        },
+        ("send", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let blockchain = blockchain_argument_name_match(&matches);
+
+            transaction::commands::send(term, root_dir, id, blockchain);
+        },
+        ("finalize", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+
+            transaction::commands::finalize(term, root_dir, id);
         },
         ("sign", Some(matches)) => {
             let id = transaction_argument_name_match(&matches);
@@ -938,7 +952,19 @@ fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("Finalize a staging a transaction into a transaction ready to send to the blockchain network")
             .arg(transaction_argument_name_definition())
         )
+        .subcommand(SubCommand::with_name(TransactionCmd::Send.as_string())
+            .about("Send the transaction transaction to the blockchain")
+            .arg(transaction_argument_name_definition())
+            .arg(blockchain_argument_name_definition()
+                .help("The blockchain the send the transaction too (will contact the peers of this blockchain)")
+            )
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Finalize.as_string())
+            .about("Finalize a staging transaction")
+            .arg(transaction_argument_name_definition())
+        )
         .subcommand(SubCommand::with_name(TransactionCmd::InputSelect.as_string())
+            .alias("select-input")
             .about("Select input automatically using a wallet (or a set of wallets), and a input selection algorithm")
             .arg(transaction_argument_name_definition())
             .arg(Arg::with_name("WALLET_NAME").required(true).multiple(true).help("wallet name to use for the selection"))

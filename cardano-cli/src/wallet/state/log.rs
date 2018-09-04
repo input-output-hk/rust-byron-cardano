@@ -242,7 +242,6 @@ impl LogWriter {
     pub fn release_lock(self) -> LogLock { LogLock(self.0.close()) }
 
     pub fn append<A: serde::Serialize+fmt::Debug>(&mut self, log: &Log<A>) -> Result<()> {
-        debug!("recording wallet log: {:?}", log);
         Ok(self.0.append_bytes(&log.serialise()?)?)
     }
 }

@@ -122,7 +122,6 @@ impl<'a> Iterator for Iter<'a> {
             if hh == &self.ending_at { return None; }
         }
 
-
         if ! self.initialised {
             self.initialised = true;
 

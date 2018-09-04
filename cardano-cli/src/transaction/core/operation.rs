@@ -40,7 +40,10 @@ pub enum Operation {
     RemoveOutput(u32),
 
     /// add a transaction signature
-    Signature(TxInWitness)
+    Signature(TxInWitness),
+
+    /// operation to finalize a transaction
+    Finalize
 }
 impl Operation {
     // For now, Operation will be serialized in YAML (thanks to serde).

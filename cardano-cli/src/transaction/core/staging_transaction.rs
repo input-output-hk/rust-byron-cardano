@@ -90,6 +90,7 @@ impl StagingTransaction {
         for output in export.transaction.outputs {
             st.add_output(output)?;
         }
+        if export.transaction.finalized { st.finalize()?; }
 
         Ok(st)
     }
@@ -105,9 +106,8 @@ impl StagingTransaction {
     /// get the transaction
     pub fn transaction(&self) -> &Transaction { &self.transaction }
 
-    pub fn is_finalizing_pending(&self) -> bool {
-        self.transaction().is_finalizing_pending()
-    }
+    /// tell of the transaction is finalized and needs to be signed now
+    pub fn finalized(&self) -> bool { self.transaction.finalized() }
 
     pub fn to_tx_aux(&self) -> TxAux {
         self.transaction().to_tx_aux()
@@ -181,6 +181,10 @@ impl StagingTransaction {
         self.transaction.update_with(transaction_op.clone());
         self.operations.push(transaction_op);
         Ok(())
+    }
+
+    pub fn finalize(&mut self) -> append::Result<()> {
+        self.append(Operation::Finalize)
     }
 
     pub fn add_signature(&mut self, signature: TxInWitness) -> append::Result<()> {
@@ -263,6 +267,7 @@ impl StagingTransaction {
         self.append(Operation::RemoveOutput(index))
     }
 
+
     /// remove every output associated to the given address
     pub fn remove_outputs_for(&mut self, address: &ExtendedAddr) -> append::Result<()> {
         let mut index = 0;
@@ -328,7 +333,7 @@ pub struct Export {
     staging_id: StagingId,
     magic: String,
     protocol_magic: ProtocolMagic,
-    transaction: Transaction
+    transaction: Transaction,
 }
 impl From<StagingTransaction> for Export {
     fn from(st: StagingTransaction) -> Self {
@@ -336,7 +341,7 @@ impl From<StagingTransaction> for Export {
             staging_id: st.id,
             protocol_magic: st.protocol_magic,
             magic: hex::encode(MAGIC_TRANSACTION_V1),
-            transaction: st.transaction
+            transaction: st.transaction,
         }
     }
 }
@@ -346,7 +351,7 @@ impl<'a> From<&'a StagingTransaction> for Export {
             staging_id: st.id,
             protocol_magic: st.protocol_magic,
             magic: hex::encode(MAGIC_TRANSACTION_V1),
-            transaction: st.transaction.clone()
+            transaction: st.transaction.clone(),
         }
     }
 }

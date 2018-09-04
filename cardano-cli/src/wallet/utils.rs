@@ -38,6 +38,7 @@ pub fn update_wallet_state_with_utxos<LS>( term: &mut Term
     let mut last_block_date = from_date;
     for res in TransactionIterator::new(progress, blockchain.iter_to_tip(from).unwrap() /* BAD */) {
         let (ptr, txaux) = res.unwrap(); // BAD
+        debug!("transactions in: {}", ptr);
 
         if let Some(addr) = ptr.latest_addr {
             if last_block_date.get_epochid() != addr.get_epochid() {

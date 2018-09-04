@@ -2,7 +2,7 @@ use std::{path::PathBuf, io::Write, iter, collections::BTreeMap};
 use utils::term::{Term, style::{Style}};
 use super::core::{self, StagingId, StagingTransaction};
 use super::super::blockchain::{Blockchain};
-use super::super::wallet::{Wallets, self, WalletName};
+use super::super::wallet::{Wallets, Wallet, self, WalletName};
 use cardano::{tx::{TxId, TxIn, TxInWitness}, coin::{Coin, sum_coins}, address::{ExtendedAddr}, fee::{LinearFee, FeeAlgorithm}};
 use cardano::tx;
 
@@ -65,6 +65,29 @@ pub fn destroy( mut term: Term
     }
 }
 
+/// function to create a new empty transaction
+pub fn send( mut term: Term
+           , root_dir: PathBuf
+           , id_str: &str
+           , blockchain: String
+           )
+{
+    let staging = load_staging(&mut term, root_dir.clone(), id_str);
+    let blockchain = Blockchain::load(root_dir.clone(), blockchain);
+
+    let txaux = staging.to_tx_aux();
+
+    writeln!(term, "sending transaction {}", style!(txaux.tx.id()));
+
+    for np in blockchain.peers() {
+        if ! np.is_native() { continue; }
+
+        let peer = super::super::blockchain::peer::Peer::prepare(&blockchain, np.name().to_owned());
+
+        peer.connect(&mut term).unwrap().send_txaux(txaux.clone())
+    }
+}
+
 pub fn sign( mut term: Term
            , root_dir: PathBuf
            , id_str: &str
@@ -72,6 +95,7 @@ pub fn sign( mut term: Term
 {
     let mut signatures = Vec::new();
     let mut staging = load_staging(&mut term, root_dir.clone(), id_str);
+
     let mut wallets = BTreeMap::new();
     for (name, wallet) in Wallets::load(root_dir.clone()).unwrap() {
         let state = wallet::utils::create_wallet_state_from_logs(&mut term, &wallet, root_dir.clone(), wallet::state::lookup::accum::Accum::default());
@@ -97,7 +121,7 @@ pub fn sign( mut term: Term
                 ).unwrap();
 
                 signature = Some(wallet::utils::wallet_sign_tx(
-                    &mut term, wallet, protocol_magic, &txid, &utxo.credited_address
+                    &mut term, wallet, protocol_magic, &txid, &utxo.credited_addressing
                 ));
             }
         }
@@ -157,8 +181,8 @@ pub fn add_input( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir.clone(), id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot add input to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
@@ -194,8 +218,8 @@ pub fn add_output( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot add output to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
@@ -223,8 +247,8 @@ pub fn add_change( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot add change to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
@@ -247,8 +271,8 @@ pub fn remove_input( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot remove input to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
@@ -276,8 +300,8 @@ pub fn remove_output( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot remove output to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
@@ -300,12 +324,25 @@ pub fn remove_change( mut term: Term
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
 
-    if staging.is_finalizing_pending() {
-        term.error("Cannot remove change addresses to a staging transaction with signatures in").unwrap();
+    if staging.finalized() {
+        term.error("Cannot add input to a finalized staging transaction").unwrap();
         ::std::process::exit(1);
     }
 
     match staging.remove_change(change) {
+        Err(err) => panic!("{:?}", err),
+        Ok(())   => ()
+    }
+}
+
+pub fn finalize( mut term: Term
+               , root_dir: PathBuf
+               , id_str: &str
+               )
+{
+    let mut staging = load_staging(&mut term, root_dir, id_str);
+
+    match staging.finalize() {
         Err(err) => panic!("{:?}", err),
         Ok(())   => ()
     }
@@ -354,12 +391,17 @@ pub fn input_select( mut term: Term
                    , wallets: Vec<WalletName>
                    )
 {
-    use ::cardano::{fee::{self, SelectionAlgorithm}, tx, txutils};
+    use ::cardano::{fee::{self, SelectionAlgorithm}, txutils};
 
     let alg = fee::LinearFee::default();
     let selection_policy = fee::SelectionPolicy::default();
 
-    let staging = load_staging(&mut term, root_dir, id_str);
+    let mut staging = load_staging(&mut term, root_dir.clone(), id_str);
+
+    if staging.finalized() {
+        term.error("Cannot select inputs to a finalized staging transaction").unwrap();
+        ::std::process::exit(1);
+    }
 
     if ! staging.transaction().has_change() {
         term.error("cannot select inputs if no change").unwrap();
@@ -369,20 +411,35 @@ pub fn input_select( mut term: Term
     let change_address = staging.transaction().changes()[0].address.clone();
     let output_policy = txutils::OutputPolicy::One(change_address.clone());
 
-    let (fee, selected_inputs, change)
-        = match alg.compute(selection_policy, inputs, outputs, &output_policy) {
-            Err(err) => { panic!("error {:#?}", err) },
-            Ok(v) => v
+    let outputs = staging.transaction().outputs().iter().map(|output| {
+        output.into()
+    }).collect::<Vec<_>>();
+    let inputs = list_input_inputs(&mut term, root_dir.clone(), wallets);
+
+    let result = alg.compute(
+        selection_policy,
+        inputs.iter(),
+        outputs.iter(),
+        &output_policy
+    );
+    let (_, selected_inputs, change) = match result {
+        Err(err) => { panic!("error {:#?}", err) },
+        Ok(v) => v
     };
 
     if change != Coin::zero() {
         term.info(&format!("using the change address: {} with value {}", change_address, change)).unwrap();
         // add/remove the output change
-        staging.remove_change(change_address.clone()).unwrap();
         staging.add_output(core::Output { address : change_address, amount: change }).unwrap();
     }
 
-    unimplemented!()
+    for input in selected_inputs {
+        staging.add_input(core::Input {
+            transaction_id: input.ptr.id,
+            index_in_transaction: input.ptr.index,
+            expected_value: input.value.value
+        }).unwrap()
+    }
 }
 
 /// helper function to load a staging file
@@ -408,7 +465,6 @@ fn load_staging(term: &mut Term, root_dir: PathBuf, id_str: &str) -> StagingTran
 
 // ----------------------------------- helpers ---------------------------------
 
-// find_input_in_all_utxos(&mut term, root_dir.clone(), &input.0, input.1)
 fn find_input_in_all_utxos(term: &mut Term, root_dir: PathBuf, txid: TxId, index: u32) -> core::Input {
     let txin = TxIn { id: txid, index: index };
     for (_, wallet) in Wallets::load(root_dir.clone()).unwrap() {
@@ -426,4 +482,24 @@ fn find_input_in_all_utxos(term: &mut Term, root_dir: PathBuf, txid: TxId, index
 
     term.error(&format!("No input found")).unwrap();
     ::std::process::exit(1);
+}
+
+fn list_input_inputs(term: &mut Term, root_dir: PathBuf, wallets: Vec<WalletName>) -> Vec<::cardano::txutils::Input<ExtendedAddr>> {
+    let mut inputs = Vec::new();
+    for wallet in wallets {
+        let wallet = Wallet::load(root_dir.clone(), wallet);
+        let state = wallet::utils::create_wallet_state_from_logs(term, &wallet, root_dir.clone(), wallet::state::lookup::accum::Accum::default());
+
+        inputs.extend(state.utxos.iter().map(|(_, utxo)| {
+            let txin = utxo.extract_txin();
+            let txout = utxo.extract_txout();
+            ::cardano::txutils::Input::new(
+                txin,
+                txout,
+                utxo.credited_address.clone()
+            )
+        }))
+    }
+
+    inputs
 }
