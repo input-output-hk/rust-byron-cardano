@@ -1,6 +1,6 @@
 use super::config::{encrypt_primary_key, Config, HDWalletModel};
 use super::{Wallet, Wallets};
-use super::state::{state, lookup, ptr};
+use super::state::{lookup};
 use super::utils::{*};
 
 use std::{path::PathBuf, io::Write};
@@ -20,15 +20,7 @@ pub fn list( mut term: Term
     for (_, wallet) in wallets {
         let detail = if detailed {
             if let Some(blk_name) = &wallet.config.attached_blockchain {
-                // 1. get the wallet's blockchain
-                let blockchain = load_attached_blockchain(&mut term, root_dir.clone(), wallet.config.attached_blockchain.clone());
-
-
-                // 2. prepare the wallet state
-                let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-                let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
-
-                update_wallet_state_with_logs(&wallet, &mut state);
+                let state = create_wallet_state_from_logs(&mut term, &wallet, root_dir.clone(), lookup::accum::Accum::default());
 
                 let total = state.total().unwrap();
 
@@ -283,15 +275,7 @@ pub fn status( mut term: Term
     term.warn(&format!("{:?}", &wallet.config.derivation_scheme)).unwrap();
     term.simply("\n").unwrap();
 
-    // 1. get the wallet's blockchain
-    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
-
-
-    // 2. prepare the wallet state
-    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
-
-    update_wallet_state_with_logs(&wallet, &mut state);
+    let state = create_wallet_state_from_logs(&mut term, &wallet, root_dir, lookup::accum::Accum::default());
 
     let total = state.total().unwrap();
 
@@ -312,12 +296,7 @@ pub fn log( mut term: Term
     // load the wallet
     let wallet = Wallet::load(root_dir.clone(), name);
 
-    // 1. get the wallet's blockchain
-    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
-
-    // 2. prepare the wallet state
-    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
+    let mut state = create_wallet_state_from_logs(&mut term, &wallet, root_dir, lookup::accum::Accum::default());
 
     display_wallet_state_logs(&mut term, &wallet, &mut state, pretty);
 }
@@ -330,13 +309,7 @@ pub fn utxos( mut term: Term
     // load the wallet
     let wallet = Wallet::load(root_dir.clone(), name);
 
-    // 1. get the wallet's blockchain
-    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
-
-    // 2. prepare the wallet state
-    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
-    let mut state = state::State::new(initial_ptr, lookup::accum::Accum::default());
-    update_wallet_state_with_logs(&wallet, &mut state);
+    let state = create_wallet_state_from_logs(&mut term, &wallet, root_dir, lookup::accum::Accum::default());
 
     display_wallet_state_utxos(&mut term, state);
 }
@@ -351,29 +324,19 @@ pub fn sync( mut term: Term
     let wallet = Wallet::load(root_dir.clone(), name);
 
     // 1. get the wallet's blockchain
-    let blockchain = load_attached_blockchain(&mut term, root_dir, wallet.config.attached_blockchain.clone());
+    let blockchain = load_attached_blockchain(&mut term, root_dir.clone(), wallet.config.attached_blockchain.clone());
 
-    // 2. prepare the wallet state
-    let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
     match wallet.config.hdwallet_model {
         HDWalletModel::BIP44 => {
-            let mut state = {
-                let mut lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
-                lookup_struct.prepare_next_account().unwrap();
-                state::State::new(initial_ptr, lookup_struct)
-            };
-
-            update_wallet_state_with_logs(&wallet, &mut state);
+            let mut lookup_struct = load_bip44_lookup_structure(&mut term, &wallet);
+            lookup_struct.prepare_next_account().unwrap();
+            let mut state = create_wallet_state_from_logs(&mut term, &wallet, root_dir.clone(), lookup_struct);
 
             update_wallet_state_with_utxos(&mut term, &wallet, &blockchain, &mut state);
         },
         HDWalletModel::RandomIndex2Levels => {
-            let mut state = {
-                let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
-                state::State::new(initial_ptr, lookup_struct)
-            };
-
-            update_wallet_state_with_logs(&wallet, &mut state);
+            let lookup_struct = load_randomindex_lookup_structure(&mut term, &wallet);
+            let mut state = create_wallet_state_from_logs(&mut term, &wallet, root_dir.clone(), lookup_struct);
 
             update_wallet_state_with_utxos(&mut term, &wallet, &blockchain, &mut state);
         },

@@ -15,6 +15,44 @@ impl<T: AddressLookup> State<T> {
         State { ptr: ptr, lookup_struct: lookup_struct, utxos: UTxOs::new() }
     }
 
+    pub fn from_logs<I: IntoIterator<Item = Log<Address>>>(mut lookup_struct: T, iter: I) -> Result<Result<Self, T>, T::Error>
+    {
+        let mut ptr = None;
+        let mut utxos = UTxOs::new();
+
+        for log in iter {
+            match log {
+                Log::Checkpoint(known_ptr) => ptr = Some(known_ptr),
+                Log::ReceivedFund(known_ptr, utxo) => {
+                    lookup_struct.acknowledge(utxo.credited_address.clone())?;
+                    ptr = Some(known_ptr);
+
+                    if let Some(utxo) = utxos.insert(utxo.extract_txin(), utxo) {
+                        error!("This UTxO was already in the UTxOs collection `{}'", utxo);
+                        panic!("The Wallet LOG file seems corrupted");
+                    };
+                },
+                Log::SpentFund(known_ptr, utxo) => {
+                    match utxos.remove(&utxo.extract_txin()) {
+                        Some(_) => { },
+                        None    => {
+                            error!("UTxO not in the known UTxOs collection `{}'", utxo);
+                            panic!("The Wallet LOG file seems corrupted");
+                        }
+                    };
+                    lookup_struct.acknowledge(utxo.credited_address.clone())?;
+                    ptr = Some(known_ptr);
+                },
+            }
+        }
+
+        if let Some(ptr) = ptr {
+           Ok(Ok(State { ptr: ptr, lookup_struct: lookup_struct, utxos: UTxOs::new() }))
+        } else {
+            Ok(Err(lookup_struct))
+        }
+    }
+
     pub fn ptr<'a>(&'a self) -> &'a StatePtr { &self.ptr }
 
     pub fn total(&self) -> coin::Result<Coin> {
@@ -24,39 +62,6 @@ impl<T: AddressLookup> State<T> {
             .fold(Ok(Coin::zero()), |acc, v| {
                 acc.and_then(|acc| acc + v)
             })
-    }
-
-    /// update the wallet state with the given logs
-    /// This function is for initializing the State by recovering the logs.
-    ///
-    pub fn update_with_logs<I: IntoIterator<Item = Log<Address>>>(&mut self, iter: I) -> Result<(), T::Error>
-    {
-        for log in iter {
-            match log {
-                Log::Checkpoint(known_ptr) => self.ptr = known_ptr,
-                Log::ReceivedFund(ptr, utxo) => {
-                    self.lookup_struct.acknowledge(utxo.credited_address.clone())?;
-                    self.ptr = ptr;
-
-                    if let Some(utxo) = self.utxos.insert(utxo.extract_txin(), utxo) {
-                        error!("This UTxO was already in the UTxOs collection `{}'", utxo);
-                        panic!("The Wallet LOG file seems corrupted");
-                    };
-                },
-                Log::SpentFund(ptr, utxo) => {
-                    match self.utxos.remove(&utxo.extract_txin()) {
-                        Some(_) => { },
-                        None    => {
-                            error!("UTxO not in the known UTxOs collection `{}'", utxo);
-                            panic!("The Wallet LOG file seems corrupted");
-                        }
-                    };
-                    self.lookup_struct.acknowledge(utxo.credited_address.clone())?;
-                    self.ptr = ptr;
-                },
-            }
-        }
-        Ok(())
     }
 
     pub fn forward_with_txins<'a, I>(&mut self, iter: I) -> Result<Vec<Log<Address>>, T::Error>

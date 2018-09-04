@@ -5,7 +5,7 @@
 //!
 
 use super::{Wallet};
-use super::state::{log, state, lookup, iter::TransactionIterator, utxo::UTxO, ptr::{StatePtr}};
+use super::state::{log, ptr, state, lookup, iter::TransactionIterator, utxo::UTxO, ptr::{StatePtr}};
 use super::error::{Error};
 
 use std::{path::PathBuf, io::Write};
@@ -193,11 +193,11 @@ pub fn dump_utxo<L>(term: &mut Term, ptr: StatePtr, utxo: UTxO<L>, debit: bool) 
 }
 
 
-pub fn update_wallet_state_with_logs<LS>(wallet: &Wallet, state: &mut state::State<LS>)
+pub fn create_wallet_state_from_logs<LS>(term: &mut Term, wallet: &Wallet, root_dir: PathBuf, lookup_structure: LS) -> state::State<LS>
     where LS: lookup::AddressLookup
 {
     let log_lock = lock_wallet_log(wallet);
-    state.update_with_logs(
+    let state = state::State::from_logs(lookup_structure,
         log::LogReader::open(log_lock).unwrap() // BAD
             .into_iter().filter_map(|r| {
                 match r {
@@ -208,6 +208,18 @@ pub fn update_wallet_state_with_logs<LS>(wallet: &Wallet, state: &mut state::Sta
                 }
             })
     ).unwrap(); // BAD
+    match state {
+        Ok(state) => state,
+        Err(lookup_structure) => {
+            // create empty state
+            // 1. get the wallet's blockchain
+            let blockchain = load_attached_blockchain(term, root_dir, wallet.config.attached_blockchain.clone());
+
+            // 2. prepare the wallet state
+            let initial_ptr = ptr::StatePtr::new_before_genesis(blockchain.config.genesis.clone());
+            state::State::new(initial_ptr, lookup_structure)
+        }
+    }
 }
 
 pub fn load_bip44_lookup_structure(term: &mut Term, wallet: &Wallet) -> lookup::sequentialindex::SequentialBip44Lookup {
