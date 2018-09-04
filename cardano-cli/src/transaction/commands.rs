@@ -152,7 +152,7 @@ pub fn status( mut term: Term
 pub fn add_input( mut term: Term
                 , root_dir: PathBuf
                 , id_str: &str
-                , input: Option<(TxId, u32, Coin)>
+                , input: Option<(TxId, u32, Option<Coin>)>
                 )
 {
     let mut staging = load_staging(&mut term, root_dir, id_str);
@@ -163,10 +163,17 @@ pub fn add_input( mut term: Term
     }
 
     let input = if let Some(input) = input {
+        let expected_value = match input.2 {
+            None => {
+                term.error("you need a coin value associated. discovery not implemented");
+                ::std::process::exit(1);
+            },
+            Some(v) => { v },
+        };
         core::Input {
             transaction_id: input.0,
             index_in_transaction: input.1,
-            expected_value: input.2
+            expected_value: expected_value,
         }
     } else {
         // TODO, implement interactive mode
