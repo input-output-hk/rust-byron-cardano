@@ -90,7 +90,7 @@ wallets won't be able to interact with this blockchain.",
 
     unsafe { blockchain.destroy() }.unwrap();
 
-    term.success("blockchain successfully destroyed").unwrap();
+    term.success("blockchain successfully destroyed\n").unwrap();
 }
 
 /// function to add a remote to the given blockchain
