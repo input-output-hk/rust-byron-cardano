@@ -1,7 +1,7 @@
 use cardano::{bip::bip39::{self, dictionary::Language}};
 use console::{style};
 use dialoguer::{Input, Confirmation};
-use super::super::super::super::utils::term::{Term};
+use super::super::term::{Term};
 
 fn interactive_input_word<D>(term: &mut Term, dic: &D, idx: usize, count: usize) -> String
     where D: Language

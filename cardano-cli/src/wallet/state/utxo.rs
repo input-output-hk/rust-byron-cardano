@@ -1,8 +1,6 @@
 use cardano::{coin::{Coin}, tx::{TxIn, TxId, TxOut}, address::{ExtendedAddr}};
 use std::{fmt, collections::{BTreeMap}};
 
-use super::ptr::{StatePtr};
-
 /// Unspent Transaction Output (aka. UTxO). This is a transaction
 /// that may be spent, that is, as far as known of the state of the
 /// wallet, unspent yet.
@@ -16,14 +14,9 @@ pub struct UTxO<A> {
     /// in which transaction of the blockchain the unspent output (TxOut)
     /// is.
     pub transaction_id: TxId,
-    /// a Transaction is a lift of inputs and outputs. `index_in_transaction`
+    /// a Transaction is a list of inputs and outputs. `index_in_transaction`
     /// is the index within the outputs of the unspent transaction.
     pub index_in_transaction: u32,
-
-    /// conveniently keep a pointer to the block within the blockchain where
-    /// the transaction lies. This is handy because cardano-cli does not
-    /// keep a database of the transactions.
-    pub blockchain_ptr: StatePtr,
 
     /// this is the credited address, it can have multiple forms:
     ///
@@ -35,7 +28,9 @@ pub struct UTxO<A> {
     /// the wallet or by other tool that could be working on the transactions
     /// without needing to use the fund credited in this `UTxO`.
     ///
-    pub credited_address: A,
+    pub credited_address: ExtendedAddr,
+
+    pub credited_addressing: A,
 
     /// the amount credited in this `UTxO`
     pub credited_value: Coin,
@@ -57,16 +52,12 @@ impl<A> UTxO<A> {
         UTxO {
             transaction_id: self.transaction_id,
             index_in_transaction: self.index_in_transaction,
-            blockchain_ptr: self.blockchain_ptr,
             credited_value: self.credited_value,
-            credited_address: f(self.credited_address)
+            credited_addressing: f(self.credited_addressing),
+            credited_address: self.credited_address
         }
     }
-}
-impl UTxO<ExtendedAddr> {
-    /// in the case of an anonymized `UTxO` it is possible to reconstruct
-    /// the original `TxOut` that credited the funds to this `UTxO`.
-    ///
+
     /// This `TxOut` is equal to the one that can be found in the original
     /// blockchain.
     pub fn extract_txout(&self) -> TxOut {
@@ -79,12 +70,11 @@ impl UTxO<ExtendedAddr> {
 impl<A: fmt::Display> fmt::Display for UTxO<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!( f
-              , "{} received {}Ada-Lovelace in transaction id `{}.{}' ({})"
+              , "{} received {}Ada-Lovelace in transaction id `{}.{}'"
               , self.credited_address
               , self.credited_value
               , self.transaction_id
               , self.index_in_transaction
-              , self.blockchain_ptr
               )
     }
 }

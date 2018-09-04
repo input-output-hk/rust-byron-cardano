@@ -19,12 +19,15 @@ pub enum Error {
     /// Max bound being: `MAX_COIN`.
     OutOfBound(u64),
 
+    ParseIntError,
+
     Negative
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::OutOfBound(ref v) => write!(f, "Coin of value {} is out of bound. Max coin value: {}.", v, MAX_COIN),
+            &Error::ParseIntError     => write!(f, "Cannot parse a valid integer"),
             &Error::Negative          => write!(f, "Coin cannot hold a negative value"),
         }
     }
@@ -85,6 +88,16 @@ impl fmt::Display for Coin {
         write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)
     }
 }
+impl ::std::str::FromStr for Coin {
+    type Err = Error;
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+        let v : u64 = match s.parse() {
+            Err(_) => return Err(Error::ParseIntError),
+            Ok(v) => v
+        };
+        Coin::new(v)
+    }
+}
 impl cbor_event::se::Serialize for Coin {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_unsigned_integer(self.0)
@@ -93,10 +106,7 @@ impl cbor_event::se::Serialize for Coin {
 impl cbor_event::de::Deserialize for Coin {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         Coin::new(raw.unsigned_integer()?).map_err(|err| {
-            match err {
-                Error::OutOfBound(v) => cbor_event::Error::CustomError(format!("coin ({}) out of bound, max: {}", v, MAX_COIN)),
-                Error::Negative => cbor_event::Error::CustomError("coin cannot hold negative value".to_owned()),
-            }
+            cbor_event::Error::CustomError(format!("{}", err))
         })
     }
 }
@@ -153,6 +163,9 @@ impl From<Coin> for u64 {
 impl From<u32> for Coin {
     fn from(c: u32) -> Coin { Coin(c as u64) }
 }
-pub fn sum_coins(coins: &[Coin]) -> Result<Coin> {
-    coins.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
+
+pub fn sum_coins<I>(coin_iter: I) -> Result<Coin>
+    where I: Iterator<Item = Coin>
+{
+    coin_iter.fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
 }

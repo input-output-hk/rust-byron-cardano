@@ -80,7 +80,7 @@ pub trait Wallet {
 
         let witnesses = self.sign_tx(protocol_magic, &tx.id(), addressings.iter());
 
-        Ok((tx::TxAux::new(tx, tx::TxWitness::new(witnesses)), fee))
+        Ok((tx::TxAux::new(tx, tx::TxWitness::from(witnesses)), fee))
     }
 }
 

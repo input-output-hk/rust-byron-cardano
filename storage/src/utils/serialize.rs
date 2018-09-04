@@ -51,3 +51,73 @@ pub fn read_offset(buf: &[u8]) -> Offset {
         | ((buf[6] as u64) << 8)
         | ((buf[7] as u64))
 }
+
+pub mod utils {
+    use std::io::{Result, Write, Read};
+
+    #[inline]
+    pub fn write_u8<W>(w: &mut W, byte: u8) -> Result<()>
+        where W: Write
+    {
+        w.write_all([byte].as_ref())
+    }
+
+    #[inline]
+    pub fn write_u16<W>(w: &mut W, data: u16) -> Result<()>
+        where W: Write
+    {
+        write_u8(w, (data >> 8) as u8)?;
+        write_u8(w,  data       as u8)
+    }
+
+    #[inline]
+    pub fn write_u32<W>(w: &mut W, data: u32) -> Result<()>
+        where W: Write
+    {
+        write_u16(w, (data >> 16) as u16)?;
+        write_u16(w,  data        as u16)
+    }
+
+    #[inline]
+    pub fn write_u64<W>(w: &mut W, data: u64) -> Result<()>
+        where W: Write
+    {
+        write_u32(w, (data >> 32) as u32)?;
+        write_u32(w,  data        as u32)
+    }
+
+
+    #[inline]
+    pub fn read_u8<R>(r: &mut R) -> Result<u8>
+        where R: Read
+    {
+        let mut buf = [0u8;1];
+        r.read_exact(&mut buf)?;
+        Ok(buf[0])
+    }
+
+    #[inline]
+    pub fn read_u16<R>(r: &mut R) -> Result<u16>
+        where R: Read
+    {
+        let b1 = (read_u8(r)? as u16) << 8;
+        let b2 =  read_u8(r)? as u16;
+        Ok(b1 | b2)
+    }
+    #[inline]
+    pub fn read_u32<R>(r: &mut R) -> Result<u32>
+        where R: Read
+    {
+        let b1 = (read_u16(r)? as u32) << 16;
+        let b2 =  read_u16(r)? as u32;
+        Ok(b1 | b2)
+    }
+    #[inline]
+    pub fn read_u64<R>(r: &mut R) -> Result<u64>
+        where R: Read
+    {
+        let b1 = (read_u32(r)? as u64) << 32;
+        let b2 =  read_u32(r)? as u64;
+        Ok(b1 | b2)
+    }
+}

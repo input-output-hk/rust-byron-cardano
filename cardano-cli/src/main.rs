@@ -7,7 +7,7 @@ extern crate log;
 extern crate env_logger;
 
 use self::cardano_cli::utils::term;
-use self::cardano_cli::{blockchain, wallet, debug};
+use self::cardano_cli::{blockchain, wallet, transaction, debug};
 
 #[macro_use]
 extern crate clap;
@@ -28,6 +28,7 @@ fn main() {
 
         .subcommand(blockchain_commands_definition())
         .subcommand(wallet_commands_definition())
+        .subcommand(transaction_commands_definition())
         .subcommand(debug_commands_definition())
         .get_matches();
 
@@ -36,15 +37,10 @@ fn main() {
     let root_dir = global_rootdir_match(&default_root_dir, &matches);
 
     match matches.subcommand() {
-        ("blockchain", Some(matches)) => {
-            subcommand_blockchain(term, root_dir, matches)
-        },
-        ("wallet", Some(matches)) => {
-            subcommand_wallet(term, root_dir, matches)
-        },
-        ("debug", Some(matches)) => {
-            subcommand_debug(term, root_dir, matches)
-        },
+        (BLOCKCHAIN_COMMAND, Some(matches))  => { subcommand_blockchain(term, root_dir, matches) },
+        (WALLET_COMMAND, Some(matches))      => { subcommand_wallet(term, root_dir, matches) },
+        (TRANSACTION_COMMAND, Some(matches)) => { subcommand_transaction(term, root_dir, matches) },
+        (DEBUG_COMMAND, Some(matches))       => { subcommand_debug(term, root_dir, matches) },
         _ => {
             term.error(matches.usage()).unwrap();
             ::std::process::exit(1)
@@ -445,9 +441,9 @@ fn wallet_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
         .help("the wallet name")
         .required(true)
 }
-fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> String {
+fn wallet_argument_name_match<'a>(matches: &ArgMatches<'a>) -> wallet::WalletName {
     match matches.value_of("WALLET_NAME") {
-        Some(r) => { r.to_owned() },
+        Some(r) => { wallet::WalletName::new(r.to_owned()).expect("Wallet name is invalid. cannot contains . and /") },
         None => { unreachable!() }
     }
 }
@@ -599,6 +595,14 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
 
             wallet::commands::recover(term, root_dir, name, wallet_scheme, derivation_scheme, mnemonic_length, interactive, daedalus_seed, mnemonic_lang);
         },
+        ("address", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+            let account = value_t!(matches, "ACCOUNT_INDEX", u32).unwrap_or_else(|e| e.exit());
+            let index   = value_t!(matches, "ADDRESS_INDEX", u32).unwrap_or_else(|e| e.exit());
+            let is_internal = matches.is_present("INTERNAL_ADDRESS");
+
+            wallet::commands::address(term, root_dir, name, account, is_internal, index);
+        },
         ("attach", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
             let blockchain = blockchain_argument_name_match(&matches);
@@ -622,9 +626,18 @@ fn subcommand_wallet<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgM
         },
         ("log", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
-            let pretty = matches.is_present("LOG_PRETTY");
 
-            wallet::commands::log(term, root_dir, name, pretty);
+            wallet::commands::log(term, root_dir, name, false);
+        },
+        ("utxos", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::utxos(term, root_dir, name);
+        },
+        ("statement", Some(matches)) => {
+            let name = wallet_argument_name_match(&matches);
+
+            wallet::commands::log(term, root_dir, name, true);
         },
         ("destroy", Some(matches)) => {
             let name = wallet_argument_name_match(&matches);
@@ -679,6 +692,13 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("delete all data associated to the given wallet.")
             .arg(wallet_argument_name_definition())
         )
+        .subcommand(SubCommand::with_name("address")
+            .about("create a new address")
+            .arg(wallet_argument_name_definition())
+            .arg(Arg::with_name("ACCOUNT_INDEX").required(true))
+            .arg(Arg::with_name("ADDRESS_INDEX").required(true))
+            .arg(Arg::with_name("INTERNAL_ADDRESS").long("internal"))
+        )
         .subcommand(SubCommand::with_name("attach")
             .about("Attach the existing wallet to the existing local blockchain. Detach first to attach to an other blockchain.")
             .arg(wallet_argument_name_definition())
@@ -706,15 +726,286 @@ fn wallet_commands_definition<'a, 'b>() -> App<'a, 'b> {
             .about("print some status information from the given wallet (funds, transactions...)")
             .arg(wallet_argument_name_definition())
         )
+        .subcommand(SubCommand::with_name("statement")
+            .about("print the wallet statement")
+            .arg(wallet_argument_name_definition())
+        )
         .subcommand(SubCommand::with_name("log")
             .about("print the wallet logs")
             .arg(wallet_argument_name_definition())
-            .arg(Arg::with_name("LOG_PRETTY")
-                .help("display the transaction history")
-                .long("history")
-                .short("h")
+        )
+        .subcommand(SubCommand::with_name("utxos")
+            .about("print the wallet's available funds")
+            .arg(wallet_argument_name_definition())
+        )
+}
+
+/* ------------------------------------------------------------------------- *
+ *             Transaction Sub Commands and helpers                          *
+ * ------------------------------------------------------------------------- */
+
+const TRANSACTION_COMMAND : &'static str = "transaction";
+
+#[derive(Debug,Clone,Copy)]
+pub enum TransactionCmd {
+    New, List, Destroy, Export, Import, Sign, Finalize, Send,
+    InputSelect, AddChange, AddInput, AddOutput, RmInput, RmOutput, RmChange, Status,
+}
+impl TransactionCmd {
+    pub fn as_string(self) -> &'static str {
+        match self {
+            TransactionCmd::New => "new",
+            TransactionCmd::List => "list",
+            TransactionCmd::Destroy => "destroy",
+            TransactionCmd::Export => "export",
+            TransactionCmd::Import => "import",
+            TransactionCmd::Send => "send",
+            TransactionCmd::Sign => "sign",
+            TransactionCmd::Finalize => "finalize",
+            TransactionCmd::InputSelect => "input-select",
+            TransactionCmd::AddChange => "add-change",
+            TransactionCmd::AddInput => "add-input",
+            TransactionCmd::AddOutput => "add-output",
+            TransactionCmd::RmInput => "rm-input",
+            TransactionCmd::RmOutput => "rm-output",
+            TransactionCmd::RmChange => "rm-change",
+            TransactionCmd::Status => "status",
+        }
+    }
+}
+
+fn transaction_argument_name_definition<'a, 'b>() -> Arg<'a,'b> {
+    Arg::with_name("TRANSACTION_ID")
+        .help("the transaction staging identifier")
+        .required(true)
+}
+fn transaction_argument_name_match<'a, 'b>(matches: &'b ArgMatches<'a>) -> &'b str {
+    match matches.value_of("TRANSACTION_ID") {
+        Some(r) => { r },
+        None => { unreachable!() }
+    }
+}
+fn transaction_argument_txid_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_TXID")
+        .help("A Transaction identifier in hexadecimal")
+        .required(false)
+        .requires("TRANSACTION_INDEX")
+}
+fn transaction_argument_index_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_INDEX")
+        .help("The index of the unspent output in the transaction")
+}
+fn transaction_argument_amount_definition<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("TRANSACTION_AMOUNT")
+        .help("The value in lovelace")
+}
+fn transaction_argument_txin_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32)> {
+    if ! matches.is_present("TRANSACTION_TXID") { return None; }
+    let txid = value_t!(matches, "TRANSACTION_TXID", cardano::tx::TxId).unwrap_or_else(|e| e.exit());
+
+    let index = value_t!(matches, "TRANSACTION_INDEX", u32).unwrap_or_else(|e| e.exit());
+
+    Some((txid, index))
+}
+fn transaction_argument_input_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::tx::TxId, u32, Option<cardano::coin::Coin>)> {
+    let (txid, index) = transaction_argument_txin_match(&matches)?;
+    let coin = value_t!(matches, "UTXO_AMOUNT", cardano::coin::Coin).ok();
+
+    Some((txid, index, coin))
+}
+fn transaction_argument_address_definition<'a, 'b>() -> Arg<'a, 'b>
+{
+    Arg::with_name("TRANSACTION_ADDRESS")
+        .help("Address to send funds too")
+}
+fn transaction_argument_output_match<'a>(matches: &ArgMatches<'a>) -> Option<(cardano::address::ExtendedAddr, cardano::coin::Coin)> {
+    if ! matches.is_present("TRANSACTION_ADDRESS") { return None; }
+
+    let address = value_t!(matches, "TRANSACTION_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+    let coin = value_t!(matches, "TRANSACTION_AMOUNT", cardano::coin::Coin).unwrap_or_else(|e| e.exit());
+
+    Some((address, coin))
+}
+
+fn subcommand_transaction<'a>(mut term: term::Term, root_dir: PathBuf, matches: &ArgMatches<'a>) {
+    match matches.subcommand() {
+        ("new", Some(matches)) => {
+            let blockchain = blockchain_argument_name_match(&matches);
+            transaction::commands::new(term, root_dir, blockchain);
+        },
+        ("list", _) => {
+            transaction::commands::list(term, root_dir);
+        },
+        ("destroy", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::destroy(term, root_dir, id);
+        },
+        ("export", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let file = matches.value_of("EXPORT_FILE");
+            transaction::commands::export(term, root_dir, id, file);
+        },
+        ("import", Some(matches)) => {
+            let file = matches.value_of("IMPORT_FILE");
+            transaction::commands::import(term, root_dir, file);
+        },
+        ("send", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let blockchain = blockchain_argument_name_match(&matches);
+
+            transaction::commands::send(term, root_dir, id, blockchain);
+        },
+        ("finalize", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+
+            transaction::commands::finalize(term, root_dir, id);
+        },
+        ("sign", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+
+            transaction::commands::sign(term, root_dir, id);
+        },
+        ("add-input", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let input = transaction_argument_input_match(&matches);
+
+            transaction::commands::add_input(term, root_dir, id, input);
+        },
+        ("add-output", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let output = transaction_argument_output_match(&matches);
+
+            transaction::commands::add_output(term, root_dir, id, output);
+        },
+        ("add-change", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let address = value_t!(matches, "CHANGE_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::add_change(term, root_dir, id, address);
+        },
+        ("input-select", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let wallets = values_t!(matches, "WALLET_NAME", wallet::WalletName).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::input_select(term, root_dir, id, wallets);
+        }
+        ("rm-output", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let address = value_t!(matches, "TRANSACTION_ADDRESS", cardano::address::ExtendedAddr).ok();
+
+            transaction::commands::remove_output(term, root_dir, id, address);
+        },
+        ("rm-input", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let txin = transaction_argument_txin_match(&matches);
+
+            transaction::commands::remove_input(term, root_dir, id, txin);
+        },
+        ("rm-change", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            let address = value_t!(matches, "CHANGE_ADDRESS", cardano::address::ExtendedAddr).unwrap_or_else(|e| e.exit());
+
+            transaction::commands::remove_change(term, root_dir, id, address);
+        },
+        ("status", Some(matches)) => {
+            let id = transaction_argument_name_match(&matches);
+            transaction::commands::status(term, root_dir, id);
+        },
+        _ => {
+            term.error(matches.usage()).unwrap();
+            ::std::process::exit(1)
+        }
+    }
+}
+fn transaction_commands_definition<'a, 'b>() -> App<'a, 'b> {
+    SubCommand::with_name(TRANSACTION_COMMAND)
+        .about("Transaction operations.")
+        .subcommand(SubCommand::with_name(TransactionCmd::New.as_string())
+            .about("Create a new empty staging transaction")
+            .arg(blockchain_argument_name_definition()
+                .help("Transaction are linked to a blockchain to be valid")
+            )
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::List.as_string())
+            .about("List all staging transactions open")
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Destroy.as_string())
+            .about("Destroy a staging transaction")
+            .arg(transaction_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Export.as_string())
+            .about("Export a staging transaction for transfer into a human readable format")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("EXPORT_FILE")
+                .help("optional file to export the staging transaction to (default will display the export to stdout)")
                 .required(false)
             )
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Import.as_string())
+            .about("Import a human readable format transaction into a new staging transaction")
+            .arg(Arg::with_name("IMPORT_FILE")
+                .help("optional file to import the staging transaction from (default will read stdin)")
+                .required(false)
+            )
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Sign.as_string())
+            .about("Finalize a staging a transaction into a transaction ready to send to the blockchain network")
+            .arg(transaction_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Send.as_string())
+            .about("Send the transaction transaction to the blockchain")
+            .arg(transaction_argument_name_definition())
+            .arg(blockchain_argument_name_definition()
+                .help("The blockchain the send the transaction too (will contact the peers of this blockchain)")
+            )
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Finalize.as_string())
+            .about("Finalize a staging transaction")
+            .arg(transaction_argument_name_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::InputSelect.as_string())
+            .alias("select-input")
+            .about("Select input automatically using a wallet (or a set of wallets), and a input selection algorithm")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("WALLET_NAME").required(true).multiple(true).help("wallet name to use for the selection"))
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddChange.as_string())
+            .about("Add a change address to a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("CHANGE_ADDRESS").required(true).help("address to send the change to"))
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmChange.as_string())
+            .about("Remove a change address from a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(Arg::with_name("CHANGE_ADDRESS").required(true).help("address to remove"))
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddInput.as_string())
+            .about("Add an input to a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_txid_definition())
+            .arg(transaction_argument_index_definition())
+            .arg(transaction_argument_amount_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::AddOutput.as_string())
+            .about("Add an output to a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_address_definition().requires("TRANSACTION_AMOUNT"))
+            .arg(transaction_argument_amount_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmInput.as_string())
+            .about("Remove an input to a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_txid_definition())
+            .arg(transaction_argument_index_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::RmOutput.as_string())
+            .about("Remove an output to a transaction")
+            .arg(transaction_argument_name_definition())
+            .arg(transaction_argument_address_definition())
+        )
+        .subcommand(SubCommand::with_name(TransactionCmd::Status.as_string())
+            .about("Status of a staging transaction")
+            .arg(transaction_argument_name_definition())
         )
 }
 

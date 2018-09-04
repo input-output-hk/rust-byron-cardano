@@ -37,7 +37,7 @@ impl HeaderHash {
     pub fn from_slice(bytes: &[u8]) -> hash::Result<Self> {
         Blake2b256::from_slice(bytes).map(|h| HeaderHash(h))
     }
-    pub fn from_hex<S: AsRef<str>>(hex: &S) -> hash::Result<Self> {
+    pub fn from_hex(hex: &str) -> hash::Result<Self> {
         Blake2b256::from_hex(hex).map(|h| HeaderHash(h))
     }
     pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }

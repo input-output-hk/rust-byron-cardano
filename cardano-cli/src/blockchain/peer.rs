@@ -1,7 +1,7 @@
 
 use exe_common;
 use exe_common::network::{api::Api, api::BlockRef};
-use cardano::block::{BlockDate, EpochId, HeaderHash};
+use cardano::{block::{BlockDate, EpochId, HeaderHash}, tx::{TxAux}};
 use utils::term::Term;
 use storage::{self, tag};
 use std::ops::Deref;
@@ -25,6 +25,10 @@ impl<'a> ConnectedPeer<'a> {
             parent: tip_header.get_previous_header(),
             date: tip_header.get_blockdate()
         }
+    }
+
+    pub fn send_txaux(mut self, txaux: TxAux) {
+        let sent = self.connection.send_transaction(txaux).unwrap();
     }
 
     pub fn sync(mut self, term: &mut Term) -> Peer<'a> {
@@ -184,7 +188,7 @@ impl<'a> ConnectedPeer<'a> {
 
             last_block = Some(block_hash.clone());
         }).unwrap();
-        pbr.finish_and_clear();
+        pbr.finish();
 
         // Update the tip tag to point to the most recent block.
         if let Some(block_hash) = last_block {

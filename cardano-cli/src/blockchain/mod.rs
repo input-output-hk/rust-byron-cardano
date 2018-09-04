@@ -1,6 +1,6 @@
 pub mod config;
 pub mod commands;
-mod peer;
+pub mod peer;
 pub mod iter;
 
 use std::path::PathBuf;

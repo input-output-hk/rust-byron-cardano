@@ -1,13 +1,16 @@
+use cardano::address::{ExtendedAddr};
 use super::utxo::{UTxO};
+
+mod address;
 
 pub mod randomindex;
 pub mod sequentialindex;
 pub mod accum;
 
+pub use self::address::{Address};
+
 pub trait AddressLookup {
     type Error        : ::std::fmt::Debug;
-    type AddressInput : ::std::fmt::Display;
-    type AddressOutput: ::std::fmt::Display;
 
     /// the implementor will attempt the recognize the given UTxO's credited_address.
     ///
@@ -17,7 +20,7 @@ pub trait AddressLookup {
     /// In the case of random address it will mainly be an attempt to decrypt the
     /// given hdpayload and reconstructing the address with it.
     ///
-    fn lookup(&mut self, utxo: UTxO<Self::AddressInput>) -> Result<Option<UTxO<Self::AddressOutput>>, Self::Error>;
+    fn lookup(&mut self, utxo: UTxO<ExtendedAddr>) -> Result<Option<UTxO<Address>>, Self::Error>;
 
     /// this function will allow the implementor to update its initial state.
     /// This is in the case of wallet using sequential indices for the addresses.
@@ -25,5 +28,5 @@ pub trait AddressLookup {
     /// When the wallet will load the wallet log, this will allow the address lookup
     /// object to update its state before the main operation starts.
     ///
-    fn acknowledge(&mut self, address: &Self::AddressOutput) -> Result<(), Self::Error>;
+    fn acknowledge<A: Into<Address>>(&mut self, address: A) -> Result<(), Self::Error>;
 }

@@ -21,4 +21,5 @@ extern crate humantime;
 pub mod utils;
 pub mod blockchain;
 pub mod wallet;
+pub mod transaction;
 pub mod debug;

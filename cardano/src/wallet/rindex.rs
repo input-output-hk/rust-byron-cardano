@@ -154,7 +154,7 @@ impl Wallet {
                 */
                 let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), input_addressing.iter());
                 assert_eq!(witnesses.len(), fake_witnesses.len());
-                let txaux = tx::TxAux::new(tx, tx::TxWitness::new(witnesses));
+                let txaux = tx::TxAux::new(tx, tx::TxWitness::from(witnesses));
                 return Ok((txaux, txaux_fee))
             } else {
                 // already above..
@@ -370,7 +370,7 @@ impl AddressGenerator<XPub> {
         }
     }
 
-    fn key(&self, path: &Addressing) -> Result<XPub> {
+    pub fn key(&self, path: &Addressing) -> Result<XPub> {
         Ok(
             self.cached_key
                 .derive(self.derivation_scheme, path.0)?
@@ -412,7 +412,7 @@ impl AddressGenerator<XPrv> {
         }
     }
 
-    fn key(&self, path: &Addressing) -> XPrv {
+    pub fn key(&self, path: &Addressing) -> XPrv {
         self.cached_key
             .derive(self.derivation_scheme, path.0)
             .derive(self.derivation_scheme, path.1)

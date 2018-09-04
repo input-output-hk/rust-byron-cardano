@@ -378,6 +378,21 @@ impl ExtendedAddr {
         cbor_event::de::Deserialize::deserialize(&mut raw)
     }
 }
+#[derive(Debug)]
+pub enum ParseExtendedAddrError {
+    EncodingError(cbor_event::Error),
+    Base58Error(base58::Error)
+}
+impl ::std::str::FromStr for ExtendedAddr {
+    type Err = ParseExtendedAddrError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = base58::decode(s)
+            .map_err(ParseExtendedAddrError::Base58Error)?;
+
+        Self::from_bytes(&bytes)
+            .map_err(ParseExtendedAddrError::EncodingError)
+    }
+}
 impl cbor_event::se::Serialize for ExtendedAddr {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         cbor::hs::util::encode_with_crc32_(&(&self.addr, &self.attributes, &self.addr_type), serializer)

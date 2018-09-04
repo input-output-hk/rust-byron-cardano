@@ -322,11 +322,18 @@ impl cbor_event::de::Deserialize for Tx {
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
-    pub fn new(in_witnesses: Vec<TxInWitness>) -> Self {
-        TxWitness(in_witnesses)
+    pub fn new() -> Self { TxWitness(Vec::new()) }
+}
+impl From<Vec<TxInWitness>> for TxWitness {
+    fn from(v: Vec<TxInWitness>) -> Self { TxWitness(v) }
+}
+impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
+    fn from_iter<I>(iter: I) -> Self
+        where I: IntoIterator<Item = TxInWitness>
+    {
+        TxWitness(Vec::from_iter(iter))
     }
 }
-
 impl ::std::ops::Deref for TxWitness {
     type Target = Vec<TxInWitness>;
     fn deref(&self) -> &Self::Target { &self.0 }
@@ -338,7 +345,7 @@ impl ::std::ops::DerefMut for TxWitness {
 
 impl cbor_event::de::Deserialize for TxWitness {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        Ok(TxWitness::new(cbor_event::de::Deserialize::deserialize(raw)?))
+        Ok(TxWitness(cbor_event::de::Deserialize::deserialize(raw)?))
     }
 }
 
@@ -417,6 +424,14 @@ pub fn txaux_serialize<W>(tx: &Tx, in_witnesses: &Vec<TxInWitness>, serializer: 
     let serializer = serializer.write_array(cbor_event::Len::Len(2))?
                 .serialize(tx)?;
     txwitness_serialize(in_witnesses, serializer)
+}
+
+pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
+    // TODO don't actually produce any bytes, but instead just count.
+    // we don't expect error here, a real counter would not error..
+    let ser = cbor_event::se::Serializer::new_vec();
+    let bytes = txaux_serialize(tx, in_witnesses, ser).unwrap().finalize();
+    bytes.len()
 }
 
 #[derive(Debug, Clone)]
@@ -632,7 +647,7 @@ mod tests {
         let tx : Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
         let txinwitness : TxInWitness = RawCbor::from(TX_IN_WITNESS).deserialize().expect("to decode a `TxInWitness`");
 
-        let txaux = TxAux::new(tx, TxWitness::new(vec![txinwitness]));
+        let txaux = TxAux::new(tx, TxWitness::from(vec![txinwitness]));
 
         assert!(cbor_event::test_encode_decode(&txaux).expect("encode/decode TxAux"));
     }

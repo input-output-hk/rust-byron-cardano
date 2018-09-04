@@ -61,8 +61,8 @@ impl Blake2b256 {
         buf[0..HASH_SIZE].clone_from_slice(bytes);
         Ok(Self::from(buf))
     }
-    pub fn from_hex<S: AsRef<str>>(hex: &S) -> Result<Self> {
-        let bytes = hex::decode(hex.as_ref())?;
+    pub fn from_hex(hex: &str) -> Result<Self> {
+        let bytes = hex::decode(hex)?;
         Self::from_slice(&bytes)
     }
 }
@@ -78,6 +78,12 @@ impl fmt::Display for Blake2b256 {
 }
 impl From<[u8;HASH_SIZE]> for Blake2b256 {
     fn from(bytes: [u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
+}
+impl ::std::str::FromStr for Blake2b256 {
+    type Err = Error;
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+        Self::from_hex(s)
+    }
 }
 impl cbor_event::de::Deserialize for Blake2b256 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {

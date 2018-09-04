@@ -2,7 +2,7 @@ use config;
 use network::{native, Result, hermes};
 use network::api::{*, BlockRef};
 use cardano::config::{ProtocolMagic};
-use cardano::block::{Block, BlockHeader, RawBlock, HeaderHash};
+use cardano::{block::{Block, BlockHeader, RawBlock, HeaderHash}, tx::{TxAux}};
 
 /// network object to handle a peer connection and redirect to constructing
 /// the appropriate network protocol object (native, http...)
@@ -55,6 +55,13 @@ impl Api for Peer {
         match self {
             Peer::Native(peer)   => peer.get_blocks(from, inclusive, to, got_block),
             Peer::Http(endpoint) => endpoint.get_blocks(from, inclusive, to, got_block),
+        }
+    }
+
+    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool> {
+        match self {
+            Peer::Native(peer)   => peer.send_transaction(txaux),
+            Peer::Http(endpoint) => endpoint.send_transaction(txaux),
         }
     }
 }

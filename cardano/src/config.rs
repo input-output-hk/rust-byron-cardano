@@ -1,5 +1,5 @@
 //! Blockchain network specific config (ProtocolMagic)
-//! 
+//!
 //! there are some settings that need to be set in order to guarantee
 //! operability with the appropriate network or different option.
 //!
@@ -25,6 +25,7 @@ use std::fmt;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct ProtocolMagic(u32);
 impl ProtocolMagic {
+    #[deprecated]
     pub fn new(val: u32) -> Self { ProtocolMagic(val) }
 }
 impl fmt::Display for ProtocolMagic {
@@ -32,8 +33,15 @@ impl fmt::Display for ProtocolMagic {
         write!(f, "{}", self.0)
     }
 }
+impl ::std::ops::Deref for ProtocolMagic {
+    type Target = u32;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+impl From<u32> for ProtocolMagic {
+    fn from(v: u32) -> Self { ProtocolMagic(v) }
+}
 impl Default for ProtocolMagic {
-    fn default() -> Self { ProtocolMagic::new(764824073) }
+    fn default() -> Self { ProtocolMagic::from(764824073) }
 }
 impl cbor_event::se::Serialize for ProtocolMagic {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
@@ -43,7 +51,7 @@ impl cbor_event::se::Serialize for ProtocolMagic {
 impl cbor_event::Deserialize for ProtocolMagic {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let v = raw.unsigned_integer()? as u32;
-        Ok(ProtocolMagic::new(v))
+        Ok(ProtocolMagic::from(v))
     }
 }
 
