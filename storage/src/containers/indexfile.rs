@@ -38,14 +38,14 @@ const VERSION: magic::Version = 1;
 const FANOUT_ELEMENTS : usize = 256;
 const FANOUT_SIZE : usize = FANOUT_ELEMENTS*SIZE_SIZE;
 
-const HEADER_SIZE : usize = BLOOM_OFFSET as usize - magic::HEADER_SIZE;
+const HEADER_SIZE : usize = BLOOM_OFFSET - magic::HEADER_SIZE;
 
-const FANOUT_OFFSET : usize = magic::HEADER_SIZE;
+const FANOUT_OFFSET : usize = magic::HEADER_SIZE + 8;
 const BLOOM_OFFSET : usize = FANOUT_OFFSET + FANOUT_SIZE;
 
 // calculate the file offset from where the hashes are stored
 fn offset_hashes(bloom_size: u32) -> u64 {
-    8 + 8 + FANOUT_SIZE as u64 + bloom_size as u64
+    magic::HEADER_SIZE as u64 + 8 + FANOUT_SIZE as u64 + bloom_size as u64
 }
 
 // calculate the file offset from where the offsets are stored
@@ -161,7 +161,7 @@ impl Index {
             }
 
             for i in 0..FANOUT_ELEMENTS {
-                let ofs = FANOUT_OFFSET + i * SIZE_SIZE - magic::HEADER_SIZE; /* start at 16, because 0..8 is the magic, followed by size, and padding */
+                let ofs = FANOUT_OFFSET + i * SIZE_SIZE - magic::HEADER_SIZE;
                 write_size(&mut hdr_buf[ofs..ofs+SIZE_SIZE], fanout_incr[i]);
             }
             Fanout(fanout_incr)

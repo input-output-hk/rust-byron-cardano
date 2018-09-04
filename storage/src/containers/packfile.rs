@@ -73,6 +73,8 @@ pub fn read_next_block<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
     let mut sz_buf = [0u8;SIZE_SIZE];
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
+    // don't potentially consume all memory when reading a corrupt file
+    assert!(sz < 20000000);
     let mut v : Vec<u8> = repeat(0).take(sz as usize).collect();
     file.read_exact(v.as_mut_slice())?;
     if (v.len() % 4) != 0 {
@@ -149,7 +151,7 @@ impl Writer {
         Ok(Writer {
             tmpfile: tmpfile,
             index: idx,
-            pos: 0,
+            pos: magic::HEADER_SIZE as u64,
             nb_blobs: 0,
             hash_context: ctxt,
         })

@@ -68,7 +68,6 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId)
 
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
     let mut file = fs::File::open(&pack_filepath)?;
-    magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
     let _read = file.read_to_end(&mut content).unwrap();
 
     let p = String::from_utf8(content.clone()).ok().and_then(|r| hex::decode(&r).ok()).unwrap();
