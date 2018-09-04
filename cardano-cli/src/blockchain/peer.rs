@@ -1,7 +1,7 @@
 
 use exe_common;
 use exe_common::network::{api::Api, api::BlockRef};
-use cardano::block::{BlockDate, EpochId, HeaderHash};
+use cardano::{block::{BlockDate, EpochId, HeaderHash}, tx::{TxAux}};
 use utils::term::Term;
 use storage::{self, tag};
 use std::ops::Deref;
@@ -25,6 +25,10 @@ impl<'a> ConnectedPeer<'a> {
             parent: tip_header.get_previous_header(),
             date: tip_header.get_blockdate()
         }
+    }
+
+    pub fn send_txaux(mut self, txaux: TxAux) {
+        let sent = self.connection.send_transaction(txaux).unwrap();
     }
 
     pub fn sync(mut self, term: &mut Term) -> Peer<'a> {
