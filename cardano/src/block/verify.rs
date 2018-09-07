@@ -36,6 +36,13 @@ pub enum Error {
     WrongTxProof,
     WrongUpdateProof,
     ZeroCoin,
+
+    // Used by verify_block_in_chain.
+    WrongPreviousBlock,
+    NonExistentSlot,
+    BlockDateInPast,
+    BlockDateInFuture,
+    WrongSlotLeader,
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
