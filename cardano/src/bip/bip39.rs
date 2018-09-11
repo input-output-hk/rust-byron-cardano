@@ -55,7 +55,7 @@ use std::{fmt, result, str, ops::Deref};
 use util::{hex, securemem};
 
 /// Error regarding BIP39 operations
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     /// Received an unsupported number of mnemonic words. The parameter
     /// contains the unsupported number. Supported values are
@@ -83,9 +83,6 @@ pub enum Error {
     /// mnemonics are invalid to retrieve the original entropy. The user might
     /// have given an invalid mnemonic phrase.
     InvalidChecksum(u8, u8)
-}
-impl fmt::Debug for Error {
-    fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self) }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {
