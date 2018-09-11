@@ -14,7 +14,6 @@ pub mod epoch;
 pub mod refpack;
 pub mod utils;
 pub mod containers;
-pub mod magic;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -24,6 +23,7 @@ use cardano::block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId};
 
 use types::*;
 use utils::tmpfile::*;
+use utils::magic;
 
 use containers::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};

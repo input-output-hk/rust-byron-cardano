@@ -1,5 +1,5 @@
 use std::io::{Write, Read};
-use super::{Result, Error};
+use super::super::{Result, Error};
 use utils::serialize::{read_size, write_size};
 
 const MAGIC: &[u8;8] = b"\xfeCARDANO";

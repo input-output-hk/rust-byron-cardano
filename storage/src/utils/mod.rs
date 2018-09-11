@@ -3,3 +3,4 @@ pub mod bloom;
 pub mod tmpfile;
 pub mod lock;
 pub mod serialize;
+pub mod magic;
