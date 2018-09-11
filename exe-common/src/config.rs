@@ -1,6 +1,6 @@
 pub mod net {
     use cardano::block::{HeaderHash,EpochId};
-    use cardano::config::{ProtocolMagic};
+    use cardano::{config::{ProtocolMagic}, util::{hex}};
     use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}, str::{FromStr}};
     use storage::utils::tmpfile::{TmpFile};
     use serde_yaml;
@@ -190,7 +190,7 @@ pub mod net {
         { Peers(::std::iter::FromIterator::from_iter(iter)) }
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone)]
     pub struct Config {
         pub genesis: HeaderHash,
         pub genesis_prev: HeaderHash,
@@ -257,6 +257,96 @@ pub mod net {
             let mut file = TmpFile::create(dir).unwrap();
             serde_yaml::to_writer(&mut file, &self).unwrap();
             file.render_permanent(&p.as_ref().to_path_buf()).unwrap();
+        }
+    }
+    impl serde::ser::Serialize for Config {
+       fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+           where S: serde::ser::Serializer
+       {
+           use serde::ser::SerializeStruct;
+           let mut state = serializer.serialize_struct("Config", 6)?;
+           state.serialize_field("genesis", &hex::encode(&*self.genesis))?;
+           state.serialize_field("genesis_prev", &hex::encode(&*self.genesis_prev))?;
+           state.serialize_field("epoch_start", &self.epoch_start)?;
+           state.serialize_field("epoch_stability_depth", &self.epoch_stability_depth)?;
+           state.serialize_field("protocol_magic", &*self.protocol_magic)?;
+           state.serialize_field("peers", &self.peers)?;
+           state.end()
+       }
+    }
+    impl<'de> serde::de::Deserialize<'de> for Config {
+        fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+            where D: serde::de::Deserializer<'de>
+        {
+            use serde::de::{self, Visitor, MapAccess};
+
+            #[derive(Deserialize)]
+            #[serde(field_identifier, rename_all = "snake_case")]
+            enum Field { Genesis, GenesisPrev, EpochStart, EpochStabilityDepth, ProtocolMagic, Peers };
+            const FIELDS : &'static [&'static str] = &["genesis", "genesis_prev", "epoch_start", "epoch_stability_depth", "protocol_magic", "peers"];
+
+            struct ConfigVisitor;
+            impl <'de> Visitor<'de> for ConfigVisitor {
+                type Value = Config;
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("struct Config")
+                }
+                fn visit_map<V>(self, mut map: V) -> Result<Config, V::Error>
+                   where V: MapAccess<'de>,
+                {
+                    let mut genesis = None;
+                    let mut genesis_prev = None;
+                    let mut epoch_start = None;
+                    let mut epoch_stability_depth = None;
+                    let mut protocol_magic = None;
+                    let mut peers = None;
+                    while let Some(key) = map.next_key()? {
+                        match key {
+                            Field::Genesis => {
+                                if genesis.is_some() { return Err(de::Error::duplicate_field("genesis")); }
+                                let s : String = map.next_value()?;
+                                match HeaderHash::from_str(&s) {
+                                    Err(err) => return Err(de::Error::custom(err)),
+                                    Ok(v)    => genesis = Some(v),
+                                }
+                            },
+                            Field::GenesisPrev => {
+                                if genesis_prev.is_some() { return Err(de::Error::duplicate_field("genesis_prev")); }
+                                let s : String = map.next_value()?;
+                                match HeaderHash::from_str(&s) {
+                                    Err(err) => return Err(de::Error::custom(err)),
+                                    Ok(v)    => genesis_prev = Some(v),
+                                }
+                            },
+                            Field::EpochStart => {
+                                if epoch_start.is_some() { return Err(de::Error::duplicate_field("epoch_start")); }
+                                epoch_start = Some(map.next_value()?);
+                            }
+                            Field::EpochStabilityDepth => {
+                                if epoch_stability_depth.is_some() { return Err(de::Error::duplicate_field("epoch_stability_depth")); }
+                                epoch_stability_depth = Some(map.next_value()?);
+                            }
+                            Field::ProtocolMagic => {
+                                if protocol_magic.is_some() { return Err(de::Error::duplicate_field("protocol_magic")); }
+                                let v : u32 = map.next_value()?;
+                                protocol_magic = Some(ProtocolMagic::from(v));
+                            }
+                            Field::Peers => {
+                                if peers.is_some() { return Err(de::Error::duplicate_field("peers")); }
+                                peers = Some(map.next_value()?);
+                            }
+                        }
+                    }
+                    let genesis               = genesis.ok_or_else(|| de::Error::missing_field(FIELDS[0]))?;
+                    let genesis_prev          = genesis_prev.ok_or_else(|| de::Error::missing_field(FIELDS[1]))?;
+                    let epoch_start           = epoch_start.ok_or_else(|| de::Error::missing_field(FIELDS[2]))?;
+                    let epoch_stability_depth = epoch_stability_depth.ok_or_else(|| de::Error::missing_field(FIELDS[3]))?;
+                    let protocol_magic        = protocol_magic.ok_or_else(|| de::Error::missing_field(FIELDS[4]))?;
+                    let peers                 = peers.ok_or_else(|| de::Error::missing_field(FIELDS[5]))?;
+                    Ok(Config { genesis, genesis_prev, epoch_start, epoch_stability_depth, protocol_magic, peers })
+                }
+            }
+            deserializer.deserialize_struct("Config", FIELDS, ConfigVisitor)
         }
     }
 }
