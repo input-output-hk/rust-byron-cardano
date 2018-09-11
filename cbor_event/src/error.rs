@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, error};
 
 use types::Type;
 use len;
@@ -59,11 +59,21 @@ impl fmt::Display for Error {
             WrongLen(expected_len, actual_len, error_location) =>
                 write!(f, "Invalid cbor: expected tuple '{}' of length {} but got length {:?}.",
                        error_location, expected_len, actual_len),
-            InvalidTextError(utf8_error) => write!(f, "Invalid cbor: expected a valid utf8 string text. {:?}", utf8_error),
+            InvalidTextError(_utf8_error) => write!(f, "Invalid cbor: expected a valid utf8 string text."),
             CannotParse(t, bytes) => write!(f, "Invalid cbor: cannot parse the cbor object `{:?}' with the following bytes {:?}", t, bytes),
-            IoError(io_error) => write!(f, "Invalid cbor: I/O error: {:?}.", io_error),
+            IoError(_io_error) => write!(f, "Invalid cbor: I/O error"),
             TrailingData => write!(f, "Unexpected trailing data in CBOR"),
             CustomError(err) => write!(f, "Invalid cbor: {}", err)
+        }
+    }
+}
+
+impl error::Error for Error {
+    fn cause(&self) -> Option<&error::Error> {
+        match self {
+            Error::IoError(ref error) => Some(error),
+            Error::InvalidTextError(ref error) => Some(error),
+            _ => None
         }
     }
 }
