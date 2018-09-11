@@ -19,7 +19,7 @@ pub mod net {
     /// The `Peer::Native` kinds are the peer implementing the native peer to peer
     /// protocol. While a native peer may be slower to sync the whole blockchain it
     /// provides more functionalities such as being able to send transactions and
-    /// beeing able to keep a connection alive to keep new block as they are created.
+    /// being able to keep a connection alive to keep new block as they are created.
     ///
     /// ## Http
     ///
