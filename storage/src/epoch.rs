@@ -1,14 +1,16 @@
 use std::fs;
-use std::io;
 use std::io::{Read};
 use cardano::util::{hex};
-
 use cardano;
 
-use super::{StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
+use super::{Result, Error, StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
 use super::utils::tmpfile;
 use super::utils::tmpfile::{TmpFile};
 use super::containers::{packfile, reffile};
+use magic;
+
+const FILE_TYPE: magic::FileType = 0x45504f43; // = EPOC
+const VERSION: magic::Version = 1;
 
 pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &reffile::Lookup, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
@@ -18,6 +20,7 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
     tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
+    magic::write_header(&mut tmpfile, FILE_TYPE, VERSION).unwrap();
     refpack.write(&mut tmpfile).unwrap();
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 }
@@ -51,6 +54,7 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano
 
     // write the refpack
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
+    magic::write_header(&mut tmpfile, FILE_TYPE, VERSION).unwrap();
     rp.write(&mut tmpfile).unwrap();
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 
@@ -59,7 +63,7 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano
     tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 }
 
-pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<PackHash> {
+pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<PackHash> {
     let mut content = Vec::new();
 
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
@@ -73,7 +77,7 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId)
     Ok(ph)
 }
 
-pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<reffile::Reader> {
+pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<reffile::Reader> {
     let path = config.get_epoch_refpack_filepath(epochid);
     reffile::Reader::open(path)
 }
@@ -81,15 +85,10 @@ pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::Epoch
 /// Try to open a packfile Reader on a specific epoch
 ///
 /// if there's no pack at this address, then nothing is return
-pub fn epoch_open_pack_reader(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<Option<packfile::Reader<fs::File>>> {
+pub fn epoch_open_pack_reader(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<Option<packfile::Reader<fs::File>>> {
     match epoch_read_pack(config, epochid) {
-        Err(err) => {
-            if err.kind() == ::std::io::ErrorKind::NotFound {
-                Ok(None)
-            } else {
-                Err(err)
-            }
-        },
+        Err(Error::IoError(ref err)) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
         Ok(epoch_ref) => {
             let reader = packreader_init(config, &epoch_ref);
             Ok(Some(reader))
@@ -102,16 +101,12 @@ pub fn epoch_open_pack_seeker() -> io::Result<Option<packfile::Seeker>> {
 }
 */
 
-pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<reffile::Reader> {
+pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<reffile::Reader> {
     reffile::Reader::open(config.get_epoch_refpack_filepath(epochid))
 }
 
-pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> io::Result<(PackHash, reffile::Reader)> {
-    match epoch_read_pack(config, epochid) {
-        Err(e) => Err(e),
-        Ok(ph) => {
-            let rp = epoch_read_packref(config, epochid)?;
-            Ok((ph, rp))
-        }
-    }
+pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<(PackHash, reffile::Reader)> {
+    let ph = epoch_read_pack(config, epochid)?;
+    let rp = epoch_read_packref(config, epochid)?;
+    Ok((ph, rp))
 }

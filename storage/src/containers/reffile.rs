@@ -8,14 +8,20 @@ use std::io;
 use std::fs;
 use std::path::Path;
 use types::{BlockHash, HASH_SIZE};
+use magic;
+use super::super::{Result, Error};
+
+const FILE_TYPE: magic::FileType = 0x52454653; // = REFS
+const VERSION: magic::Version = 1;
 
 pub struct Reader {
     handle: fs::File,
 }
 
 impl Reader {
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let file = fs::File::open(path)?;
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut file = fs::File::open(path)?;
+        magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
         Ok(Reader { handle: file })
     }
 
@@ -61,13 +67,13 @@ impl Lookup {
         Lookup(Vec::with_capacity(21600))
     }
 
-    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut v = Lookup::new();
         let mut reader = Reader::open(path)?;
         loop {
             match reader.next() {
                 Err(err) => {
-                    if err.kind() == io::ErrorKind::UnexpectedEof { break } else { return Err(err) }
+                    if err.kind() == io::ErrorKind::UnexpectedEof { break } else { return Err(Error::IoError(err)) }
                 },
                 Ok(r) => {
                     match r {
@@ -80,9 +86,11 @@ impl Lookup {
         Ok(v)
     }
 
-    pub fn to_path<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+    pub fn to_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let mut file = fs::File::create(path)?;
-        self.write(&mut file)
+        magic::write_header(&mut file, FILE_TYPE, VERSION)?;
+        self.write(&mut file)?;
+        Ok(())
     }
 
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {

@@ -85,7 +85,7 @@ fn net_sync_to<A: Api>(
 
         epoch_writer_state = Some(EpochWriterState {
             epoch_id,
-            writer: storage::pack::packwriter_init(&storage.config),
+            writer: storage::pack::packwriter_init(&storage.config).unwrap(),
             write_start_time: SystemTime::now(),
             blobs_to_delete: vec![]
         });
@@ -151,7 +151,7 @@ fn net_sync_to<A: Api>(
             if date.is_genesis() {
                 epoch_writer_state = Some(EpochWriterState {
                     epoch_id: date.get_epochid(),
-                    writer: storage::pack::packwriter_init(&storage.config),
+                    writer: storage::pack::packwriter_init(&storage.config).unwrap(),
                     write_start_time: SystemTime::now(),
                     blobs_to_delete: vec![]
                 });
@@ -221,7 +221,7 @@ fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block:
 
     let mut epoch_writer_state = EpochWriterState {
         epoch_id,
-        writer: storage::pack::packwriter_init(&storage.config),
+        writer: storage::pack::packwriter_init(&storage.config).unwrap(),
         write_start_time: SystemTime::now(),
         blobs_to_delete: vec![]
     };

@@ -58,7 +58,7 @@ impl<'a> Iterator for Epochs<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let r = epoch_open_pack_reader(&self.storage_config, self.epoch_id);
         match r {
-            Err(e) => { Some(Err(Error::IoError(e))) },
+            Err(e) => { Some(Err(Error::StorageError(e))) },
             Ok(None) => { None },
             Ok(Some(r)) => {
                 let iter = Iter(r);
