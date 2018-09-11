@@ -51,7 +51,7 @@
 use cryptoxide::hmac::{Hmac};
 use cryptoxide::sha2::{Sha512};
 use cryptoxide::pbkdf2::{pbkdf2};
-use std::{fmt, result, str, ops::Deref};
+use std::{fmt, result, str, ops::Deref, error};
 use util::{hex, securemem};
 
 /// Error regarding BIP39 operations
@@ -99,8 +99,8 @@ impl fmt::Display for Error {
             &Error::MnemonicOutOfBound(val) => {
                 write!(f, "The given mnemonic is out of bound, {}", val)
             },
-            &Error::LanguageError(ref err) => {
-                write!(f, "Mnemonic Dictionary error: {}", err)
+            &Error::LanguageError(_) => {
+                write!(f, "Invalid mnemonic word.")
             },
             &Error::InvalidChecksum(cs1, cs2) => {
                 write!(f, "Invalid Entropy's Checksum, expected {:08b} but found {:08b}", cs1, cs2)
@@ -110,6 +110,14 @@ impl fmt::Display for Error {
 }
 impl From<dictionary::Error> for Error {
     fn from(e: dictionary::Error) -> Self { Error::LanguageError(e) }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::LanguageError(ref error) => Some(error),
+            _ => None
+        }
+    }
 }
 
 /// convenient Alias to wrap up BIP39 operations that may return
@@ -798,7 +806,7 @@ pub mod dictionary {
     //! our output (or input) UTF8 strings.
     //!
 
-    use std::{fmt, result};
+    use std::{fmt, result, error};
 
     use super::{MnemonicIndex};
 
@@ -818,6 +826,7 @@ pub mod dictionary {
             }
         }
     }
+    impl error::Error for Error {}
 
     /// wrapper for `dictionary` operations that may return an error
     pub type Result<T> = result::Result<T, Error>;
