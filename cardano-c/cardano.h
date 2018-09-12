@@ -35,7 +35,7 @@ typedef struct cardano_address cardano_address;
  * return 0 on success, !0 on failure. */
 int cardano_address_is_valid(const char * address_base58);
 
-cardano_address *cardano_address_new_from_pubkey(cardano_xpubkey *publickey);
+cardano_address *cardano_address_new_from_pubkey(cardano_xpub *publickey);
 void cardano_address_delete(cardano_address *address);
 
 char *cardano_address_export_base58(cardano_address *address);
