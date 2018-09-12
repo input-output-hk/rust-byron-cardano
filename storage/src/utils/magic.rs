@@ -1,5 +1,5 @@
 use std::io::{Write, Read};
-use super::{Result, Error};
+use super::error::{Result, StorageError};
 use utils::serialize::{read_size, write_size};
 
 const MAGIC: &[u8;8] = b"\xfeCARDANO";
@@ -41,22 +41,22 @@ pub fn check_header(
     file.read_exact(&mut hdr_buf)?;
 
     if &hdr_buf[0..MAGIC_SIZE] != MAGIC {
-        return Err(Error::MissingMagic);
+        return Err(StorageError::MissingMagic);
     }
 
     let file_type = read_size(&hdr_buf[8..12]);
     let version = read_size(&hdr_buf[12..16]);
 
     if file_type != expected_file_type {
-        return Err(Error::WrongFileType(expected_file_type, file_type));
+        return Err(StorageError::WrongFileType(expected_file_type, file_type));
     }
 
     if version < min_version {
-        return Err(Error::VersionTooOld(min_version, version));
+        return Err(StorageError::VersionTooOld(min_version, version));
     }
 
     if version > max_version {
-        return Err(Error::VersionTooNew(max_version, version));
+        return Err(StorageError::VersionTooNew(max_version, version));
     }
 
     Ok(version)

@@ -18,21 +18,25 @@ pub fn open_index(storage_config: &super::StorageConfig, pack: &super::PackHash)
 
 pub fn dump_index(storage_config: &super::StorageConfig, pack: &super::PackHash) -> Result<(indexfile::Lookup, Vec<super::BlockHash>)> {
     let mut file = open_index(storage_config, pack);
-    indexfile::dump_file(&mut file)
+    let result = indexfile::dump_file(&mut file)?;
+    Ok(result)
 }
 
 pub fn read_index_fanout(storage_config: &super::StorageConfig, pack: &super::PackHash) -> Result<indexfile::Lookup> {
     let mut file = open_index(storage_config, pack);
-    indexfile::Lookup::read_from_file(&mut file)
+    let lookup = indexfile::Lookup::read_from_file(&mut file)?;
+    Ok(lookup)
 }
 
 pub fn index_get_header(file: &mut fs::File) -> Result<indexfile::Lookup> {
-    indexfile::Lookup::read_from_file(file)
+    let lookup = indexfile::Lookup::read_from_file(file)?;
+    Ok(lookup)
 }
 
 pub fn packwriter_init(cfg: &super::StorageConfig) -> Result<packfile::Writer> {
     let tmpfile = TmpFile::create(cfg.get_filetype_dir(super::StorageFileType::Pack))?;
-    packfile::Writer::init(tmpfile)
+    let writer = packfile::Writer::init(tmpfile)?;
+    Ok(writer)
 }
 
 pub fn packwriter_finalize(cfg: &super::StorageConfig, writer: packfile::Writer) -> (super::PackHash, indexfile::Index) {

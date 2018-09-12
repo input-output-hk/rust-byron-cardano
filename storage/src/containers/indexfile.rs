@@ -30,7 +30,7 @@ use utils::bloom;
 use utils::tmpfile::{TmpFile};
 use utils::serialize::{read_offset, read_size, write_offset, write_size, Offset, SIZE_SIZE, OFF_SIZE};
 use magic;
-use super::super::Result;
+use utils::error::Result;
 
 const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
 const VERSION: magic::Version = 1;

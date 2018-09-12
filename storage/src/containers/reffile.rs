@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use types::{BlockHash, HASH_SIZE};
 use magic;
-use super::super::{Result, Error};
+use utils::error::{Result, StorageError};
 
 const FILE_TYPE: magic::FileType = 0x52454653; // = REFS
 const VERSION: magic::Version = 1;
@@ -73,7 +73,7 @@ impl Lookup {
         loop {
             match reader.next() {
                 Err(err) => {
-                    if err.kind() == io::ErrorKind::UnexpectedEof { break } else { return Err(Error::IoError(err)) }
+                    if err.kind() == io::ErrorKind::UnexpectedEof { break } else { return Err(StorageError::IoError(err)) }
                 },
                 Ok(r) => {
                     match r {
