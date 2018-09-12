@@ -61,9 +61,9 @@ unsigned long cardano_account_generate_addresses(cardano_account *account, int i
 /* Transactions */
 /****************/
 
-typedef struct cardano_transaction cardano_transaction;
+typedef struct cardano_staging_transaction cardano_staging_transaction;
 
-//cardano_transaction_new();
+cardano_staging_transaction *cardano_transaction_new(void);
 //cardano_transaction_finalize();
 //cardano_transaction_add_input();
 //cardano_transaction_add_output();

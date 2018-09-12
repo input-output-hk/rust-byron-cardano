@@ -26,18 +26,25 @@ pub extern "C" fn cardano_address_is_valid(c_address: *mut c_char) -> c_int {
     }
 }
 
+#[no_mangle]
 pub extern "C" fn cardano_address_new_from_pubkey(c_xpubkey: XPubPtr) -> AddressPtr {
-    unimplemented!()
+    let xpub = unsafe { c_xpubkey.as_ref() }.expect("Not a NULL PTR");
+    let ea = ExtendedAddr::new_simple(xpub.clone());
+    let address = Box::new(ea);
+    Box::into_raw(address)
 }
 
+#[no_mangle]
 pub extern "C" fn cardano_address_delete(c_addr: AddressPtr) {
     unsafe { Box::from_raw(c_addr) };
 }
 
+#[no_mangle]
 pub extern "C" fn cardano_address_import_base58(c_addr: *mut c_char) -> AddressPtr {
     unimplemented!()
 }
 
+#[no_mangle]
 pub extern "C" fn cardano_address_export_base58(c_addr: AddressPtr) -> *const c_char {
     unimplemented!()
 }
