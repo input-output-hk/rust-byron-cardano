@@ -8,14 +8,11 @@ use cardano::util;
 use std::os::raw::{c_char};
 use std::{ffi, slice, ptr};
 
+use types::{WalletPtr, AccountPtr};
+
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
  * ******************************************************************************* */
-
-/// handy type alias for pointer to a heap allocated wallet
-type WalletPtr  = *mut bip44::Wallet;
-/// handy type alias for pointer to a heap allocated account
-type AccountPtr = *mut bip44::Account<hdwallet::XPub>;
 
 // TODO: one of the major missing element is a proper clean error handling
 

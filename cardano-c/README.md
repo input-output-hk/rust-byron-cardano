@@ -15,6 +15,10 @@ and architectures we provide a build script,
 To see the list of supported platforms, see `rustup target list`.
 Theoretically, all the targets are supported.
 
+# Cross compiling for iOS
+
+Use [cardano-lipo](https://github.com/TimNN/cargo-lipo)
+
 # find linker for your targets
 
 rust does not provide the linker for the targets, it is you to

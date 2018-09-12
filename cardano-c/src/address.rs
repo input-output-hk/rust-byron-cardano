@@ -3,6 +3,8 @@ use std::{ffi};
 
 use cardano::{address::ExtendedAddr, util::base58};
 
+use super::types::{XPubPtr, AddressPtr};
+
 /// Take a string as parameter and returns whether or not it's a valid base58 address
 ///
 /// On valid address, the return value is 0
@@ -22,4 +24,20 @@ pub extern "C" fn cardano_address_is_valid(c_address: *mut c_char) -> c_int {
     } else {
         return 1;
     }
+}
+
+pub extern "C" fn cardano_address_new_from_pubkey(c_xpubkey: XPubPtr) -> AddressPtr {
+    unimplemented!()
+}
+
+pub extern "C" fn cardano_address_delete(c_addr: AddressPtr) {
+    unsafe { Box::from_raw(c_addr) };
+}
+
+pub extern "C" fn cardano_address_import_base58(c_addr: *mut c_char) -> AddressPtr {
+    unimplemented!()
+}
+
+pub extern "C" fn cardano_address_export_base58(c_addr: AddressPtr) -> *const c_char {
+    unimplemented!()
 }
