@@ -20,6 +20,8 @@ cardano_result cardano_bip39_encode(const char * const entropy_raw, unsigned lon
 /* Keys  */
 /*********/
 
+#define XPRV_SIZE 96
+
 typedef struct cardano_xprv cardano_xprv;
 typedef struct cardano_xpub cardano_xpub;
 
@@ -27,7 +29,7 @@ cardano_xpub *cardano_xprv_delete(cardano_xprv *privkey);
 cardano_xpub *cardano_xprv_to_xpub(cardano_xprv *privkey);
 
 uint8_t *cardano_xprv_to_bytes(cardano_xprv *privkey);
-cardano_xprv *cardano_xprv_from_bytes(uint8_t *bytes);
+cardano_xprv *cardano_xprv_from_bytes(uint8_t bytes[XPRV_SIZE]);
 
 cardano_xpub *cardano_xpub_delete(cardano_xpub *pubkey);
 
