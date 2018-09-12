@@ -8,10 +8,6 @@ use super::utils::tmpfile;
 use super::utils::tmpfile::{TmpFile};
 use super::utils::error::StorageError;
 use super::containers::{packfile, reffile};
-use magic;
-
-const FILE_TYPE: magic::FileType = 0x45504f43; // = EPOC
-const VERSION: magic::Version = 1;
 
 pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &reffile::Lookup, epochid: cardano::block::EpochId) {
     let dir = config.get_epoch_dir(epochid);
@@ -21,7 +17,6 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
     tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
 
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
-    magic::write_header(&mut tmpfile, FILE_TYPE, VERSION).unwrap();
     refpack.write(&mut tmpfile).unwrap();
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 }
@@ -55,7 +50,6 @@ pub fn epoch_create(config: &StorageConfig, packref: &PackHash, epochid: cardano
 
     // write the refpack
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
-    magic::write_header(&mut tmpfile, FILE_TYPE, VERSION).unwrap();
     rp.write(&mut tmpfile).unwrap();
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 
