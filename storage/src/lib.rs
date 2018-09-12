@@ -24,17 +24,14 @@ use cardano::block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId};
 use types::*;
 use utils::tmpfile::*;
 use utils::magic;
+use utils::error;
 
 use containers::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]
 pub enum Error {
-    IoError(io::Error),
-    MissingMagic,
-    WrongFileType(magic::FileType, magic::FileType),
-    VersionTooOld(magic::Version, magic::Version),
-    VersionTooNew(magic::Version, magic::Version),
+    StorageError(error::StorageError),
     BlockError(block::Error),
     CborBlockError(cbor_event::Error),
     RefPackUnexpectedGenesis(SlotId),
@@ -46,7 +43,10 @@ pub enum Error {
     NoSuchTag
 }
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self { Error::IoError(e) }
+    fn from(e: io::Error) -> Self { Error::StorageError(e.into()) }
+}
+impl From<error::StorageError> for Error {
+    fn from(e: error::StorageError) -> Self { Error::StorageError(e) }
 }
 impl From<block::Error> for Error {
     fn from(e: block::Error) -> Self { Error::BlockError(e) }
@@ -128,7 +128,7 @@ fn tmpfile_create_type(storage: &Storage, filetype: StorageFileType) -> TmpFile 
 pub mod blob {
     use std::fs;
     use std::io::{Read,Write};
-    use super::{Result, Error};
+    use super::{Result};
     use cardano::block::RawBlock;
     use magic;
 
@@ -140,7 +140,8 @@ pub mod blob {
         let mut tmp_file = super::tmpfile_create_type(storage, super::StorageFileType::Blob);
         magic::write_header(&mut tmp_file, FILE_TYPE, VERSION)?;
         tmp_file.write_all(block)?;
-        tmp_file.render_permanent(&path).map_err(|e| Error::IoError(e))
+        tmp_file.render_permanent(&path)?;
+        Ok(())
     }
 
     pub fn read_raw(storage: &super::Storage, hash: &super::BlockHash) -> Result<Vec<u8>> {

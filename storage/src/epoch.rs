@@ -6,6 +6,7 @@ use cardano;
 use super::{Result, Error, StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
 use super::utils::tmpfile;
 use super::utils::tmpfile::{TmpFile};
+use super::utils::error::StorageError;
 use super::containers::{packfile, reffile};
 use magic;
 
@@ -79,7 +80,8 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: cardano::block::EpochId)
 
 pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<reffile::Reader> {
     let path = config.get_epoch_refpack_filepath(epochid);
-    reffile::Reader::open(path)
+    let reader = reffile::Reader::open(path)?;
+    Ok(reader)
 }
 
 /// Try to open a packfile Reader on a specific epoch
@@ -87,7 +89,7 @@ pub fn epoch_open_packref(config: &StorageConfig, epochid: cardano::block::Epoch
 /// if there's no pack at this address, then nothing is return
 pub fn epoch_open_pack_reader(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<Option<packfile::Reader<fs::File>>> {
     match epoch_read_pack(config, epochid) {
-        Err(Error::IoError(ref err)) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(None),
+        Err(Error::StorageError(StorageError::IoError(ref err))) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(None),
         Err(err) => Err(err),
         Ok(epoch_ref) => {
             let reader = packreader_init(config, &epoch_ref);
@@ -102,7 +104,8 @@ pub fn epoch_open_pack_seeker() -> io::Result<Option<packfile::Seeker>> {
 */
 
 pub fn epoch_read_packref(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<reffile::Reader> {
-    reffile::Reader::open(config.get_epoch_refpack_filepath(epochid))
+    let reader = reffile::Reader::open(config.get_epoch_refpack_filepath(epochid))?;
+    Ok(reader)
 }
 
 pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<(PackHash, reffile::Reader)> {
