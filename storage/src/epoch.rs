@@ -107,3 +107,12 @@ pub fn epoch_read(config: &StorageConfig, epochid: cardano::block::EpochId) -> R
     let rp = epoch_read_packref(config, epochid)?;
     Ok((ph, rp))
 }
+
+/// Check whether an epoch pack exists on disk.
+pub fn epoch_exists(config: &StorageConfig, epochid: cardano::block::EpochId) -> Result<bool> {
+    match epoch_read_pack(config, epochid) {
+        Ok(_) => Ok(true),
+        Err(Error::StorageError(StorageError::IoError(ref err))) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err)
+    }
+}

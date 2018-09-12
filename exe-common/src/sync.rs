@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use storage::{self, tag, Error, block_read};
+use storage::{self, tag, Error, block_read, epoch::{epoch_exists}};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader};
 use cardano::util::{hex};
 use std::time::{SystemTime, Duration};
@@ -79,7 +79,7 @@ fn net_sync_to<A: Api>(
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
     if our_tip.0.date.get_epochid() < first_unstable_epoch && our_tip != genesis_ref
-        && !epoch_exists(storage, our_tip.0.date.get_epochid())
+        && !epoch_exists(&storage.config, our_tip.0.date.get_epochid()).unwrap()
     {
         let epoch_id = our_tip.0.date.get_epochid();
 
@@ -105,7 +105,7 @@ fn net_sync_to<A: Api>(
     // pack it.
     else if our_tip.0.date.get_epochid() == first_unstable_epoch
         && first_unstable_epoch > net_cfg.epoch_start
-        && !epoch_exists(storage, first_unstable_epoch - 1)
+        && !epoch_exists(&storage.config, first_unstable_epoch - 1).unwrap()
     {
         // Iterate to the last block in the previous epoch.
         let mut cur_hash = our_tip.0.hash.clone();
@@ -215,7 +215,7 @@ pub fn net_sync<A: Api>(
 // disk.
 fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block: &HeaderHash)
 {
-    if epoch_exists(&storage, epoch_id) { return }
+    if epoch_exists(&storage.config, epoch_id).unwrap() { return }
 
     info!("Packing epoch {}", epoch_id);
 
@@ -229,14 +229,6 @@ fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block:
     append_blocks_to_epoch_reverse(&storage, &mut epoch_writer_state, last_block);
 
     finish_epoch(storage, epoch_writer_state);
-}
-
-// Check whether an epoch pack exists on disk.
-fn epoch_exists(storage: &storage::Storage, epoch_id: EpochId) -> bool
-{
-    // FIXME: epoch_read() is a bit inefficient here; we really only
-    // want to know if it exists.
-    storage::epoch::epoch_read(&storage.config, epoch_id).is_ok()
 }
 
 fn append_blocks_to_epoch_reverse(
@@ -274,7 +266,7 @@ fn finish_epoch(storage: &storage::Storage, epoch_writer_state: EpochWriterState
 
     if epoch_id > 0 {
         assert!(
-            epoch_exists(storage, epoch_id - 1),
+            epoch_exists(&storage.config, epoch_id - 1).unwrap(),
             "Attempted finish_epoch() with non-existent previous epoch (ID {}, previous' ID {})",
             epoch_id,
             epoch_id - 1
