@@ -1,7 +1,6 @@
 use cardano::address;
 use cardano::bip;
 use cardano::hdwallet;
-use cardano::util;
 use cardano::wallet::bip44;
 use cardano::wallet::scheme::Wallet;
 
@@ -9,6 +8,7 @@ use std::os::raw::c_char;
 use std::{ffi, ptr, slice};
 
 use types::{AccountPtr, WalletPtr};
+use address::ffi_address_to_base58;
 
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
@@ -111,10 +111,7 @@ pub extern "C" fn cardano_account_generate_addresses(
         .enumerate()
         .map(|(idx, xpub)| {
             let address = address::ExtendedAddr::new_simple(*xpub.unwrap());
-            let address = format!("{}", util::base58::encode(&address.to_bytes()));
-            // generate a C String (null byte terminated string)
-            let c_address =
-                ffi::CString::new(address).expect("base58 strings only contains ASCII chars");
+            let c_address = ffi_address_to_base58(&address);
             // make sure the ptr is stored at the right place with alignments and all
             unsafe {
                 ptr::write(
