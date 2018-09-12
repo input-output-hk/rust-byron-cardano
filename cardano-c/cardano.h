@@ -2,6 +2,12 @@
 # define CARDANO_RUST_H
 /* Basic Types */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+
 typedef int cardano_result;
 
 /*********/
@@ -67,5 +73,9 @@ cardano_staging_transaction *cardano_transaction_new(void);
 //cardano_transaction_finalize();
 //cardano_transaction_add_input();
 //cardano_transaction_add_output();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
