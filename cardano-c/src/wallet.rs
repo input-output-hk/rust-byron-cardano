@@ -1,14 +1,14 @@
-use cardano::wallet::scheme::{Wallet};
-use cardano::wallet::bip44;
-use cardano::hdwallet;
-use cardano::bip;
 use cardano::address;
+use cardano::bip;
+use cardano::hdwallet;
 use cardano::util;
+use cardano::wallet::bip44;
+use cardano::wallet::scheme::Wallet;
 
-use std::os::raw::{c_char};
-use std::{ffi, slice, ptr};
+use std::os::raw::c_char;
+use std::{ffi, ptr, slice};
 
-use types::{WalletPtr, AccountPtr};
+use types::{AccountPtr, WalletPtr};
 
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
@@ -27,13 +27,12 @@ use types::{WalletPtr, AccountPtr};
 /// - panic or return 0 (nullptr or NULL) if the given seed_ptr is of invalid length
 ///
 #[no_mangle]
-pub extern "C"
-fn cardano_wallet_new( entropy_ptr: *const u8 /* expecting entropy ptr ... */
-                     , entropy_size: usize    /* entropy size */
-                     , password_ptr: *const u8 /* password ptr */
-                     , password_size: usize    /* password size */
-                     ) -> WalletPtr
-{
+pub extern "C" fn cardano_wallet_new(
+    entropy_ptr: *const u8, /* expecting entropy ptr ... */
+    entropy_size: usize,    /* entropy size */
+    password_ptr: *const u8, /* password ptr */
+    password_size: usize,   /* password size */
+) -> WalletPtr {
     let entropy_slice = unsafe { slice::from_raw_parts(entropy_ptr, entropy_size) };
     let password = unsafe { slice::from_raw_parts(password_ptr, password_size) };
 
@@ -52,12 +51,8 @@ fn cardano_wallet_new( entropy_ptr: *const u8 /* expecting entropy ptr ... */
 ///
 /// The data must be a valid Wallet created by `cardano_wallet_new`.
 #[no_mangle]
-pub extern "C"
-fn cardano_wallet_delete(wallet_ptr: WalletPtr)
-{
-    unsafe {
-        Box::from_raw(wallet_ptr)
-    };
+pub extern "C" fn cardano_wallet_delete(wallet_ptr: WalletPtr) {
+    unsafe { Box::from_raw(wallet_ptr) };
 }
 
 /* ******************************************************************************* *
@@ -73,17 +68,13 @@ fn cardano_wallet_delete(wallet_ptr: WalletPtr)
 /// To avoid memory leak, use `cardano_account_delete`
 ///
 #[no_mangle]
-pub extern "C"
-fn cardano_account_create( wallet_ptr: WalletPtr
-                         , account_alias: *mut c_char
-                         , account_index: u32
-                         )
-    -> AccountPtr
-{
+pub extern "C" fn cardano_account_create(
+    wallet_ptr: WalletPtr,
+    account_alias: *mut c_char,
+    account_index: u32,
+) -> AccountPtr {
     let wallet = unsafe { wallet_ptr.as_mut() }.expect("Not a NULL PTR");
-    let account_alias = unsafe {
-        ffi::CStr::from_ptr(account_alias).to_string_lossy()
-    };
+    let account_alias = unsafe { ffi::CStr::from_ptr(account_alias).to_string_lossy() };
 
     let account = wallet.create_account(&account_alias, account_index);
     let account = Box::new(account.public());
@@ -93,26 +84,19 @@ fn cardano_account_create( wallet_ptr: WalletPtr
 
 /// take ownership of the given pointer and free the memory associated
 #[no_mangle]
-pub extern "C"
-fn cardano_account_delete(account_ptr: AccountPtr)
-{
-    unsafe {
-        Box::from_raw(account_ptr)
-    };
+pub extern "C" fn cardano_account_delete(account_ptr: AccountPtr) {
+    unsafe { Box::from_raw(account_ptr) };
 }
 
 #[no_mangle]
-pub extern "C"
-fn cardano_account_generate_addresses( account_ptr:  AccountPtr
-                                     , internal:     bool
-                                     , from_index: u32
-                                     , num_indices: usize
-                                     , addresses_ptr: *mut *mut c_char
-                                     )
-    -> usize
-{
-    let account = unsafe { account_ptr.as_mut() }
-        .expect("Not a NULL PTR");
+pub extern "C" fn cardano_account_generate_addresses(
+    account_ptr: AccountPtr,
+    internal: bool,
+    from_index: u32,
+    num_indices: usize,
+    addresses_ptr: *mut *mut c_char,
+) -> usize {
+    let account = unsafe { account_ptr.as_mut() }.expect("Not a NULL PTR");
 
     let addr_type = if internal {
         bip44::AddrType::Internal
@@ -120,7 +104,8 @@ fn cardano_account_generate_addresses( account_ptr:  AccountPtr
         bip44::AddrType::External
     };
 
-    account.address_generator(addr_type, from_index)
+    account
+        .address_generator(addr_type, from_index)
         .expect("we expect the derivation to happen successfully")
         .take(num_indices)
         .enumerate()
@@ -128,11 +113,15 @@ fn cardano_account_generate_addresses( account_ptr:  AccountPtr
             let address = address::ExtendedAddr::new_simple(*xpub.unwrap());
             let address = format!("{}", util::base58::encode(&address.to_bytes()));
             // generate a C String (null byte terminated string)
-            let c_address = ffi::CString::new(address)
-                .expect("base58 strings only contains ASCII chars");
+            let c_address =
+                ffi::CString::new(address).expect("base58 strings only contains ASCII chars");
             // make sure the ptr is stored at the right place with alignments and all
             unsafe {
-                ptr::write(addresses_ptr.wrapping_offset(idx as isize), c_address.into_raw())
+                ptr::write(
+                    addresses_ptr.wrapping_offset(idx as isize),
+                    c_address.into_raw(),
+                )
             };
-        }).count()
+        })
+        .count()
 }

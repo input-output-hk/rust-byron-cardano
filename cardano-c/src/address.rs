@@ -1,15 +1,15 @@
-use std::os::raw::{c_int, c_char};
-use std::{ffi};
+use std::ffi;
+use std::os::raw::{c_char, c_int};
 
 use cardano::{address::ExtendedAddr, util::base58};
 
-use super::types::{XPubPtr, AddressPtr};
+use super::types::{AddressPtr, XPubPtr};
 
 /// Take a string as parameter and returns whether or not it's a valid base58 address
 ///
 /// On valid address, the return value is 0
 /// On invalid address, the return value is different from 0.
-/// 
+///
 /// Invalid cases returns different code depending on the issue
 ///
 #[no_mangle]

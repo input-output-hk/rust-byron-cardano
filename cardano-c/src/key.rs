@@ -1,6 +1,9 @@
-use std::{ffi, os::raw::{c_int, c_char}};
+use cardano::hdwallet;
+use std::{
+    ffi,
+    os::raw::{c_char, c_int},
+};
 use types::{XPrvPtr, XPubPtr};
-use cardano::{hdwallet};
 
 pub extern "C" fn cardano_xprv_from_bytes(c_xprv: *const c_char) -> XPrvPtr {
     unimplemented!()
