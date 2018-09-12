@@ -2,6 +2,7 @@ use std::{fmt};
 use hash;
 use hash::{HASH_SIZE, Blake2b256};
 use cbor_event::{self, de::RawCbor};
+use util::try_from_slice::TryFromSlice;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -35,7 +36,7 @@ impl HeaderHash {
     #[deprecated(note="use `From` trait instead")]
     pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(bytes)) }
     pub fn from_slice(bytes: &[u8]) -> hash::Result<Self> {
-        Blake2b256::from_slice(bytes).map(|h| HeaderHash(h))
+        Blake2b256::try_from_slice(bytes).map(|h| HeaderHash(h))
     }
     pub fn from_hex(hex: &str) -> hash::Result<Self> {
         Blake2b256::from_hex(hex).map(|h| HeaderHash(h))

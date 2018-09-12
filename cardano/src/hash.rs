@@ -3,7 +3,7 @@ use std::{fmt, result};
 use cryptoxide::digest::Digest;
 use cryptoxide::blake2b::Blake2b;
 
-use util::hex;
+use util::{hex, try_from_slice::{TryFromSlice}};
 use cbor_event::{self, de::RawCbor};
 
 use serde;
@@ -54,16 +54,11 @@ impl Blake2b256 {
 
     #[deprecated(note="use `From` trait instead")]
     pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != HASH_SIZE { return Err(Error::InvalidHashSize(bytes.len())); }
-        let mut buf = [0;HASH_SIZE];
-
-        buf[0..HASH_SIZE].clone_from_slice(bytes);
-        Ok(Self::from(buf))
-    }
+    #[deprecated(note="use `TryFromSlice` trait instead")]
+    pub fn from_slice(bytes: &[u8]) -> Result<Self> { Self::try_from_slice(bytes) }
     pub fn from_hex(hex: &str) -> Result<Self> {
         let bytes = hex::decode(hex)?;
-        Self::from_slice(&bytes)
+        Self::try_from_slice(&bytes)
     }
 }
 impl fmt::Debug for Blake2b256 {
@@ -79,6 +74,16 @@ impl fmt::Display for Blake2b256 {
 impl From<[u8;HASH_SIZE]> for Blake2b256 {
     fn from(bytes: [u8;HASH_SIZE]) -> Self { Blake2b256(bytes) }
 }
+impl TryFromSlice for Blake2b256 {
+    type Error = Error;
+    fn try_from_slice(slice: &[u8]) -> result::Result<Self, Self::Error> {
+        if slice.len() != HASH_SIZE { return Err(Error::InvalidHashSize(slice.len())); }
+        let mut buf = [0;HASH_SIZE];
+
+        buf[0..HASH_SIZE].clone_from_slice(slice);
+        Ok(Self::from(buf))
+    }
+}
 impl ::std::str::FromStr for Blake2b256 {
     type Err = Error;
     fn from_str(s: &str) -> result::Result<Self, Self::Err> {
@@ -88,7 +93,7 @@ impl ::std::str::FromStr for Blake2b256 {
 impl cbor_event::de::Deserialize for Blake2b256 {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let bytes = raw.bytes()?;
-        match Blake2b256::from_slice(&bytes) {
+        match Blake2b256::try_from_slice(&bytes) {
             Ok(digest) => Ok(digest),
             Err(Error::InvalidHashSize(sz)) => Err(cbor_event::Error::NotEnough(sz, HASH_SIZE)),
             Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {:?}", err))),
@@ -135,7 +140,7 @@ impl<'de> serde::de::Visitor<'de> for HashVisitor {
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
         where E: serde::de::Error
     {
-        match Self::Value::from_slice(v) {
+        match Self::Value::try_from_slice(v) {
             Err(Error::InvalidHashSize(sz)) => Err(E::invalid_length(sz, &"32 bytes")),
             Err(err) => panic!("unexpected error: {}", err),
             Ok(h) => Ok(h)
