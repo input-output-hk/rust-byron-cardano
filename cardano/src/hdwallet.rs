@@ -26,6 +26,7 @@ use util::{hex, securemem};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 
+#[cfg(feature = "generic-serialization")]
 use serde;
 
 pub const SEED_SIZE: usize = 32;
@@ -37,7 +38,8 @@ pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const CHAIN_CODE_SIZE: usize = 32;
 
 /// HDWallet errors
-#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize))]
 pub enum Error {
     /// the given seed is of invalid size, the parameter is given the given size
     ///
@@ -101,7 +103,8 @@ impl From<hex::Error> for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 /// Ed25519-bip32 Scheme Derivation version
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum DerivationScheme {
     V1,
     V2,
@@ -112,7 +115,8 @@ impl Default for DerivationScheme {
 
 /// Seed used to generate the root private key of the HDWallet.
 ///
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Seed([u8; SEED_SIZE]);
 impl Seed {
     /// create a Seed by taking ownership of the given array
@@ -339,6 +343,7 @@ impl Drop for XPrv {
         securemem::zero(&mut self.0);
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for XPrv
 {
     #[inline]
@@ -352,44 +357,44 @@ impl serde::Serialize for XPrv
         }
     }
 }
-struct XPrvVisitor();
-impl XPrvVisitor { fn new() -> Self { XPrvVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
-    type Value = XPrv;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting an Extended Private Key (`XPrv`) of {} bytes.", XPRV_SIZE)
-    }
-
-    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match XPrv::from_hex(v) {
-            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-            Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-            Ok(xpub) => Ok(xpub)
-        }
-    }
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match XPrv::from_slice(v) {
-            Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-            Ok(xpub) => Ok(xpub)
-        }
-    }
-}
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for XPrv
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
+        struct XPrvVisitor;
+        impl<'de> serde::de::Visitor<'de> for XPrvVisitor {
+            type Value = XPrv;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expecting an Extended Private Key (`XPrv`) of {} bytes.", XPRV_SIZE)
+            }
+
+            fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match XPrv::from_hex(v) {
+                    Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+                    Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                    Ok(xpub) => Ok(xpub)
+                }
+            }
+            fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match XPrv::from_slice(v) {
+                    Err(Error::InvalidXPrvSize(sz)) => Err(E::invalid_length(sz, &"96 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                    Ok(xpub) => Ok(xpub)
+                }
+            }
+        }
         if deserializer.is_human_readable() {
-            deserializer.deserialize_str(XPrvVisitor::new())
+            deserializer.deserialize_str(XPrvVisitor)
         } else {
-            deserializer.deserialize_bytes(XPrvVisitor::new())
+            deserializer.deserialize_bytes(XPrvVisitor)
         }
     }
 }
@@ -486,6 +491,7 @@ impl cbor_event::de::Deserialize for XPub {
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for XPub
 {
     #[inline]
@@ -499,45 +505,45 @@ impl serde::Serialize for XPub
         }
     }
 }
-struct XPubVisitor();
-impl XPubVisitor { fn new() -> Self { XPubVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for XPubVisitor {
-    type Value = XPub;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting an Extended Public Key (`XPub`) of {} bytes.", XPUB_SIZE)
-    }
-
-    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match XPub::from_hex(v) {
-            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-            Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-            Ok(xpub) => Ok(xpub)
-        }
-    }
-
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match XPub::from_slice(v) {
-            Ok(pk) => Ok(pk),
-            Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-        }
-    }
-}
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for XPub
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
+        struct XPubVisitor;
+        impl<'de> serde::de::Visitor<'de> for XPubVisitor {
+            type Value = XPub;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expecting an Extended Public Key (`XPub`) of {} bytes.", XPUB_SIZE)
+            }
+
+            fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match XPub::from_hex(v) {
+                    Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+                    Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                    Ok(xpub) => Ok(xpub)
+                }
+            }
+
+            fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match XPub::from_slice(v) {
+                    Ok(pk) => Ok(pk),
+                    Err(Error::InvalidXPubSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                }
+            }
+        }
         if deserializer.is_human_readable() {
-            deserializer.deserialize_str(XPubVisitor::new())
+            deserializer.deserialize_str(XPubVisitor)
         } else {
-            deserializer.deserialize_bytes(XPubVisitor::new())
+            deserializer.deserialize_bytes(XPubVisitor)
         }
     }
 }
@@ -606,6 +612,7 @@ impl<T> cbor_event::de::Deserialize for Signature<T> {
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl<T> serde::Serialize for Signature<T>
 {
     #[inline]
@@ -619,41 +626,42 @@ impl<T> serde::Serialize for Signature<T>
         }
     }
 }
-struct SignatureVisitor<T>(PhantomData<T>);
-impl<T> SignatureVisitor<T> { fn new() -> Self { SignatureVisitor (PhantomData) } }
-impl<'de, T> serde::de::Visitor<'de> for SignatureVisitor<T> {
-    type Value = Signature<T>;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expected a signature (`Signature`) of {} bytes.", SIGNATURE_SIZE)
-    }
-
-    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Signature::from_hex(v) {
-            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-            Err(Error::InvalidSignatureSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-            Ok(xpub) => Ok(xpub)
-        }
-    }
-
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Signature::from_slice(v) {
-            Ok(sign) => Ok(sign),
-            Err(Error::InvalidSignatureSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
-            Err(err) => panic!("unexpected error happended: {}", err),
-        }
-    }
-}
+#[cfg(feature = "generic-serialization")]
 impl<'de, T> serde::Deserialize<'de> for Signature<T>
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
+        struct SignatureVisitor<T>(PhantomData<T>);
+        impl<T> SignatureVisitor<T> { fn new() -> Self { SignatureVisitor (PhantomData) } }
+        impl<'de, T> serde::de::Visitor<'de> for SignatureVisitor<T> {
+            type Value = Signature<T>;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expected a signature (`Signature`) of {} bytes.", SIGNATURE_SIZE)
+            }
+
+            fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match Signature::from_hex(v) {
+                    Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
+                    Err(Error::InvalidSignatureSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                    Ok(xpub) => Ok(xpub)
+                }
+            }
+
+            fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match Signature::from_slice(v) {
+                    Ok(sign) => Ok(sign),
+                    Err(Error::InvalidSignatureSize(sz)) => Err(E::invalid_length(sz, &"64 bytes")),
+                    Err(err) => panic!("unexpected error happended: {}", err),
+                }
+            }
+        }
         if deserializer.is_human_readable() {
             deserializer.deserialize_str(SignatureVisitor::new())
         } else {
@@ -666,7 +674,8 @@ pub type ChainCode = [u8; CHAIN_CODE_SIZE];
 
 pub type DerivationIndex = u32;
 
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 enum DerivationType {
     Soft(u32),
     Hard(u32),

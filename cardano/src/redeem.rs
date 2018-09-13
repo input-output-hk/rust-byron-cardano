@@ -10,11 +10,13 @@
 use cryptoxide::{ed25519};
 use util::{hex};
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
+#[cfg(feature = "generic-serialization")]
 use serde;
 
 use std::{fmt, result, cmp};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     InvalidPublicKeySize(usize),
     InvalidPrivateKeySize(usize),
@@ -239,6 +241,7 @@ impl cbor_event::de::Deserialize for Signature {
 //                                      Serde
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for PublicKey
 {
     #[inline]
@@ -252,8 +255,11 @@ impl serde::Serialize for PublicKey
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 struct PublicKeyVisitor();
+#[cfg(feature = "generic-serialization")]
 impl PublicKeyVisitor { fn new() -> Self { PublicKeyVisitor {} } }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::de::Visitor<'de> for PublicKeyVisitor {
     type Value = PublicKey;
 
@@ -282,6 +288,7 @@ impl<'de> serde::de::Visitor<'de> for PublicKeyVisitor {
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for PublicKey
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
@@ -295,6 +302,7 @@ impl<'de> serde::Deserialize<'de> for PublicKey
     }
 }
 
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for PrivateKey
 {
     #[inline]
@@ -308,8 +316,11 @@ impl serde::Serialize for PrivateKey
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 struct PrivateKeyVisitor();
+#[cfg(feature = "generic-serialization")]
 impl PrivateKeyVisitor { fn new() -> Self { PrivateKeyVisitor {} } }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
     type Value = PrivateKey;
 
@@ -338,6 +349,7 @@ impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for PrivateKey
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
@@ -351,6 +363,7 @@ impl<'de> serde::Deserialize<'de> for PrivateKey
     }
 }
 
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for Signature
 {
     #[inline]
@@ -364,8 +377,11 @@ impl serde::Serialize for Signature
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 struct SignatureVisitor();
+#[cfg(feature = "generic-serialization")]
 impl SignatureVisitor { fn new() -> Self { SignatureVisitor {} } }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::de::Visitor<'de> for SignatureVisitor {
     type Value = Signature;
 
@@ -394,6 +410,7 @@ impl<'de> serde::de::Visitor<'de> for SignatureVisitor {
         }
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for Signature
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>

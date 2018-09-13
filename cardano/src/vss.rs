@@ -5,7 +5,8 @@ use util::hex;
 const SIGNATURE_SIZE: usize = 64;
 
 // XXX Error and Result copied with slight modifications from redeem.rs
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     InvalidSignatureSize(usize),
 }

@@ -7,7 +7,8 @@ use tx::{Tx, TxInWitness, TxAux, txaux_serialize};
 use cbor_event;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Fee(Coin);
 impl Fee {
     pub fn new(coin: Coin) -> Self { Fee(coin) }
@@ -29,7 +30,8 @@ impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Error { Error::CborError(e) }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Milli (pub u64);
 impl Milli {
     pub fn new(i: u64, f: u64) -> Self { Milli(i * 1000 + f % 1000) }
@@ -66,7 +68,8 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `A * bytes(txaux) + CONSTANT`
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct LinearFee {
     /// this is the minimal fee
     constant: Milli,

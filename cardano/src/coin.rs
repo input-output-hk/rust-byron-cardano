@@ -13,7 +13,8 @@ pub const MAX_COIN: u64 = 45_000_000_000__000_000;
 
 /// error type relating to `Coin` operations
 ///
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     /// means that the given value was out of bound
     ///
@@ -45,7 +46,8 @@ pub enum CoinDiff {
 
 // TODO: add custom implementation of `serde::de::Deserialize` so we can check the
 // upper bound of the `Coin`.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Coin(u64);
 impl Coin {
     /// create a coin of value `0`.

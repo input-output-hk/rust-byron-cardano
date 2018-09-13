@@ -38,7 +38,8 @@ impl From<cbor_event::Error> for Error {
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 /// A derivation path of HD wallet derivation indices which uses a CBOR encoding
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Path(Vec<u32>);
 impl Deref for Path {
     type Target = [u32];
@@ -72,7 +73,8 @@ impl cbor_event::Deserialize for Path {
 pub const HDKEY_SIZE : usize = 32;
 
 /// The key to encrypt and decrypt HD payload
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct HDKey([u8;HDKEY_SIZE]);
 impl AsRef<[u8]> for HDKey {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
@@ -150,7 +152,8 @@ impl Drop for HDKey {
 ///
 /// It's however possible to store anything in this attributes, including
 /// non encrypted information.
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct HDAddressPayload(Vec<u8>);
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
