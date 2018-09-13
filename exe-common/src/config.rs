@@ -1,8 +1,9 @@
 pub mod net {
     use cardano::block::{HeaderHash,EpochId};
-    use cardano::{config::{ProtocolMagic}, util::{hex}};
+    use cardano::{config::{ProtocolMagic}};
     use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}, str::{FromStr}};
     use storage::utils::tmpfile::{TmpFile};
+    use super::super::serde_utils::BinOrStr;
     use serde_yaml;
     use serde;
 
@@ -190,12 +191,12 @@ pub mod net {
         { Peers(::std::iter::FromIterator::from_iter(iter)) }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Config {
-        pub genesis: HeaderHash,
-        pub genesis_prev: HeaderHash,
+        pub genesis: BinOrStr<HeaderHash>,
+        pub genesis_prev: BinOrStr<HeaderHash>,
         pub epoch_stability_depth: usize,
-        pub protocol_magic: ProtocolMagic,
+        pub protocol_magic: u32,
         pub epoch_start: EpochId,
         pub peers: Peers
     }
@@ -205,10 +206,10 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-mainnet.iohk.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/mainnet".to_string()));
             Config {
-                genesis: HeaderHash::from_str(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
-                genesis_prev: HeaderHash::from_str(&"5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb").unwrap(),
+                genesis: FromStr::from_str(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
+                genesis_prev: FromStr::from_str(&"5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb").unwrap(),
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
-                protocol_magic: ProtocolMagic::default(),
+                protocol_magic: *ProtocolMagic::default(),
                 epoch_start: 0,
                 peers: peers
             }
@@ -219,10 +220,10 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.awstest.iohkdev.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/staging".to_string()));
             Config {
-                genesis: HeaderHash::from_str(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
-                genesis_prev: HeaderHash::from_str(&"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323").unwrap(),
+                genesis: FromStr::from_str(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
+                genesis_prev: FromStr::from_str(&"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323").unwrap(),
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
-                protocol_magic: ProtocolMagic::new(633343913),
+                protocol_magic: *ProtocolMagic::from(633343913),
                 epoch_start: 0,
                 peers: peers
             }
@@ -233,11 +234,11 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-testnet.iohkdev.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/testnet".to_string()));
             Config {
-                genesis: HeaderHash::from_str(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
-                genesis_prev: HeaderHash::from_str(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
+                genesis: FromStr::from_str(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
+                genesis_prev: FromStr::from_str(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
                 epoch_start: 0,
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
-                protocol_magic: ProtocolMagic::new(1097911063),
+                protocol_magic: *ProtocolMagic::from(1097911063),
                 peers: peers
             }
         }
@@ -257,96 +258,6 @@ pub mod net {
             let mut file = TmpFile::create(dir).unwrap();
             serde_yaml::to_writer(&mut file, &self).unwrap();
             file.render_permanent(&p.as_ref().to_path_buf()).unwrap();
-        }
-    }
-    impl serde::ser::Serialize for Config {
-       fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-           where S: serde::ser::Serializer
-       {
-           use serde::ser::SerializeStruct;
-           let mut state = serializer.serialize_struct("Config", 6)?;
-           state.serialize_field("genesis", &hex::encode(&*self.genesis))?;
-           state.serialize_field("genesis_prev", &hex::encode(&*self.genesis_prev))?;
-           state.serialize_field("epoch_start", &self.epoch_start)?;
-           state.serialize_field("epoch_stability_depth", &self.epoch_stability_depth)?;
-           state.serialize_field("protocol_magic", &*self.protocol_magic)?;
-           state.serialize_field("peers", &self.peers)?;
-           state.end()
-       }
-    }
-    impl<'de> serde::de::Deserialize<'de> for Config {
-        fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-            where D: serde::de::Deserializer<'de>
-        {
-            use serde::de::{self, Visitor, MapAccess};
-
-            #[derive(Deserialize)]
-            #[serde(field_identifier, rename_all = "snake_case")]
-            enum Field { Genesis, GenesisPrev, EpochStart, EpochStabilityDepth, ProtocolMagic, Peers };
-            const FIELDS : &'static [&'static str] = &["genesis", "genesis_prev", "epoch_start", "epoch_stability_depth", "protocol_magic", "peers"];
-
-            struct ConfigVisitor;
-            impl <'de> Visitor<'de> for ConfigVisitor {
-                type Value = Config;
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("struct Config")
-                }
-                fn visit_map<V>(self, mut map: V) -> Result<Config, V::Error>
-                   where V: MapAccess<'de>,
-                {
-                    let mut genesis = None;
-                    let mut genesis_prev = None;
-                    let mut epoch_start = None;
-                    let mut epoch_stability_depth = None;
-                    let mut protocol_magic = None;
-                    let mut peers = None;
-                    while let Some(key) = map.next_key()? {
-                        match key {
-                            Field::Genesis => {
-                                if genesis.is_some() { return Err(de::Error::duplicate_field("genesis")); }
-                                let s : String = map.next_value()?;
-                                match HeaderHash::from_str(&s) {
-                                    Err(err) => return Err(de::Error::custom(err)),
-                                    Ok(v)    => genesis = Some(v),
-                                }
-                            },
-                            Field::GenesisPrev => {
-                                if genesis_prev.is_some() { return Err(de::Error::duplicate_field("genesis_prev")); }
-                                let s : String = map.next_value()?;
-                                match HeaderHash::from_str(&s) {
-                                    Err(err) => return Err(de::Error::custom(err)),
-                                    Ok(v)    => genesis_prev = Some(v),
-                                }
-                            },
-                            Field::EpochStart => {
-                                if epoch_start.is_some() { return Err(de::Error::duplicate_field("epoch_start")); }
-                                epoch_start = Some(map.next_value()?);
-                            }
-                            Field::EpochStabilityDepth => {
-                                if epoch_stability_depth.is_some() { return Err(de::Error::duplicate_field("epoch_stability_depth")); }
-                                epoch_stability_depth = Some(map.next_value()?);
-                            }
-                            Field::ProtocolMagic => {
-                                if protocol_magic.is_some() { return Err(de::Error::duplicate_field("protocol_magic")); }
-                                let v : u32 = map.next_value()?;
-                                protocol_magic = Some(ProtocolMagic::from(v));
-                            }
-                            Field::Peers => {
-                                if peers.is_some() { return Err(de::Error::duplicate_field("peers")); }
-                                peers = Some(map.next_value()?);
-                            }
-                        }
-                    }
-                    let genesis               = genesis.ok_or_else(|| de::Error::missing_field(FIELDS[0]))?;
-                    let genesis_prev          = genesis_prev.ok_or_else(|| de::Error::missing_field(FIELDS[1]))?;
-                    let epoch_start           = epoch_start.ok_or_else(|| de::Error::missing_field(FIELDS[2]))?;
-                    let epoch_stability_depth = epoch_stability_depth.ok_or_else(|| de::Error::missing_field(FIELDS[3]))?;
-                    let protocol_magic        = protocol_magic.ok_or_else(|| de::Error::missing_field(FIELDS[4]))?;
-                    let peers                 = peers.ok_or_else(|| de::Error::missing_field(FIELDS[5]))?;
-                    Ok(Config { genesis, genesis_prev, epoch_start, epoch_stability_depth, protocol_magic, peers })
-                }
-            }
-            deserializer.deserialize_struct("Config", FIELDS, ConfigVisitor)
         }
     }
 }
