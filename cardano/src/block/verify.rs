@@ -7,7 +7,7 @@ use address;
 use hash;
 use config::{ProtocolMagic};
 use cbor_event::{self, se};
-use std::collections::{BTreeSet, HashSet};
+use std::{collections::{BTreeSet, HashSet}, fmt, error};
 use merkle;
 use tags;
 use hdwallet::{Signature};
@@ -37,9 +37,47 @@ pub enum Error {
     WrongUpdateProof,
     ZeroCoin,
 }
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Error::{*};
+        match self {
+            BadBlockSig => write!(f, "invalid block signature"),
+            BadTxWitness => write!(f, "invalid transaction witness"),
+            BadUpdateProposalSig => write!(f, "invalid update proposal signature"),
+            BadUpdateVoteSig => write!(f, "invalid update vote signature"),
+            BadVssCertSig => write!(f, "invalid VSS certificate signature"),
+            DuplicateInputs => write!(f, "duplicated inputs"),
+            DuplicateSigningKeys => write!(f, "duplicated signing keys"),
+            DuplicateVSSKeys => write!(f, "duplicated VSS keys"),
+            EncodingError(_error) => write!(f, "encoding error"),
+            NoTxWitnesses => write!(f, "missing transaction witnesses"),
+            RedeemOutput => write!(f, "invalid redeem output"),
+            SelfSignedPSK => write!(f, "invalid self signing PSK"),
+            WrongBlockHash => write!(f, "block hash is invalid"),
+            WrongDelegationProof => write!(f, "delegation proof is invalid"),
+            WrongExtraDataProof => write!(f, "extra data proof is invalid"),
+            WrongGenesisProof => write!(f, "genesis proof is invalid"),
+            WrongMagic => write!(f, "magic number is invalid"),
+            WrongMerkleRoot => write!(f, "merkle root is invalid"),
+            WrongMpcProof => write!(f, "MPC proof is invalid"),
+            WrongTxProof => write!(f, "transaction proof is invalid"),
+            WrongUpdateProof => write!(f, "update proof is invalid"),
+            ZeroCoin => write!(f, "output with no credited value"),
+        }
+    }
+}
 
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::EncodingError(e) }
+}
+
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::EncodingError(ref error) => Some(error),
+            _ => None
+        }
+    }
 }
 
 pub trait Verify {

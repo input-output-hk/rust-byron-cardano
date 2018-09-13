@@ -17,7 +17,7 @@
 //! ```
 
 use hdpayload::{Path};
-use std::{fmt, result};
+use std::{fmt, result, error};
 #[cfg(feature = "generic-serialization")]
 use serde;
 
@@ -74,6 +74,7 @@ impl fmt::Display for Error {
         }
     }
 }
+impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
