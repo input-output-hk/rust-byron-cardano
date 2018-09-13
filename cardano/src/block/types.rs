@@ -23,7 +23,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct HeaderHash(Blake2b256);
 impl HeaderHash {
     pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }
@@ -156,7 +156,7 @@ impl fmt::Display for ChainDifficulty {
 pub type EpochId = u64; // == EpochIndex
 pub type SlotId = u16; // == LocalSlotIndex
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochSlotId {
     pub epoch: EpochId,
     pub slotid: SlotId,

@@ -1,5 +1,6 @@
 extern crate cardano;
 extern crate protocol;
+#[macro_use]
 extern crate cbor_event;
 extern crate storage;
 extern crate rand;
@@ -20,3 +21,4 @@ pub mod utils;
 pub mod network;
 pub mod config;
 pub mod sync;
+pub mod serde_utils;

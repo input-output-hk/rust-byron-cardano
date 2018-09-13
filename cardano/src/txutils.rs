@@ -6,7 +6,7 @@ use address::{ExtendedAddr};
 ///
 /// * The number of coin associated for this utxo
 /// * Optionally, way to derive the address for this txin
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxInInfo<Addressing> {
     pub txin: TxIn,
     pub value: Coin,
@@ -30,7 +30,7 @@ pub enum OutputPolicy {
 /// It also contains the `TxOut` the value present at the given
 /// `TxIn`'s `TxId` and _index_ in the block chain.
 ///
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Input<Addressing> {
     pub ptr:   TxIn,
     pub value: TxOut,

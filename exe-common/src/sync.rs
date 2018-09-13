@@ -37,8 +37,8 @@ fn net_sync_to<A: Api>(
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
     let genesis_ref = (BlockRef {
-        hash: net_cfg.genesis.clone(),
-        parent: net_cfg.genesis_prev.clone(),
+        hash: (*net_cfg.genesis).clone(),
+        parent: (*net_cfg.genesis_prev).clone(),
         date: BlockDate::Genesis(net_cfg.epoch_start)
     }, true);
 
@@ -291,7 +291,7 @@ pub fn get_peer(blockchain: &str, cfg: &net::Config, native: bool) -> Peer {
                 String::from(blockchain),
                 peer.name().to_owned(),
                 peer.peer().clone(),
-                cfg.protocol_magic,
+                cfg.protocol_magic.into(),
             ).unwrap();
         }
     }

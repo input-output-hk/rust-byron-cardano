@@ -492,7 +492,7 @@ impl Drop for Seed {
 ///
 /// See the module documentation for more details about how to use it
 /// within the `cardano` library.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct MnemonicString(String);
 impl MnemonicString {
     /// create a `MnemonicString` from the given `String`. This function
@@ -546,7 +546,7 @@ impl fmt::Display for MnemonicString {
 /// | 21              | 224                 | 7                     |
 /// | 24              | 256                 | 8                     |
 ///
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Type {
     Type12Words,
     Type15Words,
@@ -804,7 +804,7 @@ pub mod dictionary {
     use super::{MnemonicIndex};
 
     /// Errors associated to a given language/dictionary
-    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
     pub enum Error {
         /// this means the given word is not in the Dictionary of the Language.
         MnemonicWordNotFoundInDictionary(String)

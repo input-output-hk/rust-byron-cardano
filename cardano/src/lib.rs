@@ -15,12 +15,6 @@
 //!
 #![cfg_attr(feature = "with-bench", feature(test))]
 
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-#[cfg(test)]
-extern crate serde_json;
-
 #[cfg(test)]
 #[cfg(feature = "with-bench")]
 extern crate test;
