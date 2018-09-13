@@ -110,7 +110,7 @@ fn net_sync_to<A: Api>(
         // Iterate to the last block in the previous epoch.
         let mut cur_hash = our_tip.0.hash.clone();
         loop {
-            let block_raw = block_read(&storage, cur_hash.bytes()).unwrap();
+            let block_raw = block_read(&storage, &cur_hash.into()).unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.get_header();
             assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
@@ -135,7 +135,7 @@ fn net_sync_to<A: Api>(
 
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
-                storage::tag::write(storage, &tag::HEAD, &last_block.as_ref().unwrap().bytes()[..]);
+                storage::tag::write(storage, &tag::HEAD, last_block.as_ref().unwrap().as_ref());
             }
         }
 
@@ -240,7 +240,7 @@ fn append_blocks_to_epoch_reverse(
     let mut cur_hash = last_block.clone();
     let mut blocks = vec![];
     loop {
-        let block_raw = block_read(&storage, cur_hash.bytes()).unwrap();
+        let block_raw = block_read(&storage, &cur_hash.clone().into()).unwrap();
         epoch_writer_state.blobs_to_delete.push(cur_hash.clone());
         let block = block_raw.decode().unwrap();
         let hdr = block.get_header();
@@ -280,7 +280,7 @@ fn finish_epoch(storage: &storage::Storage, epoch_writer_state: EpochWriterState
 
     for hash in &epoch_writer_state.blobs_to_delete {
         debug!("removing blob {}", hash);
-        storage::blob::remove(&storage, hash.bytes());
+        storage::blob::remove(&storage, &hash.clone().into());
     }
 }
 

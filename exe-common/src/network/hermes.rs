@@ -1,5 +1,5 @@
 use cardano::{block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash}, tx::{TxAux}};
-use cardano::hash::HASH_SIZE;
+use cardano::hash::{HASH_SIZE_256};
 use storage;
 use std::io::Write;
 use std::time::{SystemTime, Duration};
@@ -115,7 +115,7 @@ impl Api for HermesEndPoint {
             if let BlockDate::Normal(d) = from.date {
                 if d.slotid == 21599 && !inclusive {
                     from = BlockRef {
-                        hash: HeaderHash::from_bytes([0;HASH_SIZE]), // FIXME: use None?
+                        hash: HeaderHash::from([0;HASH_SIZE_256]), // FIXME: use None?
                         parent: from.hash.clone(),
                         date: BlockDate::Genesis(d.epoch + 1)
                     };

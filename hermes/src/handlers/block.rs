@@ -1,6 +1,6 @@
 use config::{Networks};
 use storage::{tag, block_location, block_read_location};
-use cardano::util::{hex};
+use cardano::util::{hex, try_from_slice::TryFromSlice};
 use cardano::block;
 use std::sync::{Arc};
 
@@ -49,17 +49,17 @@ impl iron::Handler for Handler {
             None => hex::decode(&blockid).unwrap(),
             Some(t) => t
         };
-        let hh = block::HeaderHash::from_slice(&hh_bytes).expect("blockid invalid");
+        let hh = block::HeaderHash::try_from_slice(&hh_bytes).expect("blockid invalid");
         info!("querying block header: {}", hh);
 
-        match block_location(&net.storage, hh.bytes()) {
+        match block_location(&net.storage, &hh.clone().into()) {
             None => {
                 warn!("block `{}' does not exist", hh);
                 Ok(Response::with((status::NotFound, "Not Found")))
             },
             Some(loc) => {
                 debug!("blk location: {:?}", loc);
-                match block_read_location(&net.storage, &loc, hh.bytes()) {
+                match block_read_location(&net.storage, &loc, &hh.into()) {
                     None        => {
                         error!("error while reading block at location: {:?}", loc);
                         Ok(Response::with(status::InternalServerError))

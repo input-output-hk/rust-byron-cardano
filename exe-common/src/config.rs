@@ -1,7 +1,7 @@
 pub mod net {
     use cardano::block::{HeaderHash,EpochId};
     use cardano::config::{ProtocolMagic};
-    use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}};
+    use std::{path::{Path}, fs::{self, File}, fmt, ops::{Deref, DerefMut}, str::{FromStr}};
     use storage::utils::tmpfile::{TmpFile};
     use serde_yaml;
     use serde;
@@ -205,8 +205,8 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-mainnet.iohk.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/mainnet".to_string()));
             Config {
-                genesis: HeaderHash::from_hex(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
-                genesis_prev: HeaderHash::from_hex(&"5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb").unwrap(),
+                genesis: HeaderHash::from_str(&"89D9B5A5B8DDC8D7E5A6795E9774D97FAF1EFEA59B2CAF7EAF9F8C5B32059DF4").unwrap(),
+                genesis_prev: HeaderHash::from_str(&"5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb").unwrap(),
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
                 protocol_magic: ProtocolMagic::default(),
                 epoch_start: 0,
@@ -219,8 +219,8 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.awstest.iohkdev.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/staging".to_string()));
             Config {
-                genesis: HeaderHash::from_hex(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
-                genesis_prev: HeaderHash::from_hex(&"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323").unwrap(),
+                genesis: HeaderHash::from_str(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
+                genesis_prev: HeaderHash::from_str(&"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323").unwrap(),
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
                 protocol_magic: ProtocolMagic::new(633343913),
                 epoch_start: 0,
@@ -233,8 +233,8 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-testnet.iohkdev.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/testnet".to_string()));
             Config {
-                genesis: HeaderHash::from_hex(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
-                genesis_prev: HeaderHash::from_hex(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
+                genesis: HeaderHash::from_str(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
+                genesis_prev: HeaderHash::from_str(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
                 epoch_start: 0,
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
                 protocol_magic: ProtocolMagic::new(1097911063),

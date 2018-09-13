@@ -50,8 +50,8 @@ impl MerkleNode {
             let a = MerkleNode::make_tree(&xs[0..i]);
             let b = MerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
-            bs.extend(a.get_root_hash().bytes());
-            bs.extend(b.get_root_hash().bytes());
+            bs.extend(a.get_root_hash().iter());
+            bs.extend(b.get_root_hash().iter());
             MerkleNode::Branch(Hash::new(&bs), Box::new(a), Box::new(b))
         }
     }

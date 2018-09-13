@@ -177,7 +177,7 @@ impl Account<XPrv> {
     ///                           .take(20)
     /// {
     ///   let address = ExtendedAddr::new_simple(*xprv.public());
-    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    ///   println!("address index {}: {}", idx, address);
     /// }
     ///
     /// ```
@@ -217,7 +217,7 @@ impl Account<XPub> {
     ///                           .enumerate()
     /// {
     ///   let address = ExtendedAddr::new_simple(*xpub.unwrap());
-    ///   println!("address index {}: {}", idx, base58::encode(&address.to_bytes()));
+    ///   println!("address index {}: {}", idx, address);
     /// }
     ///
     /// ```

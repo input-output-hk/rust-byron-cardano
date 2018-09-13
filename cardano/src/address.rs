@@ -1,67 +1,15 @@
 //! Address creation and parsing
-use std::fmt;
+use std::{fmt, str::{FromStr}, ops::{Deref}};
 use serde;
 
-use cryptoxide::digest::Digest;
-use cryptoxide::blake2b::Blake2b;
-use cryptoxide::sha3::Sha3;
+use hash::{Blake2b224, Sha3_256};
 
 use redeem;
-use util::{base58, hex};
+use util::{base58, try_from_slice::{TryFromSlice}};
 use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
-
-/// Digest of the composition of `Blake2b_224 . Sha3_256`
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b224([u8;28]);
-impl DigestBlake2b224 {
-    /// create digest from the given inputs by computing the SHA3_256 and
-    /// then the Blake2b_224.
-    ///
-    pub fn new(buf: &[u8]) -> Self
-    {
-        let mut b2b = Blake2b::new(28);
-        let mut sh3 = Sha3::sha3_256();
-        let mut out1 = [0;32];
-        let mut out2 = [0;28];
-        sh3.input(buf);
-        sh3.result(&mut out1);
-        b2b.input(&out1);
-        b2b.result(&mut out2);
-        DigestBlake2b224::from_bytes(out2)
-    }
-
-    /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b224(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != 28 { return None; }
-        let mut buf = [0;28];
-
-        buf[0..28].clone_from_slice(bytes);
-        Some(DigestBlake2b224::from_bytes(buf))
-    }
-}
-impl fmt::Display for DigestBlake2b224 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.0))
-    }
-}
-impl cbor_event::se::Serialize for DigestBlake2b224 {
-    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
-        serializer.write_bytes(self.0.as_ref())
-    }
-}
-impl cbor_event::de::Deserialize for DigestBlake2b224 {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = raw.bytes()?;
-        match DigestBlake2b224::from_slice(&bytes) {
-            Some(digest) => Ok(digest),
-            None         => Err(cbor_event::Error::NotEnough(bytes.len(), 24)),
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
@@ -110,15 +58,18 @@ impl cbor_event::de::Deserialize for AddrType {
     }
 }
 
+/// StakeholderId is the transaction
+///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
+pub struct StakeholderId(Blake2b224);
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
         // the reason for this unwrap is that we have to dynamically allocate 66 bytes
         // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
         let buf = cbor!(pubk).unwrap();
 
-        StakeholderId(DigestBlake2b224::new(buf.as_ref()))
+        let hash = Sha3_256::new(&buf);
+        StakeholderId(Blake2b224::new(hash.as_ref()))
     }
 }
 impl cbor_event::se::Serialize for StakeholderId {
@@ -134,6 +85,34 @@ impl cbor_event::de::Deserialize for StakeholderId {
 impl fmt::Display for StakeholderId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
+    }
+}
+impl TryFromSlice for StakeholderId {
+    type Error = <Blake2b224 as TryFromSlice>::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        Ok(Self::from(Blake2b224::try_from_slice(slice)?))
+    }
+}
+impl Deref for StakeholderId {
+    type Target = <Blake2b224 as Deref>::Target;
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
+impl AsRef<[u8]> for StakeholderId {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl From<StakeholderId> for [u8;Blake2b224::HASH_SIZE] {
+    fn from(hash: StakeholderId) -> Self { hash.0.into() }
+}
+impl From<[u8;Blake2b224::HASH_SIZE]> for StakeholderId {
+    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { StakeholderId(Blake2b224::from(hash)) }
+}
+impl From<Blake2b224> for StakeholderId {
+    fn from(hash: Blake2b224) -> Self { StakeholderId(hash) }
+}
+impl FromStr for StakeholderId {
+    type Err = <Blake2b224 as FromStr>::Err;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self::from(Blake2b224::from_str(s)?))
     }
 }
 
@@ -272,7 +251,18 @@ impl cbor_event::de::Deserialize for Attributes {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Addr(DigestBlake2b224);
+pub struct Addr(Blake2b224);
+impl Addr {
+    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
+        // the reason for this unwrap is that we have to dynamically allocate 66 bytes
+        // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
+        let buf = cbor!(&(&addr_type, spending_data, attrs))
+                    .expect("serialize the Addr's digest data");
+
+        let hash = Sha3_256::new(&buf);
+        Addr(Blake2b224::new(hash.as_ref()))
+    }
+}
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
@@ -288,18 +278,33 @@ impl cbor_event::de::Deserialize for Addr {
         cbor_event::de::Deserialize::deserialize(raw).map(|digest| Addr(digest))
     }
 }
-impl Addr {
-    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
-        Addr(
-            DigestBlake2b224::new(
-                &cbor!(&(&addr_type, spending_data, attrs))
-                    .expect("serialize the Addr's digest data")
-            )
-        )
+impl TryFromSlice for Addr {
+    type Error = <Blake2b224 as TryFromSlice>::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
-
-    /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b224::from_bytes(bytes)) }
+}
+impl Deref for Addr {
+    type Target = <Blake2b224 as Deref>::Target;
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
+impl AsRef<[u8]> for Addr {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl From<Addr> for [u8;Blake2b224::HASH_SIZE] {
+    fn from(hash: Addr) -> Self { hash.0.into() }
+}
+impl From<[u8;Blake2b224::HASH_SIZE]> for Addr {
+    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { Addr(Blake2b224::from(hash)) }
+}
+impl From<Blake2b224> for Addr {
+    fn from(hash: Blake2b224) -> Self { Addr(hash) }
+}
+impl FromStr for Addr {
+    type Err = <Blake2b224 as FromStr>::Err;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self::from(Blake2b224::from_str(s)?))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -322,61 +327,6 @@ impl ExtendedAddr {
         ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
     }
 
-    /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
-    ///
-    /// ```
-    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use cardano::hdwallet;
-    /// use cardano::hdpayload::{HDAddressPayload};
-    ///
-    /// let seed = hdwallet::Seed::from_bytes([0;32]);
-    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
-    /// let pk = sk.public();
-    ///
-    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
-    /// let addr_type = AddrType::ATPubKey;
-    /// let sd = SpendingData::PubKeyASD(pk.clone());
-    /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
-    ///
-    /// let ea = ExtendedAddr::new(addr_type, sd, attrs);
-    ///
-    /// let out = ea.to_bytes();
-    ///
-    /// assert_eq!(out.len(), 86); // 86 is the length in this given case.
-    /// ```
-    ///
-    pub fn to_bytes(&self) -> Vec<u8> {
-        cbor!(self).expect("serialising ExtendedAddr into cbor")
-    }
-
-    /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
-    ///
-    /// ```
-    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use cardano::hdwallet;
-    /// use cardano::hdpayload::{HDAddressPayload};
-    ///
-    /// let seed = hdwallet::Seed::from_bytes([0;32]);
-    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
-    /// let pk = sk.public();
-    ///
-    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
-    /// let addr_type = AddrType::ATPubKey;
-    /// let sd = SpendingData::PubKeyASD(pk.clone());
-    /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
-    ///
-    /// let ea = ExtendedAddr::new(addr_type, sd, attrs);
-    ///
-    /// let out = ea.to_bytes();
-    ///
-    /// let r = ExtendedAddr::from_bytes(&out).unwrap();
-    /// assert_eq!(ea, r);
-    /// ```
-    ///
-    pub fn from_bytes(buf: &[u8]) -> cbor_event::Result<Self> {
-        let mut raw = RawCbor::from(buf);
-        cbor_event::de::Deserialize::deserialize(&mut raw)
-    }
 }
 #[derive(Debug)]
 pub enum ParseExtendedAddrError {
@@ -389,8 +339,15 @@ impl ::std::str::FromStr for ExtendedAddr {
         let bytes = base58::decode(s)
             .map_err(ParseExtendedAddrError::Base58Error)?;
 
-        Self::from_bytes(&bytes)
+        Self::try_from_slice(&bytes)
             .map_err(ParseExtendedAddrError::EncodingError)
+    }
+}
+impl TryFromSlice for ExtendedAddr {
+    type Error = cbor_event::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        let mut raw = RawCbor::from(slice);
+        cbor_event::de::Deserialize::deserialize(&mut raw)
     }
 }
 impl cbor_event::se::Serialize for ExtendedAddr {
@@ -412,7 +369,7 @@ impl cbor_event::de::Deserialize for ExtendedAddr {
 }
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", base58::encode(&self.to_bytes()))
+        write!(f, "{}", base58::encode(&cbor!(self).unwrap()))
     }
 }
 impl serde::Serialize for ExtendedAddr
@@ -421,7 +378,7 @@ impl serde::Serialize for ExtendedAddr
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        let vec = self.to_bytes();
+        let vec = cbor!(self).unwrap();
         if serializer.is_human_readable() {
             serializer.serialize_str(&base58::encode(&vec))
         } else {
@@ -446,7 +403,7 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
             Ok(v) => v
         };
 
-        match Self::Value::from_bytes(&bytes) {
+        match Self::Value::try_from_slice(&bytes) {
             Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
@@ -455,7 +412,7 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
         where E: serde::de::Error
     {
-        match Self::Value::from_bytes(v) {
+        match Self::Value::try_from_slice(v) {
             Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
@@ -520,7 +477,7 @@ mod tests {
         let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
                    , 0xf3, 0x5d, 0xf7, 0x34, 0x9a, 0xcf, 0xba, 0xec, 0xe2, 0x00, 0xa2, 0x4b
                    , 0x7e, 0x26, 0x25, 0x0c];
-        let addr = Addr::from_bytes(v);
+        let addr = Addr::from(v);
 
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -559,7 +516,7 @@ mod tests {
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
-        let out = ea.to_bytes();
+        let out = cbor!(ea).unwrap();
 
         v.iter().for_each(|b| {
             if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
@@ -572,15 +529,10 @@ mod tests {
 
         assert_eq!(v, out);
 
-        let r = ExtendedAddr::from_bytes(&out).unwrap();
+        let r = ExtendedAddr::try_from_slice(&out).unwrap();
         assert_eq!(ea, r);
     }
 
-    #[test]
-    fn encode_decode_digest_blake2b() {
-        let digest = DigestBlake2b224::new(b"some random bytes...");
-        assert!(cbor_event::test_encode_decode(&digest).expect("encode/decode DigestBlake2b224"));
-    }
     #[test]
     fn encode_decode_addr_type() {
         let addr_type_1 = AddrType::ATPubKey;
@@ -616,7 +568,7 @@ mod tests {
         let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
         let bytes     = base58::decode(addr_str).unwrap();
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
@@ -627,9 +579,9 @@ mod tests {
         let addr_str  = "DdzFFzCqrhsi8XFMabbnHecVusaebqQCkXTqDnCumx5esKB1pk1zbhX5BtdAivZbQePFVujgzNCpBVXactPSmphuHRC5Xk8qmBd49QjW";
         let bytes     = base58::decode(addr_str).unwrap();
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
-        let b = r.to_bytes();
+        let b = cbor!(r).unwrap();
         assert_eq!(addr_str, base58::encode(&b));
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
@@ -640,11 +592,11 @@ mod tests {
     fn decode_address_no_derivation_path() {
         let bytes     = vec![0x82, 0xd8, 0x18, 0x58, 0x21, 0x83, 0x58, 0x1c, 0x10, 0x2a, 0x74, 0xca, 0x44, 0x05, 0xb8, 0xc1, 0x8d, 0x20, 0x84, 0x1e, 0x8c, 0x66, 0x4f, 0xe1, 0xde, 0x7d, 0x66, 0x07, 0x48, 0x08, 0x70, 0x4f, 0x91, 0x79, 0xe0, 0xfa, 0xa0, 0x00, 0x1a, 0xad, 0xf7, 0x10, 0x68];
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
-        assert_eq!(bytes, r.to_bytes());
+        assert_eq!(bytes, cbor!(r).unwrap())
     }
 }
 

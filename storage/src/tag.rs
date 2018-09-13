@@ -1,6 +1,6 @@
 use std::{fs, path::{PathBuf}};
 use std::io::{Write,Read};
-use cardano::util::{hex};
+use cardano::util::{hex, try_from_slice::{TryFromSlice}};
 
 use cardano::block;
 
@@ -46,7 +46,7 @@ pub fn read<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<Vec<u8>
 }
 
 pub fn read_hash<S: AsRef<str>>(storage: &super::Storage, name: &S) -> Option<block::HeaderHash> {
-    read(storage, name).and_then(|v| block::HeaderHash::from_slice(&v[..]).ok())
+    read(storage, name).and_then(|v| block::HeaderHash::try_from_slice(&v[..]).ok())
 }
 
 pub fn exist<S: AsRef<str>>(storage: &super::Storage, name: &S) -> bool {

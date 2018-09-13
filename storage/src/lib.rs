@@ -109,7 +109,7 @@ impl Storage {
         match tag::read_hash(&self, &tag) {
             None => Err(Error::NoSuchTag),
             Some(hash) => {
-                match block_read(&self, hash.bytes()) {
+                match block_read(&self, &hash) {
                     None => {
                         warn!("tag '{}' refers to non-existent block {}", tag, hash);
                         Err(Error::NoSuchTag)
@@ -313,7 +313,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                     return Err(Error::EpochExpectingGenesis)
                 }
                 current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
-                rp.append_hash(hash.into_bytes());
+                rp.append_hash(hash.into());
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
@@ -337,7 +337,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                             rp.append_missing_hash();
                             current_slotid += 1;
                         }
-                        rp.append_hash(hash.clone().into_bytes());
+                        rp.append_hash(hash.clone().into());
                         current_state = Some((current_epoch, current_slotid, hash));
                     },
                 }
