@@ -34,6 +34,24 @@ pub enum Error {
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
 }
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::InvalidHDKeySize(sz) => write!(f, "Invalid size for an HDKey, expecting {} bytes", sz),
+            Error::CannotDecrypt        => write!(f, "Cannot decrypt HDPayload with given HDKey"),
+            Error::NotEnoughEncryptedData => write!(f, "Invalid HDPayload, expecting at least {} bytes", TAG_LEN),
+            Error::CborError(_)         => write!(f, "HDPayload decrypted but invalid value")
+        }
+    }
+}
+impl ::std::error::Error for Error {
+    fn cause(&self) -> Option<& ::std::error::Error> {
+        match self {
+            Error::CborError(ref err) => Some(err),
+            _ => None
+        }
+    }
+}
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 

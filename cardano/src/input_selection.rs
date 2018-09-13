@@ -21,9 +21,9 @@ impl fmt::Display for Error {
             &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
             &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
             &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
-            &Error::CoinError(ref err) => write!(f, "Error on coin operations: {}", err),
-            &Error::CborError(ref err) => write!(f, "Error while performing cbor serialization: {}", err),
-            &Error::FeeError(ref err) => write!(f, "Error on fee operations: {:?}", err),
+            &Error::CoinError(_) => write!(f, "Error on coin operations"),
+            &Error::CborError(_) => write!(f, "Error while performing cbor serialization"),
+            &Error::FeeError(_) => write!(f, "Error on fee operations"),
         }
     }
 }
@@ -38,6 +38,17 @@ impl From<fee::Error> for Error {
 
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Error { Error::CborError(e) }
+}
+
+impl ::std::error::Error for Error {
+    fn cause(&self) -> Option<& ::std::error::Error> {
+        match self {
+            Error::CoinError(ref err) => Some(err),
+            Error::CborError(ref err) => Some(err),
+            Error::FeeError(ref err)  => Some(err),
+            _ => None
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;

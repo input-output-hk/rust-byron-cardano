@@ -51,8 +51,8 @@ impl fmt::Display for Error {
             DuplicateVSSKeys => write!(f, "duplicated VSS keys"),
             EncodingError(_error) => write!(f, "encoding error"),
             NoTxWitnesses => write!(f, "missing transaction witnesses"),
-            RedeemOutput => write!(f, "redeem output"), // TODO?
-            SelfSignedPSK => write!(f, "self signing PSK"), // TODO?
+            RedeemOutput => write!(f, "invalid redeem output"),
+            SelfSignedPSK => write!(f, "invalid self signing PSK"),
             WrongBlockHash => write!(f, "block hash is invalid"),
             WrongDelegationProof => write!(f, "delegation proof is invalid"),
             WrongExtraDataProof => write!(f, "extra data proof is invalid"),

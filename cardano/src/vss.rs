@@ -22,6 +22,7 @@ impl fmt::Display for Error {
     }
 }
 pub type Result<T> = result::Result<T, Error>;
+impl ::std::error::Error for Error {}
 
 // TODO: decode to 35 bytes public-key http://hackage.haskell.org/package/pvss/docs/Crypto-SCRAPE.html#t:Point
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

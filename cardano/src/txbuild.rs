@@ -5,7 +5,7 @@ use {coin,fee};
 use coin::{Coin, CoinDiff};
 use fee::{FeeAlgorithm, Fee};
 use std::iter::Iterator;
-use std::{result, iter};
+use std::{result, iter, fmt, error};
 
 /// Transaction Builder composed of inputs, outputs
 #[derive(Clone)]
@@ -30,6 +30,29 @@ pub enum Error {
     TxSignaturesMismatch,
     CoinError(coin::Error),
     FeeError(fee::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::TxInvalidNoInput => write!(f, "Transaction is invalid, no input."),
+            Error::TxInvalidNoOutput => write!(f, "Transaction is invalid, no output."),
+            Error::TxOverLimit(sz) => write!(f, "Transaction too big, current size is {} bytes but limit size is {}.", sz, TX_SIZE_LIMIT),
+            Error::TxSignaturesExceeded => write!(f, "Transaction has already enough signatures"),
+            Error::TxSignaturesMismatch => write!(f, "Number of signatures does not match the number of witnesses"),
+            Error::CoinError(_) => write!(f, "Error while performing value operation"),
+            Error::FeeError(_)  => write!(f, "Error while performing fee operation")
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::CoinError(ref err) => Some(err),
+            Error::FeeError(ref err)  => Some(err),
+            _ => None
+        }
+    }
 }
 
 // TODO might be a network configurable value..

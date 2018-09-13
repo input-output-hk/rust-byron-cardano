@@ -31,6 +31,7 @@ impl fmt::Display for Error {
         }
     }
 }
+impl ::std::error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 

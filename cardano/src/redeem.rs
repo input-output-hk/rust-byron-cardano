@@ -35,14 +35,22 @@ impl fmt::Display for Error {
             &Error::InvalidSignatureSize(sz) => {
                 write!(f, "invalid Signature size, expected {} but received {} bytes.", SIGNATURE_SIZE, sz)
             },
-            &Error::HexadecimalError(err) => {
-                write!(f, "Invalid hexadecimal input: {}", err)
+            &Error::HexadecimalError(_) => {
+                write!(f, "Invalid hexadecimal")
             }
         }
     }
 }
 impl From<hex::Error> for Error {
     fn from(e: hex::Error) -> Error { Error::HexadecimalError(e) }
+}
+impl ::std::error::Error for Error {
+    fn cause(&self) -> Option<& ::std::error::Error> {
+        match self {
+            Error::HexadecimalError(ref err) => Some(err),
+            _ => None
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;

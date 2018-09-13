@@ -29,6 +29,22 @@ impl From<coin::Error> for Error {
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Error { Error::CborError(e) }
 }
+impl ::std::error::Error for Error {
+    fn cause(&self) -> Option<& ::std::error::Error> {
+        match self {
+            Error::CborError(ref err) => Some(err),
+            Error::CoinError(ref err) => Some(err)
+        }
+    }
+}
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match self {
+            Error::CborError(_) => write!(f, "invalid cbor encoding"),
+            Error::CoinError(_) => write!(f, "invalid Ada value")
+        }
+    }
+}
 
 #[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]

@@ -84,8 +84,8 @@ impl fmt::Display for Error {
             &Error::InvalidXPrv(ref err) => {
                write!(f, "Invalid XPrv: {}", err)
             },
-            &Error::HexadecimalError(err) => {
-               write!(f, "Invalid hexadecimal: {}.", err)
+            &Error::HexadecimalError(_) => {
+               write!(f, "Invalid hexadecimal.")
             },
             &Error::ExpectedSoftDerivation => {
                write!(f, "expected soft derivation")
@@ -98,6 +98,14 @@ impl fmt::Display for Error {
 }
 impl From<hex::Error> for Error {
     fn from(e: hex::Error) -> Error { Error::HexadecimalError(e) }
+}
+impl ::std::error::Error for Error {
+    fn cause(&self) -> Option<& ::std::error::Error> {
+        match self {
+            Error::HexadecimalError(ref err) => Some(err),
+            _ => None
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;

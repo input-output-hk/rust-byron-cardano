@@ -100,7 +100,7 @@ impl fmt::Display for Error {
                 write!(f, "The given mnemonic is out of bound, {}", val)
             },
             &Error::LanguageError(_) => {
-                write!(f, "Invalid mnemonic word.")
+                write!(f, "Unknown mnemonic word")
             },
             &Error::InvalidChecksum(cs1, cs2) => {
                 write!(f, "Invalid Entropy's Checksum, expected {:08b} but found {:08b}", cs1, cs2)
