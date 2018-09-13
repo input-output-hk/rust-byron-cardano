@@ -1,67 +1,15 @@
 //! Address creation and parsing
-use std::fmt;
+use std::{fmt, str::{FromStr}, ops::{Deref}};
 use serde;
 
-use cryptoxide::digest::Digest;
-use cryptoxide::blake2b::Blake2b;
-use cryptoxide::sha3::Sha3;
+use hash::{Blake2b224, Sha3_256};
 
 use redeem;
-use util::{base58, hex};
+use util::{base58, try_from_slice::{TryFromSlice}};
 use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
-
-/// Digest of the composition of `Blake2b_224 . Sha3_256`
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct DigestBlake2b224([u8;28]);
-impl DigestBlake2b224 {
-    /// create digest from the given inputs by computing the SHA3_256 and
-    /// then the Blake2b_224.
-    ///
-    pub fn new(buf: &[u8]) -> Self
-    {
-        let mut b2b = Blake2b::new(28);
-        let mut sh3 = Sha3::sha3_256();
-        let mut out1 = [0;32];
-        let mut out2 = [0;28];
-        sh3.input(buf);
-        sh3.result(&mut out1);
-        b2b.input(&out1);
-        b2b.result(&mut out2);
-        DigestBlake2b224::from_bytes(out2)
-    }
-
-    /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { DigestBlake2b224(bytes) }
-    pub fn from_slice(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != 28 { return None; }
-        let mut buf = [0;28];
-
-        buf[0..28].clone_from_slice(bytes);
-        Some(DigestBlake2b224::from_bytes(buf))
-    }
-}
-impl fmt::Display for DigestBlake2b224 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.0))
-    }
-}
-impl cbor_event::se::Serialize for DigestBlake2b224 {
-    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
-        serializer.write_bytes(self.0.as_ref())
-    }
-}
-impl cbor_event::de::Deserialize for DigestBlake2b224 {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = raw.bytes()?;
-        match DigestBlake2b224::from_slice(&bytes) {
-            Some(digest) => Ok(digest),
-            None         => Err(cbor_event::Error::NotEnough(bytes.len(), 24)),
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
@@ -110,15 +58,18 @@ impl cbor_event::de::Deserialize for AddrType {
     }
 }
 
+/// StakeholderId is the transaction
+///
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct StakeholderId(DigestBlake2b224); // of publickey (block2b 256)
+pub struct StakeholderId(Blake2b224);
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
         // the reason for this unwrap is that we have to dynamically allocate 66 bytes
         // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
         let buf = cbor!(pubk).unwrap();
 
-        StakeholderId(DigestBlake2b224::new(buf.as_ref()))
+        let hash = Sha3_256::new(&buf);
+        StakeholderId(Blake2b224::new(hash.as_ref()))
     }
 }
 impl cbor_event::se::Serialize for StakeholderId {
@@ -134,6 +85,34 @@ impl cbor_event::de::Deserialize for StakeholderId {
 impl fmt::Display for StakeholderId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
+    }
+}
+impl TryFromSlice for StakeholderId {
+    type Error = <Blake2b224 as TryFromSlice>::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        Ok(Self::from(Blake2b224::try_from_slice(slice)?))
+    }
+}
+impl Deref for StakeholderId {
+    type Target = <Blake2b224 as Deref>::Target;
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
+impl AsRef<[u8]> for StakeholderId {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl From<StakeholderId> for [u8;Blake2b224::HASH_SIZE] {
+    fn from(hash: StakeholderId) -> Self { hash.0.into() }
+}
+impl From<[u8;Blake2b224::HASH_SIZE]> for StakeholderId {
+    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { StakeholderId(Blake2b224::from(hash)) }
+}
+impl From<Blake2b224> for StakeholderId {
+    fn from(hash: Blake2b224) -> Self { StakeholderId(hash) }
+}
+impl FromStr for StakeholderId {
+    type Err = <Blake2b224 as FromStr>::Err;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self::from(Blake2b224::from_str(s)?))
     }
 }
 
@@ -272,7 +251,18 @@ impl cbor_event::de::Deserialize for Attributes {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct Addr(DigestBlake2b224);
+pub struct Addr(Blake2b224);
+impl Addr {
+    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
+        // the reason for this unwrap is that we have to dynamically allocate 66 bytes
+        // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
+        let buf = cbor!(&(&addr_type, spending_data, attrs))
+                    .expect("serialize the Addr's digest data");
+
+        let hash = Sha3_256::new(&buf);
+        Addr(Blake2b224::new(hash.as_ref()))
+    }
+}
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
@@ -288,18 +278,33 @@ impl cbor_event::de::Deserialize for Addr {
         cbor_event::de::Deserialize::deserialize(raw).map(|digest| Addr(digest))
     }
 }
-impl Addr {
-    pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
-        Addr(
-            DigestBlake2b224::new(
-                &cbor!(&(&addr_type, spending_data, attrs))
-                    .expect("serialize the Addr's digest data")
-            )
-        )
+impl TryFromSlice for Addr {
+    type Error = <Blake2b224 as TryFromSlice>::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
-
-    /// create a Digest from the given 224 bits
-    pub fn from_bytes(bytes :[u8;28]) -> Self { Addr(DigestBlake2b224::from_bytes(bytes)) }
+}
+impl Deref for Addr {
+    type Target = <Blake2b224 as Deref>::Target;
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
+impl AsRef<[u8]> for Addr {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl From<Addr> for [u8;Blake2b224::HASH_SIZE] {
+    fn from(hash: Addr) -> Self { hash.0.into() }
+}
+impl From<[u8;Blake2b224::HASH_SIZE]> for Addr {
+    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { Addr(Blake2b224::from(hash)) }
+}
+impl From<Blake2b224> for Addr {
+    fn from(hash: Blake2b224) -> Self { Addr(hash) }
+}
+impl FromStr for Addr {
+    type Err = <Blake2b224 as FromStr>::Err;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self::from(Blake2b224::from_str(s)?))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -520,7 +525,7 @@ mod tests {
         let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
                    , 0xf3, 0x5d, 0xf7, 0x34, 0x9a, 0xcf, 0xba, 0xec, 0xe2, 0x00, 0xa2, 0x4b
                    , 0x7e, 0x26, 0x25, 0x0c];
-        let addr = Addr::from_bytes(v);
+        let addr = Addr::from(v);
 
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -576,11 +581,6 @@ mod tests {
         assert_eq!(ea, r);
     }
 
-    #[test]
-    fn encode_decode_digest_blake2b() {
-        let digest = DigestBlake2b224::new(b"some random bytes...");
-        assert!(cbor_event::test_encode_decode(&digest).expect("encode/decode DigestBlake2b224"));
-    }
     #[test]
     fn encode_decode_addr_type() {
         let addr_type_1 = AddrType::ATPubKey;

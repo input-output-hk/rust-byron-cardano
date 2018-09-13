@@ -15,7 +15,7 @@ impl Range {
         let mut finished = false;
 
         for block in ri {
-            let hash = block.get_header().compute_hash().into_bytes();
+            let hash = block.get_header().compute_hash().into();
             rp.push_front(hash);
             if hash == from { finished = true; break; }
         }

@@ -21,7 +21,7 @@ pub fn find_earliest_epoch(
             },
             Some(h) => {
                 info!("latest known epoch found is {}", epoch_id);
-                return Some((epoch_id, h.into_bytes()));
+                return Some((epoch_id, h.into()));
             }
         }
 

@@ -434,6 +434,7 @@ impl Verify for update::UpdateVote {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use block::*;
     use config::{ProtocolMagic};
     use std::mem;
@@ -485,18 +486,18 @@ mod tests {
 
     #[test]
     fn test_verify() {
-        let hash = HeaderHash::from_hex(&HEADER_HASH1).unwrap();
+        let hash = HeaderHash::from_str(&HEADER_HASH1).unwrap();
         let rblk = RawBlock(BLOCK1.to_vec());
         let blk = rblk.decode().unwrap();
         let pm = ProtocolMagic::new(PROTOCOL_MAGIC);
         assert!(verify_block(pm, &hash, &blk).is_ok());
 
-        let hash2 = HeaderHash::from_hex(&HEADER_HASH2).unwrap();
+        let hash2 = HeaderHash::from_str(&HEADER_HASH2).unwrap();
         let rblk2 = RawBlock(BLOCK2.to_vec());
         let blk2 = rblk2.decode().unwrap();
         assert!(verify_block(pm, &hash2, &blk2).is_ok());
 
-        let hash3 = HeaderHash::from_hex(&HEADER_HASH3).unwrap();
+        let hash3 = HeaderHash::from_str(&HEADER_HASH3).unwrap();
         let rblk3 = RawBlock(BLOCK3.to_vec());
         let blk3 = rblk3.decode().unwrap();
         assert!(verify_block(pm, &hash3, &blk3).is_ok());
@@ -507,7 +508,7 @@ mod tests {
         // use a wrong header hash
         {
             expect_error(&verify_block(
-                pm, &HeaderHash::from_hex(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
+                pm, &HeaderHash::from_str(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
                 &blk), Error::WrongBlockHash);
         }
 
@@ -586,7 +587,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.header.previous_header = HeaderHash::from_hex(&"aaaaaaaaaaaaaaa9de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap();
+                mblk.header.previous_header = HeaderHash::from_str(&"aaaaaaaaaaaaaaa9de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap();
             }
             expect_error(&verify_block(pm, &hash, &blk), Error::BadBlockSig);
         }

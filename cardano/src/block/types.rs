@@ -1,6 +1,5 @@
-use std::{fmt};
-use hash;
-use hash::{HASH_SIZE, Blake2b256};
+use std::{fmt, str::{FromStr}, ops::{Deref}};
+use hash::{Blake2b256};
 use cbor_event::{self, de::RawCbor};
 use util::try_from_slice::TryFromSlice;
 
@@ -26,25 +25,41 @@ impl fmt::Display for Version {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct HeaderHash(Blake2b256);
-impl AsRef<[u8]> for HeaderHash { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
-impl fmt::Display for HeaderHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
-}
 impl HeaderHash {
-    pub fn bytes<'a>(&'a self) -> &'a [u8;HASH_SIZE] { self.0.bytes() }
-    pub fn into_bytes(self) -> [u8;HASH_SIZE] { self.0.into_bytes() }
-    #[deprecated(note="use `From` trait instead")]
-    pub fn from_bytes(bytes :[u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(bytes)) }
-    pub fn from_slice(bytes: &[u8]) -> hash::Result<Self> {
-        Blake2b256::try_from_slice(bytes).map(|h| HeaderHash(h))
-    }
-    pub fn from_hex(hex: &str) -> hash::Result<Self> {
-        Blake2b256::from_hex(hex).map(|h| HeaderHash(h))
-    }
     pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }
 }
-impl From<[u8;HASH_SIZE]> for HeaderHash {
-    fn from(bytes: [u8;HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(bytes)) }
+impl fmt::Display for HeaderHash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+impl TryFromSlice for HeaderHash {
+    type Error = <Blake2b256 as TryFromSlice>::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        Ok(Self::from(Blake2b256::try_from_slice(slice)?))
+    }
+}
+impl Deref for HeaderHash {
+    type Target = <Blake2b256 as Deref>::Target;
+    fn deref(&self) -> &Self::Target { self.0.deref() }
+}
+impl AsRef<[u8]> for HeaderHash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+impl From<HeaderHash> for [u8;Blake2b256::HASH_SIZE] {
+    fn from(hash: HeaderHash) -> Self { hash.0.into() }
+}
+impl From<[u8;Blake2b256::HASH_SIZE]> for HeaderHash {
+    fn from(hash: [u8;Blake2b256::HASH_SIZE]) -> Self { HeaderHash(Blake2b256::from(hash)) }
+}
+impl From<Blake2b256> for HeaderHash {
+    fn from(hash: Blake2b256) -> Self { HeaderHash(hash) }
+}
+impl FromStr for HeaderHash {
+    type Err = <Blake2b256 as FromStr>::Err;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self::from(Blake2b256::from_str(s)?))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
