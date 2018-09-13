@@ -14,6 +14,7 @@ use txutils::{self, OutputPolicy};
 use tx::{self, TxAux, Tx, TxId, TxInWitness};
 use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
 use config::ProtocolMagic;
+use input_selection;
 
 use super::scheme::{self};
 
@@ -98,10 +99,10 @@ impl Wallet {
         None
     }
 
-    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxoPointerInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> fee::Result<(TxAux, fee::Fee)> {
+    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxoPointerInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> input_selection::Result<(TxAux, fee::Fee)> {
 
         if inputs.len() == 0 {
-            return Err(fee::Error::NoInputs);
+            return Err(input_selection::Error::NoInputs);
         }
 
         let input_addressing : Vec<_> = inputs.iter().map(|tii| tii.address_identified.clone()).collect();
@@ -123,7 +124,7 @@ impl Wallet {
 
         let min_fee_for_inputs = alg.calculate_for_txaux_component(&tx_base, &fake_witnesses)?.to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
-            Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+            Err(coin::Error::Negative) => return Err(input_selection::Error::NotEnoughInput),
             Err(err) => unreachable!("{}", err),
             Ok(c) => c,
         };
@@ -164,7 +165,7 @@ impl Wallet {
                 } else {
                     // not enough fee, so reduce the output_total
                     match out_total - Coin::unit() {
-                        Err(coin::Error::Negative) => return Err(fee::Error::NotEnoughInput),
+                        Err(coin::Error::Negative) => return Err(input_selection::Error::NotEnoughInput),
                         Err(err) => unreachable!("{}", err),
                         Ok(o) => out_total = o,
                     }

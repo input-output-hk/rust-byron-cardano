@@ -40,6 +40,7 @@ pub mod tx;
 pub mod txutils;
 pub mod txbuild;
 pub mod fee;
+pub mod input_selection;
 pub mod coin;
 pub mod redeem;
 pub mod hash;

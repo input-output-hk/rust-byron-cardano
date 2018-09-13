@@ -3,7 +3,8 @@
 //!
 
 use tx::{self, TxId, TxOut, TxInWitness};
-use fee::{self, SelectionAlgorithm};
+use fee;
+use input_selection::{self, SelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
 use coin::Coin;
 use config::{ProtocolMagic};
@@ -49,12 +50,12 @@ pub trait Wallet {
     ///
     fn new_transaction<'a, I>( &self
                              , protocol_magic: ProtocolMagic
-                             , selection_policy: fee::SelectionPolicy
+                             , selection_policy: input_selection::SelectionPolicy
                              , inputs: I
                              , outputs: Vec<TxOut>
                              , output_policy: &OutputPolicy
                              )
-            -> fee::Result<(tx::TxAux, fee::Fee)>
+            -> input_selection::Result<(tx::TxAux, fee::Fee)>
         where I : 'a + Iterator<Item = &'a Input<Self::Addressing>> + ExactSizeIterator
             , Self::Addressing: 'a
     {

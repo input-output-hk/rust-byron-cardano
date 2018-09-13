@@ -24,7 +24,7 @@ pub enum BuildingBalance {
 #[derive(Debug)]
 pub enum Error {
     TxInvalidNoInput,
-    TxInvaludNoOutput,
+    TxInvalidNoOutput,
     TxOverLimit(usize),
     TxSignaturesExceeded,
     TxSignaturesMismatch,
@@ -128,7 +128,7 @@ impl TxFinalized {
         if self.witnesses.len() != self.tx.inputs.len() {
             return Err(Error::TxSignaturesMismatch);
         }
-        let sz = txaux_serialize_size(self.tx, &(*self.witnesses));
+        let sz = txaux_serialize_size(&self.tx, &(*self.witnesses));
         if sz > TX_SIZE_LIMIT {
             return Err(Error::TxOverLimit(sz))
         }
