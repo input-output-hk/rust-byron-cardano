@@ -532,9 +532,9 @@ mod tests {
     #[test]
     fn txin_decode() {
         let mut raw = RawCbor::from(TX_IN);
-        let TxoPointer : TxoPointer = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
+        let txo : TxoPointer = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
 
-        assert!(TxoPointer.index == 666);
+        assert!(txo.index == 666);
     }
 
     #[test]
@@ -545,12 +545,12 @@ mod tests {
 
     #[test]
     fn tx_decode() {
-        let TxoPointer  : TxoPointer  = RawCbor::from(TX_IN).deserialize().unwrap();
+        let txo : TxoPointer  = RawCbor::from(TX_IN).deserialize().unwrap();
         let txout : TxOut = RawCbor::from(TX_OUT).deserialize().unwrap();
         let mut tx : Tx   = RawCbor::from(TX).deserialize().unwrap();
 
         assert!(tx.inputs.len() == 1);
-        assert_eq!(Some(TxoPointer), tx.inputs.pop());
+        assert_eq!(Some(txo), tx.inputs.pop());
         assert!(tx.outputs.len() == 1);
         assert_eq!(Some(txout), tx.outputs.pop());
     }
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn tx_encode_decode() {
         let txid = TxId::new(&[0;32]);
-        let TxoPointer = TxoPointer::new(txid, 666);
+        let txo = TxoPointer::new(txid, 666);
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -572,7 +572,7 @@ mod tests {
         let txout = TxOut::new(ea, value);
 
         let mut tx = Tx::new();
-        tx.add_input(TxoPointer);
+        tx.add_input(txo);
         tx.add_output(txout);
 
         assert!(cbor_event::test_encode_decode(&tx).expect("encode/decode Tx"));
@@ -620,11 +620,11 @@ mod tests {
 
         // create a transaction
         let txid = TxId::new(&[0;32]);
-        let TxoPointer = TxoPointer::new(txid, 666);
+        let txo = TxoPointer::new(txid, 666);
         let value = Coin::new(42).unwrap();
         let txout = TxOut::new(ea.clone(), value);
         let mut tx = Tx::new();
-        tx.add_input(TxoPointer);
+        tx.add_input(txo);
         tx.add_output(txout);
 
         // here we pretend that `ea` is the address we find from the found we want
