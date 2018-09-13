@@ -6,6 +6,7 @@
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use std::{ops, fmt, result};
+use std::cmp::Ordering;
 
 /// maximum value of a Lovelace.
 pub const MAX_COIN: u64 = 45_000_000_000__000_000;
@@ -34,6 +35,13 @@ impl fmt::Display for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// A differential value between 2 coins
+pub enum CoinDiff {
+    Positive(Coin),
+    Zero,
+    Negative(Coin),
+}
 
 // TODO: add custom implementation of `serde::de::Deserialize` so we can check the
 // upper bound of the `Coin`.
@@ -77,6 +85,14 @@ impl Coin {
     /// ```
     pub fn new(v: u64) -> Result<Self> {
         if v <= MAX_COIN { Ok(Coin(v)) } else { Err(Error::OutOfBound(v)) }
+    }
+
+    pub fn differential(self, against: Self) -> CoinDiff {
+        match self.0.cmp(&against.0) {
+            Ordering::Equal   => CoinDiff::Zero,
+            Ordering::Greater => CoinDiff::Positive(Coin(self.0 - against.0)),
+            Ordering::Less    => CoinDiff::Negative(Coin(against.0 - self.0)),
+        }
     }
 }
 impl ::std::ops::Deref for Coin {
