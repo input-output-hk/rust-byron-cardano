@@ -1,9 +1,9 @@
 //! Transaction types
 //!
-//! `TxIn` : Input
+//! `TxoPointer` : Input
 //! `TxOut` : Output
 //! `Tx` : Input + Output
-//! `TxInWitness`: Witness providing for TxIn (e.g. cryptographic signature)
+//! `TxInWitness`: Witness providing for TxoPointer (e.g. cryptographic signature)
 //! `TxAux` : Signed Tx (Tx + Witness)
 //!
 use std::{fmt};
@@ -210,19 +210,24 @@ impl cbor_event::de::Deserialize for TxInWitness {
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct TxIn {
+pub struct TxoPointer {
     pub id: TxId,
     pub index: u32,
 }
-impl fmt::Display for TxIn {
+
+/// old haskell name for TxoPointer
+#[deprecated]
+pub type TxIn = TxoPointer;
+
+impl fmt::Display for TxoPointer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}@{}", self.id, self.index)
     }
 }
-impl TxIn {
-    pub fn new(id: TxId, index: u32) -> Self { TxIn { id: id, index: index } }
+impl TxoPointer {
+    pub fn new(id: TxId, index: u32) -> Self { TxoPointer { id: id, index: index } }
 }
-impl cbor_event::se::Serialize for TxIn {
+impl cbor_event::se::Serialize for TxoPointer {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?
@@ -230,12 +235,12 @@ impl cbor_event::se::Serialize for TxIn {
                 .write_bytes(&cbor!(&(&self.id, &self.index))?)
     }
 }
-impl cbor_event::de::Deserialize for TxIn {
+impl cbor_event::de::Deserialize for TxoPointer {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        raw.tuple(2, "TxIn")?;
+        raw.tuple(2, "TxoPointer")?;
         let sum_type_idx = raw.unsigned_integer()?;
         if sum_type_idx != 0 {
-            return Err(cbor_event::Error::CustomError(format!("Unsupported TxIn: {}", sum_type_idx)));
+            return Err(cbor_event::Error::CustomError(format!("Unsupported TxoPointer: {}", sum_type_idx)));
         }
         let tag = raw.tag()?;
         if tag != 24 {
@@ -243,17 +248,17 @@ impl cbor_event::de::Deserialize for TxIn {
         }
         let bytes = raw.bytes()?;
         let mut raw = RawCbor::from(&bytes);
-        raw.tuple(2, "TxIn")?;
+        raw.tuple(2, "TxoPointer")?;
         let id  = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let idx = raw.unsigned_integer()?;
-        Ok(TxIn::new(id, idx as u32))
+        Ok(TxoPointer::new(id, idx as u32))
     }
 }
 
 /// A Transaction containing tx inputs and tx outputs.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tx {
-    pub inputs: Vec<TxIn>,
+    pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,
     // attributes: TxAttributes
     //
@@ -272,14 +277,14 @@ impl fmt::Display for Tx {
 }
 impl Tx {
     pub fn new() -> Self { Tx::new_with(Vec::new(), Vec::new()) }
-    pub fn new_with(ins: Vec<TxIn>, outs: Vec<TxOut>) -> Self {
+    pub fn new_with(ins: Vec<TxoPointer>, outs: Vec<TxOut>) -> Self {
         Tx { inputs: ins, outputs: outs }
     }
     pub fn id(&self) -> TxId {
         let buf = cbor!(self).expect("encode Tx");
         TxId::new(&buf)
     }
-    pub fn add_input(&mut self, i: TxIn) {
+    pub fn add_input(&mut self, i: TxoPointer) {
         self.inputs.push(i)
     }
     pub fn add_output(&mut self, o: TxOut) {
@@ -527,25 +532,25 @@ mod tests {
     #[test]
     fn txin_decode() {
         let mut raw = RawCbor::from(TX_IN);
-        let txin : TxIn = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
+        let txo : TxoPointer = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
 
-        assert!(txin.index == 666);
+        assert!(txo.index == 666);
     }
 
     #[test]
     fn txin_encode_decode() {
         let txid = TxId::new(&[0;32]);
-        assert!(cbor_event::test_encode_decode(&TxIn::new(txid, 666)).unwrap());
+        assert!(cbor_event::test_encode_decode(&TxoPointer::new(txid, 666)).unwrap());
     }
 
     #[test]
     fn tx_decode() {
-        let txin  : TxIn  = RawCbor::from(TX_IN).deserialize().unwrap();
+        let txo : TxoPointer  = RawCbor::from(TX_IN).deserialize().unwrap();
         let txout : TxOut = RawCbor::from(TX_OUT).deserialize().unwrap();
         let mut tx : Tx   = RawCbor::from(TX).deserialize().unwrap();
 
         assert!(tx.inputs.len() == 1);
-        assert_eq!(Some(txin), tx.inputs.pop());
+        assert_eq!(Some(txo), tx.inputs.pop());
         assert!(tx.outputs.len() == 1);
         assert_eq!(Some(txout), tx.outputs.pop());
     }
@@ -553,7 +558,7 @@ mod tests {
     #[test]
     fn tx_encode_decode() {
         let txid = TxId::new(&[0;32]);
-        let txin = TxIn::new(txid, 666);
+        let txo = TxoPointer::new(txid, 666);
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -567,7 +572,7 @@ mod tests {
         let txout = TxOut::new(ea, value);
 
         let mut tx = Tx::new();
-        tx.add_input(txin);
+        tx.add_input(txo);
         tx.add_output(txout);
 
         assert!(cbor_event::test_encode_decode(&tx).expect("encode/decode Tx"));
@@ -615,11 +620,11 @@ mod tests {
 
         // create a transaction
         let txid = TxId::new(&[0;32]);
-        let txin = TxIn::new(txid, 666);
+        let txo = TxoPointer::new(txid, 666);
         let value = Coin::new(42).unwrap();
         let txout = TxOut::new(ea.clone(), value);
         let mut tx = Tx::new();
-        tx.add_input(txin);
+        tx.add_input(txo);
         tx.add_output(txout);
 
         // here we pretend that `ea` is the address we find from the found we want
