@@ -22,7 +22,8 @@ use std::fmt;
 /// assert_eq!(ProtocolMagic::default(), ProtocolMagic::new(0x2D964A09));
 /// ```
 ///
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct ProtocolMagic(u32);
 impl ProtocolMagic {
     #[deprecated]
@@ -56,7 +57,8 @@ impl cbor_event::Deserialize for ProtocolMagic {
 }
 
 /// Configuration for the wallet-crypto
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Config {
     pub protocol_magic: ProtocolMagic
 }

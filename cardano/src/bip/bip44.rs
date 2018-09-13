@@ -18,6 +18,7 @@
 
 use hdpayload::{Path};
 use std::{fmt, result};
+#[cfg(feature = "generic-serialization")]
 use serde;
 
 /// the BIP44 derivation path has a specific length
@@ -31,7 +32,8 @@ pub const BIP44_COIN_TYPE : u32 = 0x80000717;
 pub const BIP44_SOFT_UPPER_BOUND : u32 = 0x80000000;
 
 /// Error relating to `bip44`'s `Addressing` operations
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     /// this means the given `Path` has an incompatible length
     /// for bip44 derivation. See `BIP44_PATH_LENGTH` and `Addressing::from_path`.
@@ -105,6 +107,7 @@ impl fmt::Display for Account {
         write!(f, "{}", self.0)
     }
 }
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for Account
 {
     #[inline]
@@ -114,45 +117,45 @@ impl serde::Serialize for Account
         serializer.serialize_u32(self.0)
     }
 }
-struct AccountVisitor();
-impl AccountVisitor { fn new() -> Self { AccountVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for AccountVisitor {
-    type Value = Account;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting a valid Account derivation index.")
-    }
-
-    fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        self.visit_u32(v as u32)
-    }
-    fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Account::new(v) {
-            Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
-            Err(err) => panic!("unexpected error: {}", err),
-            Ok(h) => Ok(h)
-        }
-    }
-
-    fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        if v > 0xFFFFFFFF {
-            return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
-        }
-        self.visit_u32(v as u32)
-    }
-}
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for Account
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
-        deserializer.deserialize_u32(AccountVisitor::new())
+        struct AccountVisitor;
+        impl<'de> serde::de::Visitor<'de> for AccountVisitor {
+            type Value = Account;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expecting a valid Account derivation index.")
+            }
+
+            fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                self.visit_u32(v as u32)
+            }
+            fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match Account::new(v) {
+                    Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
+                    Err(err) => panic!("unexpected error: {}", err),
+                    Ok(h) => Ok(h)
+                }
+            }
+
+            fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                if v > 0xFFFFFFFF {
+                    return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+                }
+                self.visit_u32(v as u32)
+            }
+        }
+        deserializer.deserialize_u32(AccountVisitor)
     }
 }
 
@@ -178,6 +181,7 @@ impl Index {
     }
 }
 
+#[cfg(feature = "generic-serialization")]
 impl serde::Serialize for Index
 {
     #[inline]
@@ -187,45 +191,45 @@ impl serde::Serialize for Index
         serializer.serialize_u32(self.0)
     }
 }
-struct IndexVisitor();
-impl IndexVisitor { fn new() -> Self { IndexVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for IndexVisitor {
-    type Value = Index;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting a valid Index derivation index.")
-    }
-
-    fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        self.visit_u32(v as u32)
-    }
-    fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Index::new(v) {
-            Err(Error::IndexOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
-            Err(err) => panic!("unexpected error: {}", err),
-            Ok(h) => Ok(h)
-        }
-    }
-
-    fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        if v > 0xFFFFFFFF {
-            return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
-        }
-        self.visit_u32(v as u32)
-    }
-}
+#[cfg(feature = "generic-serialization")]
 impl<'de> serde::Deserialize<'de> for Index
 {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
         where D: serde::Deserializer<'de>
     {
-        deserializer.deserialize_u32(IndexVisitor::new())
+        struct IndexVisitor;
+        impl<'de> serde::de::Visitor<'de> for IndexVisitor {
+            type Value = Index;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expecting a valid Index derivation index.")
+            }
+
+            fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                self.visit_u32(v as u32)
+            }
+            fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match Index::new(v) {
+                    Err(Error::IndexOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
+                    Err(err) => panic!("unexpected error: {}", err),
+                    Ok(h) => Ok(h)
+                }
+            }
+
+            fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                if v > 0xFFFFFFFF {
+                    return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+                }
+                self.visit_u32(v as u32)
+            }
+        }
+        deserializer.deserialize_u32(IndexVisitor)
     }
 }
 
@@ -248,7 +252,8 @@ impl Change {
 
 /// Bip44 address derivation
 ///
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Addressing {
     pub account: Account,
     pub change: u32,
@@ -260,7 +265,8 @@ impl fmt::Display for Addressing {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum AddrType {
     Internal,
     External,

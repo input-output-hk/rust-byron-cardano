@@ -10,9 +10,11 @@ use cryptoxide::sha3::Sha3;
 use util::{hex, try_from_slice::{TryFromSlice}};
 use cbor_event::{self, de::RawCbor};
 
+#[cfg(feature = "generic-serialization")]
 use serde;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     InvalidHashSize(usize, usize),
     HexadecimalError(hex::Error),
@@ -106,6 +108,7 @@ macro_rules! define_hash_object {
             }
         }
 
+        #[cfg(feature = "generic-serialization")]
         impl serde::Serialize for $hash_ty
         {
             #[inline]
@@ -119,6 +122,7 @@ macro_rules! define_hash_object {
                 }
             }
         }
+        #[cfg(feature = "generic-serialization")]
         impl<'de> serde::Deserialize<'de> for $hash_ty
         {
             fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>

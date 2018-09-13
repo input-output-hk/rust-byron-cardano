@@ -136,7 +136,8 @@ impl SelectionAlgorithm for LinearFee {
 
 /// the input selection method.
 ///
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum SelectionPolicy {
     /// select the first inputs that matches, no optimisation
     FirstMatchFirst
