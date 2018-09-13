@@ -88,12 +88,12 @@ impl Lookup {
 
     pub fn to_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let mut file = fs::File::create(path)?;
-        magic::write_header(&mut file, FILE_TYPE, VERSION)?;
         self.write(&mut file)?;
         Ok(())
     }
 
-    pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: io::Write>(&self, writer: &mut W) -> Result<()> {
+        magic::write_header(writer, FILE_TYPE, VERSION)?;
         for bh in self.iter() { writer.write_all(&bh[..])?; }
         Ok(())
     }
