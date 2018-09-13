@@ -98,7 +98,7 @@ impl Wallet {
         None
     }
 
-    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxInInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> fee::Result<(TxAux, fee::Fee)> {
+    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxoPointerInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> fee::Result<(TxAux, fee::Fee)> {
 
         if inputs.len() == 0 {
             return Err(fee::Error::NoInputs);
