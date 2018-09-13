@@ -38,6 +38,7 @@ pub mod address;
 pub mod hdpayload;
 pub mod tx;
 pub mod txutils;
+pub mod txbuild;
 pub mod fee;
 pub mod coin;
 pub mod redeem;
