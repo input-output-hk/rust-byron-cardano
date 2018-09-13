@@ -327,61 +327,6 @@ impl ExtendedAddr {
         ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
     }
 
-    /// encode an `ExtendedAddr` to cbor with the extra details and `crc32`
-    ///
-    /// ```
-    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use cardano::hdwallet;
-    /// use cardano::hdpayload::{HDAddressPayload};
-    ///
-    /// let seed = hdwallet::Seed::from_bytes([0;32]);
-    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
-    /// let pk = sk.public();
-    ///
-    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
-    /// let addr_type = AddrType::ATPubKey;
-    /// let sd = SpendingData::PubKeyASD(pk.clone());
-    /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
-    ///
-    /// let ea = ExtendedAddr::new(addr_type, sd, attrs);
-    ///
-    /// let out = ea.to_bytes();
-    ///
-    /// assert_eq!(out.len(), 86); // 86 is the length in this given case.
-    /// ```
-    ///
-    pub fn to_bytes(&self) -> Vec<u8> {
-        cbor!(self).expect("serialising ExtendedAddr into cbor")
-    }
-
-    /// decode an `ExtendedAddr` to cbor with the extra details and `crc32`
-    ///
-    /// ```
-    /// use cardano::address::{AddrType, ExtendedAddr, SpendingData, Attributes, Addr};
-    /// use cardano::hdwallet;
-    /// use cardano::hdpayload::{HDAddressPayload};
-    ///
-    /// let seed = hdwallet::Seed::from_bytes([0;32]);
-    /// let sk = hdwallet::XPrv::generate_from_seed(&seed);
-    /// let pk = sk.public();
-    ///
-    /// let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
-    /// let addr_type = AddrType::ATPubKey;
-    /// let sd = SpendingData::PubKeyASD(pk.clone());
-    /// let attrs = Attributes::new_single_key(&pk, Some(hdap));
-    ///
-    /// let ea = ExtendedAddr::new(addr_type, sd, attrs);
-    ///
-    /// let out = ea.to_bytes();
-    ///
-    /// let r = ExtendedAddr::from_bytes(&out).unwrap();
-    /// assert_eq!(ea, r);
-    /// ```
-    ///
-    pub fn from_bytes(buf: &[u8]) -> cbor_event::Result<Self> {
-        let mut raw = RawCbor::from(buf);
-        cbor_event::de::Deserialize::deserialize(&mut raw)
-    }
 }
 #[derive(Debug)]
 pub enum ParseExtendedAddrError {
@@ -394,8 +339,15 @@ impl ::std::str::FromStr for ExtendedAddr {
         let bytes = base58::decode(s)
             .map_err(ParseExtendedAddrError::Base58Error)?;
 
-        Self::from_bytes(&bytes)
+        Self::try_from_slice(&bytes)
             .map_err(ParseExtendedAddrError::EncodingError)
+    }
+}
+impl TryFromSlice for ExtendedAddr {
+    type Error = cbor_event::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        let mut raw = RawCbor::from(slice);
+        cbor_event::de::Deserialize::deserialize(&mut raw)
     }
 }
 impl cbor_event::se::Serialize for ExtendedAddr {
@@ -417,7 +369,7 @@ impl cbor_event::de::Deserialize for ExtendedAddr {
 }
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", base58::encode(&self.to_bytes()))
+        write!(f, "{}", base58::encode(&cbor!(self).unwrap()))
     }
 }
 impl serde::Serialize for ExtendedAddr
@@ -426,7 +378,7 @@ impl serde::Serialize for ExtendedAddr
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: serde::Serializer,
     {
-        let vec = self.to_bytes();
+        let vec = cbor!(self).unwrap();
         if serializer.is_human_readable() {
             serializer.serialize_str(&base58::encode(&vec))
         } else {
@@ -451,7 +403,7 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
             Ok(v) => v
         };
 
-        match Self::Value::from_bytes(&bytes) {
+        match Self::Value::try_from_slice(&bytes) {
             Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
@@ -460,7 +412,7 @@ impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
     fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
         where E: serde::de::Error
     {
-        match Self::Value::from_bytes(v) {
+        match Self::Value::try_from_slice(v) {
             Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
             Ok(v) => Ok(v)
         }
@@ -564,7 +516,7 @@ mod tests {
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
-        let out = ea.to_bytes();
+        let out = cbor!(ea).unwrap();
 
         v.iter().for_each(|b| {
             if *b < 0x10 { print!("0{:x}", b); } else { print!("{:x}", b); }
@@ -577,7 +529,7 @@ mod tests {
 
         assert_eq!(v, out);
 
-        let r = ExtendedAddr::from_bytes(&out).unwrap();
+        let r = ExtendedAddr::try_from_slice(&out).unwrap();
         assert_eq!(ea, r);
     }
 
@@ -616,7 +568,7 @@ mod tests {
         let addr_str  = "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf";
         let bytes     = base58::decode(addr_str).unwrap();
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
@@ -627,9 +579,9 @@ mod tests {
         let addr_str  = "DdzFFzCqrhsi8XFMabbnHecVusaebqQCkXTqDnCumx5esKB1pk1zbhX5BtdAivZbQePFVujgzNCpBVXactPSmphuHRC5Xk8qmBd49QjW";
         let bytes     = base58::decode(addr_str).unwrap();
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
-        let b = r.to_bytes();
+        let b = cbor!(r).unwrap();
         assert_eq!(addr_str, base58::encode(&b));
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
@@ -640,11 +592,11 @@ mod tests {
     fn decode_address_no_derivation_path() {
         let bytes     = vec![0x82, 0xd8, 0x18, 0x58, 0x21, 0x83, 0x58, 0x1c, 0x10, 0x2a, 0x74, 0xca, 0x44, 0x05, 0xb8, 0xc1, 0x8d, 0x20, 0x84, 0x1e, 0x8c, 0x66, 0x4f, 0xe1, 0xde, 0x7d, 0x66, 0x07, 0x48, 0x08, 0x70, 0x4f, 0x91, 0x79, 0xe0, 0xfa, 0xa0, 0x00, 0x1a, 0xad, 0xf7, 0x10, 0x68];
 
-        let r = ExtendedAddr::from_bytes(&bytes).unwrap();
+        let r = ExtendedAddr::try_from_slice(&bytes).unwrap();
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
-        assert_eq!(bytes, r.to_bytes());
+        assert_eq!(bytes, cbor!(r).unwrap())
     }
 }
 

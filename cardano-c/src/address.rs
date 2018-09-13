@@ -1,13 +1,13 @@
 use std::{ffi, ptr};
 use std::os::raw::{c_char, c_int};
 
-use cardano::{address::ExtendedAddr, util::base58};
+use cardano::{address::ExtendedAddr, util::{base58, try_from_slice::{TryFromSlice}}};
 
-use super::types::{AddressPtr, XPubPtr};
+use super::{AddressPtr, XPubPtr};
 
 // FFI helper internal call
 pub fn ffi_address_to_base58(address: &ExtendedAddr) -> ffi::CString {
-    let address = format!("{}", base58::encode(&address.to_bytes()));
+    let address = format!("{}", address);
     // generate a C String (null byte terminated string)
     let c_address =
         ffi::CString::new(address).expect("base58 strings only contains ASCII chars");
@@ -25,7 +25,7 @@ pub fn ffi_address_to_base58(address: &ExtendedAddr) -> ffi::CString {
 pub extern "C" fn cardano_address_is_valid(c_address: *mut c_char) -> c_int {
     let address_base58 = unsafe { ffi::CStr::from_ptr(c_address).to_bytes() };
     if let Ok(address_raw) = base58::decode_bytes(address_base58) {
-        if let Ok(_) = ExtendedAddr::from_bytes(&address_raw[..]) {
+        if let Ok(_) = ExtendedAddr::try_from_slice(&address_raw[..]) {
             return 0;
         } else {
             return 2;
@@ -52,7 +52,7 @@ pub extern "C" fn cardano_address_delete(c_addr: AddressPtr) {
 pub extern "C" fn cardano_address_import_base58(c_address: *mut c_char) -> AddressPtr {
     let address_base58 = unsafe { ffi::CStr::from_ptr(c_address).to_bytes() };
     if let Ok(address_raw) = base58::decode_bytes(address_base58) {
-        if let Ok(ea) = ExtendedAddr::from_bytes(&address_raw[..]) {
+        if let Ok(ea) = ExtendedAddr::try_from_slice(&address_raw[..]) {
             let address = Box::new(ea);
             Box::into_raw(address)
         } else {
