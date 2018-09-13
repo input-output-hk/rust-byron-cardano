@@ -1,6 +1,5 @@
 //! Address creation and parsing
 use std::{fmt, str::{FromStr}, ops::{Deref}};
-use serde;
 
 use hash::{Blake2b224, Sha3_256};
 
@@ -11,7 +10,7 @@ use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum AddrType {
     ATPubKey,
     ATScript,
@@ -60,7 +59,7 @@ impl cbor_event::de::Deserialize for AddrType {
 
 /// StakeholderId is the transaction
 ///
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct StakeholderId(Blake2b224);
 impl StakeholderId {
     pub fn new(pubk: &XPub) -> StakeholderId {
@@ -116,7 +115,7 @@ impl FromStr for StakeholderId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum StakeDistribution {
     BootstrapEraDistr,
     SingleKeyDistr(StakeholderId),
@@ -173,7 +172,7 @@ impl cbor_event::de::Deserialize for StakeDistribution {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Attributes {
     pub derivation_path: Option<HDAddressPayload>,
     pub stake_distribution: StakeDistribution
@@ -250,7 +249,7 @@ impl cbor_event::de::Deserialize for Attributes {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Addr(Blake2b224);
 impl Addr {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
@@ -372,64 +371,6 @@ impl fmt::Display for ExtendedAddr {
         write!(f, "{}", base58::encode(&cbor!(self).unwrap()))
     }
 }
-impl serde::Serialize for ExtendedAddr
-{
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::Serializer,
-    {
-        let vec = cbor!(self).unwrap();
-        if serializer.is_human_readable() {
-            serializer.serialize_str(&base58::encode(&vec))
-        } else {
-            serializer.serialize_bytes(&vec)
-        }
-    }
-}
-struct XAddrVisitor();
-impl XAddrVisitor { fn new() -> Self { XAddrVisitor {} } }
-impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
-    type Value = ExtendedAddr;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Expecting an Extended Address (`ExtendedAddr`)")
-    }
-
-    fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        let bytes = match base58::decode(v) {
-            Err(err) => { return Err(E::custom(format!("invalid base58:{}", err))); },
-            Ok(v) => v
-        };
-
-        match Self::Value::try_from_slice(&bytes) {
-            Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
-            Ok(v) => Ok(v)
-        }
-    }
-
-    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
-        where E: serde::de::Error
-    {
-        match Self::Value::try_from_slice(v) {
-            Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
-            Ok(v) => Ok(v)
-        }
-    }
-}
-impl<'de> serde::Deserialize<'de> for ExtendedAddr
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: serde::Deserializer<'de>
-    {
-        if deserializer.is_human_readable() {
-            deserializer.deserialize_str(XAddrVisitor::new())
-        } else {
-            deserializer.deserialize_bytes(XAddrVisitor::new())
-        }
-    }
-}
 
 pub type Script = [u8;32]; // TODO
 
@@ -437,7 +378,7 @@ const SPENDING_DATA_TAG_PUBKEY : u64 = 0;
 const SPENDING_DATA_TAG_SCRIPT : u64 = 1; // TODO
 const SPENDING_DATA_TAG_REDEEM : u64 = 2;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SpendingData {
     PubKeyASD (XPub),
     ScriptASD (Script),

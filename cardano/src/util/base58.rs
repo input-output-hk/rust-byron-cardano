@@ -14,7 +14,7 @@
 
 pub const ALPHABET : &'static str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum Error {
     /// error when a given character is not part of the supported
     /// base58 `ALPHABET`. Contains the index of the faulty byte.

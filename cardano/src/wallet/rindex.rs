@@ -17,7 +17,7 @@ use config::ProtocolMagic;
 
 use super::scheme::{self};
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone)]
 pub struct Addressing(pub u32, pub u32);
 impl ::std::fmt::Display for Addressing {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {

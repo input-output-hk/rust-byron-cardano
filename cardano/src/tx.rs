@@ -25,7 +25,7 @@ use coin::{self, Coin};
 pub type TxId = Blake2b256;
 
 /// Tx Output composed of an address and a coin value
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
@@ -70,7 +70,7 @@ type RedeemerScript = TODO;
 /// * ScriptWitness: a witness for ScriptASD.
 /// * RedeemWitness: a witness for RedeemASD type, similar to PkWitness
 ///                  but for normal Public Key.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     /// signature of the `Tx` with the associated `XPub`
     /// the `XPub` is the public key set in the AddrSpendingData
@@ -209,7 +209,7 @@ impl cbor_event::de::Deserialize for TxInWitness {
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct TxIn {
     pub id: TxId,
     pub index: u32,
@@ -251,7 +251,7 @@ impl cbor_event::de::Deserialize for TxIn {
 }
 
 /// A Transaction containing tx inputs and tx outputs.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Tx {
     pub inputs: Vec<TxIn>,
     pub outputs: Vec<TxOut>,
@@ -318,7 +318,7 @@ impl cbor_event::de::Deserialize for Tx {
 }
 
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
@@ -363,7 +363,7 @@ pub fn txwitness_serialize<W>(in_witnesses: &Vec<TxInWitness>, serializer: Seria
 }
 
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxWitnesses {
     pub in_witnesses: Vec<TxWitness>
 }
@@ -387,7 +387,7 @@ impl cbor_event::se::Serialize for TxWitnesses
 }
 
 /// Tx with the vector of witnesses
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxAux {
     pub tx: Tx,
     pub witness: TxWitness,

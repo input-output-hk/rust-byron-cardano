@@ -15,7 +15,7 @@ use std::{result, fmt};
 const ALPHABET : &'static [u8] = b"0123456789abcdef";
 
 /// hexadecimal encoding/decoding potential errors
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Error {
     /// error when a given character is not part of the supported
     /// hexadecimal alphabet. Contains the index of the faulty byte

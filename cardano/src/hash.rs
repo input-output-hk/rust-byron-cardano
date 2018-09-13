@@ -10,9 +10,7 @@ use cryptoxide::sha3::Sha3;
 use util::{hex, try_from_slice::{TryFromSlice}};
 use cbor_event::{self, de::RawCbor};
 
-use serde;
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Error {
     InvalidHashSize(usize, usize),
     HexadecimalError(hex::Error),
@@ -103,61 +101,6 @@ macro_rules! define_hash_object {
         impl cbor_event::se::Serialize for $hash_ty {
             fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
                 serializer.write_bytes(self.as_ref())
-            }
-        }
-
-        impl serde::Serialize for $hash_ty
-        {
-            #[inline]
-            fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-                where S: serde::Serializer,
-            {
-                if serializer.is_human_readable() {
-                    serializer.serialize_str(&hex::encode(self.as_ref()))
-                } else {
-                    serializer.serialize_bytes(&self.as_ref())
-                }
-            }
-        }
-        impl<'de> serde::Deserialize<'de> for $hash_ty
-        {
-            fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
-                where D: serde::Deserializer<'de>
-            {
-                struct HashVisitor;
-                impl<'de> serde::de::Visitor<'de> for HashVisitor {
-                    type Value = $hash_ty;
-
-                    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                        write!(fmt, "Expecting a Blake2b_256 hash (`Hash`)")
-                    }
-
-                    fn visit_str<'a, E>(self, v: &'a str) -> result::Result<Self::Value, E>
-                        where E: serde::de::Error
-                    {
-                        match Self::Value::from_str(&v) {
-                            Err(Error::HexadecimalError(err)) => Err(E::custom(format!("{}", err))),
-                            Err(Error::InvalidHashSize(sz, _)) => Err(E::invalid_length(sz, &"32 bytes")),
-                            Ok(h) => Ok(h)
-                        }
-                    }
-
-                    fn visit_bytes<'a, E>(self, v: &'a [u8]) -> result::Result<Self::Value, E>
-                        where E: serde::de::Error
-                    {
-                        match Self::Value::try_from_slice(v) {
-                            Err(Error::InvalidHashSize(sz, _)) => Err(E::invalid_length(sz, &"32 bytes")),
-                            Err(err) => panic!("unexpected error: {}", err),
-                            Ok(h) => Ok(h)
-                        }
-                    }
-                }
-
-                if deserializer.is_human_readable() {
-                    deserializer.deserialize_str(HashVisitor)
-                } else {
-                    deserializer.deserialize_bytes(HashVisitor)
-                }
             }
         }
     }

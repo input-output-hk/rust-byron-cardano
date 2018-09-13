@@ -70,7 +70,7 @@ impl DerefMut for BlockHeaders {
 }
 
 /// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BlockDate {
     Genesis(EpochId),
     Normal(EpochSlotId),

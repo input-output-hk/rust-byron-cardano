@@ -8,7 +8,7 @@ use txutils::{Input, OutputPolicy, output_sum};
 use cbor_event;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
 pub struct Fee(Coin);
 impl Fee {
     pub fn new(coin: Coin) -> Self { Fee(coin) }
@@ -70,7 +70,7 @@ pub trait SelectionAlgorithm {
     ;
 }
 
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub struct Milli (pub u64);
 impl Milli {
     pub fn new(i: u64, f: u64) -> Self { Milli(i * 1000 + f % 1000) }
@@ -107,7 +107,7 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `A * bytes(txaux) + CONSTANT`
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub struct LinearFee {
     /// this is the minimal fee
     constant: Milli,
@@ -219,7 +219,7 @@ impl SelectionAlgorithm for LinearFee {
 
 /// the input selection method.
 ///
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum SelectionPolicy {
     /// select the first inputs that matches, no optimisation
     FirstMatchFirst
