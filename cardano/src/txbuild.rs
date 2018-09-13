@@ -1,6 +1,6 @@
 //! Transaction Builder
 
-use tx::{TxoPointer, TxOut, Tx, TxAux, TxWitness, TxInWitness};
+use tx::{TxoPointer, TxOut, Tx, TxAux, TxWitness, TxInWitness, txaux_serialize_size};
 use {coin,fee};
 use coin::{Coin, CoinDiff};
 use fee::{FeeAlgorithm, Fee};
@@ -23,12 +23,17 @@ pub enum BuildingBalance {
 
 #[derive(Debug)]
 pub enum Error {
+    TxInvalidNoInput,
+    TxInvaludNoOutput,
     TxOverLimit(usize),
     TxSignaturesExceeded,
     TxSignaturesMismatch,
     CoinError(coin::Error),
     FeeError(fee::Error),
 }
+
+// TODO might be a network configurable value..
+const TX_SIZE_LIMIT : usize = 65536;
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -54,7 +59,7 @@ impl TxBuilder {
     }
 
     pub fn calculate_fee<F: FeeAlgorithm>(&self, f: F) -> Result<Fee> {
-        let tx = self.clone().make_tx();
+        let tx = self.clone().make_tx_nocheck();
         let fake_witnesses = iter::repeat(TxInWitness::fake()).take(self.inputs.len()).collect();
         let fee = f.calculate_for_txaux_component(&tx, &fake_witnesses)?;
         Ok(fee)
@@ -84,9 +89,19 @@ impl TxBuilder {
         Ok(inputs.differential(outputs_fees))
     }
 
-    pub fn make_tx(self) -> Tx {
+    fn make_tx_nocheck(self) -> Tx {
         let inputs = self.inputs.iter().map(|(v, _)| v.clone()).collect();
         Tx::new_with(inputs, self.outputs)
+    }
+
+    pub fn make_tx(self) -> Result<Tx> {
+        if self.inputs.len() == 0 {
+            return Err(Error::TxInvalidNoInput)
+        }
+        if self.outputs.len() == 0 {
+            return Err(Error::TxInvalidNoOutput)
+        }
+        Ok(self.make_tx_nocheck())
     }
 }
 
@@ -113,6 +128,11 @@ impl TxFinalized {
         if self.witnesses.len() != self.tx.inputs.len() {
             return Err(Error::TxSignaturesMismatch);
         }
-        Ok(TxAux::new(self.tx, self.witnesses))
+        let sz = txaux_serialize_size(self.tx, &(*self.witnesses));
+        if sz > TX_SIZE_LIMIT {
+            return Err(Error::TxOverLimit(sz))
+        }
+        let txaux = TxAux::new(self.tx, self.witnesses);
+        Ok(txaux)
     }
 }
