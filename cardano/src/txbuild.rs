@@ -14,7 +14,7 @@ use {coin,fee};
 use coin::{Coin, CoinDiff};
 use fee::{FeeAlgorithm, Fee};
 use std::iter::Iterator;
-use std::{result, iter, fmt, error, cmp::{min,max}};
+use std::{result, iter, fmt, error};
 
 /// Transaction Builder composed of inputs, outputs
 #[derive(Clone)]
@@ -40,6 +40,7 @@ impl fmt::Display for Error {
         match self {
             Error::TxInvalidNoInput => write!(f, "Transaction is invalid, no input."),
             Error::TxInvalidNoOutput => write!(f, "Transaction is invalid, no output."),
+            Error::TxNotEnoughTotalInput => write!(f, "Transaction is invalid, already not enough input coins."),
             Error::TxOverLimit(sz) => write!(f, "Transaction too big, current size is {} bytes but limit size is {}.", sz, TX_SIZE_LIMIT),
             Error::TxSignaturesExceeded => write!(f, "Transaction has already enough signatures"),
             Error::TxSignaturesMismatch => write!(f, "Number of signatures does not match the number of witnesses"),
