@@ -24,6 +24,7 @@ use std::fmt;
 ///
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
+#[repr(C)]
 pub struct ProtocolMagic(u32);
 impl ProtocolMagic {
     #[deprecated]

@@ -38,10 +38,13 @@ impl ::std::error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
-/// A differential value between 2 coins
+/// A differential value between 2 coins 'a' and 'b', similar to 'a - b'
 pub enum CoinDiff {
+    /// First value is greater than second value by n coins where n is not 0. // a == b + n
     Positive(Coin),
+    /// First value and second value are equal. a == b
     Zero,
+    /// First value is lesser than second value by n coins where n is not 0. a + n == b
     Negative(Coin),
 }
 

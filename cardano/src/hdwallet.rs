@@ -53,7 +53,7 @@ pub enum Error {
     ///
     /// See `XPUB_SIZE`
     InvalidXPubSize(usize),
-    /// the given siganture is of invalid size. The parameter is the given size.
+    /// the given signature is of invalid size. The parameter is the given size.
     ///
     /// See `SIGNATURE_SIZE` for the expected size.
     InvalidSignatureSize(usize),

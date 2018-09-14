@@ -47,8 +47,8 @@ pub extern "C" fn cardano_xprv_delete(c_xpub: XPrvPtr) {
 
 #[no_mangle]
 pub extern "C" fn cardano_xpub_derive(c_xprv: XPubPtr, index: u32) -> XPubPtr {
-    let xprv = unsafe { c_xprv.as_mut() }.expect("Not a NULL PTR");
-    match xprv.derive(hdwallet::DerivationScheme::V2, index) {
+    let xpub = unsafe { c_xpub.as_mut() }.expect("Not a NULL PTR");
+    match xpub.derive(hdwallet::DerivationScheme::V2, index) {
         Ok(r) => {
             let child = Box::new(r);
             Box::into_raw(child)

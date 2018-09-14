@@ -69,12 +69,30 @@ unsigned long cardano_account_generate_addresses(cardano_account *account, int i
 /* Transactions */
 /****************/
 
-typedef struct cardano_staging_transaction cardano_staging_transaction;
+typedef struct cardano_transaction_builder cardano_transaction_builder;
+typedef struct cardano_transaction_finalized cardano_transaction_finalized;
+typedef struct cardano_txoptr cardano_txoptr;
+typedef struct cardano_txoutput cardano_txoutput;
+typedef struct cardano_txoutput cardano_txoutput;
+typedef struct cardano_transaction cardano_transaction;
+typedef struct cardano_signed_transaction cardano_signed_transaction;
 
-cardano_staging_transaction *cardano_transaction_new(void);
-//cardano_transaction_finalize();
-//cardano_transaction_add_input();
-//cardano_transaction_add_output();
+cardano_txoptr * cardano_transaction_output_ptr_new(uint8_t txid[32], uint32_t index);
+void cardano_transaction_output_ptr_delete(cardano_txoptr *txo);
+
+cardano_txoutput * cardano_transaction_output_new(cardano_address *c_addr, uint64_t value);
+void cardano_transaction_output_delete(cardano_txoutput *output);
+
+cardano_transaction_builder * cardano_transaction_builder_new(void);
+void cardano_transaction_builder_delete(cardano_transaction_builder *tb);
+void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoptr *txo);
+cardano_result cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
+cardano_result cardano_transaction_builder_add_change_addr(cardano_transaction_builder *tb, cardano_address *change_addr);
+cardano_transaction *cardano_transaction_builder_finalize(cardano_transaction_builder *tb);
+
+cardano_transaction_finalized * cardano_transaction_finalized_new(cardano_transaction *c_tx);
+cardano_result cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
+cardano_signed_transaction *cardano_transaction_finalized_output(cardano_transaction_finalized *tf);
 
 #ifdef __cplusplus
 }
