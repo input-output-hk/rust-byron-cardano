@@ -224,6 +224,7 @@ impl TxBuilder {
 }
 
 /// Transaction finalized
+#[derive(Clone)]
 pub struct TxFinalized {
     tx: Tx,
     witnesses: TxWitness,
