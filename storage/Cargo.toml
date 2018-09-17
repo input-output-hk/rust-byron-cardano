@@ -2,6 +2,12 @@
 name = "storage"
 version = "0.1.0"
 authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+keywords = [ "Cardano", "Storage", "Immutable", "FileSystem" ]
+description = """
+The cardano storage library. It provides 2 different levels of functionality, from lowlevel
+fast immutable or append only file without any assumption about the data, to a higher level
+intertwined with the cardano blockchain
+"""
 
 [dependencies]
 cryptoxide = { path = "../cryptoxide" }
