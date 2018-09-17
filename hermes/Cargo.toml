@@ -1,7 +1,15 @@
 [package]
 name = "hermes"
 version = "0.1.0"
-authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/rust-cardano"
+homepage = "https://github.com/input-output-hk/rust-cardano/hermes#README.md"
+description = """
+Bridge between the cardano low level network and HTTP. Provides blazing fast blockchain
+synchronization via epoch packed downloads.
+"""
 
 [dependencies]
 cryptoxide           = { path = "../cryptoxide" }

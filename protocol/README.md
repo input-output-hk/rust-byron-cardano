@@ -1,14 +1,15 @@
-# CBOR Event library
+# Cardano network Protocol
 
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
 ![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
+![Cardano Mainnet](https://img.shields.io/badge/Cardano%20Ada-mainnet-brightgreen.svg)
+![Cardano Staging](https://img.shields.io/badge/Cardano%20Ada-staging-brightgreen.svg)
+![Cardano Testnet](https://img.shields.io/badge/Cardano%20Ada-testnet-orange.svg)
 
-This library provides a simple, yet efficient CBOR binary parser/serialiser.
+Support for the [Cardano](https://www.cardano.org) network protocol to perform the following functions:
 
-While some libraries provide an intermediate type representation,
-this crate has zero dependencies (and should not need any in the future).
-This is a design choice in order to guarantee as much compatibility as possible
-across multiple platforms.
+* fetch blocks;
+* send transactions.
 
 ## Supported targets
 
@@ -19,28 +20,17 @@ rustup target add aarch64-apple-ios # or any target below
 | Target                               | `test` |
 |--------------------------------------|:------:|
 | `aarch64-unknown-linux-gnu`          |   ✓    |
-| `aarch64-linux-android`              |   ✓    |
-| `aarch64-apple-ios`                  |   ✓    |
 | `arm-unknown-linux-gnueabi`          |   ✓    |
-| `arm-linux-androideabi`              |   ✓    |
 | `armv7-unknown-linux-gnueabihf`      |   ✓    |
-| `armv7-linux-androideabi`            |   ✓    |
-| `armv7-apple-ios`                    |   ✓    |
-| `armv7s-apple-ios`                   |   ✓    |
 | `i686-unknown-linux-gnu`             |   ✓    |
 | `i686-unknown-linux-musl`            |   ✓    |
-| `i686-unknown-freebsd`               |   ✓    |
-| `i686-apple-ios`                     |   ✓    |
-| `i686-apple-darwin`                  |   ✓    |
-| `i686-linux-android`                 |   ✓    |
 | `x86_64-unknown-linux-gnu`           |   ✓    |
 | `x86_64-unknown-linux-musl`          |   ✓    |
-| `x86_64-linux-android`               |   ✓    |
+| `i686-apple-darwin`                  |   ✓    |
 | `x86_64-apple-darwin`                |   ✓    |
-| `x86_64-apple-ios`                   |   ✓    |
+| `x86_64-apple-darwin`                |   ✓    |
+| `i686-unknown-freebsd`               |   ✓    |
 | `x86_64-unknown-freebsd`             |   ✓    |
-| `wasm32-unknown-emscripten`          |   ✓    |
-| `wasm32-unknown-unknown`             |   ✓    |
 
 ## supported compiler versions
 

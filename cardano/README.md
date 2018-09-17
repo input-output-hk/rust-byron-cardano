@@ -1,14 +1,18 @@
-# CBOR Event library
+# Cardano
 
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
 ![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
+![Cardano Mainnet](https://img.shields.io/badge/Cardano%20Ada-mainnet-brightgreen.svg)
+![Cardano Staging](https://img.shields.io/badge/Cardano%20Ada-staging-brightgreen.svg)
+![Cardano Testnet](https://img.shields.io/badge/Cardano%20Ada-testnet-orange.svg)
 
-This library provides a simple, yet efficient CBOR binary parser/serialiser.
+Crate with all the primitives for the [Cardano](https://www.cardano.org) blockchain:
 
-While some libraries provide an intermediate type representation,
-this crate has zero dependencies (and should not need any in the future).
-This is a design choice in order to guarantee as much compatibility as possible
-across multiple platforms.
+* blockchain validation;
+* HDWallet support (Icarus, Daedalus or custom wallet);
+* transaction engine: input selection, fee estimation, signing and validation;
+
+This crates package aims to support as many architectures as possible with as little dependencies as possible.
 
 ## Supported targets
 

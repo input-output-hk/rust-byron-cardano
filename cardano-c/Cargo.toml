@@ -1,7 +1,15 @@
 [package]
 name = "cardano-c"
 version = "0.1.0"
-authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>", "Vincent Hanquez <vincent.hanquez@iohk.io>"]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/rust-cardano"
+homepage = "https://github.com/input-output-hk/rust-cardano/hermes#README.md"
+description = """
+Exports simple API to use in C library or to write bindings in
+other languages.
+"""
 
 [lib]
 crate-type = ["staticlib" ]

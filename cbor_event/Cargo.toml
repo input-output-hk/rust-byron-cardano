@@ -1,15 +1,12 @@
 [package]
 name = "cbor_event"
 version = "0.1.0"
-authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
-          , "Vincent Hanquez <vincent.hanquez@iohk.io>"
-          ]
-license = "MIT"
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 categories = ["binary", "cbor", "serialisation", "deserialisation", "cardano", "wasm"]
 repository = "https://github.com/input-output-hk/rust-cardano"
-homepage = "https://github.com/input-output-hk/rust-cardano"
-# documentation = "https://docs.rs/wasm-bindgen"
+homepage = "https://github.com/input-output-hk/rust-cardano/cbor_event#README.md"
 description = """
-CBOR Event library, no dependencies, all platform and wasm compatible.
+The CBOR Event library. There are no dependencies, all platforms are supported and it is wasm compatible.
 """

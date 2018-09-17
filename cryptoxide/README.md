@@ -1,14 +1,28 @@
-# CBOR Event library
+# Cryptoxide
 
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
 ![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
 
-This library provides a simple, yet efficient CBOR binary parser/serialiser.
+A pure Rust implementation of various modern cryptographic algorithms, which has no dependencies
+and no foreign code (specially C or assembly code). This is compatible with WASM and embedded devices.
 
-While some libraries provide an intermediate type representation,
-this crate has zero dependencies (and should not need any in the future).
-This is a design choice in order to guarantee as much compatibility as possible
-across multiple platforms.
+This crates package aims to support as many architectures as possible with as
+little dependencies as possible.
+
+Disclaimer: There are no warranties in use as everything is cryptographically-related
+
+## Fork information
+
+This is a fork of [Rust-Crypto by DaGenix](https://github.com/DaGenix/rust-crypto), to
+which we owe a debt of gratitude for starting some good quality pure Rust implementations
+of various cryptographic algorithms.
+
+Notable differences with the original sources:
+
+* Maintained.
+* Extended ED25519 support for extended secret key (64 bytes) support.
+* Proper implementation of ChaChaPoly1305 (according to spec).
+* Many cryptographic algorithms removed: AES, Blowfish, Fortuna, RC4, RIPEMD160, Whirlpool, MD5, SHA1.
 
 ## Supported targets
 

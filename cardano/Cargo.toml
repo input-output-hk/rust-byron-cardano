@@ -1,9 +1,14 @@
 [package]
 name = "cardano"
 version = "0.1.0"
-authors = ["vincent.hanquez@iohk.io", "nicolas.diprima@iohk.io"]
-license = "MIT"
-description = "A Rust implementation of cardano types and wallet"
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/rust-cardano"
+homepage = "https://github.com/input-output-hk/rust-cardano/cardano#README.md"
+description = """
+The Cardano library. This includes full support for the Cardano blockchain and wallets. It also provides helpers to maintain HDWallets and includes a transaction build engine.
+"""
 keywords = [ "Cardano", "Wallet", "Crypto" ]
 
 [build-dependencies]
