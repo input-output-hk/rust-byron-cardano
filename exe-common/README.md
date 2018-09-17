@@ -41,16 +41,25 @@ rustup target add aarch64-apple-ios # or any target below
 | beta    |   ✓    |
 | nightly |   ✓    |
 
-We will always aim to support the current stable. However it is likely
-that older version of the rust compiler is supported too.
+
+## supported compiler versions
+
+| Rust    | `test` |
+|---------|:------:|
+| stable  |   ✓    |
+| beta    |   ✓    |
+| nightly |   ✓    |
+
+We will always aim to support the current stable version. However, it is
+likely that an older version of the Rust compiler is also supported.
 
 # License
 
-This project is licensed under either of
+This project is licensed under either of the following licenses:
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
    http://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
    http://opensource.org/licenses/MIT)
 
-at your option.
+Please choose the licence you want to use.
