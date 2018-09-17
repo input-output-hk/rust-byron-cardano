@@ -9,10 +9,10 @@
 Crate with all the primitives for the [Cardano](https://www.cardano.org) blockchain:
 
 * blockchain validation;
-* HDWallet support (Icarus, Daedalus or customs);
+* HDWallet support (Icarus, Daedalus or custom wallet);
 * transaction engine: input selection, fee estimation, signing and validation;
 
-This crates is aimed to support as many architectures as possible with as little dependencies as possible.
+This crates package aims to support as many architectures as possible with as little dependencies as possible.
 
 ## Supported targets
 

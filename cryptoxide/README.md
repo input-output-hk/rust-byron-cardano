@@ -3,21 +3,21 @@
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
 ![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
 
-A pure-rust implementation of various modern cryptographic algorithms, which no dependencies
-and no foreign code (specially C or assembly), to work with WASM and embedded devices.
+A pure Rust implementation of various modern cryptographic algorithms, which has no dependencies
+and no foreign code (specially C or assembly code). This is compatible with WASM and embedded devices.
 
-This crates is aiming to support as many architectures as possible with as
+This crates package aims to support as many architectures as possible with as
 little dependencies as possible.
 
-Disclaimer: As everything cryptographically related, no warranties.
+Disclaimer: There are no warranties in use as everything is cryptographically-related
 
 ## Fork information
 
-This is a fork of [Rust-Crypto by DaGenix](https://github.com/DaGenix/rust-crypto),
-which we owe a debt of gratitude for starting some good quality pure rust implementations
+This is a fork of [Rust-Crypto by DaGenix](https://github.com/DaGenix/rust-crypto), to
+which we owe a debt of gratitude for starting some good quality pure Rust implementations
 of various cryptographic algorithms.
 
-Notable Differences with the original sources:
+Notable differences with the original sources:
 
 * Maintained.
 * Extended ED25519 support for extended secret key (64 bytes) support.

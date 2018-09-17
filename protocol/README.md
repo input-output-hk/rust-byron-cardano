@@ -6,7 +6,7 @@
 ![Cardano Staging](https://img.shields.io/badge/Cardano%20Ada-staging-brightgreen.svg)
 ![Cardano Testnet](https://img.shields.io/badge/Cardano%20Ada-testnet-orange.svg)
 
-Support for the [Cardano](https://www.cardano.org) network protocol:
+Support for the [Cardano](https://www.cardano.org) network protocol to perform the following functions:
 
 * fetch blocks;
 * send transactions.

@@ -5,12 +5,10 @@
 
 This library provides a simple, yet efficient CBOR binary parser/serialiser.
 
-While some library would provide an intermediate type representation,
-this library focus on minimizing the overhead costs to parsing CBOR.
-
-This crate has 0 dependency (and should not need any in the future). This
-is a design choice in order to guarantee as much as possible of the
-compatibility across multiple platform.
+While some libraries provide an intermediate type representation,
+this crate has zero dependencies (and should not need any in the future).
+This is a design choice in order to guarantee as much compatibility as possible
+across multiple platforms.
 
 ## Supported targets
 
