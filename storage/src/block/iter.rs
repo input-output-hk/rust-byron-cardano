@@ -23,7 +23,6 @@ pub struct IterParams {
 
 pub struct Iter {
     config: IterParams,
-    storage: Storage,
     start_date: BlockDate,
     end_date: BlockDate,
     epoch_packrefs: Vec<PackHash>,
@@ -204,7 +203,6 @@ impl Iter {
 
         Ok(Iter {
             config: params.clone(),
-            storage: storage,
             start_date: start,
             end_date: end,
             epoch_packrefs: epoch_packrefs,
