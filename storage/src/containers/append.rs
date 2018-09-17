@@ -1,4 +1,4 @@
-use std::{result, io::{self, Write, Read}, fs::{self, OpenOptions}};
+use std::{result, fmt, error, io::{self, Write, Read}, fs::{self, OpenOptions}};
 use utils::lock::{self, Lock};
 use utils::serialize::{write_size, read_size};
 
@@ -22,6 +22,26 @@ impl From<io::Error> for Error {
 }
 impl From<lock::Error> for Error {
     fn from(e: lock::Error) -> Error { Error::LockError(e) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::IoError(_)   => write!(f, "I/O Error"),
+            Error::EOF          => write!(f, "Unexpected End Of File"),
+            Error::NotFound     => write!(f, "Append file not found"),
+            Error::LockError(_) => write!(f, "Lock Error"),
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::IoError(ref err)   => Some(err),
+            Error::EOF                => None,
+            Error::NotFound           => None,
+            Error::LockError(ref err) => Some(err),
+        }
+    }
 }
 
 pub type Result<R> = result::Result<R, Error>;

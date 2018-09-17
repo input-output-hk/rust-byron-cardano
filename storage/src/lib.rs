@@ -18,20 +18,20 @@ use std::{fs, io, result};
 
 pub use config::StorageConfig;
 
-use std::collections::BTreeMap;
-use cardano::block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId};
+use std::{collections::BTreeMap, fmt, error};
+use cardano::{block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId}, util::hex};
 
 use types::*;
 use utils::tmpfile::*;
 use utils::magic;
-use utils::error;
+use utils::error::StorageError;
 
 use containers::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]
 pub enum Error {
-    StorageError(error::StorageError),
+    StorageError(StorageError),
     BlockError(block::Error),
     CborBlockError(cbor_event::Error),
     RefPackUnexpectedGenesis(SlotId),
@@ -45,14 +45,44 @@ pub enum Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::StorageError(e.into()) }
 }
-impl From<error::StorageError> for Error {
-    fn from(e: error::StorageError) -> Self { Error::StorageError(e) }
+impl From<StorageError> for Error {
+    fn from(e: StorageError) -> Self { Error::StorageError(e) }
 }
 impl From<block::Error> for Error {
     fn from(e: block::Error) -> Self { Error::BlockError(e) }
 }
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborBlockError(e) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::StorageError(_) => write!(f, "Storage error"),
+            Error::BlockError(_) => write!(f, "Invalid block"),
+            Error::CborBlockError(_) => write!(f, "Encoding error"),
+            Error::RefPackUnexpectedGenesis(sid) => write!(f, "Ref pack has an unexpected Genesis `{}`", sid),
+            Error::EpochExpectingGenesis => write!(f, "Expected a genesis block"),
+            Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
+            Error::EpochSlotRewind(eid, sid) => write!(f, "Cannot pack block {} because is prior to {} already packed", sid, eid),
+            Error::EpochChainInvalid(bd, rhh, ehh) => write!(f, "Cannot pack block {} ({}) because it does not follow the blockchain hash (expected: {})", bd, ehh, rhh),
+            Error::NoSuchTag => write!(f, "Tag not found"),
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::StorageError(ref err) => Some(err),
+            Error::BlockError(ref err) => Some(err),
+            Error::CborBlockError(ref err) => Some(err),
+            Error::RefPackUnexpectedGenesis(_) => None,
+            Error::EpochExpectingGenesis => None,
+            Error::EpochError(_, _) => None,
+            Error::EpochSlotRewind(_, _) => None,
+            Error::EpochChainInvalid(_, _, _) => None,
+            Error::NoSuchTag => None
+        }
+    }
 }
 
 pub type Result<T> = result::Result<T, Error>;
