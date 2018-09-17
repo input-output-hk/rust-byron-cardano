@@ -6,7 +6,7 @@
 ![Cardano Staging](https://img.shields.io/badge/Cardano%20Ada-staging-brightgreen.svg)
 ![Cardano Testnet](https://img.shields.io/badge/Cardano%20Ada-testnet-orange.svg)
 
-Extra toolings and helpers for the [Cardano](https://www.cardano.org) network protocol:
+Extra tools and helpers for the [Cardano](https://www.cardano.org) network protocol:
 
 * fetch blocks;
 * send transactions;
@@ -32,15 +32,6 @@ rustup target add aarch64-apple-ios # or any target below
 | `x86_64-apple-darwin`                |   ✓    |
 | `i686-unknown-freebsd`               |   ✓    |
 | `x86_64-unknown-freebsd`             |   ✓    |
-
-## supported compiler versions
-
-| Rust    | `test` |
-|---------|:------:|
-| stable  |   ✓    |
-| beta    |   ✓    |
-| nightly |   ✓    |
-
 
 ## supported compiler versions
 
