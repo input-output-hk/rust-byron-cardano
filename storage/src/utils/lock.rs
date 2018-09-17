@@ -19,7 +19,7 @@ pub enum Error {
 }
 impl Error {
     /// convenient function to check if the error is because the file
-    /// is already alocked or if it is for other reasons.
+    /// is already locked or if it is for other reasons.
     pub fn already_locked(&self) -> bool {
         match self {
             Error::AlreadyLocked(_, _) => true,
