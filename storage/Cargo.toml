@@ -1,12 +1,16 @@
 [package]
 name = "storage"
 version = "0.1.0"
-authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/rust-cardano"
+homepage = "https://github.com/input-output-hk/rust-cardano/storage#README.md"
 keywords = [ "Cardano", "Storage", "Immutable", "FileSystem" ]
 description = """
-The cardano storage library. It provides 2 different levels of functionality, from lowlevel
-fast immutable or append only file without any assumption about the data, to a higher level
-intertwined with the cardano blockchain
+The Cardano storage library. It provides two different levels of functionality; from low level
+fast immutable or append only file without any assumption about the data, to a higher level that is
+intertwined with the Cardano blockchain itself.
 """
 
 [dependencies]
