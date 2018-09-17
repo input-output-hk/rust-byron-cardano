@@ -7,9 +7,7 @@ readme = "README.md"
 repository = "https://github.com/input-output-hk/rust-cardano"
 homepage = "https://github.com/input-output-hk/rust-cardano/cardano#README.md"
 description = """
-The cardano library. It includes all the support for the cardano blockchains and
-wallets. It also provides helpers to maintain HDWallets and includes a transaction
-build engine.
+The Cardano library. This includes full support for the Cardano blockchain and wallets. It also provides helpers to maintain HDWallets and includes a transaction build engine.
 """
 keywords = [ "Cardano", "Wallet", "Crypto" ]
 
