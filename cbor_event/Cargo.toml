@@ -1,9 +1,7 @@
 [package]
 name = "cbor_event"
 version = "0.1.0"
-authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
-          , "Vincent Hanquez <vincent.hanquez@iohk.io>"
-          ]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
 license = "MIT"
 readme = "README.md"
 categories = ["binary", "cbor", "serialisation", "deserialisation", "cardano", "wasm"]
