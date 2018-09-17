@@ -1,4 +1,4 @@
-use std::{io};
+use std::{io, fmt, error};
 use protocol::{self, ntt};
 use hyper;
 use cbor_event;
@@ -27,4 +27,30 @@ impl From<ntt::Error> for Error {
 }
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::IoError(_) => write!(f, "I/O Error"),
+            Error::NttError(_) => write!(f, "Low level protocol error"),
+            Error::ProtocolError(_) => write!(f, "Blockchain protocol error"),
+            Error::CborError(_) => write!(f, "Data encoding error"),
+            Error::HyperError(_) => write!(f, "Error in HTTP engine"),
+            Error::ConnectionTimedOut => write!(f, "connection time out"),
+            Error::HttpError(err, code) => write!(f, "HTTP error {}: {}", code, err),
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::IoError(ref err) => Some(err),
+            Error::NttError(ref err) => Some(err),
+            Error::ProtocolError(ref err) => Some(err),
+            Error::CborError(ref err) => Some(err),
+            Error::HyperError(ref err) => Some(err),
+            Error::ConnectionTimedOut => None,
+            Error::HttpError(_, _) => None,
+        }
+    }
 }
