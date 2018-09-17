@@ -1,5 +1,8 @@
 # CBOR Event library
 
+[![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
+![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
+
 This library provides a simple, yet efficient CBOR binary parser/serialiser.
 
 While some library would provide an intermediate type representation,
@@ -9,14 +12,56 @@ This crate has 0 dependency (and should not need any in the future). This
 is a design choice in order to guarantee as much as possible of the
 compatibility across multiple platform.
 
-# Add dependency to your crate:
+## Supported targets
 
-* in your `Cargo.toml`:
-  ```toml
-  [dependencies]
-  cbor_event = "^0.1"
-  ```
-* in your `lib.rs` or `main.rs`:
-  ```rust
-  extern crate cbor_event;
-  ```
+```
+rustup target add aarch64-apple-ios # or any target below
+```
+
+| Target                               | `test` |
+|--------------------------------------|:------:|
+| `aarch64-unknown-linux-gnu`          |   ✓    |
+| `aarch64-linux-android`              |   ✓    |
+| `aarch64-apple-ios`                  |   ✓    |
+| `arm-unknown-linux-gnueabi`          |   ✓    |
+| `arm-linux-androideabi`              |   ✓    |
+| `armv7-unknown-linux-gnueabihf`      |   ✓    |
+| `armv7-linux-androideabi`            |   ✓    |
+| `armv7-apple-ios`                    |   ✓    |
+| `armv7s-apple-ios`                   |   ✓    |
+| `i686-unknown-linux-gnu`             |   ✓    |
+| `i686-unknown-linux-musl`            |   ✓    |
+| `i686-unknown-freebsd`               |   ✓    |
+| `i686-apple-ios`                     |   ✓    |
+| `i686-apple-darwin`                  |   ✓    |
+| `i686-linux-android`                 |   ✓    |
+| `x86_64-unknown-linux-gnu`           |   ✓    |
+| `x86_64-unknown-linux-musl`          |   ✓    |
+| `x86_64-linux-android`               |   ✓    |
+| `x86_64-apple-darwin`                |   ✓    |
+| `x86_64-apple-ios`                   |   ✓    |
+| `x86_64-unknown-freebsd`             |   ✓    |
+| `wasm32-unknown-emscripten`          |   ✓    |
+| `wasm32-unknown-unknown`             |   ✓    |
+
+## supported compiler versions
+
+| Rust    | `test` |
+|---------|:------:|
+| stable  |   ✓    |
+| beta    |   ✓    |
+| nightly |   ✓    |
+
+We will always aim to support the current stable. However it is likely
+that older version of the rust compiler is supported too.
+
+# License
+
+This project is licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   http://opensource.org/licenses/MIT)
+
+at your option.
