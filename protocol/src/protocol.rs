@@ -572,11 +572,7 @@ pub mod command {
     impl GetBlockHeader {
         pub fn tip() -> Self { GetBlockHeader { from: vec![], to: None } }
         pub fn range(from: &[cardano::block::HeaderHash], to: cardano::block::HeaderHash) -> Self {
-            let mut vec = Vec::new();
-            for f in from.iter() {
-                vec.push(f.clone());
-            }
-            GetBlockHeader { from: vec, to: Some(to) }
+            GetBlockHeader { from: from.clone().to_vec(), to: Some(to) }
         }
     }
 
