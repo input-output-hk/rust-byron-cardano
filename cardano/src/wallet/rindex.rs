@@ -20,7 +20,12 @@ use super::scheme::{self};
 
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
-pub struct Addressing(pub u32, pub u32);
+pub struct Addressing(u32, u32);
+impl Addressing {
+    pub fn new(account: u32, index: u32) -> Self {
+        Addressing(account | 0x80000000, index | 0x80000000)
+    }
+}
 impl ::std::fmt::Display for Addressing {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "{}.{}", self.0, self.1)
