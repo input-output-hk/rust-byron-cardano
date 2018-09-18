@@ -19,7 +19,7 @@ pub enum Error {
     UnsupportedControl(ntt::protocol::ControlHeader),
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
-    UnexpectedResponse(),
+    UnexpectedResponse,
     ServerError(String),
     TransactionRejected,
 }
@@ -42,7 +42,7 @@ impl fmt::Display for Error {
             Error::UnsupportedControl(ctr) => write!(f, "Control unsupported here: `{:?}`", ctr),
             Error::NodeIdNotFound(nid) => write!(f, "NodeId `{}` not found", nid),
             Error::ClientIdNotFoundFromNodeId(nid, lid) => write!(f, "ClientId `{}` not found in Node `{}`", lid, nid),
-            Error::UnexpectedResponse() => write!(f, "Unexpected response from peer"),
+            Error::UnexpectedResponse => write!(f, "Unexpected response from peer"),
             Error::ServerError(err) => write!(f, "Error from server: {}", err),
             Error::TransactionRejected => write!(f, "The transaction has been rejected by peer"),
         }
@@ -58,7 +58,7 @@ impl error::Error for Error {
             Error::UnsupportedControl(_) => None,
             Error::NodeIdNotFound(_) => None,
             Error::ClientIdNotFoundFromNodeId(_, _) => None,
-            Error::UnexpectedResponse() => None,
+            Error::UnexpectedResponse => None,
             Error::ServerError(_) => None,
             Error::TransactionRejected => None,
         }
@@ -587,14 +587,14 @@ pub mod command {
             // require the initial header
             let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(Error::UnexpectedResponse()),
+                None => Err(Error::UnexpectedResponse),
                 Some((0, dat)) => {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                 },
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
             }
         }
     }
@@ -612,14 +612,14 @@ pub mod command {
     fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         match decode_sum_type(msg) {
-            None => Err(Error::UnexpectedResponse()),
+            None => Err(Error::UnexpectedResponse),
             Some((sumval, dat)) => {
                 if sumval == 0 {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlock::from_dat(v))
                 } else {
-                    Err(Error::UnexpectedResponse())
+                    Err(Error::UnexpectedResponse)
                 }
             },
         }
@@ -669,7 +669,7 @@ pub mod command {
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output> {
             let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(Error::UnexpectedResponse()),
+                None => Err(Error::UnexpectedResponse),
                 Some((0, dat)) => {
                     let mut raw = RawCbor::from(dat);
                     if raw.array()? != cbor_event::Len::Len(1) {
@@ -689,14 +689,14 @@ pub mod command {
                     let dat = connection.wait_msg(id)?;
                     let mut raw = RawCbor::from(&dat);
                     if raw.array()? != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     if raw.unsigned_integer()? != 1 {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     let arr = raw.array()?;
                     if arr != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
@@ -709,7 +709,7 @@ pub mod command {
 
                 },
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
             }
         }
     }
