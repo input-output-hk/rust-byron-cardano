@@ -130,7 +130,6 @@ fn net_sync_to<A: Api>(
             let mut writer_state = None;
             mem::swap(&mut writer_state, &mut epoch_writer_state);
 
-            //if let Some(epoch_writer_state) = epoch_writer_state.as_mut() {
             if let Some(epoch_writer_state) = writer_state {
                 finish_epoch(storage, epoch_writer_state);
 

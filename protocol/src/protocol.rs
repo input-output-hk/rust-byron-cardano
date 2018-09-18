@@ -564,6 +564,55 @@ pub mod command {
         }
     }
 
+    pub fn stream_blocks<W: Read+Write, F>(
+        connection: &mut Connection<W>,
+        from: &[cardano::block::HeaderHash],
+        to: cardano::block::HeaderHash,
+        got_block: &mut F) -> Result<()>
+        where F: FnMut(cardano::block::RawBlock) -> Result<()>
+    {
+        let id = connection.new_light_connection()?;
+
+        let window_size = 65536;
+
+        connection.send_message(id, &packet::send_msg_stream_start(
+            &from[..], &to, window_size))?;
+
+        let mut window_left = window_size;
+
+        loop {
+            let msg = connection.wait_msg(id)?;
+
+            let mut msg = RawCbor::from(&msg);
+            match cardano::cbor::hs::util::decode_sum_type(&mut msg)? {
+                0 => {
+                    // FIXME: we should at least check that we
+                    // received valid CBOR.
+                    let rblk = cardano::block::RawBlock::from_dat(msg.as_ref().to_vec());
+                    got_block(rblk)?;
+                }
+                1 => { return Err(Error::ServerError(msg.text()?)); }
+                2 => { break; }
+                _ => { return Err(Error::UnexpectedResponse); }
+            }
+
+            // The peer will stop sending blocks when the window size
+            // reaches zero. So periodically reset the window size by
+            // sending MsgUpdate.
+            // TODO: we may want to update the window size dynamically.
+            window_left -= 1;
+            if window_left < window_size / 2 {
+                window_left = window_size;
+                // Note: we don't prepend MsgStream here.
+                connection.send_bytes(id, &packet::send_msg_stream_update(window_left).1)?;
+            }
+        }
+
+        // FIXME
+        connection.close_light_connection(id);
+        Ok(())
+    }
+
     #[derive(Debug)]
     pub struct GetBlockHeader {
         from: Vec<cardano::block::HeaderHash>,

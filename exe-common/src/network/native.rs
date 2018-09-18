@@ -179,84 +179,21 @@ impl Api for OpenPeer {
                     ) -> Result<()>
         where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
     {
-        let mut inclusive = inclusive;
-        let mut from = from.clone();
-
-        loop {
-            // FIXME: Work around a GetBlockHeader bug: it fails on
-            // the interval (x.parent, x].
-            if (inclusive && from.hash == to.hash) || (!inclusive && from.hash == to.parent) {
-                let block_raw = self.get_block(&to.hash)?;
-                got_block(&to.hash, &block_raw.decode()?, &block_raw);
-                return Ok(());
-            }
-
-            if inclusive {
-                if from.date > to.date { break }
-                info!("  ### get headers [{}..{}]", from.hash, to.hash);
-            } else {
-                if from.date >= to.date { break }
-                info!("  ### get headers ({}..{}]", from.hash, to.hash);
-            }
-            let metrics = self.read_start();
-            let block_headers_raw = GetBlockHeader::range(
-                &vec![from.hash.clone()], to.hash.clone())
-                .execute(&mut self.0).expect("to get one header at least");
-            let hdr_metrics = self.read_elapsed(&metrics);
-            let block_headers = block_headers_raw.decode()?;
-            info!("  got {} headers  ( {} )", block_headers.len(), hdr_metrics);
-
-            assert!(!block_headers.is_empty());
-
-            let start = 0;
-            let end = block_headers.len() - 1;
-
-            info!("  start {} {} <- {}", block_headers[start].compute_hash(), block_headers[start].get_blockdate(), block_headers[start].get_previous_header());
-            info!("  end   {} {} <- {}", block_headers[end].compute_hash(), block_headers[end].get_blockdate(), block_headers[end].get_previous_header());
-
-            // The server will return the oldest ~2000 blocks starting at
-            // 'from'. However, they're in reverse order. Thus the last
-            // element of 'block_headers' should have 'from' as its
-            // parent.
-            assert!(block_headers[end].get_previous_header() == from.hash);
-
-            let start_hash = if inclusive { block_headers[end].get_previous_header() } else { block_headers[end].compute_hash() };
-            let end_hash = block_headers[start].compute_hash();
-
-            info!("  get blocks [{}..{}]", start_hash, end_hash);
-
-            let metrics = self.read_start();
-            let blocks_raw = GetBlock::from(&start_hash, &end_hash)
-                .execute(&mut self.0)
-                .expect("to get one block at least");
-            let blocks_metrics = self.read_elapsed(&metrics);
-            info!("  got {} blocks  ( {} )", blocks_raw.len(), blocks_metrics);
-
-            assert!(!blocks_raw.is_empty());
-
-            for block_raw in blocks_raw.iter() {
-                let block = block_raw.decode()?;
-                let hdr = block.get_header();
-                let date = hdr.get_blockdate();
-                let blockhash = hdr.compute_hash();
-
-                //info!("  got block {} {} prev {}", blockhash, date, hdr.get_previous_header());
-
-                if !inclusive && hdr.get_previous_header() != from.hash {
-                    panic!("previous header doesn't match: hash {} date {} got {} expected {}",
-                           blockhash, date, hdr.get_previous_header(), from.hash)
-                }
-
-                got_block(&hdr.compute_hash(), &block, &block_raw);
-
-                from = BlockRef {
-                    hash: blockhash,
-                    parent: hdr.get_previous_header(),
-                    date: date
-                };
-                inclusive = false;
-            }
+        if inclusive {
+            let rblk = self.get_block(&from.hash)?;
+            got_block(&from.hash, &rblk.decode()?, &rblk);
         }
+
+        stream_blocks(
+            &mut self.0,
+            &vec![from.hash.clone()],
+            to.hash.clone(),
+            &mut |rblk| {
+                let blk = rblk.decode()?;
+                got_block(&blk.get_header().compute_hash(), &blk, &rblk);
+                Ok(())
+            }
+        )?;
 
         Ok(())
     }
