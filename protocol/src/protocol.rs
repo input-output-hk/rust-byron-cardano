@@ -261,13 +261,16 @@ impl<T: Write+Read> Connection<T> {
         Ok(())
     }
 
-    pub fn new_light_connection(&mut self, id: LightId) -> Result<()> {
+    pub fn new_light_connection(&mut self) -> Result<LightId> {
+        let id = self.get_free_light_id();
+        trace!("creating light connection: {}", id);
+
         self.ntt.create_light(id.0)?;
 
         let lc = LightConnection::new_with_nodeid(id, self.ntt.get_nonce());
         self.send_nodeid(id, &lc.node_id.unwrap())?;
         self.client_cons.insert(id, lc);
-        Ok(())
+        Ok(id)
     }
 
     pub fn close_light_connection(&mut self, id: LightId) {
@@ -542,11 +545,8 @@ pub mod command {
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output>;
 
         fn initial(&self, connection: &mut Connection<W>) -> Result<LightId> {
-            let id = connection.get_free_light_id();
-            trace!("creating light connection: {}", id);
-
-            connection.new_light_connection(id)?;
-            Ok(id)
+            // FIXME: ensure that close_light_connection is always called.
+            Ok(connection.new_light_connection()?)
         }
         fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output> {
             let id = Command::initial(self, connection)?;
