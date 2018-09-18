@@ -90,6 +90,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cardano-storage"
+version = "0.1.0"
+dependencies = [
+ "cardano 0.1.0",
+ "cbor_event 0.1.0",
+ "cryptoxide 0.1.0",
+ "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "storage-units 0.1.0",
+]
+
+[[package]]
 name = "cbor_event"
 version = "0.1.0"
 
@@ -176,6 +188,7 @@ name = "exe-common"
 version = "0.1.0"
 dependencies = [
  "cardano 0.1.0",
+ "cardano-storage 0.1.0",
  "cbor_event 0.1.0",
  "cryptoxide 0.1.0",
  "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -186,7 +199,7 @@ dependencies = [
  "serde 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_yaml 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "storage 0.1.0",
+ "storage-units 0.1.0",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -223,6 +236,7 @@ name = "hermes"
 version = "0.1.0"
 dependencies = [
  "cardano 0.1.0",
+ "cardano-storage 0.1.0",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cryptoxide 0.1.0",
  "env_logger 0.5.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -233,7 +247,6 @@ dependencies = [
  "serde 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.69 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_yaml 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "storage 0.1.0",
 ]
 
 [[package]]
@@ -729,13 +742,10 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "storage"
+name = "storage-units"
 version = "0.1.0"
 dependencies = [
- "cardano 0.1.0",
- "cbor_event 0.1.0",
  "cryptoxide 0.1.0",
- "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

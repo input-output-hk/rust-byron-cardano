@@ -1,5 +1,5 @@
 [package]
-name = "storage"
+name = "cardano-storage"
 version = "0.1.0"
 authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
 license = "MIT OR Apache-2.0"
@@ -17,5 +17,6 @@ intertwined with the Cardano blockchain itself.
 cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
 cbor_event = { path = "../cbor_event" }
+storage-units = { path = "../storage-units" }
 log = "*"
 rand = "0.4"

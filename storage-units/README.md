@@ -1,4 +1,4 @@
-# Cardano-Storage
+# Storage
 
 [![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
 ![MIT or APACHE-2 licensed](https://img.shields.io/badge/licensed-MIT%20or%20APACHE--2-blue.svg)
@@ -6,7 +6,9 @@
 ![Cardano Staging](https://img.shields.io/badge/Cardano%20Ada-staging-brightgreen.svg)
 ![Cardano Testnet](https://img.shields.io/badge/Cardano%20Ada-testnet-orange.svg)
 
-The Cardano storage library to store and retrieve blockchain related information
+The Cardano storage library. It provides two different levels of functionality; from low level
+fast immutable or append only file without any assumption about the data, to a higher level that is
+intertwined with the Cardano blockchain itself.
 
 ## Supported targets
 

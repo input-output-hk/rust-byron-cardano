@@ -1,9 +1,5 @@
 use cardano::block::HeaderHash;
-
-pub const HASH_SIZE : usize = 32;
-
-pub type BlockHash = [u8;HASH_SIZE];
-pub type PackHash = [u8;HASH_SIZE];
+pub use storage_units::hash::*;
 
 pub fn header_to_blockhash(header_hash: &HeaderHash) -> BlockHash {
     let mut bh = [0u8;HASH_SIZE];

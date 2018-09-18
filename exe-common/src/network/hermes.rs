@@ -1,6 +1,6 @@
 use cardano::{block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash}, tx::{TxAux}};
 use cardano::hash::{HASH_SIZE_256};
-use storage;
+use storage_units::packfile;
 use std::io::Write;
 use std::time::{SystemTime, Duration};
 use std::thread;
@@ -155,7 +155,7 @@ impl Api for HermesEndPoint {
 
                 if let Some(err) = err { return Err(err) };
 
-                let mut packfile = storage::containers::packfile::Reader::from(&tmppack[..]);
+                let mut packfile = packfile::Reader::from(&tmppack[..]);
 
                 while let Some(data) = packfile.get_next() {
                     let block_raw = block::RawBlock(data);

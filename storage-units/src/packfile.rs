@@ -15,11 +15,11 @@ use std::path::Path;
 use utils::serialize::{Offset, Size, SIZE_SIZE, read_size, write_size, offset_align4};
 use utils::tmpfile::TmpFile;
 use utils::error::Result;
-use types::{PackHash, BlockHash, HASH_SIZE};
+use utils::magic;
+use hash::{PackHash, BlockHash, HASH_SIZE};
 use cryptoxide::blake2b;
 use cryptoxide::digest::Digest;
-use containers::indexfile;
-use magic;
+use indexfile;
 
 const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
 const VERSION: magic::Version = 1;

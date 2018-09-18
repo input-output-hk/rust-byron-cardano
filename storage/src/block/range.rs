@@ -4,7 +4,7 @@ use types::{BlockHash};
 
 use super::error::{Error, Result};
 use super::iter::{ReverseIter};
-use super::super::containers::reffile;
+use storage_units::reffile;
 use std::collections::VecDeque;
 
 pub struct Range(VecDeque<BlockHash>);

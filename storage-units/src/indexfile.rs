@@ -25,11 +25,11 @@ use std::iter::repeat;
 use std::io::{Write,Read,Seek,SeekFrom};
 use std::fs;
 use std::path::Path;
-use types::{BlockHash, HASH_SIZE};
+use hash::{BlockHash, HASH_SIZE};
 use utils::bloom;
 use utils::tmpfile::{TmpFile};
 use utils::serialize::{read_offset, read_size, write_offset, write_size, Offset, SIZE_SIZE, OFF_SIZE};
-use magic;
+use utils::magic;
 use utils::error::Result;
 
 const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
