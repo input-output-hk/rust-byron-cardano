@@ -11,7 +11,6 @@ Helpers and tools for the Cardano protocol. This includes keeping the blockchain
 """
 
 [dependencies]
-cryptoxide = { path = "../cryptoxide" }
 cardano-storage = { path = "../storage" }
 storage-units = { path = "../storage-units" }
 protocol = { path = "../protocol" }

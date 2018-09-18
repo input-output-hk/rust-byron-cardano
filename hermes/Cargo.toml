@@ -12,7 +12,6 @@ synchronization via epoch packed downloads.
 """
 
 [dependencies]
-cryptoxide           = { path = "../cryptoxide" }
 cardano       = { path = "../cardano" }
 cardano-storage = { path = "../storage" }
 exe-common    = { path = "../exe-common" }
