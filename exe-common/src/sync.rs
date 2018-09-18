@@ -1,8 +1,9 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use storage::{self, tag, Error, block_read, epoch::{epoch_exists}};
+use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader};
 use cardano::util::{hex};
+use storage_units::packfile;
 use std::time::{SystemTime, Duration};
 use std::mem;
 
@@ -12,7 +13,7 @@ fn duration_print(d: Duration) -> String {
 
 struct EpochWriterState {
     epoch_id: EpochId,
-    writer: storage::containers::packfile::Writer,
+    writer: packfile::Writer,
     write_start_time: SystemTime,
     blobs_to_delete: Vec<HeaderHash>,
 }
@@ -20,7 +21,7 @@ struct EpochWriterState {
 fn net_sync_to<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
-    storage: &storage::Storage,
+    storage: &Storage,
     tip_header: &BlockHeader)
     -> Result<()>
 {
@@ -85,7 +86,7 @@ fn net_sync_to<A: Api>(
 
         epoch_writer_state = Some(EpochWriterState {
             epoch_id,
-            writer: storage::pack::packwriter_init(&storage.config).unwrap(),
+            writer: pack::packwriter_init(&storage.config).unwrap(),
             write_start_time: SystemTime::now(),
             blobs_to_delete: vec![]
         });
@@ -135,7 +136,7 @@ fn net_sync_to<A: Api>(
 
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
-                storage::tag::write(storage, &tag::HEAD, last_block.as_ref().unwrap().as_ref());
+                tag::write(storage, &tag::HEAD, last_block.as_ref().unwrap().as_ref());
             }
         }
 
@@ -143,15 +144,15 @@ fn net_sync_to<A: Api>(
             // This block is not part of a stable epoch yet and could
             // be rolled back. Therefore we can't pack this epoch
             // yet. Instead we write this block to disk separately.
-            let block_hash = storage::types::header_to_blockhash(&block_hash);
-            storage::blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
+            let block_hash = types::header_to_blockhash(&block_hash);
+            blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
         } else {
 
             // If this is the epoch genesis block, start writing a new epoch pack.
             if date.is_genesis() {
                 epoch_writer_state = Some(EpochWriterState {
                     epoch_id: date.get_epochid(),
-                    writer: storage::pack::packwriter_init(&storage.config).unwrap(),
+                    writer: pack::packwriter_init(&storage.config).unwrap(),
                     write_start_time: SystemTime::now(),
                     blobs_to_delete: vec![]
                 });
@@ -160,7 +161,7 @@ fn net_sync_to<A: Api>(
             // And append the block to the epoch pack.
             if let Some(epoch_writer_state) = epoch_writer_state.as_mut() {
                 epoch_writer_state.writer.append(
-                    &storage::types::header_to_blockhash(&block_hash), block_raw.as_ref()).unwrap();
+                    &types::header_to_blockhash(&block_hash), block_raw.as_ref()).unwrap();
             }
         }
 
@@ -169,8 +170,8 @@ fn net_sync_to<A: Api>(
 
     // Update the tip tag to point to the most recent block.
     if let Some(block_hash) = last_block {
-        storage::tag::write(&storage, &tag::HEAD,
-                            &storage::types::header_to_blockhash(&block_hash));
+        tag::write(&storage, &tag::HEAD,
+                            &types::header_to_blockhash(&block_hash));
     }
 
     Ok(())
@@ -192,7 +193,7 @@ fn net_sync_to<A: Api>(
 pub fn net_sync<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
-    storage: &storage::Storage,
+    storage: &Storage,
     sync_once: bool)
     -> Result<()>
 {
@@ -213,7 +214,7 @@ pub fn net_sync<A: Api>(
 
 // Create an epoch from a complete set of previously fetched blocks on
 // disk.
-fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block: &HeaderHash)
+fn maybe_create_epoch(storage: &Storage, epoch_id: EpochId, last_block: &HeaderHash)
 {
     if epoch_exists(&storage.config, epoch_id).unwrap() { return }
 
@@ -221,7 +222,7 @@ fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block:
 
     let mut epoch_writer_state = EpochWriterState {
         epoch_id,
-        writer: storage::pack::packwriter_init(&storage.config).unwrap(),
+        writer: pack::packwriter_init(&storage.config).unwrap(),
         write_start_time: SystemTime::now(),
         blobs_to_delete: vec![]
     };
@@ -232,7 +233,7 @@ fn maybe_create_epoch(storage: &storage::Storage, epoch_id: EpochId, last_block:
 }
 
 fn append_blocks_to_epoch_reverse(
-    storage: &storage::Storage,
+    storage: &Storage,
     epoch_writer_state: &mut EpochWriterState,
     last_block: &HeaderHash)
     -> HeaderHash
@@ -245,7 +246,7 @@ fn append_blocks_to_epoch_reverse(
         let block = block_raw.decode().unwrap();
         let hdr = block.get_header();
         assert!(hdr.get_blockdate().get_epochid() == epoch_writer_state.epoch_id);
-        blocks.push((storage::types::header_to_blockhash(&cur_hash), block_raw));
+        blocks.push((types::header_to_blockhash(&cur_hash), block_raw));
         cur_hash = hdr.get_previous_header();
         if hdr.get_blockdate().is_genesis() { break }
     }
@@ -257,10 +258,10 @@ fn append_blocks_to_epoch_reverse(
     cur_hash
 }
 
-fn finish_epoch(storage: &storage::Storage, epoch_writer_state: EpochWriterState) {
+fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
     let epoch_id = epoch_writer_state.epoch_id;
-    let (packhash, index) = storage::pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
-    let (_, tmpfile) = storage::pack::create_index(&storage, &index);
+    let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
+    let (_, tmpfile) = pack::create_index(&storage, &index);
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
     let epoch_time_elapsed = epoch_writer_state.write_start_time.elapsed().unwrap();
 
@@ -273,14 +274,14 @@ fn finish_epoch(storage: &storage::Storage, epoch_writer_state: EpochWriterState
         );
     }
 
-    storage::epoch::epoch_create(&storage.config, &packhash, epoch_id);
+    epoch::epoch_create(&storage.config, &packhash, epoch_id);
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
           epoch_id, duration_print(epoch_time_elapsed));
 
     for hash in &epoch_writer_state.blobs_to_delete {
         debug!("removing blob {}", hash);
-        storage::blob::remove(&storage, &hash.clone().into());
+        blob::remove(&storage, &hash.clone().into());
     }
 }
 

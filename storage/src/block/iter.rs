@@ -4,8 +4,8 @@
 use super::super::{Storage, StorageConfig, block_location, block_read, block_read_location, header_to_blockhash, packreader_init};
 use super::super::{blob};
 use super::super::epoch::{epoch_read_pack, epoch_open_packref};
-use super::super::containers::packfile;
-use super::super::types::{BlockHash, PackHash};
+use storage_units::packfile;
+use storage_units::hash::{BlockHash, PackHash};
 use cardano::block::{HeaderHash, Block, RawBlock, BlockDate};
 
 use std::{iter, fs, mem};

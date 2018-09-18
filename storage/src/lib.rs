@@ -2,6 +2,7 @@
 extern crate log;
 extern crate cryptoxide;
 extern crate cbor_event;
+extern crate storage_units;
 extern crate cardano;
 extern crate rand;
 
@@ -12,8 +13,6 @@ pub mod pack;
 pub mod tag;
 pub mod epoch;
 pub mod refpack;
-pub mod utils;
-pub mod containers;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -22,11 +21,11 @@ use std::{collections::BTreeMap, fmt, error};
 use cardano::{block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId}, util::hex};
 
 use types::*;
-use utils::tmpfile::*;
-use utils::magic;
-use utils::error::StorageError;
+use storage_units::utils::tmpfile::*;
+use storage_units::utils::magic;
+use storage_units::utils::error::StorageError;
 
-use containers::{packfile, indexfile, reffile};
+use storage_units::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};
 
 #[derive(Debug)]

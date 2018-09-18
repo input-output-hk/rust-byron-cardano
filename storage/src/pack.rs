@@ -1,10 +1,10 @@
 use std::fs;
-use utils::tmpfile::{TmpFile};
+use storage_units::utils::tmpfile::{TmpFile};
 use cardano;
 use super::Result;
 
-use containers::packfile;
-use containers::indexfile;
+use storage_units::packfile;
+use storage_units::indexfile;
 
 pub fn create_index(storage: &super::Storage, index: &indexfile::Index) -> (indexfile::Lookup, super::TmpFile) {
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Index);

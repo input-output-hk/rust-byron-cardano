@@ -1,7 +1,7 @@
 use serde_yaml;
 
-use storage::{self, Storage};
-use storage::config::StorageConfig;
+use cardano_storage::{self, Storage};
+use cardano_storage::config::StorageConfig;
 use exe_common::config::{net};
 use std::{io, result, path::{PathBuf, Path}, env::{VarError, self, home_dir}};
 use std::{num::{ParseIntError}, collections::{BTreeMap}, sync::{Arc}};
@@ -13,7 +13,7 @@ pub enum Error {
     VarError(VarError),
     YamlError(serde_yaml::Error),
     ParseIntError(ParseIntError),
-    StorageError(storage::Error),
+    StorageError(cardano_storage::Error),
     BlockchainConfigError(&'static str)
 }
 impl From<VarError> for Error {
@@ -25,8 +25,8 @@ impl From<ParseIntError> for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error { Error::IoError(e) }
 }
-impl From<storage::Error> for Error {
-    fn from(e: storage::Error) -> Error { Error::StorageError(e) }
+impl From<cardano_storage::Error> for Error {
+    fn from(e: cardano_storage::Error) -> Error { Error::StorageError(e) }
 }
 impl From<serde_yaml::Error> for Error {
     fn from(e: serde_yaml::Error) -> Error { Error::YamlError(e) }
@@ -114,8 +114,8 @@ impl Config {
         StorageConfig::new(&self.get_networks_dir().join(name))
     }
 
-    pub fn get_storage<P: AsRef<Path>>(&self, name: P) -> Result<storage::Storage> {
-        let cfg = storage::Storage::init(&self.get_storage_config(name))?;
+    pub fn get_storage<P: AsRef<Path>>(&self, name: P) -> Result<cardano_storage::Storage> {
+        let cfg = cardano_storage::Storage::init(&self.get_storage_config(name))?;
         Ok(cfg)
     }
 }
@@ -123,7 +123,7 @@ impl Config {
 pub struct Network {
     pub path: PathBuf,
     pub config: net::Config,
-    pub storage: Arc<storage::Storage>,
+    pub storage: Arc<cardano_storage::Storage>,
 }
 
 pub type Networks = BTreeMap<String, Network>;

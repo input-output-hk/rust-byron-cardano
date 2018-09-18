@@ -1,5 +1,5 @@
 use config::{Networks};
-use storage::{tag, block_location, block_read_location};
+use cardano_storage::{tag, block_location, block_read_location};
 use cardano::util::{hex, try_from_slice::TryFromSlice};
 use cardano::block;
 use std::sync::{Arc};

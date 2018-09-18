@@ -1,4 +1,4 @@
-use storage;
+use cardano_storage::{epoch};
 
 use std::sync::{Arc};
 
@@ -47,7 +47,7 @@ impl iron::Handler for Handler {
                         Some(e) => e,
         };
 
-        let opackref = storage::epoch::epoch_read_pack(&net.storage.config, epochid);
+        let opackref = epoch::epoch_read_pack(&net.storage.config, epochid);
         match opackref {
             Err(_) => {
                 return Ok(Response::with(status::NotFound));

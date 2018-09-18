@@ -10,8 +10,8 @@ extern crate env_logger;
 extern crate iron;
 extern crate router;
 
-extern crate storage;
 extern crate cardano;
+extern crate cardano_storage;
 extern crate exe_common;
 
 use std::path::{PathBuf};

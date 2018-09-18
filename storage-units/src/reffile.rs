@@ -7,8 +7,8 @@ use std::io::{Read,Seek,SeekFrom};
 use std::io;
 use std::fs;
 use std::path::Path;
-use types::{BlockHash, HASH_SIZE};
-use magic;
+use hash::{BlockHash, HASH_SIZE};
+use utils::magic;
 use utils::error::{Result, StorageError};
 
 const FILE_TYPE: magic::FileType = 0x52454653; // = REFS

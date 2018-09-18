@@ -1,7 +1,7 @@
 //! pack of references, in a certain order
 
 use config::{StorageConfig};
-use containers::reffile;
+use storage_units::reffile;
 use super::Result;
 
 pub use std::collections::vec_deque::{Iter};

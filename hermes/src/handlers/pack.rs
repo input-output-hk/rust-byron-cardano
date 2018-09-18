@@ -1,5 +1,5 @@
-use storage;
-use storage::{tag};
+use cardano_storage::types::HASH_SIZE;
+use cardano_storage::{tag};
 use cardano::util::{hex};
 use std::sync::{Arc};
 use config::{Networks};
@@ -50,7 +50,7 @@ impl iron::Handler for Handler {
             Some(t) => t
         };
 
-        let mut packhash = [0;storage::types::HASH_SIZE];
+        let mut packhash = [0;HASH_SIZE];
         packhash[..].clone_from_slice(packhash_vec.as_slice());
         let path = net.storage.config.get_pack_filepath(&packhash);
 
