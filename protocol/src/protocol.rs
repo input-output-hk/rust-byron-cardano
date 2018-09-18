@@ -20,6 +20,7 @@ pub enum Error {
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
     UnexpectedResponse,
+    NoResponse,
     ServerError(String),
     TransactionRejected,
 }
@@ -43,6 +44,7 @@ impl fmt::Display for Error {
             Error::NodeIdNotFound(nid) => write!(f, "NodeId `{}` not found", nid),
             Error::ClientIdNotFoundFromNodeId(nid, lid) => write!(f, "ClientId `{}` not found in Node `{}`", lid, nid),
             Error::UnexpectedResponse => write!(f, "Unexpected response from peer"),
+            Error::NoResponse => write!(f, "No response from peer"),
             Error::ServerError(err) => write!(f, "Error from server: {}", err),
             Error::TransactionRejected => write!(f, "The transaction has been rejected by peer"),
         }
@@ -59,6 +61,7 @@ impl error::Error for Error {
             Error::NodeIdNotFound(_) => None,
             Error::ClientIdNotFoundFromNodeId(_, _) => None,
             Error::UnexpectedResponse => None,
+            Error::NoResponse => None,
             Error::ServerError(_) => None,
             Error::TransactionRejected => None,
         }
@@ -288,7 +291,7 @@ impl<T: Write+Read> Connection<T> {
             None => panic!("oops"),
             Some(ref mut con) => {
                 match con.pop_received() {
-                    None => panic!("oops 2"),
+                    None => Err(Error::NoResponse),
                     Some(yy) => Ok(yy),
                 }
             },
