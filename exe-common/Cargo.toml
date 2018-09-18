@@ -15,7 +15,7 @@ cryptoxide = { path = "../cryptoxide" }
 cardano-storage = { path = "../storage" }
 storage-units = { path = "../storage-units" }
 protocol = { path = "../protocol" }
-cbor_event = { path = "../cbor_event" }
+cbor_event = "1.0"
 log = "*"
 rand = "0.4"
 serde = "1.0"

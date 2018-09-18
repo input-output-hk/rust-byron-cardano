@@ -15,7 +15,7 @@ keywords = [ "Cardano", "Wallet", "Crypto" ]
 
 [dependencies]
 cryptoxide = { path = "../cryptoxide" }
-cbor_event = { path = "../cbor_event" }
+cbor_event = "1.0"
 
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }

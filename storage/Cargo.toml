@@ -16,7 +16,7 @@ intertwined with the Cardano blockchain itself.
 [dependencies]
 cryptoxide = { path = "../cryptoxide" }
 cardano = { path = "../cardano" }
-cbor_event = { path = "../cbor_event" }
+cbor_event = "1.0"
 storage-units = { path = "../storage-units" }
 log = "*"
 rand = "0.4"
