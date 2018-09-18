@@ -15,7 +15,7 @@ keywords = [ "Cardano", "Protocol" ]
 [build-dependencies]
 
 [dependencies]
-cbor_event = { path = "../cbor_event" }
+cbor_event = "1.0"
 cardano = { path = "../cardano" }
 log = "0.4"
 
