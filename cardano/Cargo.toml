@@ -1,7 +1,7 @@
 [package]
 name = "cardano"
 version = "0.1.0"
-authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>", "The Rust-Crypto Project Developers"]
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/input-output-hk/rust-cardano"
