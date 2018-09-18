@@ -7,7 +7,6 @@ script:
 matrix:
   include:
     - rust: stable
-    - rust: beta
     - rust: nightly
     - rust: nightly
       env:  TARGET="wasm32-unknown-unknown"
