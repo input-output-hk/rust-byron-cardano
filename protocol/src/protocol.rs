@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::{io, fmt, result};
+use std::{io, fmt, result, error};
 
 use packet;
 use packet::{Handshake, Message};
@@ -32,7 +32,38 @@ impl From<io::Error> for Error {
 impl From<ntt::Error> for Error {
     fn from(e: ntt::Error) -> Self { Error::NttError(e) }
 }
-
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::NttError(_) => write!(f, "Protocol error"),
+            Error::IOError(_)  => write!(f, "I/O error"),
+            Error::ByteEncodingError(_) => write!(f, "Bytes encoded in an unknown format"),
+            Error::ServerCreatedLightIdTwice(lid) => write!(f, "Same LightId created twice by peer {}", lid),
+            Error::UnsupportedControl(ctr) => write!(f, "Control unsupported here: `{:?}`", ctr),
+            Error::NodeIdNotFound(nid) => write!(f, "NodeId `{}` not found", nid),
+            Error::ClientIdNotFoundFromNodeId(nid, lid) => write!(f, "ClientId `{}` not found in Node `{}`", lid, nid),
+            Error::UnexpectedResponse() => write!(f, "Unexpected response from peer"),
+            Error::ServerError(err) => write!(f, "Error from server: {}", err),
+            Error::TransactionRejected => write!(f, "The transaction has been rejected by peer"),
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::NttError(ref err) => Some(err),
+            Error::IOError(ref err)  => Some(err),
+            Error::ByteEncodingError(ref err) => Some(err),
+            Error::ServerCreatedLightIdTwice(_) => None,
+            Error::UnsupportedControl(_) => None,
+            Error::NodeIdNotFound(_) => None,
+            Error::ClientIdNotFoundFromNodeId(_, _) => None,
+            Error::UnexpectedResponse() => None,
+            Error::ServerError(_) => None,
+            Error::TransactionRejected => None,
+        }
+    }
+}
 pub type Result<T> = result::Result<T, Error>;
 
 /// Light ID create by the server or by the client

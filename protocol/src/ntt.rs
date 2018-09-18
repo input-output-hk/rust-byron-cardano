@@ -1,5 +1,5 @@
 use std::io::{Write, Read};
-use std::{iter, io, result};
+use std::{iter, io, result, fmt, error};
 use cardano::util::hex;
 
 pub type LightweightConnectionId = u32;
@@ -28,6 +28,26 @@ pub enum Error {
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IOError(e) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::IOError(_) => write!(f, "I/O error"),
+            Error::UnsupportedVersion => write!(f, "Unsupported protocol version"),
+            Error::InvalidRequest     => write!(f, "Invalid request"),
+            Error::CrossedRequest     => write!(f, "Crossed request"),
+            Error::UnknownErrorCode(c) => write!(f, "Failed with an unknown error code: {}", c),
+            Error::CommandFailed      => write!(f, "Command failed")
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::IOError(ref error) => Some(error),
+            _                         => None,
+        }
+    }
 }
 
 type Result<T> = result::Result<T, Error>;

@@ -211,7 +211,7 @@ impl Api for HermesEndPoint {
         Ok(())
     }
 
-    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool> {
+    fn send_transaction( &mut self, _txaux: TxAux) -> Result<bool> {
         Ok(false)
     }
 }

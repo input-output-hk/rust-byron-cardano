@@ -222,7 +222,7 @@ pub mod net {
                 genesis: HeaderHash::from_str(&"B365F1BE6863B453F12B93E1810909B10C79A95EE44BF53414888513FE172C90").unwrap(),
                 genesis_prev: HeaderHash::from_str(&"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323").unwrap(),
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
-                protocol_magic: ProtocolMagic::new(633343913),
+                protocol_magic: ProtocolMagic::from(633343913),
                 epoch_start: 0,
                 peers: peers
             }
@@ -237,7 +237,7 @@ pub mod net {
                 genesis_prev: HeaderHash::from_str(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
                 epoch_start: 0,
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
-                protocol_magic: ProtocolMagic::new(1097911063),
+                protocol_magic: ProtocolMagic::from(1097911063),
                 peers: peers
             }
         }
