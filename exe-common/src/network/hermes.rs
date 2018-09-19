@@ -155,7 +155,7 @@ impl Api for HermesEndPoint {
 
                 if let Some(err) = err { return Err(err) };
 
-                let mut packfile = packfile::Reader::from(&tmppack[..]);
+                let mut packfile = packfile::Reader::init(&tmppack[..]).unwrap();
 
                 while let Some(data) = packfile.get_next() {
                     let block_raw = block::RawBlock(data);
