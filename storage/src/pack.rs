@@ -47,7 +47,7 @@ pub fn packwriter_finalize(cfg: &super::StorageConfig, writer: packfile::Writer)
 }
 
 pub fn packreader_init(cfg: &super::StorageConfig, packhash: &super::PackHash) -> packfile::Reader<fs::File> {
-    packfile::Reader::init(cfg.get_pack_filepath(packhash)).unwrap()
+    packfile::Reader::open(cfg.get_pack_filepath(packhash)).unwrap()
 }
 
 pub fn packreader_block_next(reader: &mut packfile::Reader<fs::File>) -> Option<cardano::block::RawBlock> {

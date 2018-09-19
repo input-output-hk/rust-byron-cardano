@@ -37,10 +37,16 @@ pub struct Seeker<R> {
 }
 
 impl Reader<fs::File> {
-    pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let mut file = fs::File::open(path)?;
-        magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
-        Ok(Reader::from(file))
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = fs::File::open(path)?;
+        Reader::init(file)
+    }
+}
+impl<R: Read> Reader<R> {
+    pub fn init(mut r: R) -> Result<Self> {
+        magic::check_header(&mut r, FILE_TYPE, VERSION, VERSION)?;
+        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
+        Ok(Reader { reader: r, pos: 0, hash_context: ctxt })
     }
 }
 
@@ -49,13 +55,6 @@ impl Seeker<fs::File> {
         let mut file = fs::File::open(path)?;
         magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
         Ok(Seeker::from(file))
-    }
-}
-
-impl<R> From<R> for Reader<R> {
-    fn from(reader: R) -> Self {
-        let ctxt = blake2b::Blake2b::new(HASH_SIZE);
-        Reader { reader, pos: 0, hash_context: ctxt }
     }
 }
 
@@ -74,7 +73,7 @@ pub fn read_next_block<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
     // don't potentially consume all memory when reading a corrupt file
-    assert!(sz < 20000000);
+    assert!(sz < 20000000, "read block of size: {}", sz);
     let mut v : Vec<u8> = repeat(0).take(sz as usize).collect();
     file.read_exact(v.as_mut_slice())?;
     if (v.len() % 4) != 0 {
