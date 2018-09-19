@@ -384,17 +384,14 @@ mod tests {
 
     #[test]
     fn handshake_decoding() {
-        let hs = Handshake::default();
-
-        let hs_ : Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
-        println!("");
+        let hs : Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
         println!("{}", hs.in_handlers);
-        println!("{}", hs_.in_handlers);
-        assert_eq!(hs.protocol_magic, hs_.protocol_magic);
-        assert_eq!(hs.version, hs_.version);
-        assert_eq!(hs.in_handlers, hs_.in_handlers);
-        assert_eq!(hs.out_handlers, hs_.out_handlers);
-        assert_eq!(hs, hs_);
+
+        assert_eq!(hs.protocol_magic, ProtocolMagic::default());
+        assert_eq!(hs.version, block::Version::default());
+
+        let hs_ = cbor!(&hs).unwrap();
+        assert_eq!(HANDSHAKE_BYTES, hs_.as_slice());
     }
 
     #[test]
@@ -402,6 +399,8 @@ mod tests {
         let hs = Handshake::default();
 
         let vec = cbor!(&hs).unwrap();
-        assert_eq!(HANDSHAKE_BYTES, vec.as_slice());
+
+        let hs_ : Handshake = RawCbor::from(&vec).deserialize().unwrap();
+        assert_eq!(hs, hs_);
     }
 }
