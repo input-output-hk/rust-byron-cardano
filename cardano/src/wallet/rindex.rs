@@ -1,7 +1,7 @@
 /// 2 Level of randomly chosen hard derivation indexes Wallet
 ///
 
-use std::{ops::Deref, iter};
+use std::{ops::Deref, iter, fmt, error};
 use cbor_event;
 use cryptoxide;
 use cryptoxide::digest::{Digest};
@@ -257,6 +257,30 @@ impl From<hdwallet::Error> for Error {
 }
 impl From<hdpayload::Error> for Error {
     fn from(e: hdpayload::Error) -> Self { Error::PayloadError(e) }
+}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Bip39Error(_) => write!(f, "Wallet's Mnemonic Error"),
+            Error::DerivationError(_) => write!(f, "Invalid key derivation"),
+            Error::PayloadError(_) => write!(f, "Error while deocoding an address' payload"),
+            Error::CBorEncoding(_) => write!(f, "Error while encoding address in binary format"),
+            Error::InvalidPayloadAddressing => write!(f, "Payload has been decoded but is corrupted or of unexpected format"),
+            Error::CannotReconstructAddress => write!(f, "The address cannot be reconstructuted: the payload has been decoded but the public key hash seems different.")
+        }
+    }
+}
+impl error::Error for Error {
+    fn cause(&self) -> Option<& error::Error> {
+        match self {
+            Error::Bip39Error(ref err) => Some(err),
+            Error::DerivationError(ref err) => Some(err),
+            Error::PayloadError(ref err) => Some(err),
+            Error::CBorEncoding(ref err) => Some(err),
+            Error::InvalidPayloadAddressing => None,
+            Error::CannotReconstructAddress => None,
+        }
+    }
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
