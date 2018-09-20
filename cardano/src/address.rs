@@ -234,7 +234,7 @@ impl cbor_event::de::Deserialize for Attributes {
         let len = raw.map()?;
         let mut len = match len {
             cbor_event::Len::Indefinite => {
-               return Err(cbor_event::Error::CustomError(format!("Invalid Attribytes: recieved map of {:?} elements", len)));
+               return Err(cbor_event::Error::CustomError(format!("Invalid Attributes: received map of {:?} elements", len)));
             },
             cbor_event::Len::Len(len) => len
         };
