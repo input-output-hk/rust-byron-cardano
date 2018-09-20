@@ -1,26 +1,60 @@
+use std::mem;
 use block::*;
 use address;
-use config::{ProtocolMagic};
+use config::{ProtocolMagic, GenesisData};
+use coin;
+use tx::{self, TxAux, TxoPointer, TxOut, TxInWitness};
+use std::collections::BTreeMap;
+use fee::{self, FeeAlgorithm};
 
 pub struct ChainState {
+    // FIXME: maybe we should just keep a ref to GenesisData?  Though
+    // I guess at least the fee policy could change in an update.
+    pub protocol_magic: ProtocolMagic,
+    pub fee_policy: fee::LinearFee,
+
     pub prev_block: HeaderHash,
     pub prev_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
-    pub protocol_magic: ProtocolMagic,
+    pub utxos: BTreeMap<TxoPointer, TxOut>,
 }
 
 impl ChainState {
-    pub fn new(genesis_prev: &HeaderHash, protocol_magic: ProtocolMagic) -> Self {
+
+    /// Initialize the initial chain state from the genesis data.
+    pub fn new(genesis_data: &GenesisData) -> Self {
+
+        let mut utxos = BTreeMap::new();
+
+        // Create utxos from AVVM distributions.
+        for (&pubkey, &value) in genesis_data.avvm_distr.iter() {
+            let (id, address) = tx::redeem_pubkey_to_txid(&pubkey);
+            utxos.insert(
+                TxoPointer { id, index: 0 },
+                TxOut { address, value });
+        }
+
+        // FIXME: implement non_avvm_balances.
+
         ChainState {
-            prev_block: genesis_prev.clone(),
+            protocol_magic: genesis_data.protocol_magic,
+            fee_policy: genesis_data.fee_policy,
+            prev_block: genesis_data.genesis_prev.clone(),
             prev_date: None,
             slot_leaders: vec![],
-            protocol_magic
+            utxos,
         }
     }
 
+    /// Verify a block in the context of the chain. Regardless of
+    /// errors, the chain state is updated to reflect the changes
+    /// introduced by this block.
+    /// FIXME: we may want to return all errors rather than just the first.
     pub fn verify_block(&mut self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error> {
-        let res = self.do_verify(block_hash, blk);
+
+        let mut res = Ok(());
+
+        add_error(&mut res, self.do_verify(block_hash, blk));
 
         self.prev_block = block_hash.clone();
         self.prev_date = Some(blk.get_header().get_blockdate());
@@ -35,11 +69,19 @@ impl ChainState {
             }
         };
 
+        // Update the utxos from the transactions.
+        if let Block::MainBlock(blk) = blk {
+            for txaux in blk.body.tx.iter() {
+                add_error(&mut res, self.verify_tx(txaux));
+            }
+        }
+
         res
     }
 
     fn do_verify(&self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error>
     {
+        // Perform stateless checks.
         verify_block(self.protocol_magic, block_hash, blk)?;
 
         if blk.get_header().get_previous_header() != self.prev_block {
@@ -94,5 +136,120 @@ impl ChainState {
 
         Ok(())
     }
+
+    /// Verify that a transaction only spends unspent transaction
+    /// outputs (utxos), and update the utxo state.
+    fn verify_tx(&mut self, txaux: &TxAux) -> Result<(), Error> {
+
+        let mut res = Ok(());
+        let tx = &txaux.tx;
+        let id = tx.id();
+
+        // Look up the utxos corresponding to the inputs and remove
+        // them from the utxo map to prevent double spending. Also
+        // check that the utxo address matches the witness
+        // (i.e. that the witness is actually authorized to spend
+        // this utxo).
+        // Note: inputs/witnesses size mismatches are detected in
+        // verify::verify_block().
+        let mut input_amount = coin::Coin::zero();
+        let mut nr_redeems = 0;
+        for (txin, in_witness) in tx.inputs.iter().zip(txaux.witness.iter()) {
+            match self.utxos.remove(&txin) {
+                None => {
+                    add_error(&mut res, Err(Error::MissingUtxo));
+                }
+                Some(txout) => {
+
+                    let witness_address = match in_witness {
+
+                        TxInWitness::PkWitness(pubkey, _) => {
+                            address::ExtendedAddr::new(
+                                address::AddrType::ATPubKey,
+                                address::SpendingData::PubKeyASD(*pubkey),
+                                txout.address.attributes.clone())
+                        }
+
+                        TxInWitness::ScriptWitness(_, _) => {
+                            panic!("script witnesses are not implemented")
+                        }
+
+                        TxInWitness::RedeemWitness(pubkey, _) => {
+                            nr_redeems += 1;
+
+                            address::ExtendedAddr::new(
+                                address::AddrType::ATRedeem,
+                                address::SpendingData::RedeemASD(*pubkey),
+                                txout.address.attributes.clone())
+                        }
+                    };
+
+                    if witness_address != txout.address {
+                        add_error(&mut res, Err(Error::AddressMismatch));
+                    }
+
+                    match input_amount + txout.value {
+                        Ok(x) => { input_amount = x; }
+                        Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::InputsTooBig)),
+                        Err(_) => panic!()
+                    }
+                }
+            }
+        }
+
+        // Calculate the output amount.
+        let mut output_amount = coin::Coin::zero();
+        for output in &tx.outputs {
+            match output_amount + output.value {
+                Ok(x) => { output_amount = x; }
+                Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::OutputsTooBig)),
+                Err(_) => panic!()
+            }
+        }
+
+        // Calculate the minimum fee. The fee is 0 if all inputs are
+        // from redeem addresses.
+        let min_fee =
+            if nr_redeems == tx.inputs.len() { coin::Coin::zero() }
+            else {
+                match self.fee_policy.calculate_for_txaux(&txaux) {
+                    Ok(fee) => fee.to_coin(),
+                    Err(err) => {
+                        add_error(&mut res, Err(Error::FeeError(err)));
+                        coin::Coin::zero()
+                    }
+                }
+            };
+
+        let output_plus_fee = match output_amount + min_fee {
+            Ok(x) => x,
+            Err(coin::Error::OutOfBound(_)) => {
+                add_error(&mut res, Err(Error::OutputsTooBig));
+                output_amount
+            }
+            Err(_) => panic!()
+        };
+
+        // Check that total outputs + minimal fee <= total inputs.
+        if output_plus_fee > input_amount {
+            add_error(&mut res, Err(Error::OutputsExceedInputs));
+        }
+
+        // Add the outputs to the utxo state.
+        for (index, output) in tx.outputs.iter().enumerate() {
+            if self.utxos.insert(TxoPointer { id, index: index as u32 }, output.clone()).is_some() {
+                panic!("utxo map already contains txo {}/{}", id, index);
+            }
+        }
+
+        res
+    }
 }
 
+// FIXME: might be nice to return a list of errors. Currently we only
+// return the first.
+fn add_error(res: &mut Result<(), Error>, err: Result<(), Error>) {
+    if res.is_ok() && err.is_err() {
+        mem::replace(res, err);
+    }
+}

@@ -11,6 +11,7 @@ use std::{collections::{BTreeSet, HashSet}, fmt, error};
 use merkle;
 use tags;
 use hdwallet::{Signature};
+use fee;
 
 #[derive(Debug)]
 pub enum Error {
@@ -46,7 +47,15 @@ pub enum Error {
     BlockDateInPast,
     BlockDateInFuture,
     WrongSlotLeader,
+    MissingUtxo,
+    InputsTooBig,
+    OutputsTooBig,
+    OutputsExceedInputs,
+    FeeError(fee::Error),
+    WrongRedeemTxId,
+    AddressMismatch,
 }
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::Error::{*};
@@ -81,6 +90,13 @@ impl fmt::Display for Error {
             BlockDateInPast => write!(f, "block's slot or epoch is earlier than its parent"),
             BlockDateInFuture => write!(f, "block is in a future epoch"),
             WrongSlotLeader => write!(f, "block was not signed by the slot leader indicated in the genesis block"),
+            MissingUtxo => write!(f, "transaction spends an input that doesn't exist or has already been spent"),
+            InputsTooBig => write!(f, "sum of inputs exceeds limit"),
+            OutputsTooBig => write!(f, "sum of outputs exceeds limit"),
+            OutputsExceedInputs => write!(f, "sum of outputs is larger than sum of inputs and fee"),
+            FeeError(err) => write!(f, "fee calculation failed: {}", err),
+            WrongRedeemTxId => write!(f, "transaction input's ID does not match redeem public key"),
+            AddressMismatch => write!(f, "transaction input witness does not match utxo address")
         }
     }
 }
@@ -400,6 +416,15 @@ impl Verify for tx::TxAux {
             }
             Ok(())
         })?;
+
+        // verify that txids of redeem inputs correspond to the redeem pubkey
+        for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.iter()) {
+            if let tx::TxInWitness::RedeemWitness(pubkey, _) = in_witness {
+                if tx::redeem_pubkey_to_txid(&pubkey).0 != txin.id {
+                    return Err(Error::WrongRedeemTxId);
+                }
+            }
+        }
 
         Ok(())
     }
