@@ -17,7 +17,7 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use std::{collections::BTreeMap, fmt, error};
-use cardano::{block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId}, util::hex};
+use cardano::{block::{HeaderHash, BlockDate, RawBlock, Block, EpochId, SlotId}};
 
 use types::*;
 use storage_units::utils::tmpfile::*;
