@@ -17,6 +17,10 @@ pub struct ChainState {
     pub prev_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
     pub utxos: BTreeMap<TxoPointer, TxOut>,
+
+    // Some stats.
+    pub nr_transactions: u64,
+    pub spend_txos: u64,
 }
 
 impl ChainState {
@@ -43,6 +47,8 @@ impl ChainState {
             prev_date: None,
             slot_leaders: vec![],
             utxos,
+            nr_transactions: 0,
+            spend_txos: 0,
         }
     }
 
@@ -141,6 +147,8 @@ impl ChainState {
     /// outputs (utxos), and update the utxo state.
     fn verify_tx(&mut self, txaux: &TxAux) -> Result<(), Error> {
 
+        self.nr_transactions += 1;
+
         let mut res = Ok(());
         let tx = &txaux.tx;
         let id = tx.id();
@@ -160,6 +168,8 @@ impl ChainState {
                     add_error(&mut res, Err(Error::MissingUtxo));
                 }
                 Some(txout) => {
+
+                    self.spend_txos += 1;
 
                     let witness_address = match in_witness {
 

@@ -92,6 +92,6 @@ pub struct GenesisData {
     pub epoch_stability_depth: usize, // a.k.a. 'k'
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
-    pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>,
+    pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
     pub non_avvm_balances: BTreeMap<String, coin::Coin>,
 }
