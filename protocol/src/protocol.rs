@@ -19,7 +19,8 @@ pub enum Error {
     UnsupportedControl(ntt::protocol::ControlHeader),
     NodeIdNotFound(ntt::protocol::NodeId),
     ClientIdNotFoundFromNodeId(ntt::protocol::NodeId, LightId),
-    UnexpectedResponse(),
+    UnexpectedResponse,
+    NoResponse,
     ServerError(String),
     TransactionRejected,
 }
@@ -42,7 +43,8 @@ impl fmt::Display for Error {
             Error::UnsupportedControl(ctr) => write!(f, "Control unsupported here: `{:?}`", ctr),
             Error::NodeIdNotFound(nid) => write!(f, "NodeId `{}` not found", nid),
             Error::ClientIdNotFoundFromNodeId(nid, lid) => write!(f, "ClientId `{}` not found in Node `{}`", lid, nid),
-            Error::UnexpectedResponse() => write!(f, "Unexpected response from peer"),
+            Error::UnexpectedResponse => write!(f, "Unexpected response from peer"),
+            Error::NoResponse => write!(f, "No response from peer"),
             Error::ServerError(err) => write!(f, "Error from server: {}", err),
             Error::TransactionRejected => write!(f, "The transaction has been rejected by peer"),
         }
@@ -58,7 +60,8 @@ impl error::Error for Error {
             Error::UnsupportedControl(_) => None,
             Error::NodeIdNotFound(_) => None,
             Error::ClientIdNotFoundFromNodeId(_, _) => None,
-            Error::UnexpectedResponse() => None,
+            Error::UnexpectedResponse => None,
+            Error::NoResponse => None,
             Error::ServerError(_) => None,
             Error::TransactionRejected => None,
         }
@@ -258,13 +261,16 @@ impl<T: Write+Read> Connection<T> {
         Ok(())
     }
 
-    pub fn new_light_connection(&mut self, id: LightId) -> Result<()> {
+    pub fn new_light_connection(&mut self) -> Result<LightId> {
+        let id = self.get_free_light_id();
+        trace!("creating light connection: {}", id);
+
         self.ntt.create_light(id.0)?;
 
         let lc = LightConnection::new_with_nodeid(id, self.ntt.get_nonce());
         self.send_nodeid(id, &lc.node_id.unwrap())?;
         self.client_cons.insert(id, lc);
-        Ok(())
+        Ok(id)
     }
 
     pub fn close_light_connection(&mut self, id: LightId) {
@@ -288,7 +294,7 @@ impl<T: Write+Read> Connection<T> {
             None => panic!("oops"),
             Some(ref mut con) => {
                 match con.pop_received() {
-                    None => panic!("oops 2"),
+                    None => Err(Error::NoResponse),
                     Some(yy) => Ok(yy),
                 }
             },
@@ -539,11 +545,8 @@ pub mod command {
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output>;
 
         fn initial(&self, connection: &mut Connection<W>) -> Result<LightId> {
-            let id = connection.get_free_light_id();
-            trace!("creating light connection: {}", id);
-
-            connection.new_light_connection(id)?;
-            Ok(id)
+            // FIXME: ensure that close_light_connection is always called.
+            Ok(connection.new_light_connection()?)
         }
         fn execute(&self, connection: &mut Connection<W>) -> Result<Self::Output> {
             let id = Command::initial(self, connection)?;
@@ -561,6 +564,55 @@ pub mod command {
         }
     }
 
+    pub fn stream_blocks<W: Read+Write, F>(
+        connection: &mut Connection<W>,
+        from: &[cardano::block::HeaderHash],
+        to: cardano::block::HeaderHash,
+        got_block: &mut F) -> Result<()>
+        where F: FnMut(cardano::block::RawBlock) -> Result<()>
+    {
+        let id = connection.new_light_connection()?;
+
+        let window_size = 65536;
+
+        connection.send_message(id, &packet::send_msg_stream_start(
+            &from[..], &to, window_size))?;
+
+        let mut window_left = window_size;
+
+        loop {
+            let msg = connection.wait_msg(id)?;
+
+            let mut msg = RawCbor::from(&msg);
+            match cardano::cbor::hs::util::decode_sum_type(&mut msg)? {
+                0 => {
+                    // FIXME: we should at least check that we
+                    // received valid CBOR.
+                    let rblk = cardano::block::RawBlock::from_dat(msg.as_ref().to_vec());
+                    got_block(rblk)?;
+                }
+                1 => { return Err(Error::ServerError(msg.text()?)); }
+                2 => { break; }
+                _ => { return Err(Error::UnexpectedResponse); }
+            }
+
+            // The peer will stop sending blocks when the window size
+            // reaches zero. So periodically reset the window size by
+            // sending MsgUpdate.
+            // TODO: we may want to update the window size dynamically.
+            window_left -= 1;
+            if window_left < window_size / 2 {
+                window_left = window_size;
+                // Note: we don't prepend MsgStream here.
+                connection.send_bytes(id, &packet::send_msg_stream_update(window_left).1)?;
+            }
+        }
+
+        // FIXME
+        connection.close_light_connection(id);
+        Ok(())
+    }
+
     #[derive(Debug)]
     pub struct GetBlockHeader {
         from: Vec<cardano::block::HeaderHash>,
@@ -569,11 +621,7 @@ pub mod command {
     impl GetBlockHeader {
         pub fn tip() -> Self { GetBlockHeader { from: vec![], to: None } }
         pub fn range(from: &[cardano::block::HeaderHash], to: cardano::block::HeaderHash) -> Self {
-            let mut vec = Vec::new();
-            for f in from.iter() {
-                vec.push(f.clone());
-            }
-            GetBlockHeader { from: vec, to: Some(to) }
+            GetBlockHeader { from: from.clone().to_vec(), to: Some(to) }
         }
     }
 
@@ -587,14 +635,14 @@ pub mod command {
             // require the initial header
             let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(Error::UnexpectedResponse()),
+                None => Err(Error::UnexpectedResponse),
                 Some((0, dat)) => {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                 },
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
             }
         }
     }
@@ -612,14 +660,14 @@ pub mod command {
     fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock> {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         match decode_sum_type(msg) {
-            None => Err(Error::UnexpectedResponse()),
+            None => Err(Error::UnexpectedResponse),
             Some((sumval, dat)) => {
                 if sumval == 0 {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlock::from_dat(v))
                 } else {
-                    Err(Error::UnexpectedResponse())
+                    Err(Error::UnexpectedResponse)
                 }
             },
         }
@@ -669,7 +717,7 @@ pub mod command {
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output> {
             let dat = connection.wait_msg(id)?;
             match decode_sum_type(&dat) {
-                None => Err(Error::UnexpectedResponse()),
+                None => Err(Error::UnexpectedResponse),
                 Some((0, dat)) => {
                     let mut raw = RawCbor::from(dat);
                     if raw.array()? != cbor_event::Len::Len(1) {
@@ -689,14 +737,14 @@ pub mod command {
                     let dat = connection.wait_msg(id)?;
                     let mut raw = RawCbor::from(&dat);
                     if raw.array()? != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     if raw.unsigned_integer()? != 1 {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     let arr = raw.array()?;
                     if arr != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse())
+                        return Err(Error::UnexpectedResponse)
                     }
                     let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
@@ -709,7 +757,7 @@ pub mod command {
 
                 },
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse())
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
             }
         }
     }

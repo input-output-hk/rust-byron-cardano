@@ -50,8 +50,9 @@ pub struct HandlerSpecs(BTreeMap<MessageCode, HandlerSpec>);
 impl HandlerSpecs {
     pub fn default_ins() -> Self {
         let mut bm = BTreeMap::new();
+        bm.insert(MsgType::MsgHeaders as u32, HandlerSpec::new(MsgType::MsgGetHeaders as u16));
+        /*
         bm.insert(0x04,  HandlerSpec::new(0x05));
-        bm.insert(0x05,  HandlerSpec::new(0x04));
         bm.insert(0x06,  HandlerSpec::new(0x07));
         bm.insert(0x22,  HandlerSpec::new(0x5e));
         bm.insert(0x25,  HandlerSpec::new(0x5e));
@@ -69,16 +70,20 @@ impl HandlerSpecs {
         bm.insert(0x60,  HandlerSpec::new(0x43));
         bm.insert(0x61,  HandlerSpec::new(0x3d));
         bm.insert(0x62,  HandlerSpec::new(0x37));
+        */
         HandlerSpecs(bm)
     }
     pub fn default_outs() -> Self {
         let mut bm = BTreeMap::new();
-        bm.insert(0x04,  HandlerSpec::new(0x05));
+        bm.insert(MsgType::MsgGetHeaders as u32, HandlerSpec::new(MsgType::MsgHeaders as u16));
+        bm.insert(MsgType::MsgGetBlocks as u32, HandlerSpec::new(MsgType::MsgBlock as u16));
+        bm.insert(MsgType::MsgAnnounceTx as u32, HandlerSpec::new(MsgType::MsgTxMsgContents as u16));
+        bm.insert(MsgType::MsgSubscribe1 as u32, HandlerSpec::new(0x00));
+        bm.insert(MsgType::MsgStream as u32, HandlerSpec::new(MsgType::MsgStreamBlock as u16));
+        /*
         bm.insert(0x05,  HandlerSpec::new(0x04));
-        bm.insert(0x06,  HandlerSpec::new(0x07));
         bm.insert(0x0d,  HandlerSpec::new(0x00));
         bm.insert(0x0e,  HandlerSpec::new(0x00));
-        bm.insert(0x25,  HandlerSpec::new(0x5e));
         bm.insert(0x2b,  HandlerSpec::new(0x5d));
         bm.insert(0x31,  HandlerSpec::new(0x5c));
         bm.insert(0x37,  HandlerSpec::new(0x62));
@@ -86,6 +91,7 @@ impl HandlerSpecs {
         bm.insert(0x43,  HandlerSpec::new(0x60));
         bm.insert(0x49,  HandlerSpec::new(0x5f));
         bm.insert(0x53,  HandlerSpec::new(0x00));
+        */
         HandlerSpecs(bm)
     }
 }
@@ -173,17 +179,42 @@ pub fn send_handshake(hs: &Handshake) -> Vec<u8> { cbor!(hs).unwrap() }
 pub type Message = (u8, Vec<u8>);
 
 pub enum MsgType {
-    MsgGetHeaders = 0x4,
-    MsgHeaders = 0x5,
-    MsgGetBlocks = 0x6,
-    MsgSubscribe = 0xd,
-    MsgAnnounceTx = 0x25, // == InvOrData key TxMsgContents
+    MsgGetHeaders = 4,
+    MsgHeaders = 5,
+    MsgGetBlocks = 6,
+    MsgBlock = 7,
+    MsgSubscribe1 = 13,
+    MsgSubscribe = 14,
+    MsgStream = 15,
+    MsgStreamBlock = 16,
+    MsgAnnounceTx = 37, // == InvOrData key TxMsgContents
+    MsgTxMsgContents = 94,
 }
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     let value = if keep_alive { 43 } else { 42 };
     let dat = se::Serializer::new_vec().write_unsigned_integer(value).unwrap().finalize();
-    (MsgType::MsgSubscribe as u8, dat)
+    (MsgType::MsgSubscribe1 as u8, dat)
+}
+
+pub fn send_msg_stream_start(froms: &[block::HeaderHash], to: &block::HeaderHash, window: u32) -> Message {
+    let serializer = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
+        .serialize(&0u8).unwrap() // == MsgStart
+        .write_array(cbor_event::Len::Len(3)).unwrap();
+    let dat = se::serialize_indefinite_array(froms.iter(), serializer).unwrap()
+        .serialize(to).unwrap()
+        .serialize(&window).unwrap()
+        .finalize();
+    (MsgType::MsgStream as u8, dat)
+}
+
+pub fn send_msg_stream_update(window: u32) -> Message {
+    let dat = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2)).unwrap()
+        .serialize(&1u8).unwrap() // == MsgUpdate
+        .write_array(cbor_event::Len::Len(1)).unwrap()
+        .serialize(&window).unwrap()
+        .finalize();
+    (MsgType::MsgStream as u8, dat)
 }
 
 pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::HeaderHash>) -> Message {
@@ -196,8 +227,7 @@ pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::Heade
                 .serialize(h).unwrap()
         }
     };
-    let dat = serializer.finalize();
-    (MsgType::MsgGetHeaders as u8, dat)
+    (MsgType::MsgGetHeaders as u8, serializer.finalize())
 }
 
 pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
@@ -354,17 +384,14 @@ mod tests {
 
     #[test]
     fn handshake_decoding() {
-        let hs = Handshake::default();
-
-        let hs_ : Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
-        println!("");
+        let hs : Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
         println!("{}", hs.in_handlers);
-        println!("{}", hs_.in_handlers);
-        assert_eq!(hs.protocol_magic, hs_.protocol_magic);
-        assert_eq!(hs.version, hs_.version);
-        assert_eq!(hs.in_handlers, hs_.in_handlers);
-        assert_eq!(hs.out_handlers, hs_.out_handlers);
-        assert_eq!(hs, hs_);
+
+        assert_eq!(hs.protocol_magic, ProtocolMagic::default());
+        assert_eq!(hs.version, block::Version::default());
+
+        let hs_ = cbor!(&hs).unwrap();
+        assert_eq!(HANDSHAKE_BYTES, hs_.as_slice());
     }
 
     #[test]
@@ -372,6 +399,8 @@ mod tests {
         let hs = Handshake::default();
 
         let vec = cbor!(&hs).unwrap();
-        assert_eq!(HANDSHAKE_BYTES, vec.as_slice());
+
+        let hs_ : Handshake = RawCbor::from(&vec).deserialize().unwrap();
+        assert_eq!(hs, hs_);
     }
 }

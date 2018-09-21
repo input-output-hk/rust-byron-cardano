@@ -47,7 +47,7 @@ pub mod coin;
 pub mod redeem;
 pub mod hash;
 
-mod cbor;
+pub mod cbor;
 pub mod bip;
 pub mod wallet;
 pub mod block;
