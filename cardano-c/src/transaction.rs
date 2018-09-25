@@ -91,6 +91,19 @@ pub extern "C" fn cardano_transaction_builder_add_change_addr(tb: TransactionBui
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> u64 {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    let fee = LinearFee::default();
+
+    if let Ok(fee) = builder.calculate_fee(&fee) {
+        fee.to_coin().to_integral()
+    } else {
+        // failed to calculate transaction fee, return zero
+        fee::Fee::new(Coin::zero()).to_coin().to_integral()
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_transaction_builder_finalize(tb: TransactionBuilderPtr) -> TransactionPtr {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
     if let Ok(tx) = builder.clone().make_tx() {

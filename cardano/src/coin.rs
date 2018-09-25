@@ -100,6 +100,10 @@ impl Coin {
             Ordering::Less    => CoinDiff::Negative(Coin(against.0 - self.0)),
         }
     }
+
+    pub fn to_integral(self) -> u64 {
+        return self.0
+    }
 }
 impl ::std::ops::Deref for Coin {
     type Target = u64;
