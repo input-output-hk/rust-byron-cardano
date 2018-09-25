@@ -88,6 +88,7 @@ void cardano_transaction_builder_delete(cardano_transaction_builder *tb);
 void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoptr *txo);
 cardano_result cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
 cardano_result cardano_transaction_builder_add_change_addr(cardano_transaction_builder *tb, cardano_address *change_addr);
+uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 cardano_transaction *cardano_transaction_builder_finalize(cardano_transaction_builder *tb);
 
 cardano_transaction_finalized * cardano_transaction_finalized_new(cardano_transaction *c_tx);
