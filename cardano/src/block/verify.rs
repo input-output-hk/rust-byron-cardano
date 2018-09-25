@@ -11,6 +11,7 @@ use std::{collections::{BTreeSet, HashSet}, fmt, error};
 use merkle;
 use tags;
 use hdwallet::{Signature};
+use fee;
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,8 +24,11 @@ pub enum Error {
     DuplicateSigningKeys,
     DuplicateVSSKeys,
     EncodingError(cbor_event::Error),
-    NoTxWitnesses,
+    UnexpectedWitnesses,
+    MissingWitnesses,
     RedeemOutput,
+    NoInputs,
+    NoOutputs,
     SelfSignedPSK,
     WrongBlockHash,
     WrongDelegationProof,
@@ -33,6 +37,7 @@ pub enum Error {
     WrongMagic,
     WrongMerkleRoot,
     WrongMpcProof,
+    WrongRedeemTxId,
     WrongTxProof,
     WrongUpdateProof,
     ZeroCoin,
@@ -43,7 +48,15 @@ pub enum Error {
     BlockDateInPast,
     BlockDateInFuture,
     WrongSlotLeader,
+    MissingUtxo,
+    InputsTooBig,
+    OutputsTooBig,
+    OutputsExceedInputs,
+    FeeError(fee::Error),
+    AddressMismatch,
+    DuplicateTxo,
 }
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::Error::{*};
@@ -57,8 +70,11 @@ impl fmt::Display for Error {
             DuplicateSigningKeys => write!(f, "duplicated signing keys"),
             DuplicateVSSKeys => write!(f, "duplicated VSS keys"),
             EncodingError(_error) => write!(f, "encoding error"),
-            NoTxWitnesses => write!(f, "missing transaction witnesses"),
+            UnexpectedWitnesses => write!(f, "transaction has more witnesses than inputs"),
+            MissingWitnesses => write!(f, "transaction has more inputs than witnesses"),
             RedeemOutput => write!(f, "invalid redeem output"),
+            NoInputs => write!(f, "transaction has no inputs"),
+            NoOutputs => write!(f, "transaction has no outputs"),
             SelfSignedPSK => write!(f, "invalid self signing PSK"),
             WrongBlockHash => write!(f, "block hash is invalid"),
             WrongDelegationProof => write!(f, "delegation proof is invalid"),
@@ -75,6 +91,14 @@ impl fmt::Display for Error {
             BlockDateInPast => write!(f, "block's slot or epoch is earlier than its parent"),
             BlockDateInFuture => write!(f, "block is in a future epoch"),
             WrongSlotLeader => write!(f, "block was not signed by the slot leader indicated in the genesis block"),
+            MissingUtxo => write!(f, "transaction spends an input that doesn't exist or has already been spent"),
+            InputsTooBig => write!(f, "sum of inputs exceeds limit"),
+            OutputsTooBig => write!(f, "sum of outputs exceeds limit"),
+            OutputsExceedInputs => write!(f, "sum of outputs is larger than sum of inputs and fee"),
+            FeeError(_) => write!(f, "fee calculation failed"),
+            WrongRedeemTxId => write!(f, "transaction input's ID does not match redeem public key"),
+            AddressMismatch => write!(f, "transaction input witness does not match utxo address"),
+            DuplicateTxo => write!(f, "transaction has an output that already exists"),
         }
     }
 }
@@ -87,6 +111,7 @@ impl error::Error for Error {
     fn cause(&self) -> Option<& error::Error> {
         match self {
             Error::EncodingError(ref error) => Some(error),
+            Error::FeeError(ref error) => Some(error),
             _ => None
         }
     }
@@ -348,19 +373,21 @@ pub fn verify_proxy_sig<T>(
 impl Verify for tx::TxAux {
     fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
     {
+        // check that there are inputs
+        if self.tx.inputs.is_empty() {
+            return Err(Error::NoInputs);
+        }
+
+        // check that there are outputs
+        if self.tx.outputs.is_empty() {
+            return Err(Error::NoOutputs);
+        }
+
         // check that there are no duplicate inputs
         let mut inputs = BTreeSet::new();
         if !self.tx.inputs.iter().all(|x| inputs.insert(x)) {
             return Err(Error::DuplicateInputs);
         }
-
-        // check that there are no duplicate outputs
-        /*
-        let mut outputs = BTreeSet::new();
-        if !self.tx.outputs.iter().all(|x| outputs.insert(x.address.addr)) {
-            return Err(Error::DuplicateOutputs);
-        }
-        */
 
         // check that all outputs have a non-zero amount
         if !self.tx.outputs.iter().all(|x| x.value > coin::Coin::zero()) {
@@ -378,8 +405,12 @@ impl Verify for tx::TxAux {
         // TODO: check address attributes?
 
         // verify transaction witnesses
-        if self.witness.is_empty() {
-            return Err(Error::NoTxWitnesses);
+        if self.tx.inputs.len() < self.witness.len() {
+            return Err(Error::UnexpectedWitnesses);
+        }
+
+        if self.tx.inputs.len() > self.witness.len() {
+            return Err(Error::MissingWitnesses);
         }
 
         self.witness.iter().try_for_each(|in_witness| {
@@ -388,6 +419,15 @@ impl Verify for tx::TxAux {
             }
             Ok(())
         })?;
+
+        // verify that txids of redeem inputs correspond to the redeem pubkey
+        for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.iter()) {
+            if let tx::TxInWitness::RedeemWitness(pubkey, _) = in_witness {
+                if tx::redeem_pubkey_to_txid(&pubkey).0 != txin.id {
+                    return Err(Error::WrongRedeemTxId);
+                }
+            }
+        }
 
         Ok(())
     }
@@ -605,7 +645,35 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].witness.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::NoTxWitnesses);
+            expect_error(&verify_block(pm, &hash, &blk), Error::MissingWitnesses);
+        }
+
+        // add a transaction input witness
+        {
+            let mut blk = blk.clone();
+            if let Block::MainBlock(mblk) = &mut blk {
+                let in_witness = mblk.body.tx[0].witness[0].clone();
+                mblk.body.tx[0].witness.push(in_witness);
+            }
+            expect_error(&verify_block(pm, &hash, &blk), Error::UnexpectedWitnesses);
+        }
+
+        // remove all transaction inputs
+        {
+            let mut blk = blk.clone();
+            if let Block::MainBlock(mblk) = &mut blk {
+                mblk.body.tx[0].tx.inputs.clear();
+            }
+            expect_error(&verify_block(pm, &hash, &blk), Error::NoInputs);
+        }
+
+        // remove all transaction outputs
+        {
+            let mut blk = blk.clone();
+            if let Block::MainBlock(mblk) = &mut blk {
+                mblk.body.tx[0].tx.outputs.clear();
+            }
+            expect_error(&verify_block(pm, &hash, &blk), Error::NoOutputs);
         }
 
         // invalidate the Merkle root by deleting a transaction

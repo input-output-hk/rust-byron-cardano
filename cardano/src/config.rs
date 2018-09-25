@@ -6,6 +6,11 @@
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use std::fmt;
+use block;
+use fee;
+use coin;
+use redeem;
+use std::collections::BTreeMap;
 
 /// this is the protocol magic number
 ///
@@ -74,4 +79,19 @@ impl Default for Config {
     fn default() -> Self {
         Config::new(ProtocolMagic::default())
     }
+}
+
+/// A subset of the genesis data. The genesis data is a JSON file
+/// whose canonicalized form has the hash 'genesis_prev', which is the
+/// parent of the genesis block of epoch 0. (Note that "genesis data"
+/// is something completely different from a epoch genesis block. The
+/// genesis data is not stored in the chain as a block.)
+#[derive(Debug)]
+pub struct GenesisData {
+    pub genesis_prev: block::HeaderHash,
+    pub epoch_stability_depth: usize, // a.k.a. 'k'
+    pub protocol_magic: ProtocolMagic,
+    pub fee_policy: fee::LinearFee,
+    pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
+    pub non_avvm_balances: BTreeMap<String, coin::Coin>,
 }

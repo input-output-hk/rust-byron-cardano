@@ -16,13 +16,21 @@ use redeem;
 use tags::{SigningTag};
 
 use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
-use address::{ExtendedAddr, SpendingData};
+use address::{ExtendedAddr, SpendingData, AddrType, Attributes};
 use coin::{self, Coin};
 
-// TODO: this seems to be the hash of the serialisation CBOR of a given Tx.
-// if this is confirmed, we need to make a proper type, wrapping it around
-// to hash a `Tx` by serializing it cbor first.
+// Transaction IDs are either a hash of the CBOR serialisation of a
+// given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
+
+pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey) -> (TxId, ExtendedAddr) {
+    let address = ExtendedAddr::new(
+        AddrType::ATRedeem,
+        SpendingData::RedeemASD(*pubkey),
+        Attributes::new_bootstrap_era(None));
+    let txid = Blake2b256::new(&cbor!(&address).unwrap());
+    (txid, address)
+}
 
 /// Tx Output composed of an address and a coin value
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -266,7 +266,6 @@ impl TxFinalized {
 mod tests {
     use super::*;
     use address::ExtendedAddr;
-    use coin;
     use tx::{TxOut, TxId};
     use fee::LinearFee;
     use hash::Blake2b256;
