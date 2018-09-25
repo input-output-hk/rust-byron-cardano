@@ -201,7 +201,7 @@ impl ChainState {
                     match input_amount + txout.value {
                         Ok(x) => { input_amount = x; }
                         Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::InputsTooBig)),
-                        Err(_) => panic!()
+                        Err(err) => unreachable!("{}", err)
                     }
                 }
             }
@@ -213,7 +213,7 @@ impl ChainState {
             match output_amount + output.value {
                 Ok(x) => { output_amount = x; }
                 Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::OutputsTooBig)),
-                Err(_) => panic!()
+                Err(err) => unreachable!("{}", err)
             }
         }
 
@@ -237,7 +237,7 @@ impl ChainState {
                 add_error(&mut res, Err(Error::OutputsTooBig));
                 output_amount
             }
-            Err(_) => panic!()
+            Err(err) => unreachable!("{}", err)
         };
 
         // Check that total outputs + minimal fee <= total inputs.
@@ -248,7 +248,7 @@ impl ChainState {
         // Add the outputs to the utxo state.
         for (index, output) in tx.outputs.iter().enumerate() {
             if self.utxos.insert(TxoPointer { id, index: index as u32 }, output.clone()).is_some() {
-                panic!("utxo map already contains txo {}/{}", id, index);
+                add_error(&mut res, Err(Error::DuplicateTxo));
             }
         }
 

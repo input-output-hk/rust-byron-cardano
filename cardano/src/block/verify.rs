@@ -37,6 +37,7 @@ pub enum Error {
     WrongMagic,
     WrongMerkleRoot,
     WrongMpcProof,
+    WrongRedeemTxId,
     WrongTxProof,
     WrongUpdateProof,
     ZeroCoin,
@@ -52,8 +53,8 @@ pub enum Error {
     OutputsTooBig,
     OutputsExceedInputs,
     FeeError(fee::Error),
-    WrongRedeemTxId,
     AddressMismatch,
+    DuplicateTxo,
 }
 
 impl fmt::Display for Error {
@@ -94,9 +95,10 @@ impl fmt::Display for Error {
             InputsTooBig => write!(f, "sum of inputs exceeds limit"),
             OutputsTooBig => write!(f, "sum of outputs exceeds limit"),
             OutputsExceedInputs => write!(f, "sum of outputs is larger than sum of inputs and fee"),
-            FeeError(err) => write!(f, "fee calculation failed: {}", err),
+            FeeError(_) => write!(f, "fee calculation failed"),
             WrongRedeemTxId => write!(f, "transaction input's ID does not match redeem public key"),
-            AddressMismatch => write!(f, "transaction input witness does not match utxo address")
+            AddressMismatch => write!(f, "transaction input witness does not match utxo address"),
+            DuplicateTxo => write!(f, "transaction has an output that already exists"),
         }
     }
 }
@@ -109,6 +111,7 @@ impl error::Error for Error {
     fn cause(&self) -> Option<& error::Error> {
         match self {
             Error::EncodingError(ref error) => Some(error),
+            Error::FeeError(ref error) => Some(error),
             _ => None
         }
     }
