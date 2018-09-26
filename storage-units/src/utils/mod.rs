@@ -1,3 +1,4 @@
+pub mod directory_name;
 pub mod bitmap;
 pub mod bloom;
 pub mod tmpfile;
