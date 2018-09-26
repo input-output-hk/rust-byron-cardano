@@ -5,7 +5,6 @@ use std::{ops::Deref, error, fmt, str::{FromStr}};
 /// we cannot use in the context of the command line interface.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct DirectoryName(String);
 impl DirectoryName {
 

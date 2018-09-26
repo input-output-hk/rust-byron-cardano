@@ -14,10 +14,3 @@ blob storage using immutable/append-only files
 [dependencies]
 rand = "0.5"
 cryptoxide = "0.1"
-
-serde = { version = "1.0", optional = true }
-serde_derive = { version = "1.0", optional = true }
-
-[features]
-default = []
-generic-serialization = ["serde", "serde_derive"]
