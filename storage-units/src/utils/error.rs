@@ -1,6 +1,7 @@
 use utils::magic;
 use utils::lock;
 use std::{io, result, fmt, error};
+use utils::directory_name::{DirectoryNameError};
 
 /// Unified storage IO errors, with a set of common ones
 #[derive(Debug)]
@@ -10,6 +11,7 @@ pub enum StorageError {
     WrongFileType(magic::FileType, magic::FileType),
     VersionTooOld(magic::Version, magic::Version),
     VersionTooNew(magic::Version, magic::Version),
+    InvalidDirectoryName(DirectoryNameError),
     LockError(lock::Error),
 }
 
@@ -25,6 +27,7 @@ impl fmt::Display for StorageError {
             StorageError::WrongFileType(ftexpected, ftreceived) => write!(f, "Wrong file type, expected `0x{:04x}` but received `{:04x}`", ftexpected, ftreceived),
             StorageError::VersionTooOld(mv, v) => write!(f, "File version is too old, supported at least `{}` but received `{}`", mv, v),
             StorageError::VersionTooNew(mv, v) => write!(f, "File version is not supported yet, supported at most `{}` but received `{}`", mv, v),
+            StorageError::InvalidDirectoryName(_) => write!(f, "Invalid Directory name"),
             StorageError::LockError(_) => write!(f, "Lock file error"),
         }
     }
@@ -38,6 +41,7 @@ impl error::Error for StorageError {
             StorageError::WrongFileType(_, _) => None,
             StorageError::VersionTooOld(_, _) => None,
             StorageError::VersionTooNew(_, _) => None,
+            StorageError::InvalidDirectoryName(ref err) => Some(err),
             StorageError::LockError(ref err) => Some(err),
         }
     }
