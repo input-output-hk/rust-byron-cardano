@@ -233,7 +233,7 @@ pub enum Error {
     CBorEncoding(cbor_event::Error), // Should not happen really
 
     /// the addressing decoded in the payload is invalid
-    InvalidPayloadAddressing,
+    InvalidPayloadAddressing(Vec<u32>),
 
     /// we were not able to reconstruct the wallet's address
     /// it could be due to that:
@@ -244,7 +244,7 @@ pub enum Error {
     ///    put it in one of its address);
     /// 3. that the software needs to be updated.
     ///
-    CannotReconstructAddress
+    CannotReconstructAddress(ExtendedAddr)
 }
 impl From<bip39::Error> for Error {
     fn from(e: bip39::Error) -> Self { Error::Bip39Error(e) }
@@ -265,8 +265,8 @@ impl fmt::Display for Error {
             Error::DerivationError(_) => write!(f, "Invalid key derivation"),
             Error::PayloadError(_) => write!(f, "Error while deocoding an address' payload"),
             Error::CBorEncoding(_) => write!(f, "Error while encoding address in binary format"),
-            Error::InvalidPayloadAddressing => write!(f, "Payload has been decoded but is corrupted or of unexpected format"),
-            Error::CannotReconstructAddress => write!(f, "The address cannot be reconstructuted: the payload has been decoded but the public key hash seems different.")
+            Error::InvalidPayloadAddressing(path) => write!(f, "Payload has been decoded but is corrupted or of unexpected format (path: {:?})", path),
+            Error::CannotReconstructAddress(addr) => write!(f, "The address cannot be reconstructuted: the payload has been decoded but the public key hash seems different (expected: {})", addr)
         }
     }
 }
@@ -277,8 +277,8 @@ impl error::Error for Error {
             Error::DerivationError(ref err) => Some(err),
             Error::PayloadError(ref err) => Some(err),
             Error::CBorEncoding(ref err) => Some(err),
-            Error::InvalidPayloadAddressing => None,
-            Error::CannotReconstructAddress => None,
+            Error::InvalidPayloadAddressing(_) => None,
+            Error::CannotReconstructAddress(addr) => None,
         }
     }
 }
@@ -371,7 +371,7 @@ impl<K> AddressGenerator<K> {
 
                 Ok(Some(path))
             } else {
-                Err(Error::InvalidPayloadAddressing)
+                Err(Error::InvalidPayloadAddressing(path.to_vec()))
             }
         } else { Ok(None) }
     }
@@ -386,7 +386,7 @@ impl<K> AddressGenerator<K> {
         if &expected == address {
             Ok(())
         } else {
-            Err(Error::CannotReconstructAddress)
+            Err(Error::CannotReconstructAddress(expected))
         }
     }
 }
