@@ -22,7 +22,6 @@ use super::scheme::{self};
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Addressing(u32, u32);
 impl Addressing {
-    #[deprecated]
     pub fn new(account: u32, index: u32) -> Self {
         Addressing(account | 0x80000000, index | 0x80000000)
     }
