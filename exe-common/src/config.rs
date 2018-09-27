@@ -233,8 +233,8 @@ pub mod net {
             peers.push("iohk-hosts".to_string(), Peer::native("relays.cardano-testnet.iohkdev.io:3000".to_string()));
             peers.push("hermes".to_string(), Peer::http("http://hermes.dev.iohkdev.io/testnet".to_string()));
             Config {
-                genesis: HeaderHash::from_str(&"81a965de1412623ccd1cb3664f4d61a6cb4b9d53b44d779ed918e87bf3493f02").unwrap(),
-                genesis_prev: HeaderHash::from_str(&"6300910ff7d8ca51a61df661a09dfd1486be756f32eff7f348e1f4e3b6166c54").unwrap(),
+                genesis: HeaderHash::from_str(&"7f141ea26e189c9cb09e2473f6499561011d5d3c90dd642fde859ce02282a3ae").unwrap(),
+                genesis_prev: HeaderHash::from_str(&"b7f76950bc4866423538ab7764fc1c7020b24a5f717a5bee3109ff2796567214").unwrap(),
                 epoch_start: 0,
                 epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
                 protocol_magic: ProtocolMagic::from(1097911063),
