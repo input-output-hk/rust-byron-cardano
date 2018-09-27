@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 #[repr(C)]
-pub struct ProtocolMagic(u32);
+pub struct ProtocolMagic(u32); // FIXME: should be i32
 impl ProtocolMagic {
     #[deprecated]
     pub fn new(val: u32) -> Self { ProtocolMagic(val) }
@@ -59,6 +59,21 @@ impl cbor_event::Deserialize for ProtocolMagic {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let v = raw.unsigned_integer()? as u32;
         Ok(ProtocolMagic::from(v))
+    }
+}
+
+pub type NetworkMagic = Option<i32>;
+
+impl From<ProtocolMagic> for NetworkMagic {
+    fn from(pm: ProtocolMagic) -> Self {
+        // FIXME: is there a better way to determine whether to emit
+        // NetworkMagic? There is a requiresNetworkMagic field in
+        // lib/configuration.yaml, but not in the genesis data.
+        if pm == ProtocolMagic::default() || *pm == 633343913 {
+            None
+        } else {
+            Some(*pm as i32)
+        }
     }
 }
 
