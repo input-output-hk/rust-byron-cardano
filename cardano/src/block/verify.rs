@@ -423,7 +423,7 @@ impl Verify for tx::TxAux {
         // verify that txids of redeem inputs correspond to the redeem pubkey
         for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.iter()) {
             if let tx::TxInWitness::RedeemWitness(pubkey, _) = in_witness {
-                if tx::redeem_pubkey_to_txid(&pubkey).0 != txin.id {
+                if tx::redeem_pubkey_to_txid(&pubkey, protocol_magic).0 != txin.id {
                     return Err(Error::WrongRedeemTxId);
                 }
             }

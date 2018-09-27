@@ -11,7 +11,7 @@ use std::{fmt};
 use hash::{Blake2b256};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use config::{ProtocolMagic};
+use config::{ProtocolMagic, NetworkMagic};
 use redeem;
 use tags::{SigningTag};
 
@@ -23,11 +23,14 @@ use coin::{self, Coin};
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
 
-pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey) -> (TxId, ExtendedAddr) {
+pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey, protocol_magic: ProtocolMagic) -> (TxId, ExtendedAddr) {
+    let mut attrs = Attributes::new_bootstrap_era(None);
+    // FIXME: this should probably be moved to Attributes::new_*.
+    attrs.network_magic = NetworkMagic::from(protocol_magic);
     let address = ExtendedAddr::new(
         AddrType::ATRedeem,
         SpendingData::RedeemASD(*pubkey),
-        Attributes::new_bootstrap_era(None));
+        attrs);
     let txid = Blake2b256::new(&cbor!(&address).unwrap());
     (txid, address)
 }

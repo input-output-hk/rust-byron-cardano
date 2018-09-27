@@ -34,11 +34,11 @@ impl ChainState {
         let mut utxos = BTreeMap::new();
 
         // Create utxos from AVVM distributions.
-        for (&pubkey, &value) in genesis_data.avvm_distr.iter() {
-            let (id, address) = tx::redeem_pubkey_to_txid(&pubkey);
+        for (pubkey, value) in &genesis_data.avvm_distr {
+            let (id, address) = tx::redeem_pubkey_to_txid(&pubkey, genesis_data.protocol_magic);
             utxos.insert(
                 TxoPointer { id, index: 0 },
-                TxOut { address, value });
+                TxOut { address, value: value.clone() });
         }
 
         // FIXME: implement non_avvm_balances.
