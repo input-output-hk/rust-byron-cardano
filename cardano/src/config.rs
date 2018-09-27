@@ -10,6 +10,7 @@ use block;
 use fee;
 use coin;
 use redeem;
+use address;
 use std::collections::BTreeMap;
 
 /// this is the protocol magic number
@@ -108,5 +109,5 @@ pub struct GenesisData {
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
-    pub non_avvm_balances: BTreeMap<String, coin::Coin>,
+    pub non_avvm_balances: BTreeMap<address::ExtendedAddr, coin::Coin>,
 }

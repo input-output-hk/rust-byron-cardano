@@ -6,6 +6,7 @@ use coin;
 use tx::{self, TxAux, TxoPointer, TxOut, TxInWitness};
 use std::collections::BTreeMap;
 use fee::{self, FeeAlgorithm};
+use hash;
 
 pub type Utxos = BTreeMap<TxoPointer, TxOut>;
 
@@ -41,7 +42,13 @@ impl ChainState {
                 TxOut { address, value: value.clone() });
         }
 
-        // FIXME: implement non_avvm_balances.
+        // Create utxos from non-AVVM balances.
+        for (address, value) in &genesis_data.non_avvm_balances {
+            let id = hash::Blake2b256::new(&cbor!(&address).unwrap());
+            utxos.insert(
+                TxoPointer { id, index: 0 },
+                TxOut { address: address.clone(), value: value.clone() });
+        }
 
         ChainState {
             protocol_magic: genesis_data.protocol_magic,
