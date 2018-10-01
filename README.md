@@ -2,7 +2,8 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/owl4qu760o6r0g1o?svg=true)](https://ci.appveyor.com/project/input-output-hk/rust-cardano)
 [![Gitter chat](https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/input-output-hk/Cardano-Rust)
 
-# rust implementation of cardano primitives, helpers, and related applications
+# Rust implementation of Cardano primitives, helpers, and related applications
+Cardano Rust is a modular toolbox of Cardano’s cryptographic primitives, a library of wallet functions and a future alternative Cardano node implementation written in Rust. It can be used by any 3rd party to build wallet applications and interact with the Cardano blockchain. 
 
 ## Related repositories
 
@@ -10,26 +11,41 @@
 
 ## Installation
 
-If not already,
+If this is a new installation:
 [install rust's toolchain](https://www.rust-lang.org/en-US/install.html).
 
-we support `stable`, `unstable` and `nightly`.
+We support the following states; `stable`, `unstable` and `nightly`.
 
-We also support `wasm32` target.
+We also support the `wasm32` target.
 
-## Build the Library
+## Building the Library
+
+To build the library, use:
 
 ```
 cargo build
 ```
 
-## Run the tests
+## Running the tests
+
+To run the tests, use:
 
 ```
 cargo test
 ```
 
-### installation
+## How to integrate the Rust library in your project
+
+Information will be available soon on crates.io
+
+In the mean time, it is possible to add the project using git submodules:
+
+```git submodule add https://github.com/input-output-hk/rust-cardano cardano-deps```
+
+And then by adding the following to your Cargo.toml:
+
+```[dependencies]
+cardano = { path = "cardano-deps/cardano" }```
 
 
 ## Notes
