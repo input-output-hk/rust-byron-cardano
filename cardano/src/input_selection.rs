@@ -156,3 +156,133 @@ pub enum SelectionPolicy {
 impl Default for SelectionPolicy {
     fn default() -> Self { SelectionPolicy::FirstMatchFirst }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use txutils::{Input};
+    use address::{ExtendedAddr, AddrType, SpendingData, Attributes};
+    use hdpayload::HDAddressPayload;
+    use fee::FeeAlgorithm;
+    use hdwallet::{XPub, XPUB_SIZE};
+    use tx::{Tx, TxInWitness, TxoPointer, TxOut, TxId};
+    use coin::sum_coins;
+    extern crate rand;
+    use self::rand::random;
+
+    fn mk_random_xpub() -> XPub {
+        let mut xpub = [0;XPUB_SIZE];
+        for byte in xpub.iter_mut() { *byte = random(); }
+        XPub::from_bytes(xpub)
+    }
+
+    fn mk_random_daedalus_style_address() -> ExtendedAddr {
+        let xpub = mk_random_xpub();
+        let bytes : Vec<u8> = ::std::iter::repeat_with(random).take(32).collect();
+        let payload = HDAddressPayload::from_vec(bytes);
+        ExtendedAddr::new(
+            AddrType::ATPubKey,
+            SpendingData::PubKeyASD(xpub),
+            Attributes::new_bootstrap_era(Some(payload))
+        )
+    }
+
+    fn mk_random_icarus_style_address() -> ExtendedAddr {
+        let xpub = mk_random_xpub();
+        ExtendedAddr::new(
+            AddrType::ATPubKey,
+            SpendingData::PubKeyASD(xpub),
+            Attributes::new_bootstrap_era(None)
+        )
+    }
+
+    fn mk_daedalus_style_input(value: Coin) -> Input<()> {
+        let txid = TxId::new(&vec![random(), random()]);
+        let txoptr = TxoPointer::new(txid, random());
+        let address = mk_random_daedalus_style_address();
+        let txout = TxOut::new(address, value);
+        Input::new(txoptr, txout, ())
+    }
+
+    fn mk_icarus_style_input(value: Coin) -> Input<()> {
+        let txid = TxId::new(&vec![random(), random()]);
+        let txoptr = TxoPointer::new(txid, random());
+        let address = mk_random_icarus_style_address();
+        let txout = TxOut::new(address, value);
+        Input::new(txoptr, txout, ())
+    }
+
+    fn mk_daedalus_style_txout(value: Coin) -> TxOut {
+        let address = mk_random_daedalus_style_address();
+        TxOut::new(address, value)
+    }
+
+    fn mk_icarus_style_txout(value: Coin) -> TxOut {
+        let address = mk_random_icarus_style_address();
+        TxOut::new(address, value)
+    }
+
+    fn test_fee_with(inputs: Vec<Input<()>>, outputs: Vec<TxOut>) {
+        let change_address = mk_random_daedalus_style_address();
+
+        let fee_alg = LinearFee::default();
+
+        let (fee, selected, change) = fee_alg.compute(
+            SelectionPolicy::FirstMatchFirst,
+            inputs.iter(),
+            outputs.iter(),
+            &OutputPolicy::One(change_address.clone())
+        ).unwrap();
+
+        // check this is exactly the expected fee
+        let mut tx = Tx::new_with(selected.iter().map(|input| input.ptr.clone()).collect(), outputs.clone());
+        tx.add_output(TxOut::new(change_address, change));
+        let witnesses : Vec<_> = ::std::iter::repeat(TxInWitness::fake()).take(selected.len()).collect();
+        let expected_fee =  fee_alg.calculate_for_txaux_component(&tx, &witnesses).unwrap();
+        assert_eq!(expected_fee, fee);
+
+        // check the transaction is balanced
+        let total_input = sum_coins(selected.iter().map(|input| input.value.value)).unwrap();
+        let total_output = output_sum(tx.outputs.iter()).unwrap();
+        let fee = fee.to_coin();
+        assert_eq!(total_input, (total_output + fee).unwrap());
+    }
+
+    #[test]
+    fn random_large_amount_ada() {
+        let input1  = mk_icarus_style_input(Coin::new(25_029_238_000000).unwrap());
+        let output1 = mk_icarus_style_txout(Coin::new(                1).unwrap());
+
+        let inputs = vec![input1];
+        let outputs = vec![output1];
+
+        test_fee_with(inputs, outputs);
+    }
+
+    #[test]
+    fn random_small_amount_ada() {
+        let input1  = mk_daedalus_style_input(Coin::new(1).unwrap());
+        let input2  = mk_daedalus_style_input(Coin::new(2).unwrap());
+        let input3  = mk_icarus_style_input(Coin::new(3).unwrap());
+        let input4  = mk_daedalus_style_input(Coin::new(1_000_000).unwrap());
+        let output1 = mk_icarus_style_txout(Coin::new(1).unwrap());
+        let output2 = mk_daedalus_style_txout(Coin::new(2).unwrap());
+
+        let inputs = vec![input1, input2, input3, input4];
+        let outputs = vec![output1, output2];
+
+        test_fee_with(inputs, outputs);
+    }
+
+    #[test]
+    fn random_small_amount_ada_2() {
+        let input1  = mk_icarus_style_input(Coin::new(3_000_000).unwrap());
+        let input2  = mk_icarus_style_input(Coin::new(2_000_000).unwrap());
+        let output1 = mk_icarus_style_txout(Coin::new(1_000_000).unwrap());
+
+        let inputs = vec![input1, input2];
+        let outputs = vec![output1];
+
+        test_fee_with(inputs, outputs);
+    }
+}
