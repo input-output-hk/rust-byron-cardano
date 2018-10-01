@@ -3,7 +3,7 @@
 use std::{result, ops::{Add, Mul}};
 use coin;
 use coin::{Coin};
-use tx::{Tx, TxInWitness, TxAux, txaux_serialize};
+use tx::{Tx, TxInWitness, TxAux, txaux_serialize_size};
 use cbor_event;
 
 /// A fee value that represent either a fee to pay, or a fee paid.
@@ -119,9 +119,8 @@ impl FeeAlgorithm for LinearFee {
         self.estimate(txbytes.len())
     }
     fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee> {
-        let ser = cbor_event::se::Serializer::new_vec();
-        let txbytes = txaux_serialize(tx, witnesses, ser)?.finalize();
-        self.estimate(txbytes.len())
+        let size_bytes = txaux_serialize_size(tx, witnesses);
+        self.estimate(size_bytes)
     }
 }
 
