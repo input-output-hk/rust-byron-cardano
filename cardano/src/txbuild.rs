@@ -337,14 +337,13 @@ mod tests {
 
     #[test]
     fn txbuild_auto() {
-        let id1 = Blake2b256::new(&[1,2]);
         let inputs = vec![ fake_txopointer_val(300000u32.into()) ];
         let alg = LinearFee::default();
         let out_policy = OutputPolicy::One(decode_addr(RADDRS[2]));
         for out_value in [8000u32.into(), 12004u32.into(), 51235u32.into()].iter() {
             let outputs = vec![ TxOut::new(decode_addr(RADDRS[1]), *out_value) ];
             let mut builder = build_input_outputs(&inputs[..], &outputs[..]);
-            builder.add_output_policy(&alg, &out_policy);
+            builder.add_output_policy(&alg, &out_policy).unwrap();
 
             fee_is_minimal(builder.balance(&alg).unwrap());
             assert!(build_finalize(builder).is_ok())
