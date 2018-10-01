@@ -1,7 +1,8 @@
 use std::{fmt, result};
 use coin::{self, Coin};
-use tx::{TxOut, Tx};
+use tx::{TxOut};
 use txutils::{Input, OutputPolicy, output_sum};
+use txbuild::{self, TxBuilder};
 use cbor_event;
 use fee::{self, Fee, LinearFee};
 
@@ -10,6 +11,7 @@ pub enum Error {
     NoInputs,
     NoOutputs,
     NotEnoughInput,
+    TxBuildError(txbuild::Error),
     CoinError(coin::Error),
     FeeError(fee::Error),
     CborError(cbor_event::Error),
@@ -21,6 +23,7 @@ impl fmt::Display for Error {
             &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
             &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
             &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
+            &Error::TxBuildError(_) => write!(f, "TxBuild Error"),
             &Error::CoinError(_) => write!(f, "Error on coin operations"),
             &Error::CborError(_) => write!(f, "Error while performing cbor serialization"),
             &Error::FeeError(_) => write!(f, "Error on fee operations"),
@@ -46,6 +49,7 @@ impl ::std::error::Error for Error {
             Error::CoinError(ref err) => Some(err),
             Error::CborError(ref err) => Some(err),
             Error::FeeError(ref err)  => Some(err),
+            Error::TxBuildError(ref err) => Some(err),
             _ => None
         }
     }
@@ -79,8 +83,6 @@ pub trait SelectionAlgorithm {
     ;
 }
 
-const TX_IN_WITNESS_CBOR_SIZE: usize = 140;
-const CBOR_TXAUX_OVERHEAD: usize = 51;
 impl SelectionAlgorithm for LinearFee {
     fn compute<'a, 'b, I, O, Addressing>( &self
                                         , policy: SelectionPolicy
@@ -93,55 +95,51 @@ impl SelectionAlgorithm for LinearFee {
             , O : 'b + Iterator<Item = &'b TxOut> + Clone
             , Addressing: 'a
     {
+        debug_assert!(policy == SelectionPolicy::FirstMatchFirst);
+
+        // note: we cannot use `is_empty()` because it is an `ExactSizeIterator`
+        //       and it does not expose this function directly.
         if inputs.len() == 0 { return Err(Error::NoInputs); }
 
-        let output_value = output_sum(outputs.clone())?;
-        let mut fee = self.estimate(0)?;
-        let mut input_value = Coin::zero();
-        let mut selected_inputs = Vec::new();
+        let mut selected = Vec::new();
+        let mut builder = TxBuilder::new();
+        for output in outputs { builder.add_output_value(output); }
 
-        // create the Tx on the fly
-        let mut txins = Vec::new();
-        let     txouts : Vec<TxOut> = outputs.cloned().collect();
-
-        // for now we only support this selection algorithm
-        // we need to remove this assert when we extend to more
-        // granulated selection policy
-        assert!(policy == SelectionPolicy::FirstMatchFirst);
+        let mut change = Coin::zero();
 
         for input in inputs {
-            input_value = (input_value + input.value())?;
-            selected_inputs.push(input);
-            txins.push(input.ptr.clone());
+            selected.push(input);
+            builder.add_input(&input.ptr, input.value.value);
 
-            // calculate fee from the Tx serialised + estimated size for signing
-            let mut tx = Tx::new_with(txins.clone(), txouts.clone());
-            let txbytes = cbor!(&tx)?;
-
-            let estimated_fee = (self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len())))?;
-
-            // add the change in the estimated fee
-            if let Ok(change_value) = output_value - input_value - estimated_fee.to_coin() {
-                if change_value > Coin::zero() {
-                    match output_policy {
-                        OutputPolicy::One(change_addr) => tx.add_output(TxOut::new(change_addr.clone(), change_value)),
-                    }
+            match builder.clone().add_output_policy(self, output_policy) {
+                Err(txbuild::Error::TxNotEnoughTotalInput) => {
+                    // here we don't have enough inputs, continue the loop
+                    continue;
+                },
+                Err(txbuild_err) => {
+                    return Err(Error::TxBuildError(txbuild_err));
+                },
+                Ok(outputs) => {
+                    change = output_sum(outputs.iter())?;
+                    break;
                 }
-            };
-
-            let txbytes = cbor!(&tx)?;
-            let corrected_fee = self.estimate(txbytes.len() + CBOR_TXAUX_OVERHEAD + (TX_IN_WITNESS_CBOR_SIZE * selected_inputs.len()));
-
-            fee = corrected_fee?;
-
-            if Ok(input_value) >= (output_value + fee.to_coin()) { break; }
+            }
         }
 
-        if Ok(input_value) < (output_value + fee.to_coin()) {
-            return Err(Error::NotEnoughInput);
+        if let Err(error) = builder.add_output_policy(self, output_policy) {
+            return match error {
+                txbuild::Error::TxNotEnoughTotalInput => {
+                    Err(Error::NotEnoughInput)
+                },
+                txbuild_err => {
+                    Err(Error::TxBuildError(txbuild_err))
+                },
+            }
         }
 
-        Ok((fee, selected_inputs, (input_value - output_value - fee.to_coin())?))
+        let fees = builder.calculate_fee(self).unwrap();
+
+        Ok((fees, selected, change))
     }
 }
 
