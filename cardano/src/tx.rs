@@ -447,11 +447,20 @@ pub fn txaux_serialize<W>(tx: &Tx, in_witnesses: &Vec<TxInWitness>, serializer: 
 }
 
 pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
-    // TODO don't actually produce any bytes, but instead just count.
-    // we don't expect error here, a real counter would not error..
-    let ser = cbor_event::se::Serializer::new_vec();
-    let bytes = txaux_serialize(tx, in_witnesses, ser).unwrap().finalize();
-    bytes.len()
+    use std::io::Write;
+
+    struct Cborsize(usize);
+    impl Write for Cborsize {
+        fn write(&mut self, bytes: &[u8]) -> ::std::result::Result<usize, ::std::io::Error> {
+            self.0 += bytes.len();
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> ::std::result::Result<(), ::std::io::Error> { Ok(()) }
+    }
+
+    let ser = cbor_event::se::Serializer::new(Cborsize(0));
+    let cborsize = txaux_serialize(tx, in_witnesses, ser).unwrap().finalize();
+    cborsize.0
 }
 
 #[derive(Debug, Clone)]
