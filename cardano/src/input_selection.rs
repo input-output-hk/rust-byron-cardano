@@ -95,7 +95,12 @@ impl SelectionAlgorithm for LinearFee {
             , O : 'b + Iterator<Item = &'b TxOut> + Clone
             , Addressing: 'a
     {
-        debug_assert!(policy == SelectionPolicy::FirstMatchFirst);
+        // kind reminder to update the algorithm once we start to implement
+        // better kind of selection policy
+        debug_assert!(
+            policy == SelectionPolicy::FirstMatchFirst,
+            "Only supported selection policy here is FirstMatchFirst"
+        );
 
         // note: we cannot use `is_empty()` because it is an `ExactSizeIterator`
         //       and it does not expose this function directly.
