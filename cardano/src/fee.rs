@@ -107,11 +107,20 @@ impl LinearFee {
 
 /// Calculation of fees for a specific chosen algorithm
 pub trait FeeAlgorithm {
+    fn estimate_overhead(&self, num_bytes: usize) -> Result<Option<Fee>>;
+
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee>;
     fn calculate_for_txaux_component(&self, tx: &Tx, witnesses: &Vec<TxInWitness>) -> Result<Fee>;
 }
 
 impl FeeAlgorithm for LinearFee {
+    fn estimate_overhead(&self, num_bytes: usize) -> Result<Option<Fee>> {
+        let msz = Milli::integral(num_bytes as u64);
+        let fee = self.coefficient * msz;
+        let coin = Coin::new(fee.to_integral())?;
+        Ok(Some(Fee(coin)))
+    }
+
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee> {
         // the only reason the cbor serialisation would fail is if there was
         // no more memory free to allocate.
