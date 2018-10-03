@@ -191,3 +191,44 @@ pub fn sum_coins<I>(coin_iter: I) -> Result<Coin>
 {
     coin_iter.fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
 }
+
+#[cfg(test)]
+impl ::quickcheck::Arbitrary for Coin {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+        let mut coin = Coin::zero();
+        while {
+            let v = <u64 as ::quickcheck::Arbitrary>::arbitrary(g);
+            if let Ok(r) = Coin::new(v) {
+                coin = r;
+                false
+            } else {
+                true
+            }
+        } {}
+        coin
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    mod properties {
+        use super::super::*;
+
+        quickcheck!{
+            // test a given u32 is always a valid value for a `Coin`
+            fn coin_from_u32_always_valid(v: u32) -> bool {
+                Coin::new(v as u64).is_ok()
+            }
+
+            // test the cbor serialization/deserialization
+            fn coin_cbor_serialization(coin: Coin) -> bool {
+                use cbor_event::de::RawCbor;
+                let bytes = cbor!(coin).unwrap();
+                let coin2 = RawCbor::from(&bytes).deserialize_complete().unwrap();
+
+                coin == coin2
+            }
+        }
+    }
+}
