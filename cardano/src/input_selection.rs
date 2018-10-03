@@ -413,8 +413,6 @@ mod test {
     {
         let change_address = mk_random_daedalus_style_address();
 
-        let fee_alg = LinearFee::default();
-
         let error = input_selection_scheme.compute(
             &LinearFee::default(),
             outputs.clone(),
@@ -434,7 +432,7 @@ mod test {
         let fee_alg = LinearFee::default();
 
         let input_selection_result = input_selection_scheme.compute(
-            &LinearFee::default(),
+            &fee_alg,
             outputs.clone(),
             &OutputPolicy::One(change_address.clone())
         ).unwrap();
