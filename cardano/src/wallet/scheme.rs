@@ -75,8 +75,8 @@ pub trait Wallet {
         let selection_result = match selection_policy {
             SelectionPolicy::FirstMatchFirst => {
                 let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
-                let mut alg = input_selection::FirstMatchFirst::from(inputs);
-                alg.compute(fee_alg, outputs.clone(), output_policy)?
+                let mut alg = input_selection::BlackjackWithBackupPlan::from(inputs);
+                alg.compute(&fee_alg, outputs.clone(), output_policy)?
             }
         };
 
