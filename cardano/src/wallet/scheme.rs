@@ -4,11 +4,22 @@
 
 use tx::{self, TxId, TxOut, TxInWitness};
 use fee;
-use input_selection::{self, SelectionAlgorithm};
+use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
 use coin::Coin;
 use config::{ProtocolMagic};
 use address::{ExtendedAddr};
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
+pub enum SelectionPolicy {
+    /// select the first inputs that matches, no optimisation
+    FirstMatchFirst
+}
+impl Default for SelectionPolicy {
+    fn default() -> Self { SelectionPolicy::FirstMatchFirst }
+}
+
 
 /// main wallet scheme, provides all the details to manage a wallet:
 /// from managing wallet [`Account`](./trait.Account.html)s and
@@ -39,8 +50,8 @@ pub trait Wallet {
 
     /// list all the accounts known of this wallet
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts;
-    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
-        where I: Iterator<Item = &'a Self::Addressing>;
+    fn sign_tx<I>(&self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+        where I: Iterator<Item = Self::Addressing>;
 
 
     /// function to create a ready to send transaction to the network
@@ -50,7 +61,7 @@ pub trait Wallet {
     ///
     fn new_transaction<'a, I>( &self
                              , protocol_magic: ProtocolMagic
-                             , selection_policy: input_selection::SelectionPolicy
+                             , selection_policy: SelectionPolicy
                              , inputs: I
                              , outputs: Vec<TxOut>
                              , output_policy: &OutputPolicy
@@ -59,29 +70,37 @@ pub trait Wallet {
         where I : 'a + Iterator<Item = &'a Input<Self::Addressing>> + ExactSizeIterator
             , Self::Addressing: 'a
     {
-        let alg = fee::LinearFee::default();
+        let fee_alg = fee::LinearFee::default();
 
-        let (fee, selected_inputs, change)
-            = alg.compute(selection_policy, inputs, outputs.iter(), output_policy)?;
-
-        let addressings : Vec<Self::Addressing>
-            = selected_inputs.iter().map(|si| si.addressing.clone()).collect();
+        let selection_result = match selection_policy {
+            SelectionPolicy::FirstMatchFirst => {
+                let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
+                let mut alg = input_selection::FirstMatchFirst::from(inputs);
+                alg.compute(fee_alg, outputs.clone(), output_policy)?
+            }
+        };
 
         let mut tx = tx::Tx::new_with(
-            selected_inputs.iter().map(|input| input.ptr.clone()).collect(),
+            selection_result.selected_inputs.iter().map(|input| input.ptr.clone()).collect(),
             outputs
         );
 
-        if change > Coin::zero() {
-            match output_policy {
-                OutputPolicy::One(change_addr) =>
-                    tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
-            };
+        if let Some(change) = selection_result.estimated_change {
+            if change > Coin::zero() {
+               match output_policy {
+                   OutputPolicy::One(change_addr) =>
+                       tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
+               };
+           }
         }
 
-        let witnesses = self.sign_tx(protocol_magic, &tx.id(), addressings.iter());
+        let witnesses = self.sign_tx(
+            protocol_magic,
+            &tx.id(),
+            selection_result.selected_inputs.into_iter().map(|input| input.addressing)
+        );
 
-        Ok((tx::TxAux::new(tx, tx::TxWitness::from(witnesses)), fee))
+        Ok((tx::TxAux::new(tx, tx::TxWitness::from(witnesses)), selection_result.estimated_fees))
     }
 }
 

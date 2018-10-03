@@ -114,8 +114,8 @@ impl scheme::Wallet for Wallet {
         account
     }
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts  { &self.accounts }
-    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
-        where I: Iterator<Item = &'a Self::Addressing>
+    fn sign_tx<I>(&self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+        where I: Iterator<Item = Self::Addressing>
     {
         let mut witnesses = vec![];
 
