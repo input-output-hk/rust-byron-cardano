@@ -278,7 +278,7 @@ impl error::Error for Error {
             Error::PayloadError(ref err) => Some(err),
             Error::CBorEncoding(ref err) => Some(err),
             Error::InvalidPayloadAddressing(_) => None,
-            Error::CannotReconstructAddress(addr) => None,
+            Error::CannotReconstructAddress(_) => None,
         }
     }
 }
