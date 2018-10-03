@@ -27,6 +27,10 @@ extern crate serde_json;
 #[cfg(feature = "with-bench")]
 extern crate test;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 extern crate cryptoxide;
 #[macro_use]
 extern crate cbor_event;
