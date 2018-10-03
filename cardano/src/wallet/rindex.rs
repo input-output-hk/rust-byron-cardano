@@ -263,10 +263,10 @@ impl fmt::Display for Error {
         match self {
             Error::Bip39Error(_) => write!(f, "Wallet's Mnemonic Error"),
             Error::DerivationError(_) => write!(f, "Invalid key derivation"),
-            Error::PayloadError(_) => write!(f, "Error while deocoding an address' payload"),
+            Error::PayloadError(_) => write!(f, "Error while decoding an address' payload"),
             Error::CBorEncoding(_) => write!(f, "Error while encoding address in binary format"),
             Error::InvalidPayloadAddressing(path) => write!(f, "Payload has been decoded but is corrupted or of unexpected format (path: {:?})", path),
-            Error::CannotReconstructAddress(addr) => write!(f, "The address cannot be reconstructuted: the payload has been decoded but the public key hash seems different (expected: {})", addr)
+            Error::CannotReconstructAddress(addr) => write!(f, "The address cannot be reconstructed: the payload has been decoded but the public key hash seems different (expected: {})", addr)
         }
     }
 }
