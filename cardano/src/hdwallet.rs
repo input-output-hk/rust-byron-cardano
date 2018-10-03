@@ -343,6 +343,12 @@ impl fmt::Display for XPrv {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
+impl ::std::str::FromStr for XPrv {
+    type Err = Error;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        XPrv::from_hex(s)
+    }
+}
 impl AsRef<[u8]> for XPrv {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
@@ -483,6 +489,12 @@ impl fmt::Debug for XPub {
 }
 impl AsRef<[u8]> for XPub {
     fn as_ref(&self) -> &[u8] { &self.0 }
+}
+impl ::std::str::FromStr for XPub {
+    type Err = Error;
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        XPub::from_hex(s)
+    }
 }
 impl cbor_event::se::Serialize for XPub {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
@@ -1102,6 +1114,22 @@ mod tests {
         let xpub1_ref = XPub::from_bytes([ 155, 186, 125, 76, 223, 83, 124, 115, 51, 236, 62, 66, 30, 151, 236, 155, 157, 73, 110, 160, 25, 204, 222, 170, 46, 185, 166, 187, 220, 65, 18, 182, 194, 224, 222, 91, 65, 119, 17, 215, 53, 147, 168, 219, 125, 51, 13, 233, 35, 212, 226, 241, 0, 36, 245, 198, 28, 19, 91, 74, 49, 43, 106, 167]);
 
         assert_eq!(xpub1_ref, xpub1);
+    }
+
+    #[test]
+    fn unit_derivation_v2() {
+        use std::str::FromStr;
+        let ds = DerivationScheme::V2;
+
+        let root_prv = XPrv::from_str("402b03cd9c8bed9ba9f9bd6cd9c315ce9fcc59c7c25d37c85a36096617e69d418e35cb4a3b737afd007f0688618f21a8831643c0e6c77fc33c06026d2a0fc93832596435e70647d7d98ef102a32ea40319ca8fb6c851d7346d3bd8f9d1492658").unwrap();
+        let root_pk  = XPub::from_str("291ea7aa3766cd26a3a8688375aa07b3fed73c13d42543a9f19a48dc8b6bfd0732596435e70647d7d98ef102a32ea40319ca8fb6c851d7346d3bd8f9d1492658").unwrap();
+
+        let expected_pk = root_prv.public();
+        assert_eq!(expected_pk, root_pk);
+
+        let child_prv = XPrv::from_str("78164270a17f697b57f172a7ac58cfbb95e007fdcd968c8c6a2468841fe69d4115c846a5d003f7017374d12105c25930a2bf8c386b7be3c470d8226f3cad8b6b7e64c416800883256828efc63567d8842eda422c413f5ff191512dfce7790984").unwrap();
+        let expected_child_prv = root_prv.derive(ds, 42 | 0x80000000).derive(ds, 3 | 0x80000000).derive(ds, 5);
+        assert_eq!(expected_child_prv, child_prv);
     }
 }
 
