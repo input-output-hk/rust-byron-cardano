@@ -3,17 +3,17 @@
 //!
 
 use tx::{self, TxId, TxOut, TxInWitness};
-use fee;
+use fee::{self, FeeAlgorithm};
 use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
-use coin::Coin;
+use txbuild::{TxBuilder, TxFinalized};
 use config::{ProtocolMagic};
 use address::{ExtendedAddr};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum SelectionPolicy {
-    /// select the first inputs that matches, no optimisation
+    /// select the first inputs that matches, no optimization
     FirstMatchFirst
 }
 impl Default for SelectionPolicy {
@@ -75,32 +75,44 @@ pub trait Wallet {
         let selection_result = match selection_policy {
             SelectionPolicy::FirstMatchFirst => {
                 let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
-                let mut alg = input_selection::BlackjackWithBackupPlan::from(inputs);
+                let mut alg = input_selection::HeadFirst::from(inputs);
                 alg.compute(&fee_alg, outputs.clone(), output_policy)?
             }
         };
 
-        let mut tx = tx::Tx::new_with(
-            selection_result.selected_inputs.iter().map(|input| input.ptr.clone()).collect(),
-            outputs
-        );
-
-        if let Some(change) = selection_result.estimated_change {
-            if change > Coin::zero() {
-               match output_policy {
-                   OutputPolicy::One(change_addr) =>
-                       tx.add_output(tx::TxOut::new(change_addr.clone(), change)),
-               };
-           }
+        let mut txbuilder = TxBuilder::new();
+        for input in selection_result.selected_inputs.iter() {
+            txbuilder.add_input(&input.ptr, input.value.value)
         }
+        for output in outputs.iter() {
+            txbuilder.add_output_value(output);
+        }
+        txbuilder.add_output_policy(&fee_alg, output_policy)
+            .map_err(input_selection::Error::TxBuildError)?;
+
+        let tx = txbuilder.make_tx().map_err(input_selection::Error::TxBuildError)?;
+        let txid = tx.id();
+        let mut txfinalized = TxFinalized::new(tx);
 
         let witnesses = self.sign_tx(
             protocol_magic,
-            &tx.id(),
+            &txid,
             selection_result.selected_inputs.into_iter().map(|input| input.addressing)
         );
 
-        Ok((tx::TxAux::new(tx, tx::TxWitness::from(witnesses)), selection_result.estimated_fees))
+        for witness in witnesses {
+            txfinalized.add_witness(witness).map_err(input_selection::Error::TxBuildError)?;
+        }
+
+        let txaux = txfinalized.make_txaux().map_err(input_selection::Error::TxBuildError)?;
+
+        let real_fee = fee_alg.calculate_for_txaux(&txaux).map_err(input_selection::Error::FeeError)?;
+
+        if real_fee > selection_result.estimated_fees {
+            Err(input_selection::Error::NotEnoughFees)
+        } else {
+            Ok((txaux, selection_result.estimated_fees))
+        }
     }
 }
 

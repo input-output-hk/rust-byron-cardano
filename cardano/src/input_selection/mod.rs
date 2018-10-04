@@ -6,11 +6,16 @@ use txbuild::{self, TxBuilder};
 use cbor_event;
 use fee::{self, Fee, FeeAlgorithm};
 
+mod simple_selections;
+
+pub use self::simple_selections::{HeadFirst, LargestFirst, Blackjack, BlackjackWithBackupPlan};
+
 #[derive(Debug)]
 pub enum Error {
     NoInputs,
     NoOutputs,
     NotEnoughInput,
+    NotEnoughFees,
     TxBuildError(txbuild::Error),
     CoinError(coin::Error),
     FeeError(fee::Error),
@@ -23,6 +28,7 @@ impl fmt::Display for Error {
             &Error::NoInputs => write!(f, "No inputs given for fee estimation"),
             &Error::NoOutputs => write!(f, "No outputs given for fee estimation"),
             &Error::NotEnoughInput => write!(f, "Not enough funds to cover outputs and fees"),
+            &Error::NotEnoughFees => write!(f, "Not enough fees"),
             &Error::TxBuildError(_) => write!(f, "TxBuild Error"),
             &Error::CoinError(_) => write!(f, "Error on coin operations"),
             &Error::CborError(_) => write!(f, "Error while performing cbor serialization"),
@@ -61,7 +67,7 @@ pub type Result<T> = result::Result<T, Error>;
 ///
 /// This allows to put a name (and a meaning) to the output.
 ///
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct InputSelectionResult<Addressing> {
     /// The estimated fee by the input selection algorithm
     pub estimated_fees: Fee,
@@ -76,6 +82,20 @@ pub struct InputSelectionResult<Addressing> {
 
     /// the selected input
     pub selected_inputs: Vec<Input<Addressing>>
+}
+impl<A: ::std::fmt::Debug> ::std::fmt::Debug for InputSelectionResult<A> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        writeln!(f, "InputSelection:")?;
+        writeln!(f, "  estimated_fee: {:?}", self.estimated_fees)?;
+        writeln!(f, "  estimated_change: {:?}:", self.estimated_change)?;
+        writeln!(f, "  selected_inputs ({})", self.selected_inputs.len())?;
+        for input in self.selected_inputs.iter() {
+            writeln!(f, "    ptr:   {:?}", input.ptr)?;
+            writeln!(f, "    value: {} {}", input.value.address, input.value.value)?;
+            writeln!(f, "    addressing: {:?}", input.addressing)?;
+        }
+        Ok(())
+    }
 }
 
 /// trait to implement the input selection algorithm
@@ -150,160 +170,6 @@ pub trait InputSelectionAlgorithm<Addressing> {
         }
     }
 }
-
-/// Take the given input collections and select the inputs in the given order
-///
-/// This is the least interesting algorithm, it is however very simple and
-/// provide the interesting property to be reproducible.
-///
-#[derive(Debug, Clone)]
-pub struct FirstMatchFirst<Addressing>(Vec<Input<Addressing>>);
-impl<Addressing> From<Vec<Input<Addressing>>> for FirstMatchFirst<Addressing> {
-    fn from(inputs: Vec<Input<Addressing>>) -> Self { FirstMatchFirst(inputs) }
-}
-impl<Addressing> InputSelectionAlgorithm<Addressing> for FirstMatchFirst<Addressing> {
-    fn select_input<F>( &mut self
-                      , _fee_algorithm: &F
-                      , _estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm
-    {
-        if self.0.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(self.0.remove(0)))
-        }
-    }
-}
-
-/// Takes the large inputs first.
-///
-/// About the same as `FirstMatchFirst` but sort the input list
-/// to take the largest inputs first.
-///
-#[derive(Debug, Clone)]
-pub struct LargeInputFirst<Addressing>(FirstMatchFirst<Addressing>);
-impl<Addressing> From<Vec<Input<Addressing>>> for LargeInputFirst<Addressing> {
-    fn from(mut inputs: Vec<Input<Addressing>>) -> Self {
-        inputs.sort_unstable_by(|i1, i2| i2.value.value.cmp(&i1.value.value));
-        LargeInputFirst(FirstMatchFirst::from(inputs))
-    }
-}
-impl<Addressing> InputSelectionAlgorithm<Addressing> for LargeInputFirst<Addressing> {
-    fn select_input<F>( &mut self
-                      , fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm
-    {
-        self.0.select_input(fee_algorithm, estimated_needed_output)
-    }
-}
-
-/// This input selection strategy will accumulates inputs until the target value
-/// is matched, except it ignores the inputs that go over the target value
-pub struct Blackjack<Addressing>(LargeInputFirst<Addressing>);
-impl<Addressing> Blackjack<Addressing> {
-    #[inline]
-    fn find_index_where_value_less_than(&self, needed_output: Coin) -> Option<usize> {
-        ((self.0).0).0.iter().position(|input| input.value.value <= needed_output)
-    }
-}
-impl<Addressing> From<Vec<Input<Addressing>>> for Blackjack<Addressing> {
-    fn from(inputs: Vec<Input<Addressing>>) -> Self {
-        Blackjack(LargeInputFirst::from(inputs))
-    }
-}
-impl<Addressing> InputSelectionAlgorithm<Addressing> for Blackjack<Addressing> {
-    fn select_input<F>( &mut self
-                      , _fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm
-    {
-        let index = self.find_index_where_value_less_than(estimated_needed_output);
-        match index {
-            None => Ok(None),
-            Some(index) => {
-                Ok(Some(((self.0).0).0.remove(index)))
-            }
-        }
-    }
-}
-
-/// Blackjack with Backup (Large input first)
-///
-/// Considering a collection of input (ordered large input to small input), we will take
-/// the first inputs that are below the expected amount. This is in order to minimise using
-/// large inputs for small transactions.
-///
-/// Once there is no longer inputs below the targeted output, it will fallback to `LargeInputFirst`.
-///
-enum BlackjackWithBackupPlanE<Addressing> {
-    Blackjack(Blackjack<Addressing>),
-    BackupPlan(LargeInputFirst<Addressing>)
-}
-pub struct BlackjackWithBackupPlan<Addressing>(BlackjackWithBackupPlanE<Addressing>);
-impl<Addressing> From<Vec<Input<Addressing>>> for BlackjackWithBackupPlan<Addressing> {
-    fn from(inputs: Vec<Input<Addressing>>) -> Self {
-        BlackjackWithBackupPlan(
-        BlackjackWithBackupPlanE::Blackjack(
-            Blackjack::from(inputs)
-        ))
-    }
-}
-impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for BlackjackWithBackupPlan<Addressing> {
-    fn select_input<F>( &mut self
-                      , fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm
-    {
-        let input_1 = match &mut self.0 {
-            BlackjackWithBackupPlanE::Blackjack(ref mut v) => {
-                v.select_input(fee_algorithm, estimated_needed_output)?
-            }
-            BlackjackWithBackupPlanE::BackupPlan(ref mut v) => {
-                v.select_input(fee_algorithm, estimated_needed_output)?
-            }
-        };
-
-        if input_1.is_none() {
-            let backup = if let BlackjackWithBackupPlanE::Blackjack(Blackjack(lif)) = &self.0 {
-                lif.clone()
-            } else {
-                return Ok(None)
-            };
-            self.0 = BlackjackWithBackupPlanE::BackupPlan(backup);
-            self.select_input(fee_algorithm, estimated_needed_output)
-        } else {
-            Ok(input_1)
-        }
-    }
-}
-
-
-/*
-pub struct Custom<Addressing> {
-    available_inputs: Vec<Input<Addressing>>,
-    selected_inputs: Vec<Input<Addressing>>,
-    custom_selector: Box< FnMut(&mut Vec<Input<Addressing>>, &mut Vec<Input<Addressing>>, Coin) -> Result<Option<Input<Addressing>>> >
-}
-impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for Custom<Addressing> {
-    fn select_input<F>( &mut self
-                      , fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-    {
-        (self.custom_selector)(&mut self.available_inputs, &mut self.selected_inputs, estimated_needed_output)
-    }
-}
-*/
 
 #[cfg(test)]
 mod test {
@@ -389,7 +255,7 @@ mod test {
     fn test_fee<F>(mut input_selection_scheme: F, selected: Vec<Input<()>>, outputs: Vec<TxOut>)
         where F: InputSelectionAlgorithm<()>
     {
-        let change_address = mk_random_daedalus_style_address();
+        let change_address = mk_random_icarus_style_address();
 
         let fee_alg = LinearFee::default();
 
@@ -398,6 +264,8 @@ mod test {
             outputs.clone(),
             &OutputPolicy::One(change_address.clone())
         ).unwrap();
+
+        println!("{:#?}", input_selection_result);
 
         // check this is exactly the expected fee
         let mut tx = Tx::new_with(
@@ -431,7 +299,7 @@ mod test {
 
         let selected = vec![input1];
 
-        test_fee(FirstMatchFirst::from(inputs), selected, outputs);
+        test_fee(HeadFirst::from(inputs), selected, outputs);
     }
 
     #[test]
@@ -442,7 +310,7 @@ mod test {
         let inputs = vec![input1];
         let outputs = vec![output1];
 
-        test_no_enough(FirstMatchFirst::from(inputs), outputs);
+        test_no_enough(HeadFirst::from(inputs), outputs);
     }
 
     #[test]
@@ -453,7 +321,7 @@ mod test {
         let inputs = vec![input1];
         let outputs = vec![output1];
 
-        test_no_enough(FirstMatchFirst::from(inputs), outputs);
+        test_no_enough(HeadFirst::from(inputs), outputs);
     }
 
     #[test]
@@ -470,7 +338,7 @@ mod test {
 
         let selected = vec![input1, input2, input3, input4];
 
-        test_fee(FirstMatchFirst::from(inputs), selected, outputs);
+        test_fee(HeadFirst::from(inputs), selected, outputs);
     }
 
     #[test]
@@ -484,7 +352,7 @@ mod test {
 
         let selected = vec![input1];
 
-        test_fee(FirstMatchFirst::from(inputs), selected, outputs);
+        test_fee(HeadFirst::from(inputs), selected, outputs);
     }
 
     #[test]
@@ -542,5 +410,20 @@ mod test {
         let selected = vec![input2, input3, input1];
 
         test_fee(BlackjackWithBackupPlan::from(inputs), selected, outputs);
+    }
+
+    #[test]
+    fn ermurgo_1() {
+        let input1  = mk_icarus_style_input(Coin::new(25_999_999_656409).unwrap());
+        let output1 = mk_daedalus_style_txout(Coin::new(1_000000).unwrap());
+
+        let inputs = vec![input1.clone()];
+        let outputs = vec![output1];
+
+        let selected = vec![input1];
+
+        test_fee(HeadFirst::from(inputs), selected, outputs);
+
+        assert!(false);
     }
 }
