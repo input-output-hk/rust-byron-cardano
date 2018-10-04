@@ -1,4 +1,4 @@
-use std::{fmt, result, ops::{Deref, DerefMut}};
+use std::{fmt, result};
 use coin::{self, Coin};
 use tx::{TxOut};
 use txutils::{Input, OutputPolicy, output_sum};
@@ -161,13 +161,6 @@ pub struct FirstMatchFirst<Addressing>(Vec<Input<Addressing>>);
 impl<Addressing> From<Vec<Input<Addressing>>> for FirstMatchFirst<Addressing> {
     fn from(inputs: Vec<Input<Addressing>>) -> Self { FirstMatchFirst(inputs) }
 }
-impl<Addressing> Deref for FirstMatchFirst<Addressing> {
-    type Target = Vec<Input<Addressing>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-impl<Addressing> DerefMut for FirstMatchFirst<Addressing> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
-}
 impl<Addressing> InputSelectionAlgorithm<Addressing> for FirstMatchFirst<Addressing> {
     fn select_input<F>( &mut self
                       , _fee_algorithm: &F
@@ -176,10 +169,10 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for FirstMatchFirst<Address
         -> Result<Option<Input<Addressing>>>
       where F: FeeAlgorithm
     {
-        if self.is_empty() {
+        if self.0.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(self.remove(0)))
+            Ok(Some(self.0.remove(0)))
         }
     }
 }
@@ -196,13 +189,6 @@ impl<Addressing> From<Vec<Input<Addressing>>> for LargeInputFirst<Addressing> {
         inputs.sort_unstable_by(|i1, i2| i2.value.value.cmp(&i1.value.value));
         LargeInputFirst(FirstMatchFirst::from(inputs))
     }
-}
-impl<Addressing> Deref for LargeInputFirst<Addressing> {
-    type Target = Vec<Input<Addressing>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-impl<Addressing> DerefMut for LargeInputFirst<Addressing> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 impl<Addressing> InputSelectionAlgorithm<Addressing> for LargeInputFirst<Addressing> {
     fn select_input<F>( &mut self
@@ -222,20 +208,13 @@ pub struct Blackjack<Addressing>(LargeInputFirst<Addressing>);
 impl<Addressing> Blackjack<Addressing> {
     #[inline]
     fn find_index_where_value_less_than(&self, needed_output: Coin) -> Option<usize> {
-        self.iter().position(|input| input.value.value <= needed_output)
+        ((self.0).0).0.iter().position(|input| input.value.value <= needed_output)
     }
 }
 impl<Addressing> From<Vec<Input<Addressing>>> for Blackjack<Addressing> {
     fn from(inputs: Vec<Input<Addressing>>) -> Self {
         Blackjack(LargeInputFirst::from(inputs))
     }
-}
-impl<Addressing> Deref for Blackjack<Addressing> {
-    type Target = Vec<Input<Addressing>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-impl<Addressing> DerefMut for Blackjack<Addressing> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 impl<Addressing> InputSelectionAlgorithm<Addressing> for Blackjack<Addressing> {
     fn select_input<F>( &mut self
@@ -249,7 +228,7 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for Blackjack<Addressing> {
         match index {
             None => Ok(None),
             Some(index) => {
-                Ok(Some(self.remove(index)))
+                Ok(Some(((self.0).0).0.remove(index)))
             }
         }
     }
@@ -274,23 +253,6 @@ impl<Addressing> From<Vec<Input<Addressing>>> for BlackjackWithBackupPlan<Addres
         BlackjackWithBackupPlanE::Blackjack(
             Blackjack::from(inputs)
         ))
-    }
-}
-impl<Addressing> Deref for BlackjackWithBackupPlan<Addressing> {
-    type Target = Vec<Input<Addressing>>;
-    fn deref(&self) -> &Self::Target {
-        match &self.0 {
-            BlackjackWithBackupPlanE::Blackjack(ref v)  => v,
-            BlackjackWithBackupPlanE::BackupPlan(ref v) => v,
-        }
-    }
-}
-impl<Addressing> DerefMut for BlackjackWithBackupPlan<Addressing> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match &mut self.0 {
-            BlackjackWithBackupPlanE::Blackjack(ref mut v)  => v,
-            BlackjackWithBackupPlanE::BackupPlan(ref mut v) => v,
-        }
     }
 }
 impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for BlackjackWithBackupPlan<Addressing> {
