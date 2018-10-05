@@ -228,6 +228,8 @@ mod test {
           , IS: InputSelectionAlgorithm<()>
           , A: FeeAlgorithm
     {
+        // prepare the different inputs and values
+
         let total_input = coin::sum_coins(value.1.inputs.iter().map(|v| v.value.value)).unwrap();
         let total_output = coin::sum_coins(value.2.outputs.iter().map(|v| v.value)).unwrap();
         let mut input_selection_scheme  = into_input_selection(value.1.inputs);
@@ -236,24 +238,43 @@ mod test {
         let change_address = value.2.change_address;
         let protocol_magic = *value.0;
 
+        // run the input selection algorithm
+
         let input_selection_result = input_selection_scheme.compute(
             &fee_alg,
             outputs.clone(),
             &OutputPolicy::One(change_address.clone())
         );
+
+        // check the return value make sense
+
         let input_selection_result = match input_selection_result {
-            Ok(r) => r, // Continue checking
-            Err(Error::NoOutputs) => { return outputs.is_empty(); },
+            Ok(r) => {
+                // no error returned, we will check the returned values
+                // are consistent
+                r
+            },
+            Err(Error::NoOutputs) => {
+                // check that actually no outputs where given
+                return outputs.is_empty();
+            },
             Err(Error::NotEnoughInput) => {
+                // the algorithm said there was not enough inputs to cover the transaction
+                // check it is true and there there was not enough inputs
+                // to cover the whole transaction (outputs + fee)
                 return total_input < (total_output + max_fee.to_coin()).unwrap();
             },
             Err(err) => {
+                // this may happen with an unexpected error
                 eprintln!("{}", err);
                 return false
             }
         };
 
-        // check this is exactly the expected fee
+        // ------- Then check that successful input selection are values -----------
+
+        // build the tx and witnesses
+
         let mut tx = tx::Tx::new_with(
             input_selection_result.selected_inputs.iter().map(|input| input.ptr.clone()).collect(),
             outputs
@@ -269,9 +290,12 @@ mod test {
             witnesses.push(witness);
         }
         let expected_fee =  fee_alg.calculate_for_txaux_component(&tx, &witnesses).unwrap();
+
+        // check the expected fee is exactly the estimated fees
         if expected_fee != input_selection_result.estimated_fees { return false; }
 
         // check the transaction is balanced
+
         let total_input = coin::sum_coins(input_selection_result.selected_inputs.iter().map(|input| input.value.value)).unwrap();
         let total_output = output_sum(tx.outputs.iter()).unwrap();
         let fee = input_selection_result.estimated_fees.to_coin();
