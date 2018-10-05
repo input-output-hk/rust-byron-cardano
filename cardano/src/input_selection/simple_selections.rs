@@ -134,3 +134,160 @@ impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for BlackjackWithBac
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use std::collections::{BTreeMap};
+    use config::{ProtocolMagic};
+
+    use fee::{FeeAlgorithm, LinearFee};
+    use address::{ExtendedAddr};
+    use super::super::super::{util::arbitrary::Wrapper, tx};
+    use tx::{TxoPointer};
+    use hdwallet::{XPrv};
+
+    use quickcheck::{Gen, Arbitrary};
+
+    const MAX_NUM_INPUTS  : usize = 254;
+    const MAX_NUM_OUTPUTS : usize = 64;
+    const TX_SIZE_LIMIT : usize = 65536;
+
+    #[derive(Clone, Debug)]
+    struct Inputs {
+        private_keys: BTreeMap<TxoPointer, XPrv>,
+        inputs: Vec<Input<()>>
+    }
+    impl Arbitrary for Inputs {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let mut inputs = Vec::new();
+            let mut private_keys = BTreeMap::new();
+            let num_inputs = <usize as Arbitrary>::arbitrary(g) % MAX_NUM_INPUTS;
+            for _ in 0..num_inputs {
+                let value : Wrapper<(_, _)> = Arbitrary::arbitrary(g);
+                let value : (XPrv, Input<()>) = value.unwrap();
+                private_keys.insert(value.1.ptr.clone(), value.0);
+                inputs.push(value.1);
+            }
+            Inputs {
+                private_keys,
+                inputs
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct Outputs {
+        outputs: Vec<tx::TxOut>,
+        change_address: ExtendedAddr,
+    }
+    impl Arbitrary for Outputs {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let num_outputs = <usize as Arbitrary>::arbitrary(g) % MAX_NUM_OUTPUTS;
+
+            let outputs = ::std::iter::repeat_with(|| {
+                    <Wrapper<(_, TxOut)> as Arbitrary>::arbitrary(g)
+                })
+                .take(num_outputs)
+                .map(|w| w.unwrap().1)
+                .collect();
+            let change_address : Wrapper<(_, ExtendedAddr)> = Arbitrary::arbitrary(g);
+            Outputs {
+                outputs,
+                change_address: change_address.unwrap().1
+            }
+        }
+    }
+
+    // this is the test that will be run to check that the input selection
+    // returns only valid results
+    //
+    fn test_fee<A, F, IS>( value: (Wrapper<ProtocolMagic>, Inputs, Outputs)
+                         , into_input_selection: F
+                         , fee_alg: A
+                         , max_fee: Fee
+                         )
+        -> bool
+      where F: FnOnce(Vec<Input<()>>) -> IS
+          , IS: InputSelectionAlgorithm<()>
+          , A: FeeAlgorithm
+    {
+        let total_input = coin::sum_coins(value.1.inputs.iter().map(|v| v.value.value)).unwrap();
+        let total_output = coin::sum_coins(value.2.outputs.iter().map(|v| v.value)).unwrap();
+        let mut input_selection_scheme  = into_input_selection(value.1.inputs);
+        let private_keys = value.1.private_keys;
+        let outputs = value.2.outputs;
+        let change_address = value.2.change_address;
+        let protocol_magic = *value.0;
+
+        let input_selection_result = input_selection_scheme.compute(
+            &fee_alg,
+            outputs.clone(),
+            &OutputPolicy::One(change_address.clone())
+        );
+        let input_selection_result = match input_selection_result {
+            Ok(r) => r, // Continue checking
+            Err(Error::NoOutputs) => { return outputs.is_empty(); },
+            Err(Error::NotEnoughInput) => {
+                return total_input < (total_output + max_fee.to_coin()).unwrap();
+            },
+            Err(err) => {
+                eprintln!("{}", err);
+                return false
+            }
+        };
+
+        // check this is exactly the expected fee
+        let mut tx = tx::Tx::new_with(
+            input_selection_result.selected_inputs.iter().map(|input| input.ptr.clone()).collect(),
+            outputs
+        );
+        if let Some(change) = input_selection_result.estimated_change {
+           tx.add_output(TxOut::new(change_address, change));
+        }
+        let txid = tx.id();
+        let mut witnesses = Vec::with_capacity(input_selection_result.selected_inputs.len());
+        for input in input_selection_result.selected_inputs.iter() {
+            let key = private_keys.get(&input.ptr).expect("this should always successfully finds the private key");
+            let witness = tx::TxInWitness::new(protocol_magic, key, &txid);
+            witnesses.push(witness);
+        }
+        let expected_fee =  fee_alg.calculate_for_txaux_component(&tx, &witnesses).unwrap();
+        if expected_fee != input_selection_result.estimated_fees { return false; }
+
+        // check the transaction is balanced
+        let total_input = coin::sum_coins(input_selection_result.selected_inputs.iter().map(|input| input.value.value)).unwrap();
+        let total_output = output_sum(tx.outputs.iter()).unwrap();
+        let fee = input_selection_result.estimated_fees.to_coin();
+        if total_input != (total_output + fee).unwrap() { return false; }
+
+        true
+    }
+
+    quickcheck! {
+        fn head_first(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
+            let fee_alg = LinearFee::default();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            test_fee(value, HeadFirst::from, fee_alg, max_fee)
+        }
+
+        fn largest_first(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
+            let fee_alg = LinearFee::default();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            test_fee(value, LargestFirst::from, fee_alg, max_fee)
+        }
+
+        fn blackjack(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
+            let fee_alg = LinearFee::default();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            test_fee(value, Blackjack::from, fee_alg, max_fee)
+        }
+
+        fn blackjack_with_backup(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
+            let fee_alg = LinearFee::default();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            test_fee(value, BlackjackWithBackupPlan::from, fee_alg, max_fee)
+        }
+    }
+}
