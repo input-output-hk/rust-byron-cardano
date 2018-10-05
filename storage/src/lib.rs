@@ -12,6 +12,7 @@ pub mod pack;
 pub mod tag;
 pub mod epoch;
 pub mod refpack;
+pub mod utxo;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;

@@ -15,4 +15,5 @@ pub enum StorageFileType {
     Tag,
     RefPack,
     Epoch,
+    Utxo,
 }

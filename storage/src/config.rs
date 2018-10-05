@@ -27,6 +27,7 @@ impl StorageConfig {
             StorageFileType::Blob => p.push("blob/"),
             StorageFileType::Tag => p.push("tag/"),
             StorageFileType::Epoch => p.push("epoch/"),
+            StorageFileType::Utxo => panic!("utxos don't have a directory"),
         }
         p
     }
@@ -74,6 +75,11 @@ impl StorageConfig {
     pub fn get_epoch_refpack_filepath(&self, epoch: EpochId) -> PathBuf {
         let mut p = self.get_epoch_dir(epoch);
         p.push("refpack");
+        p
+    }
+    pub fn get_epoch_utxos_filepath(&self, epoch: EpochId) -> PathBuf {
+        let mut p = self.get_epoch_dir(epoch);
+        p.push("utxos");
         p
     }
 

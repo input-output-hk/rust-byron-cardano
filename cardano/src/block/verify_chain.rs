@@ -7,6 +7,8 @@ use tx::{self, TxAux, TxoPointer, TxOut, TxInWitness};
 use std::collections::BTreeMap;
 use fee::{self, FeeAlgorithm};
 
+pub type Utxos = BTreeMap<TxoPointer, TxOut>;
+
 pub struct ChainState {
     // FIXME: maybe we should just keep a ref to GenesisData?  Though
     // I guess at least the fee policy could change in an update.
@@ -16,7 +18,7 @@ pub struct ChainState {
     pub prev_block: HeaderHash,
     pub prev_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
-    pub utxos: BTreeMap<TxoPointer, TxOut>,
+    pub utxos: Utxos,
 
     // Some stats.
     pub nr_transactions: u64,
