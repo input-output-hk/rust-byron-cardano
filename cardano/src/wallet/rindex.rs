@@ -111,8 +111,6 @@ impl Wallet {
             return Err(input_selection::Error::NoInputs);
         }
 
-        let input_addressing : Vec<_> = inputs.iter().map(|tii| tii.address_identified.clone()).collect();
-
         let alg = fee::LinearFee::default();
 
         let total_input : Coin = {
@@ -159,7 +157,7 @@ impl Wallet {
                     },
                 }
                 */
-                let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), input_addressing.iter());
+                let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), inputs.iter().map(|tii| tii.address_identified));
                 assert_eq!(witnesses.len(), fake_witnesses.len());
                 let txaux = tx::TxAux::new(tx, tx::TxWitness::from(witnesses));
                 return Ok((txaux, txaux_fee))
@@ -199,8 +197,8 @@ impl scheme::Wallet for Wallet {
         self.root_key.clone()
     }
     fn list_accounts<'a>(&'a self) -> &'a Self::Accounts  { &self.root_key }
-    fn sign_tx<'a, I>(&'a self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
-        where I: Iterator<Item = &'a Self::Addressing>
+    fn sign_tx<I>(&self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
+        where I: Iterator<Item = Self::Addressing>
     {
         let mut witnesses = vec![];
 

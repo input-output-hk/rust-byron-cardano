@@ -31,6 +31,9 @@ extern crate test;
 #[macro_use]
 extern crate quickcheck;
 
+#[cfg(test)]
+extern crate rand;
+
 extern crate cryptoxide;
 #[macro_use]
 extern crate cbor_event;

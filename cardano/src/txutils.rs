@@ -19,6 +19,7 @@ pub struct TxoPointerInfo<Addressing> {
 /// For now this is just a placeholder of a single address,
 /// but adding a ratio driven list of addresses seems
 /// a useful flexibility to have
+#[derive(Debug, Clone)]
 pub enum OutputPolicy {
     One(ExtendedAddr),
 }

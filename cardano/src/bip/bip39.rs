@@ -944,8 +944,7 @@ pub mod dictionary {
 #[cfg(test)]
 mod test {
     use super::*;
-    extern crate rand;
-    use self::rand::random;
+    use rand::random;
 
     extern crate unicode_normalization;
     use self::unicode_normalization::UnicodeNormalization;
