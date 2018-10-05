@@ -163,10 +163,18 @@ mod test {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let mut inputs = Vec::new();
             let mut private_keys = BTreeMap::new();
+            let mut total_input = Coin::zero();
             let num_inputs = <usize as Arbitrary>::arbitrary(g) % MAX_NUM_INPUTS;
             for _ in 0..num_inputs {
                 let value : Wrapper<(_, _)> = Arbitrary::arbitrary(g);
                 let value : (XPrv, Input<()>) = value.unwrap();
+
+                // here we check that the total inputs never overflow the
+                // total number of coins
+                total_input = match total_input + value.1.value.value {
+                    Err(_) => break,
+                    Ok(v)  => v
+                };
                 private_keys.insert(value.1.ptr.clone(), value.0);
                 inputs.push(value.1);
             }
@@ -185,13 +193,20 @@ mod test {
     impl Arbitrary for Outputs {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let num_outputs = <usize as Arbitrary>::arbitrary(g) % MAX_NUM_OUTPUTS;
+            let mut total_output = Coin::zero();
+            let mut outputs = Vec::new();
+            for _ in 0..num_outputs {
+                let value = <Wrapper<(XPrv, TxOut)> as Arbitrary>::arbitrary(g);
+                let value = value.unwrap();
 
-            let outputs = ::std::iter::repeat_with(|| {
-                    <Wrapper<(_, TxOut)> as Arbitrary>::arbitrary(g)
-                })
-                .take(num_outputs)
-                .map(|w| w.unwrap().1)
-                .collect();
+                // make sure that the generated total output does not exceed
+                // the total Ada
+                total_output = match total_output + value.1.value {
+                    Err(_) => break,
+                    Ok(v)  => v
+                };
+                outputs.push(value.1)
+            }
             let change_address : Wrapper<(_, ExtendedAddr)> = Arbitrary::arbitrary(g);
             Outputs {
                 outputs,
