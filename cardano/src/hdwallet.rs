@@ -159,6 +159,13 @@ impl Seed {
         Ok(Seed::from_bytes(v))
     }
 }
+impl Clone for Seed {
+    fn clone(&self) -> Self {
+        let mut bytes = [0; SEED_SIZE];
+        bytes.copy_from_slice(self.as_ref());
+        Seed::from_bytes(bytes)
+    }
+}
 impl AsRef<[u8]> for Seed {
     fn as_ref(&self) -> &[u8] { &self.0 }
 }
