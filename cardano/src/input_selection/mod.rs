@@ -131,6 +131,9 @@ pub trait InputSelectionAlgorithm<Addressing> {
     {
         let mut selected = Vec::new();
         let mut builder = TxBuilder::new();
+
+        if outputs.is_empty() { return Err(Error::NoOutputs); }
+
         for output in outputs { builder.add_output_value(&output); }
 
         let total_output = builder.get_output_total().unwrap();
