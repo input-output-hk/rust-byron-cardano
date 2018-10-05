@@ -8,7 +8,7 @@ use fee::{self, Fee, FeeAlgorithm};
 
 mod simple_selections;
 
-pub use self::simple_selections::{HeadFirst, LargestFirst, Blackjack, BlackjackWithBackupPlan};
+pub use self::simple_selections::{HeadFirst, LargestFirst, Blackjack};
 
 #[derive(Debug)]
 pub enum Error {
@@ -137,10 +137,18 @@ pub trait InputSelectionAlgorithm<Addressing> {
         for output in outputs { builder.add_output_value(&output); }
 
         let total_output = builder.get_output_total().unwrap();
+        let mut estimated_needed_output = (total_output + builder.calculate_fee(fee_algorithm).unwrap().to_coin()).unwrap();
 
-        while let Some(input) = self.select_input(fee_algorithm, total_output)? {
+        while let Some(input) = self.select_input(fee_algorithm, estimated_needed_output)? {
             builder.add_input(&input.ptr, input.value.value);
             selected.push(input);
+
+            // update the estimated needed output every time we add an input
+            // this is because every time we add an input, we add more to the transaction
+            // and the fee increase
+            estimated_needed_output = ( total_output
+                                      + builder.calculate_fee(fee_algorithm).unwrap().to_coin()
+                                      ).unwrap();
 
             match builder.clone().add_output_policy(fee_algorithm, output_policy) {
                 Err(txbuild::Error::TxNotEnoughTotalInput) => {

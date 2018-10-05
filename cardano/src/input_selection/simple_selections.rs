@@ -53,58 +53,26 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for LargestFirst<Addressing
 
 /// This input selection strategy will accumulates inputs until the target value
 /// is matched, except it ignores the inputs that go over the target value
-pub struct Blackjack<Addressing>(LargestFirst<Addressing>);
+pub struct Blackjack<Addressing> {
+    inputs: Vec<(bool, Input<Addressing>)>,
+    total_input_selected: Coin,
+    dust: Coin
+}
 impl<Addressing> Blackjack<Addressing> {
     #[inline]
     fn find_index_where_value_less_than(&self, needed_output: Coin) -> Option<usize> {
-        ((self.0).0).0.iter().position(|input| input.value.value <= needed_output)
+        self.inputs.iter().position(|(used, input)| ! used && input.value.value <= needed_output)
     }
-}
-impl<Addressing> From<Vec<Input<Addressing>>> for Blackjack<Addressing> {
-    fn from(inputs: Vec<Input<Addressing>>) -> Self {
-        Blackjack(LargestFirst::from(inputs))
-    }
-}
-impl<Addressing> InputSelectionAlgorithm<Addressing> for Blackjack<Addressing> {
-    fn select_input<F>( &mut self
-                      , _fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm
-    {
-        let index = self.find_index_where_value_less_than(estimated_needed_output);
-        match index {
-            None => Ok(None),
-            Some(index) => {
-                Ok(Some(((self.0).0).0.remove(index)))
-            }
+
+    pub fn new(dust: Coin, inputs: Vec<Input<Addressing>>) -> Self {
+        Blackjack {
+            inputs: inputs.into_iter().map(|i| (false, i)).collect(),
+            total_input_selected: Coin::zero(),
+            dust: dust
         }
     }
 }
-
-/// Blackjack with Backup (Large input first)
-///
-/// Considering a collection of input (ordered large input to small input), we will take
-/// the first inputs that are below the expected amount. This is in order to minimise using
-/// large inputs for small transactions.
-///
-/// Once there is no longer inputs below the targeted output, it will fallback to `LargeInputFirst`.
-///
-enum BlackjackWithBackupPlanE<Addressing> {
-    Blackjack(Blackjack<Addressing>),
-    BackupPlan(LargestFirst<Addressing>)
-}
-pub struct BlackjackWithBackupPlan<Addressing>(BlackjackWithBackupPlanE<Addressing>);
-impl<Addressing> From<Vec<Input<Addressing>>> for BlackjackWithBackupPlan<Addressing> {
-    fn from(inputs: Vec<Input<Addressing>>) -> Self {
-        BlackjackWithBackupPlan(
-        BlackjackWithBackupPlanE::Blackjack(
-            Blackjack::from(inputs)
-        ))
-    }
-}
-impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for BlackjackWithBackupPlan<Addressing> {
+impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for Blackjack<Addressing> {
     fn select_input<F>( &mut self
                       , fee_algorithm: &F
                       , estimated_needed_output: Coin
@@ -112,25 +80,32 @@ impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for BlackjackWithBac
         -> Result<Option<Input<Addressing>>>
       where F: FeeAlgorithm
     {
-        let input_1 = match &mut self.0 {
-            BlackjackWithBackupPlanE::Blackjack(ref mut v) => {
-                v.select_input(fee_algorithm, estimated_needed_output)?
-            }
-            BlackjackWithBackupPlanE::BackupPlan(ref mut v) => {
-                v.select_input(fee_algorithm, estimated_needed_output)?
-            }
-        };
+        use tx::{TxId, TxInWitness};
 
-        if input_1.is_none() {
-            let backup = if let BlackjackWithBackupPlanE::Blackjack(Blackjack(lif)) = &self.0 {
-                lif.clone()
-            } else {
-                return Ok(None)
-            };
-            self.0 = BlackjackWithBackupPlanE::BackupPlan(backup);
-            self.select_input(fee_algorithm, estimated_needed_output)
-        } else {
-            Ok(input_1)
+        const MAX_OVERHEAD_COIN : usize = 10; // 64bytes + 2 bytes of CBOR...
+        const MAX_OVERHEAD_TXID : usize = TxId::HASH_SIZE + 2; // 2 bytes of Cbor...
+        const MAX_OVERHEAD_TXIN : usize = MAX_OVERHEAD_COIN + MAX_OVERHEAD_TXID + 1; // 2 bytes of cbor
+
+        let signature_cost = fee_algorithm.estimate_overhead(cbor!(TxInWitness::fake()).unwrap().len())?
+            .unwrap_or(Fee::new(Coin::zero())).to_coin();
+
+        let overhead_input = fee_algorithm.estimate_overhead(MAX_OVERHEAD_TXIN)?
+            .unwrap_or(Fee::new(Coin::zero())).to_coin();
+        let max_value = (((estimated_needed_output + overhead_input)? + self.dust)?
+                      + signature_cost - self.total_input_selected)?;
+        let index = self.find_index_where_value_less_than(max_value);
+        match index {
+            None => Ok(None),
+            Some(index) => {
+                match self.inputs.get_mut(index) {
+                    Some(ref mut input) => {
+                        input.0 = true;
+                        self.total_input_selected = (self.total_input_selected + input.1.value.value)?;
+                        Ok(Some(input.1.clone()))
+                    }
+                    None => unreachable!()
+                }
+            }
         }
     }
 }

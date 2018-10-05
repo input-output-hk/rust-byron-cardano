@@ -4,6 +4,7 @@
 
 use tx::{self, TxId, TxOut, TxInWitness};
 use fee::{self, FeeAlgorithm};
+use coin::{Coin};
 use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
 use txbuild::{TxBuilder, TxFinalized};
@@ -14,7 +15,13 @@ use address::{ExtendedAddr};
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum SelectionPolicy {
     /// select the first inputs that matches, no optimization
-    FirstMatchFirst
+    FirstMatchFirst,
+
+    /// Order the given inputs from the largest input and pick the largest ones first
+    LargestFirst,
+
+    /// select only the inputs that are below the targeted output
+    Blackjack(Coin),
 }
 impl Default for SelectionPolicy {
     fn default() -> Self { SelectionPolicy::FirstMatchFirst }
@@ -76,6 +83,16 @@ pub trait Wallet {
             SelectionPolicy::FirstMatchFirst => {
                 let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
                 let mut alg = input_selection::HeadFirst::from(inputs);
+                alg.compute(&fee_alg, outputs.clone(), output_policy)?
+            },
+            SelectionPolicy::LargestFirst => {
+                let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
+                let mut alg = input_selection::LargestFirst::from(inputs);
+                alg.compute(&fee_alg, outputs.clone(), output_policy)?
+            },
+            SelectionPolicy::Blackjack(dust) => {
+                let inputs : Vec<Input<Self::Addressing>> = inputs.cloned().collect();
+                let mut alg = input_selection::Blackjack::new(dust, inputs);
                 alg.compute(&fee_alg, outputs.clone(), output_policy)?
             }
         };
