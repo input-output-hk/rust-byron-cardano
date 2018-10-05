@@ -21,6 +21,9 @@ pub enum SelectionPolicy {
     LargestFirst,
 
     /// select only the inputs that are below the targeted output
+    ///
+    /// the value in this setting represents the accepted dust threshold
+    /// to lose or ignore in fees.
     Blackjack(Coin),
 }
 impl Default for SelectionPolicy {

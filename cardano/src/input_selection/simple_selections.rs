@@ -56,7 +56,7 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for LargestFirst<Addressing
 pub struct Blackjack<Addressing> {
     inputs: Vec<(bool, Input<Addressing>)>,
     total_input_selected: Coin,
-    dust: Coin
+    dust_threshold: Coin
 }
 impl<Addressing> Blackjack<Addressing> {
     #[inline]
@@ -64,11 +64,11 @@ impl<Addressing> Blackjack<Addressing> {
         self.inputs.iter().position(|(used, input)| ! used && input.value.value <= needed_output)
     }
 
-    pub fn new(dust: Coin, inputs: Vec<Input<Addressing>>) -> Self {
+    pub fn new(dust_threshold: Coin, inputs: Vec<Input<Addressing>>) -> Self {
         Blackjack {
             inputs: inputs.into_iter().map(|i| (false, i)).collect(),
             total_input_selected: Coin::zero(),
-            dust: dust
+            dust_threshold: dust_threshold
         }
     }
 }
@@ -91,7 +91,7 @@ impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for Blackjack<Addres
 
         let overhead_input = fee_algorithm.estimate_overhead(MAX_OVERHEAD_TXIN)?
             .unwrap_or(Fee::new(Coin::zero())).to_coin();
-        let max_value = (((estimated_needed_output + overhead_input)? + self.dust)?
+        let max_value = (((estimated_needed_output + overhead_input)? + self.dust_threshold)?
                       + signature_cost - self.total_input_selected)?;
         let index = self.find_index_where_value_less_than(max_value);
         match index {
