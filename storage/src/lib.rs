@@ -385,6 +385,7 @@ pub fn integrity_check(storage: &Storage, genesis_hash: HeaderHash, count: Epoch
     }
 }
 
+// FIXME: still necessary now that we have verify_block?
 fn epoch_integrity_check(storage: &Storage, epochid: EpochId, last_known_hash: HeaderHash) -> Result<HeaderHash> {
     let packhash_vec = tag::read(storage, &format!("EPOCH_{}", epochid)).expect("EPOCH not found");
     let mut packhash = [0;HASH_SIZE];
