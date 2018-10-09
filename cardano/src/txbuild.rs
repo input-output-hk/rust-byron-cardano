@@ -343,6 +343,19 @@ mod tests {
             }
     }
 
+    fn fee_is_acceptable(coindiff: CoinDiff) {
+        match coindiff {
+            CoinDiff::Zero => {},
+            CoinDiff::Positive(c) => {
+                let max_fee_overhead = 5_000u32.into();
+                assert!(c < max_fee_overhead, "fee is much greater than expected {}, expected less than {}", c, max_fee_overhead);
+            },
+            CoinDiff::Negative(c) => {
+                assert!(false, "fee is negative {}, expecting zero or positive", c)
+            }
+        }
+    }
+
     fn fake_id() -> TxId { Blake2b256::new(&[1,2]) }
     fn fake_txopointer_val(coin: Coin) -> (TxoPointer, Coin) {
         (TxoPointer::new(fake_id(), 1), coin)
@@ -387,6 +400,7 @@ mod tests {
                 },
                 Err(Error::TxOutputPolicyNotEnoughCoins(c)) => {
                     // here we don't check that the fee is minimal, since we need to burn extra coins
+                    fee_is_acceptable(builder.balance(&alg).unwrap())
                 },
                 Err(e) => panic!("{}", e),
             }
