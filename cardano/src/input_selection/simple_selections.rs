@@ -51,24 +51,48 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for LargestFirst<Addressing
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct BasicRandom {
+    state : u64,
+}
+impl BasicRandom {
+    fn new(initial_state: u64) -> Self { BasicRandom { state: initial_state } }
+
+    fn next(&mut self) -> u64 {
+        self.state = self.state.overflowing_mul(1103515245).0.overflowing_add(12345).0;
+        return self.state;
+    }
+}
+
 /// This input selection strategy will accumulates inputs until the target value
 /// is matched, except it ignores the inputs that go over the target value
 pub struct Blackjack<Addressing> {
     inputs: Vec<(bool, Input<Addressing>)>,
     total_input_selected: Coin,
-    dust_threshold: Coin
+    dust_threshold: Coin,
+    random_generator: BasicRandom
 }
 impl<Addressing> Blackjack<Addressing> {
     #[inline]
-    fn find_index_where_value_less_than(&self, needed_output: Coin) -> Option<usize> {
-        self.inputs.iter().position(|(used, input)| ! used && input.value.value <= needed_output)
+    fn find_index<I>( &mut self
+                    , mut inputs: I // &[(usize, Input<Addressing>)]
+                    )
+        -> Option<usize>
+      where I: Iterator<Item = usize> + ExactSizeIterator
+    {
+        if inputs.len() == 0 { return None; }
+        let index = self.random_generator.next() as usize % inputs.len();
+
+        inputs.nth(index)
     }
 
     pub fn new(dust_threshold: Coin, inputs: Vec<Input<Addressing>>) -> Self {
+        let seed = inputs.len() as u64 + *dust_threshold;
         Blackjack {
             inputs: inputs.into_iter().map(|i| (false, i)).collect(),
             total_input_selected: Coin::zero(),
-            dust_threshold: dust_threshold
+            dust_threshold: dust_threshold,
+            random_generator: BasicRandom::new(seed)
         }
     }
 }
@@ -93,7 +117,12 @@ impl<Addressing: Clone> InputSelectionAlgorithm<Addressing> for Blackjack<Addres
             .unwrap_or(Fee::new(Coin::zero())).to_coin();
         let max_value = (((estimated_needed_output + overhead_input)? + self.dust_threshold)?
                       + signature_cost - self.total_input_selected)?;
-        let index = self.find_index_where_value_less_than(max_value);
+
+        let filtered_inputs : Vec<usize> = self.inputs.iter().enumerate().filter_map(|(i, (b, input))| {
+                if ! *b && input.value.value <= max_value { Some(i) } else { None }
+        }).collect();
+
+        let index = self.find_index(filtered_inputs.into_iter());
         match index {
             None => Ok(None),
             Some(index) => {
@@ -205,8 +234,8 @@ mod test {
     {
         // prepare the different inputs and values
 
-        let total_input = coin::sum_coins(value.1.inputs.iter().map(|v| v.value.value)).unwrap();
-        let total_output = coin::sum_coins(value.2.outputs.iter().map(|v| v.value)).unwrap();
+        let total_input = coin::sum_coins(value.1.inputs.iter().map(|v| v.value.value)).expect("total input");
+        let total_output = coin::sum_coins(value.2.outputs.iter().map(|v| v.value)).expect("total output");
         let mut input_selection_scheme  = into_input_selection(value.1.inputs);
         let private_keys = value.1.private_keys;
         let outputs = value.2.outputs;
@@ -237,7 +266,7 @@ mod test {
                 // the algorithm said there was not enough inputs to cover the transaction
                 // check it is true and there there was not enough inputs
                 // to cover the whole transaction (outputs + fee)
-                return total_input < (total_output + max_fee.to_coin()).unwrap();
+                return total_input < (total_output + max_fee.to_coin()).expect("valid coin sum");
             },
             Err(err) => {
                 // this may happen with an unexpected error
@@ -264,17 +293,17 @@ mod test {
             let witness = tx::TxInWitness::new(protocol_magic, key, &txid);
             witnesses.push(witness);
         }
-        let expected_fee =  fee_alg.calculate_for_txaux_component(&tx, &witnesses).unwrap();
+        let expected_fee =  fee_alg.calculate_for_txaux_component(&tx, &witnesses).expect("calculate fee for txaux components");
 
         // check the expected fee is exactly the estimated fees
         if expected_fee != input_selection_result.estimated_fees { return false; }
 
         // check the transaction is balanced
 
-        let total_input = coin::sum_coins(input_selection_result.selected_inputs.iter().map(|input| input.value.value)).unwrap();
-        let total_output = output_sum(tx.outputs.iter()).unwrap();
+        let total_input = coin::sum_coins(input_selection_result.selected_inputs.iter().map(|input| input.value.value)).expect("total selected inputs");
+        let total_output = output_sum(tx.outputs.iter()).expect("transaction outputs");
         let fee = input_selection_result.estimated_fees.to_coin();
-        if total_input != (total_output + fee).unwrap() { return false; }
+        if total_input != (total_output + fee).expect("valid sum") { return false; }
 
         true
     }
@@ -282,19 +311,19 @@ mod test {
     quickcheck! {
         fn head_first(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
             let fee_alg = LinearFee::default();
-            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).expect("max fee");
             test_fee(value, HeadFirst::from, fee_alg, max_fee)
         }
 
         fn largest_first(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
             let fee_alg = LinearFee::default();
-            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).expect("max fee");
             test_fee(value, LargestFirst::from, fee_alg, max_fee)
         }
 
         fn blackjack(value: (Wrapper<ProtocolMagic>, Inputs, Outputs)) -> bool {
             let fee_alg = LinearFee::default();
-            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).unwrap();
+            let max_fee = fee_alg.estimate(TX_SIZE_LIMIT).expect("max fee");
             test_fee(value, |i| Blackjack::new(Coin::from(100_000), i), fee_alg, max_fee)
         }
     }
@@ -392,7 +421,7 @@ mod unit_tests {
             &fee_alg,
             outputs.clone(),
             &OutputPolicy::One(change_address.clone())
-        ).unwrap();
+        ).expect("to run the input selection scheme successfully");
 
         println!("{:#?}", input_selection_result);
 
@@ -495,7 +524,7 @@ mod unit_tests {
         let inputs = vec![input1, input2, input3.clone(), input4.clone()];
         let outputs = vec![output1];
 
-        let selected = vec![input3, input4];
+        let selected = vec![input4, input3];
 
         test_fee(Blackjack::new(Coin::from(150_000), inputs), selected, outputs);
     }
