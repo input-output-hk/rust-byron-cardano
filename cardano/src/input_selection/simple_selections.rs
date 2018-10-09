@@ -53,12 +53,12 @@ impl<Addressing> InputSelectionAlgorithm<Addressing> for LargestFirst<Addressing
 
 #[derive(Debug, Clone, Copy)]
 struct BasicRandom {
-    state : u64,
+    state : u32,
 }
 impl BasicRandom {
-    fn new(initial_state: u64) -> Self { BasicRandom { state: initial_state } }
+    fn new(initial_state: u32) -> Self { BasicRandom { state: initial_state } }
 
-    fn next(&mut self) -> u64 {
+    fn next(&mut self) -> u32 {
         self.state = self.state.overflowing_mul(1103515245).0.overflowing_add(12345).0;
         return self.state;
     }
@@ -92,7 +92,7 @@ impl<Addressing> Blackjack<Addressing> {
             inputs: inputs.into_iter().map(|i| (false, i)).collect(),
             total_input_selected: Coin::zero(),
             dust_threshold: dust_threshold,
-            random_generator: BasicRandom::new(seed)
+            random_generator: BasicRandom::new(seed as u32)
         }
     }
 }
