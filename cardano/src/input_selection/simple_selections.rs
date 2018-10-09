@@ -59,7 +59,7 @@ impl BasicRandom {
     fn new(initial_state: u32) -> Self { BasicRandom { state: initial_state } }
 
     fn next(&mut self) -> u32 {
-        self.state = self.state.overflowing_mul(1103515245).0.overflowing_add(12345).0;
+        self.state = self.state.wrapping_mul(1103515245).wrapping_add(12345);
         return self.state;
     }
 }
