@@ -333,14 +333,14 @@ mod tests {
 
     fn fee_is_minimal(coindiff: CoinDiff) {
         match coindiff {
-                CoinDiff::Zero => {},
-                CoinDiff::Positive(c) => {
-                    assert_eq!(c, 1u32.into(), "fee is positive {}", c)
-                },
-                CoinDiff::Negative(c) => {
-                    assert!(false, "fee is negative {}, expecting zero or positive", c)
-                }
+            CoinDiff::Zero => {},
+            CoinDiff::Positive(c) => {
+                assert_eq!(c, 1u32.into(), "fee is positive {}", c)
+            },
+            CoinDiff::Negative(c) => {
+                assert!(false, "fee is negative {}, expecting zero or positive", c)
             }
+        }
     }
 
     fn fee_is_acceptable(coindiff: CoinDiff) {
