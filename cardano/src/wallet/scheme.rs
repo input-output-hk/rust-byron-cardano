@@ -7,7 +7,7 @@ use fee::{self, FeeAlgorithm};
 use coin::{Coin};
 use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
-use txbuild::{TxBuilder, TxFinalized};
+use txbuild::{self, TxBuilder, TxFinalized};
 use config::{ProtocolMagic};
 use address::{ExtendedAddr};
 
