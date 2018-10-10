@@ -314,6 +314,47 @@ impl FromStr for HashedSpendingData {
     }
 }
 
+/// A valid cardano Address that is displayed in base58
+pub struct Addr(Vec<u8>);
+
+impl Addr {
+    pub fn deconstruct(&self) -> ExtendedAddr {
+        let mut raw = RawCbor::from(&self.0);
+        cbor_event::de::Deserialize::deserialize(&mut raw).unwrap() // unwrap should never fail from addr to extended addr
+    }
+}
+
+impl AsRef<[u8]> for Addr {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl TryFromSlice for Addr {
+    type Error = cbor_event::Error;
+    fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
+        let mut v = Vec::new();
+        // TODO we only want validation of slice here, but we don't have api to do that yet.
+        {
+            let mut raw = RawCbor::from(slice);
+            let _ : ExtendedAddr = cbor_event::de::Deserialize::deserialize(&mut raw)?;
+        }
+        v.extend_from_slice(slice);
+        Ok(Addr(v))
+    }
+}
+
+impl From<ExtendedAddr> for Addr {
+    fn from(ea: ExtendedAddr) -> Self {
+        Addr(cbor!(ea).unwrap()) // unwrap should never fail from strongly typed extended addr to addr
+    }
+}
+
+impl fmt::Display for Addr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", base58::encode(&self.0))
+    }
+}
+
+/// A valid cardano address deconstructed
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExtendedAddr {
     pub addr: HashedSpendingData,
