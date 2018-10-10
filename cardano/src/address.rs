@@ -361,6 +361,18 @@ impl fmt::Display for Addr {
     }
 }
 
+impl cbor_event::se::Serialize for Addr {
+    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+        serializer.write_bytes(self.as_ref())
+    }
+}
+impl cbor_event::de::Deserialize for Addr {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let ea : ExtendedAddr = cbor_event::de::Deserialize::deserialize(raw)?;
+        Ok(ea.to_address())
+    }
+}
+
 /// A valid cardano address deconstructed
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExtendedAddr {
