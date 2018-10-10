@@ -7,7 +7,7 @@ use fee::{self, FeeAlgorithm};
 use coin::{Coin};
 use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
-use txbuild::{TxBuilder, TxFinalized};
+use txbuild::{self, TxBuilder, TxFinalized};
 use config::{ProtocolMagic};
 use address::{ExtendedAddr};
 
@@ -107,8 +107,15 @@ pub trait Wallet {
         for output in outputs.iter() {
             txbuilder.add_output_value(output);
         }
-        txbuilder.add_output_policy(&fee_alg, output_policy)
-            .map_err(input_selection::Error::TxBuildError)?;
+
+        // here we try to add the output policy, if it didn't work because
+        // the amount of coin leftover is not enough to add the policy, then
+        // we ignore the error
+        match txbuilder.add_output_policy(&fee_alg, output_policy) {
+            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(_)) => {},
+            Err(e) => return Err(input_selection::Error::TxBuildError(e)),
+            Ok(_) => {},
+        };
 
         let tx = txbuilder.make_tx().map_err(input_selection::Error::TxBuildError)?;
         let txid = tx.id();
