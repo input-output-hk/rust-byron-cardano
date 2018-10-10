@@ -374,8 +374,69 @@ impl cbor_event::de::Deserialize for Addr {
     }
 }
 
+#[cfg(feature = "generic-serialization")]
+impl serde::Serialize for Addr
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer,
+    {
+        let vec = cbor!(self).unwrap();
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&base58::encode(&vec))
+        } else {
+            serializer.serialize_bytes(&vec)
+        }
+    }
+}
+#[cfg(feature = "generic-serialization")]
+impl<'de> serde::Deserialize<'de> for Addr
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de>
+    {
+        struct XAddrVisitor;
+        impl<'de> serde::de::Visitor<'de> for XAddrVisitor {
+            type Value = Addr;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "Expecting an Extended Address (`ExtendedAddr`)")
+            }
+
+            fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                let bytes = match base58::decode(v) {
+                    Err(err) => { return Err(E::custom(format!("invalid base58:{}", err))); },
+                    Ok(v) => v
+                };
+
+                match Self::Value::try_from_slice(&bytes) {
+                    Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
+                    Ok(v) => Ok(v)
+                }
+            }
+
+            fn visit_bytes<'a, E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+                where E: serde::de::Error
+            {
+                match Self::Value::try_from_slice(v) {
+                    Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
+                    Ok(v) => Ok(v)
+                }
+            }
+        }
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(XAddrVisitor)
+        } else {
+            deserializer.deserialize_bytes(XAddrVisitor)
+        }
+    }
+}
+
+
 /// A valid cardano address deconstructed
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ExtendedAddr {
     pub addr: HashedSpendingData,
     pub attributes: Attributes,
