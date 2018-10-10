@@ -343,9 +343,7 @@ impl TryFromSlice for Addr {
 }
 
 impl From<ExtendedAddr> for Addr {
-    fn from(ea: ExtendedAddr) -> Self {
-        Addr(cbor!(ea).unwrap()) // unwrap should never fail from strongly typed extended addr to addr
-    }
+    fn from(ea: ExtendedAddr) -> Self { ea.to_address() }
 }
 
 impl fmt::Display for Addr {
@@ -373,6 +371,10 @@ impl ExtendedAddr {
     // bootstrap era + no hdpayload address
     pub fn new_simple(xpub: XPub) -> Self {
         ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
+    }
+
+    pub fn to_address(&self) -> Addr {
+        Addr(cbor!(self).unwrap()) // unwrap should never fail from strongly typed extended addr to addr
     }
 
 }
@@ -417,7 +419,7 @@ impl cbor_event::de::Deserialize for ExtendedAddr {
 }
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", base58::encode(&cbor!(self).unwrap()))
+        write!(f, "{}", self.to_address())
     }
 }
 #[cfg(feature = "generic-serialization")]
