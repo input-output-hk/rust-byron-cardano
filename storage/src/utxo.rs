@@ -60,6 +60,7 @@ pub fn write_utxos_delta<W: Write>(
         .write_array(Len::Len(5))?
         .serialize(&parent_epoch)?
         .serialize(&last_block)?
+        .serialize(&last_date.get_epochid())?
         .serialize(&match last_date {
             BlockDate::Genesis(_) => 0u16,
             BlockDate::Normal(s) => s.slotid + 1,
@@ -90,9 +91,40 @@ fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<
 {
     let filename = storage.config.get_epoch_utxos_filepath(epoch);
 
-    let mut file = fs::File::open(&filename)?;
+    let file = decode_utxo_file(&mut fs::File::open(&filename)?)?;
 
-    magic::check_header(&mut file, FILE_TYPE, VERSION, VERSION)?;
+    assert_eq!(file.last_date.get_epochid(), epoch);
+
+    if let Some(parent) = file.parent {
+        do_get_utxos(storage, parent, utxos)?;
+    }
+
+    for txo_ptr in &file.removed {
+        if utxos.remove(txo_ptr).is_none() {
+            panic!("utxo delta removes non-existent utxo {}", txo_ptr);
+        }
+    }
+
+    for (txo_ptr, txo) in file.added {
+        if utxos.insert(txo_ptr, txo).is_some() {
+            panic!("utxo delta inserts duplicate utxo");
+        }
+    }
+
+    Ok((file.last_block, file.last_date))
+}
+
+#[derive(Debug)]
+pub struct UtxoFile {
+    pub parent: Option<EpochId>,
+    pub last_block: HeaderHash,
+    pub last_date: BlockDate,
+    pub removed: Vec<TxoPointer>,
+    pub added: Utxos,
+}
+
+pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
+    magic::check_header(file, FILE_TYPE, VERSION, VERSION)?;
 
     let mut data = vec![];
     file.read_to_end(&mut data)?;
@@ -100,34 +132,17 @@ fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<
     let mut raw = de::RawCbor::from(&data);
 
     raw.tuple(5, "utxo delta file")?;
-    let parent = raw.deserialize::<Option<EpochId>>()?;
+    let parent = raw.deserialize()?;
     let last_block = raw.deserialize()?;
+    let epoch = raw.deserialize()?;
     let last_date = match raw.deserialize()? {
         0 => BlockDate::Genesis(epoch),
         n => BlockDate::Normal(EpochSlotId { epoch, slotid: n - 1 }),
     };
-    let removed = raw.deserialize::<Vec<TxoPointer>>()?;
-    let added = raw.deserialize::<Utxos>()?;
+    let removed = raw.deserialize()?;
+    let added = raw.deserialize()?;
 
-    drop(file);
-
-    if let Some(parent) = parent {
-        do_get_utxos(storage, parent, utxos)?;
-    }
-
-    for txo_ptr in &removed {
-        if utxos.remove(txo_ptr).is_none() {
-            panic!("utxo delta removes non-existent utxo {}", txo_ptr);
-        }
-    }
-
-    for (txo_ptr, txo) in added {
-        if utxos.insert(txo_ptr, txo).is_some() {
-            panic!("utxo delta inserts duplicate utxo");
-        }
-    }
-
-    Ok((last_block, last_date))
+    Ok(UtxoFile { parent, last_block, last_date, removed, added })
 }
 
 /// Compute the parent of this epoch in the patch chain by clearing

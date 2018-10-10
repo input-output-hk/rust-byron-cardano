@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, utxo::{get_utxos_for_epoch}};
+use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, utxo::{UtxoState, get_utxos_for_epoch}};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader, Block, RawBlock, ChainState};
 use cardano::config::{GenesisData};
 use cardano::util::{hex};
@@ -319,9 +319,12 @@ fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
 
     epoch::epoch_create(&storage,
                         &packhash,
-                        &epoch_writer_state.chain_state.prev_block,
-                        &epoch_writer_state.chain_state.prev_date.unwrap(),
-                        Some(&epoch_writer_state.chain_state.utxos));
+                        epoch_id,
+                        Some(&UtxoState {
+                            last_block: epoch_writer_state.chain_state.prev_block,
+                            last_date: epoch_writer_state.chain_state.prev_date.unwrap(),
+                            utxos: epoch_writer_state.chain_state.utxos
+                        }));
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
           epoch_id, duration_print(epoch_time_elapsed));

@@ -1,8 +1,8 @@
 use std::fs;
 use std::io::{Read};
 use cardano::util::{hex};
-use cardano::block::{HeaderHash, BlockDate, EpochId, Utxos};
-use utxo::{write_utxos};
+use cardano::block::{BlockDate, EpochId};
+use utxo::{UtxoState, write_utxos};
 
 use super::{Result, Error, Storage, StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
 use storage_units::utils::tmpfile;
@@ -22,8 +22,9 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 }
 
-pub fn epoch_create(storage: &Storage, packref: &PackHash, last_block: &HeaderHash, last_date: &BlockDate, utxos: Option<&Utxos>) {
-    let epochid = last_date.get_epochid();
+pub fn epoch_create(storage: &Storage, packref: &PackHash,
+                    epochid: EpochId,
+                    utxo_state: Option<&UtxoState>) {
 
     // read the pack and append the block hash as we find them in the refpack.
     let mut rp = reffile::Lookup::new();
@@ -57,8 +58,9 @@ pub fn epoch_create(storage: &Storage, packref: &PackHash, last_block: &HeaderHa
     tmpfile.render_permanent(&storage.config.get_epoch_refpack_filepath(epochid)).unwrap();
 
     // write the utxos
-    if let Some(utxos) = utxos {
-        write_utxos(storage, last_block, last_date, utxos).unwrap();
+    if let Some(utxo_state) = utxo_state {
+        assert_eq!(utxo_state.last_date.get_epochid(), epochid);
+        write_utxos(storage, &utxo_state.last_block, &utxo_state.last_date, &utxo_state.utxos).unwrap();
     }
 
     // write the pack pointer
