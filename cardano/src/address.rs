@@ -257,56 +257,57 @@ impl cbor_event::de::Deserialize for Attributes {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
-pub struct Addr(Blake2b224);
-impl Addr {
+pub struct HashedSpendingData(Blake2b224);
+
+impl HashedSpendingData {
     pub fn new(addr_type: AddrType, spending_data: &SpendingData, attrs: &Attributes) -> Self {
         // the reason for this unwrap is that we have to dynamically allocate 66 bytes
         // to serialize 64 bytes in cbor (2 bytes of cbor overhead).
         let buf = cbor!(&(&addr_type, spending_data, attrs))
-                    .expect("serialize the Addr's digest data");
+                    .expect("serialize the HashedSpendingData's digest data");
 
         let hash = Sha3_256::new(&buf);
-        Addr(Blake2b224::new(hash.as_ref()))
+        HashedSpendingData(Blake2b224::new(hash.as_ref()))
     }
 }
-impl fmt::Display for Addr {
+impl fmt::Display for HashedSpendingData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
-impl cbor_event::se::Serialize for Addr {
+impl cbor_event::se::Serialize for HashedSpendingData {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
-impl cbor_event::de::Deserialize for Addr {
+impl cbor_event::de::Deserialize for HashedSpendingData {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        cbor_event::de::Deserialize::deserialize(raw).map(|digest| Addr(digest))
+        cbor_event::de::Deserialize::deserialize(raw).map(|digest| HashedSpendingData(digest))
     }
 }
-impl TryFromSlice for Addr {
+impl TryFromSlice for HashedSpendingData {
     type Error = <Blake2b224 as TryFromSlice>::Error;
     fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
         Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
 }
-impl Deref for Addr {
+impl Deref for HashedSpendingData {
     type Target = <Blake2b224 as Deref>::Target;
     fn deref(&self) -> &Self::Target { self.0.deref() }
 }
-impl AsRef<[u8]> for Addr {
+impl AsRef<[u8]> for HashedSpendingData {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
-impl From<Addr> for [u8;Blake2b224::HASH_SIZE] {
-    fn from(hash: Addr) -> Self { hash.0.into() }
+impl From<HashedSpendingData> for [u8;Blake2b224::HASH_SIZE] {
+    fn from(hash: HashedSpendingData) -> Self { hash.0.into() }
 }
-impl From<[u8;Blake2b224::HASH_SIZE]> for Addr {
-    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { Addr(Blake2b224::from(hash)) }
+impl From<[u8;Blake2b224::HASH_SIZE]> for HashedSpendingData {
+    fn from(hash: [u8;Blake2b224::HASH_SIZE]) -> Self { HashedSpendingData(Blake2b224::from(hash)) }
 }
-impl From<Blake2b224> for Addr {
-    fn from(hash: Blake2b224) -> Self { Addr(hash) }
+impl From<Blake2b224> for HashedSpendingData {
+    fn from(hash: Blake2b224) -> Self { HashedSpendingData(hash) }
 }
-impl FromStr for Addr {
+impl FromStr for HashedSpendingData {
     type Err = <Blake2b224 as FromStr>::Err;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         Ok(Self::from(Blake2b224::from_str(s)?))
@@ -315,14 +316,14 @@ impl FromStr for Addr {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ExtendedAddr {
-    pub addr: Addr,
+    pub addr: HashedSpendingData,
     pub attributes: Attributes,
     pub addr_type: AddrType,
 }
 impl ExtendedAddr {
     pub fn new(ty: AddrType, sd: SpendingData, attrs: Attributes) -> Self {
         ExtendedAddr {
-            addr: Addr::new(ty, &sd, &attrs),
+            addr: HashedSpendingData::new(ty, &sd, &attrs),
             attributes: attrs,
             addr_type: ty
         }
@@ -485,7 +486,7 @@ mod tests {
         let v    = [ 0x2a, 0xc3, 0xcc, 0x97, 0xbb, 0xec, 0x47, 0x64, 0x96, 0xe8, 0x48, 0x07
                    , 0xf3, 0x5d, 0xf7, 0x34, 0x9a, 0xcf, 0xba, 0xec, 0xe2, 0x00, 0xa2, 0x4b
                    , 0x7e, 0x26, 0x25, 0x0c];
-        let addr = Addr::from(v);
+        let addr = HashedSpendingData::from(v);
 
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);

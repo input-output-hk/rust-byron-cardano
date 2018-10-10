@@ -63,7 +63,7 @@ impl Arbitrary for Wrapper<(hdwallet::XPrv, address::ExtendedAddr)> {
             stake_distribution: address::StakeDistribution::BootstrapEraDistr
         };
         let addr_type = address::AddrType::ATPubKey;
-        let addr = address::Addr::new(
+        let addr = address::HashedSpendingData::new(
             addr_type,
             &address::SpendingData::PubKeyASD(xprv.public()),
             &attributes
