@@ -1,7 +1,8 @@
 use std::collections::{HashMap, BTreeMap};
 use serde_json;
-use cardano::{config, fee, block, coin, redeem};
+use cardano::{config, fee, block, coin, redeem, address};
 use base64;
+use std::str::FromStr;
 
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
@@ -49,6 +50,13 @@ pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Res
             coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
     }
 
+    let mut non_avvm_balances = BTreeMap::new();
+    for (address, balance) in &data.nonAvvmBalances {
+        non_avvm_balances.insert(
+            address::ExtendedAddr::from_str(address).unwrap(),
+            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
+    }
+
     config::GenesisData {
         genesis_prev: block::HeaderHash::new(canonicalize_json(json).as_bytes()),
         epoch_stability_depth: data.protocolConsts.k,
@@ -57,7 +65,7 @@ pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Res
             parse_fee_constant(&data.blockVersionData.txFeePolicy.summand),
             parse_fee_constant(&data.blockVersionData.txFeePolicy.multiplier)),
         avvm_distr,
-        non_avvm_balances: BTreeMap::new(), // FIXME
+        non_avvm_balances,
     }
 }
 
