@@ -1,4 +1,13 @@
 //! Address creation and parsing
+//!
+//! Address components are:
+//! * `HashedSpendingData` computed from `SpendingData`
+//! * `Attributes`
+//! * `AddrType`
+//!
+//! All this components form an `ExtendedAddr`, which serialized
+//! to binary makes an `Addr`
+//!
 use std::{fmt, str::{FromStr}, ops::{Deref}};
 #[cfg(feature = "generic-serialization")]
 use serde;
