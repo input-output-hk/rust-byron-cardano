@@ -29,7 +29,7 @@ pub fn write_utxos(storage: &Storage, last_block: &HeaderHash, last_date: &Block
     let parent_utxos = if epoch == 0 { BTreeMap::new() } else { get_utxos_for_epoch(storage, parent)?.2 };
     let (removed, added) = diff_maps(&parent_utxos, &utxos);
 
-    println!("writing utxo delta {} -> {}, total {}, added {}, removed {}", parent, epoch,
+    debug!("writing utxo delta {} -> {}, total {}, added {}, removed {}", parent, epoch,
            utxos.len(), added.len(), removed.len());
 
     {

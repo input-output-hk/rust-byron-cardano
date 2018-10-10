@@ -22,7 +22,7 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
     tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
 }
 
-pub fn epoch_create(storage: &Storage, packref: &PackHash, last_block: &HeaderHash, last_date: &BlockDate, utxos: &Utxos) {
+pub fn epoch_create(storage: &Storage, packref: &PackHash, last_block: &HeaderHash, last_date: &BlockDate, utxos: Option<&Utxos>) {
     let epochid = last_date.get_epochid();
 
     // read the pack and append the block hash as we find them in the refpack.
@@ -57,7 +57,9 @@ pub fn epoch_create(storage: &Storage, packref: &PackHash, last_block: &HeaderHa
     tmpfile.render_permanent(&storage.config.get_epoch_refpack_filepath(epochid)).unwrap();
 
     // write the utxos
-    write_utxos(storage, last_block, last_date, utxos).unwrap();
+    if let Some(utxos) = utxos {
+        write_utxos(storage, last_block, last_date, utxos).unwrap();
+    }
 
     // write the pack pointer
     let pack_filepath = storage.config.get_epoch_pack_filepath(epochid);

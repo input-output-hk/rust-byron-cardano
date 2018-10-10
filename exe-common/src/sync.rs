@@ -321,7 +321,7 @@ fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
                         &packhash,
                         &epoch_writer_state.chain_state.prev_block,
                         &epoch_writer_state.chain_state.prev_date.unwrap(),
-                        &epoch_writer_state.chain_state.utxos);
+                        Some(&epoch_writer_state.chain_state.utxos));
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
           epoch_id, duration_print(epoch_time_elapsed));
