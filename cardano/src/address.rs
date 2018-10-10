@@ -400,7 +400,7 @@ impl<'de> serde::Deserialize<'de> for Addr
             type Value = Addr;
 
             fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                write!(fmt, "Expecting an Extended Address (`ExtendedAddr`)")
+                write!(fmt, "Expecting an Address (`Addr`)")
             }
 
             fn visit_str<'a, E>(self, v: &'a str) -> Result<Self::Value, E>
@@ -412,7 +412,7 @@ impl<'de> serde::Deserialize<'de> for Addr
                 };
 
                 match Self::Value::try_from_slice(&bytes) {
-                    Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
+                    Err(err) => { Err(E::custom(format!("unable to parse Addr: {:?}", err))) },
                     Ok(v) => Ok(v)
                 }
             }
@@ -421,7 +421,7 @@ impl<'de> serde::Deserialize<'de> for Addr
                 where E: serde::de::Error
             {
                 match Self::Value::try_from_slice(v) {
-                    Err(err) => { Err(E::custom(format!("unable to parse ExtendedAddr: {:?}", err))) },
+                    Err(err) => { Err(E::custom(format!("unable to parse Addr: {:?}", err))) },
                     Ok(v) => Ok(v)
                 }
             }
