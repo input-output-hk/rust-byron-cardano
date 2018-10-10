@@ -324,6 +324,7 @@ impl FromStr for HashedSpendingData {
 }
 
 /// A valid cardano Address that is displayed in base58
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Addr(Vec<u8>);
 
 impl Addr {
