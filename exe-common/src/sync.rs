@@ -357,8 +357,8 @@ pub fn get_chain_state_at_start_of(
     if epoch_id == net_cfg.epoch_start {
         ChainState::new(genesis_data)
     } else {
-        let (last_block, last_date, utxos) = get_utxos_for_epoch(storage, epoch_id - 1)
+        let utxo_state = get_utxos_for_epoch(storage, epoch_id - 1)
             .expect("unable to read epoch utxo state");
-        ChainState::new_from_epoch_start(genesis_data, last_block, last_date, utxos)
+        ChainState::new_from_epoch_start(genesis_data, utxo_state.last_block, utxo_state.last_date, utxo_state.utxos)
     }
 }

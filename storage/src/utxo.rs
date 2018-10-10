@@ -3,7 +3,7 @@ use cardano::tx::{TxoPointer};
 use cbor_event::{se, de, Len};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use storage_units::utils::magic;
 use super::{Result, Storage};
 
@@ -23,53 +23,71 @@ pub fn write_utxos(storage: &Storage, last_block: &HeaderHash, last_date: &Block
 
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Epoch);
 
-    magic::write_header(&mut tmpfile, FILE_TYPE, VERSION)?;
-
-    let parent = parent_for_epoch(epoch);
-    let parent_utxos = if epoch == 0 { BTreeMap::new() } else { get_utxos_for_epoch(storage, parent)?.2 };
-    let (removed, added) = diff_maps(&parent_utxos, &utxos);
-
-    debug!("writing utxo delta {} -> {}, total {}, added {}, removed {}", parent, epoch,
-           utxos.len(), added.len(), removed.len());
-
-    {
-        let serializer = se::Serializer::new(&mut tmpfile)
-            .write_array(Len::Len(5))?
-            .serialize(&parent)?
-            .serialize(&last_block)?
-            .serialize(&match last_date {
-                BlockDate::Genesis(_) => 0u16,
-                BlockDate::Normal(s) => s.slotid + 1,
-            })?;
-        let serializer = se::serialize_fixed_array(removed.iter(), serializer)?;
-        se::serialize_fixed_map(added.iter(), serializer)?;
-    }
+    write_utxos_delta(storage, last_block, last_date, utxos,
+                      parent_for_epoch(epoch), &mut tmpfile)?;
 
     tmpfile.render_permanent(&storage.config.get_epoch_utxos_filepath(epoch))?;
 
-    //assert_eq!(&get_utxos_for_epoch(storage, epoch)?, utxos);
+    //assert_eq!(&get_utxos_for_epoch(storage, epoch)?.utxos, utxos);
 
     Ok(())
+}
+
+/// Write the utxo delta between two arbitrary epochs, or write a full
+/// utxo dump if parent_epoch is None.
+pub fn write_utxos_delta<W: Write>(
+    storage: &Storage,
+    last_block: &HeaderHash,
+    last_date: &BlockDate,
+    utxos: &Utxos,
+    parent_epoch: Option<EpochId>,
+    writer: &mut W) -> Result<()>
+{
+    magic::write_header(writer, FILE_TYPE, VERSION)?;
+
+    let parent_utxos = match parent_epoch {
+        None => BTreeMap::new(),
+        Some(parent_epoch) => get_utxos_for_epoch(storage, parent_epoch)?.utxos
+    };
+
+    let (removed, added) = diff_maps(&parent_utxos, &utxos);
+
+    debug!("writing utxo delta {:?} -> {}, total {}, added {}, removed {}",
+           parent_epoch, last_date.get_epochid(),
+           utxos.len(), added.len(), removed.len());
+
+    let serializer = se::Serializer::new(writer)
+        .write_array(Len::Len(5))?
+        .serialize(&parent_epoch)?
+        .serialize(&last_block)?
+        .serialize(&match last_date {
+            BlockDate::Genesis(_) => 0u16,
+            BlockDate::Normal(s) => s.slotid + 1,
+        })?;
+    let serializer = se::serialize_fixed_array(removed.iter(), serializer)?;
+    se::serialize_fixed_map(added.iter(), serializer)?;
+
+    Ok(())
+}
+
+pub struct UtxoState {
+    pub last_block: HeaderHash,
+    pub last_date: BlockDate,
+    pub utxos: Utxos,
 }
 
 /// Reconstruct the full utxo state at the end of the specified epoch
 /// by reading and applying the epoch's ancestor delta chain.
 pub fn get_utxos_for_epoch(storage: &Storage, epoch: EpochId)
-                           -> Result<(HeaderHash, BlockDate, Utxos)>
+                           -> Result<UtxoState>
 {
     let mut utxos = Utxos::new();
     let (last_block, last_date) = do_get_utxos(storage, epoch, &mut utxos)?;
-    Ok((last_block, last_date, utxos))
+    Ok(UtxoState { last_block, last_date, utxos })
 }
 
-fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<(HeaderHash, BlockDate)> {
-
-    let parent = parent_for_epoch(epoch);
-
-    if epoch > 0 {
-        do_get_utxos(storage, parent_for_epoch(epoch), utxos)?;
-    }
-
+fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<(HeaderHash, BlockDate)>
+{
     let filename = storage.config.get_epoch_utxos_filepath(epoch);
 
     let mut file = fs::File::open(&filename)?;
@@ -82,25 +100,26 @@ fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<
     let mut raw = de::RawCbor::from(&data);
 
     raw.tuple(5, "utxo delta file")?;
-    let actual_parent = raw.deserialize::<EpochId>()?;
-    assert_eq!(actual_parent, parent, "utxo delta file parent mismatch");
-
+    let parent = raw.deserialize::<Option<EpochId>>()?;
     let last_block = raw.deserialize()?;
-
     let last_date = match raw.deserialize()? {
         0 => BlockDate::Genesis(epoch),
         n => BlockDate::Normal(EpochSlotId { epoch, slotid: n - 1 }),
     };
-
     let removed = raw.deserialize::<Vec<TxoPointer>>()?;
+    let added = raw.deserialize::<Utxos>()?;
+
+    drop(file);
+
+    if let Some(parent) = parent {
+        do_get_utxos(storage, parent, utxos)?;
+    }
 
     for txo_ptr in &removed {
         if utxos.remove(txo_ptr).is_none() {
             panic!("utxo delta removes non-existent utxo {}", txo_ptr);
         }
     }
-
-    let added = raw.deserialize::<Utxos>()?;
 
     for (txo_ptr, txo) in added {
         if utxos.insert(txo_ptr, txo).is_some() {
@@ -113,11 +132,11 @@ fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<
 
 /// Compute the parent of this epoch in the patch chain by clearing
 /// the least-significant bit.
-fn parent_for_epoch(epoch: EpochId) -> EpochId {
-    if epoch == 0 { return 0; }
+fn parent_for_epoch(epoch: EpochId) -> Option<EpochId> {
+    if epoch == 0 { return None; }
     for n in 0..63 {
         if epoch & (1 << n) != 0 {
-            return epoch & !(1 << n);
+            return Some(epoch & !(1 << n));
         }
     }
     unreachable!();
