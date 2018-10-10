@@ -16,7 +16,7 @@ storage-units = { path = "../storage-units" }
 protocol = { path = "../protocol" }
 cbor_event = "1.0"
 log = "*"
-rand = "0.4"
+rand = "0.5"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.7"
