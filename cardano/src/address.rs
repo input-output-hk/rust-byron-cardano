@@ -51,7 +51,7 @@ impl AddrType {
         match self {
             AddrType::ATPubKey => 0,
             AddrType::ATScript => 1,
-            AddrType::ATRedeem => 2
+            AddrType::ATRedeem => 2,
         }
     }
 }
