@@ -761,6 +761,18 @@ mod tests {
         assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
         assert_eq!(bytes, cbor!(r).unwrap())
     }
+
+    #[test]
+    fn decode_address_network_magic() {
+        let bytes = include_bytes!("../test-vectors/network-magic.cbor");
+
+        let r = ExtendedAddr::try_from_slice(bytes).unwrap();
+
+        assert_eq!(r.addr_type, AddrType::ATPubKey);
+        assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::Magic(1097911063));
+        assert_eq!(&bytes[..], &cbor!(r).unwrap()[..])
+    }
 }
 
 #[cfg(feature = "with-bench")]
