@@ -7,6 +7,9 @@ use tx::{self, TxAux, TxoPointer, TxOut, TxInWitness};
 use std::collections::BTreeMap;
 use fee::{self, FeeAlgorithm};
 
+pub type Utxos = BTreeMap<TxoPointer, TxOut>;
+
+#[derive(Debug, Clone)]
 pub struct ChainState {
     // FIXME: maybe we should just keep a ref to GenesisData?  Though
     // I guess at least the fee policy could change in an update.
@@ -16,7 +19,7 @@ pub struct ChainState {
     pub prev_block: HeaderHash,
     pub prev_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
-    pub utxos: BTreeMap<TxoPointer, TxOut>,
+    pub utxos: Utxos,
 
     // Some stats.
     pub nr_transactions: u64,
@@ -50,6 +53,22 @@ impl ChainState {
             nr_transactions: 0,
             spend_txos: 0,
         }
+    }
+
+    /// Initialize the chain state at the start of an epoch from the
+    /// utxo state at the end of the previous epoch, and the last
+    /// block hash / block date in that epoch.
+    pub fn new_from_epoch_start(
+        genesis_data: &GenesisData,
+        last_block: HeaderHash,
+        last_date: BlockDate,
+        utxos: Utxos) -> Self
+    {
+        let mut chain_state = ChainState::new(genesis_data);
+        chain_state.prev_block = last_block;
+        chain_state.prev_date = Some(last_date);
+        chain_state.utxos = utxos;
+        chain_state
     }
 
     /// Verify a block in the context of the chain. Regardless of

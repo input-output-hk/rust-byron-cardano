@@ -76,6 +76,11 @@ impl StorageConfig {
         p.push("refpack");
         p
     }
+    pub fn get_epoch_utxos_filepath(&self, epoch: EpochId) -> PathBuf {
+        let mut p = self.get_epoch_dir(epoch);
+        p.push("utxos");
+        p
+    }
 
     pub fn list_indexes(&self) -> Vec<PackHash> {
         let mut packs = Vec::new();
