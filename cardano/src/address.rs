@@ -20,7 +20,7 @@ use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
-use config;
+use config::{NetworkMagic};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -192,7 +192,7 @@ impl cbor_event::de::Deserialize for StakeDistribution {
 pub struct Attributes {
     pub derivation_path: Option<HDAddressPayload>,
     pub stake_distribution: StakeDistribution,
-    pub network_magic: config::NetworkMagic,
+    pub network_magic: NetworkMagic,
     // attr_remains ? whatever...
 }
 impl Attributes {
@@ -200,14 +200,14 @@ impl Attributes {
         Attributes {
             derivation_path: hdap,
             stake_distribution: StakeDistribution::BootstrapEraDistr,
-            network_magic: None,
+            network_magic: NetworkMagic::NoMagic,
         }
     }
     pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>) -> Self {
         Attributes {
             derivation_path: hdap,
             stake_distribution: StakeDistribution::new_single_key(pubk),
-            network_magic: None,
+            network_magic: NetworkMagic::NoMagic,
         }
     }
 }
@@ -224,7 +224,7 @@ impl cbor_event::se::Serialize for Attributes {
             &StakeDistribution::SingleKeyDistr(_) => {len += 1 }
         };
         if let Some(_) = &self.derivation_path { len += 1 };
-        if let Some(_) = &self.network_magic { len += 1 };
+        if let NetworkMagic::Magic(_) = &self.network_magic { len += 1 };
         let serializer = serializer.write_map(cbor_event::Len::Len(len))?;
         let serializer = match &self.stake_distribution {
             &StakeDistribution::BootstrapEraDistr => { serializer },
@@ -241,8 +241,8 @@ impl cbor_event::se::Serialize for Attributes {
             }
         };
         let serializer = match &self.network_magic {
-            &None => { serializer },
-            &Some(network_magic) => {
+            &NetworkMagic::NoMagic => { serializer },
+            &NetworkMagic::Magic(network_magic) => {
                 serializer
                     .write_unsigned_integer(ATTRIBUTE_NAME_TAG_NETWORK_MAGIC)?
                     .write_bytes(cbor!(&(network_magic as u32))?)?
@@ -262,7 +262,7 @@ impl cbor_event::de::Deserialize for Attributes {
         };
         let mut stake_distribution = StakeDistribution::BootstrapEraDistr;
         let mut derivation_path = None;
-        let mut network_magic = None;
+        let mut network_magic = NetworkMagic::NoMagic;
         while len > 0 {
             let key = raw.unsigned_integer()?;
             match key {
@@ -274,8 +274,7 @@ impl cbor_event::de::Deserialize for Attributes {
                     // Yes, this is an integer encoded as CBOR encoded as Bytes in CBOR.
                     let bytes = raw.bytes()?;
                     let n = RawCbor::from(bytes.bytes()).deserialize::<u32>()?;
-                    // FIXME: add signed integer support to cbor_event.
-                    network_magic = Some(n as i32);
+                    network_magic = NetworkMagic::Magic(n);
                 }
                 _ => {
                     return Err(cbor_event::Error::CustomError(format!("invalid Attribute key {}", key)));

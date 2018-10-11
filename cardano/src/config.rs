@@ -63,7 +63,12 @@ impl cbor_event::Deserialize for ProtocolMagic {
     }
 }
 
-pub type NetworkMagic = Option<i32>;
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
+pub enum NetworkMagic {
+    NoMagic,
+    Magic(u32), // FIXME: should by i32
+}
 
 impl From<ProtocolMagic> for NetworkMagic {
     fn from(pm: ProtocolMagic) -> Self {
@@ -71,9 +76,9 @@ impl From<ProtocolMagic> for NetworkMagic {
         // NetworkMagic? There is a requiresNetworkMagic field in
         // lib/configuration.yaml, but not in the genesis data.
         if pm == ProtocolMagic::default() || *pm == 633343913 {
-            None
+            NetworkMagic::NoMagic
         } else {
-            Some(*pm as i32)
+            NetworkMagic::Magic(*pm)
         }
     }
 }
