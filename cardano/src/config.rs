@@ -109,5 +109,5 @@ pub struct GenesisData {
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
-    pub non_avvm_balances: BTreeMap<address::ExtendedAddr, coin::Coin>,
+    pub non_avvm_balances: BTreeMap<address::Addr, coin::Coin>,
 }

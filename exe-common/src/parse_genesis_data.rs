@@ -53,7 +53,7 @@ pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Res
     let mut non_avvm_balances = BTreeMap::new();
     for (address, balance) in &data.nonAvvmBalances {
         non_avvm_balances.insert(
-            address::ExtendedAddr::from_str(address).unwrap(),
+            address::ExtendedAddr::from_str(address).unwrap().into(),
             coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
     }
 

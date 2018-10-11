@@ -47,7 +47,7 @@ impl ChainState {
             let id = hash::Blake2b256::new(&cbor!(&address).unwrap());
             utxos.insert(
                 TxoPointer { id, index: 0 },
-                TxOut { address: address.clone(), value: value.clone() });
+                TxOut { address: address.deconstruct(), value: value.clone() });
         }
 
         ChainState {
