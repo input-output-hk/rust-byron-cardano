@@ -364,7 +364,8 @@ impl fmt::Display for Addr {
 
 impl cbor_event::se::Serialize for Addr {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
-        serializer.write_bytes(self.as_ref())
+        let raw_cbor = RawCbor::from(&self.0);
+        serializer.append_raw_cbor(&raw_cbor)
     }
 }
 impl cbor_event::de::Deserialize for Addr {
