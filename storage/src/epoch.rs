@@ -30,7 +30,7 @@ pub fn epoch_create(storage: &Storage, packref: &PackHash,
     let mut rp = reffile::Lookup::new();
     let mut reader = packreader_init(&storage.config, packref);
 
-    let mut current_slotid = BlockDate::Genesis(epochid);
+    let mut current_slotid = BlockDate::Boundary(epochid);
     while let Some(rblk) = packreader_block_next(&mut reader) {
         let blk = rblk.decode().unwrap();
         let hdr = blk.get_header();

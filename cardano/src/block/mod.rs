@@ -4,7 +4,7 @@
 //! and the new epoch block types are in genesis
 
 pub mod types;
-pub mod genesis; /* genesis block related value */
+pub mod boundary; /* boundary block related value */
 pub mod normal; /* normal block related value */
 pub mod block;
 pub mod verify;

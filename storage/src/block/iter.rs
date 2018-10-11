@@ -104,7 +104,7 @@ pub fn resolve_date_to_blockhash(storage: &Storage, tip: &BlockHash, date: &Bloc
     match epoch_open_packref(&storage.config, epoch) {
         Ok(mut handle) => {
             let slotid = match date {
-                BlockDate::Genesis(_) => 0,
+                BlockDate::Boundary(_) => 0,
                 BlockDate::Normal(sid) => sid.slotid,
             };
             let r = handle.getref_at_index(slotid as u32)?;
@@ -166,7 +166,7 @@ impl Iter {
         // check if we have everything through epoch pack, no block needed in this case. if not we reverse iter the blocks
         if iter_epoch <= end.get_epochid() {
             // earliest missing block date
-            let earliest = BlockDate::Genesis(iter_epoch);
+            let earliest = BlockDate::Boundary(iter_epoch);
 
             // move reading of the tip at the beginning to be able to early
             // bail if we don't have the blocks asked for.

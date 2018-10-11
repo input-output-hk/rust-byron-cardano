@@ -117,7 +117,7 @@ impl Api for HermesEndPoint {
                     from = BlockRef {
                         hash: HeaderHash::from([0;HASH_SIZE_256]), // FIXME: use None?
                         parent: from.hash.clone(),
-                        date: BlockDate::Genesis(d.epoch + 1)
+                        date: BlockDate::Boundary(d.epoch + 1)
                     };
                     inclusive = true;
                 };
@@ -127,7 +127,7 @@ impl Api for HermesEndPoint {
 
             if !inclusive && to.hash == from.hash { break }
 
-            if inclusive && from.date.is_genesis() && epoch < to.date.get_epochid() {
+            if inclusive && from.date.is_boundary() && epoch < to.date.get_epochid() {
 
                 // Fetch a complete epoch.
 

@@ -33,7 +33,7 @@ pub enum Error {
     WrongBlockHash,
     WrongDelegationProof,
     WrongExtraDataProof,
-    WrongGenesisProof,
+    WrongBoundaryProof,
     WrongMagic,
     WrongMerkleRoot,
     WrongMpcProof,
@@ -79,7 +79,7 @@ impl fmt::Display for Error {
             WrongBlockHash => write!(f, "block hash is invalid"),
             WrongDelegationProof => write!(f, "delegation proof is invalid"),
             WrongExtraDataProof => write!(f, "extra data proof is invalid"),
-            WrongGenesisProof => write!(f, "genesis proof is invalid"),
+            WrongBoundaryProof => write!(f, "boundary proof is invalid"),
             WrongMagic => write!(f, "magic number is invalid"),
             WrongMerkleRoot => write!(f, "merkle root is invalid"),
             WrongMpcProof => write!(f, "MPC proof is invalid"),
@@ -127,7 +127,7 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
 {
     match blk {
 
-        Block::GenesisBlock(blk) => {
+        Block::BoundaryBlock(blk) => {
             blk.verify(protocol_magic)?;
         },
 
@@ -143,7 +143,7 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
     Ok(())
 }
 
-impl Verify for genesis::Block {
+impl Verify for boundary::Block {
     fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
         let hdr = &self.header;
 
@@ -153,7 +153,7 @@ impl Verify for genesis::Block {
 
         // check body proof
         if hash::Blake2b256::new(&cbor!(&self.body).unwrap()) != hdr.body_proof.0 {
-            return Err(Error::WrongGenesisProof);
+            return Err(Error::WrongBoundaryProof);
         }
 
         Ok(())
@@ -802,7 +802,7 @@ mod tests {
             expect_error(&rblk.decode(), cbor_event::Error::TrailingData);
         }
 
-        // TODO: SelfSignedPSK, WrongGenesisProof
+        // TODO: SelfSignedPSK, WrongBoundaryProof
     }
 
     const PROTOCOL_MAGIC: u32 = 633343913;

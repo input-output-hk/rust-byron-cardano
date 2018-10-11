@@ -43,7 +43,7 @@ fn net_sync_to<A: Api>(
     let genesis_ref = (BlockRef {
         hash: net_cfg.genesis.clone(),
         parent: net_cfg.genesis_prev.clone(),
-        date: BlockDate::Genesis(net_cfg.epoch_start)
+        date: BlockDate::Boundary(net_cfg.epoch_start)
     }, true);
 
     let our_tip = match storage.get_block_from_tag(&tag::HEAD) {
@@ -70,7 +70,7 @@ fn net_sync_to<A: Api>(
     // epoch.
     let first_unstable_epoch = tip.date.get_epochid() -
         match tip.date {
-            BlockDate::Genesis(_) => 1,
+            BlockDate::Boundary(_) => 1,
             BlockDate::Normal(d) => if d.slotid as usize <= net_cfg.epoch_stability_depth { 1 } else { 0 }
         };
     info!("First unstable epoch : {}", first_unstable_epoch);
@@ -126,7 +126,7 @@ fn net_sync_to<A: Api>(
             let hdr = block.get_header();
             assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
             cur_hash = hdr.get_previous_header();
-            if hdr.get_blockdate().is_genesis() { break }
+            if hdr.get_blockdate().is_boundary() { break }
         }
 
         maybe_create_epoch(net_cfg, storage, genesis_data, first_unstable_epoch - 1, &cur_hash);
@@ -136,7 +136,7 @@ fn net_sync_to<A: Api>(
         let date = block.get_header().get_blockdate();
 
         // Flush the previous epoch (if any).
-        if date.is_genesis() {
+        if date.is_boundary() {
             let mut writer_state = None;
             mem::swap(&mut writer_state, &mut epoch_writer_state);
 
@@ -158,7 +158,7 @@ fn net_sync_to<A: Api>(
         } else {
 
             // If this is the epoch genesis block, start writing a new epoch pack.
-            if date.is_genesis() {
+            if date.is_boundary() {
                 epoch_writer_state = Some(EpochWriterState {
                     epoch_id: date.get_epochid(),
                     writer: pack::packwriter_init(&storage.config).unwrap(),
@@ -294,7 +294,7 @@ fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoc
         assert!(hdr.get_blockdate().get_epochid() == epoch_id);
         blocks.push((cur_hash, block_raw, block));
         cur_hash = hdr.get_previous_header();
-        if hdr.get_blockdate().is_genesis() { break }
+        if hdr.get_blockdate().is_boundary() { break }
     }
     (cur_hash, blocks)
 }
