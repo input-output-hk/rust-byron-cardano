@@ -339,6 +339,7 @@ mod unit_tests {
     use hdwallet::{XPub, XPUB_SIZE};
     use tx::{Tx, TxInWitness, TxoPointer, TxOut, TxId};
     use coin::sum_coins;
+    use config::{NetworkMagic};
     extern crate rand;
     use self::rand::random;
 
@@ -355,7 +356,7 @@ mod unit_tests {
         ExtendedAddr::new(
             AddrType::ATPubKey,
             SpendingData::PubKeyASD(xpub),
-            Attributes::new_bootstrap_era(Some(payload))
+            Attributes::new_bootstrap_era(Some(payload), NetworkMagic::NoMagic)
         )
     }
 
@@ -364,7 +365,7 @@ mod unit_tests {
         ExtendedAddr::new(
             AddrType::ATPubKey,
             SpendingData::PubKeyASD(xpub),
-            Attributes::new_bootstrap_era(None)
+            Attributes::new_bootstrap_era(None, NetworkMagic::NoMagic)
         )
     }
 

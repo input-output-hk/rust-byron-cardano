@@ -13,7 +13,7 @@ use coin::{self, Coin};
 use txutils::{self, OutputPolicy};
 use tx::{self, TxAux, Tx, TxId, TxInWitness};
 use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
-use config::ProtocolMagic;
+use config::{ProtocolMagic, NetworkMagic};
 use input_selection;
 
 use super::scheme::{self};
@@ -92,7 +92,8 @@ impl Wallet {
                 // i.e. it is possible to a mean player to reuse existing
                 // payload in their own addresses to make recipient believe
                 // they have received funds. This check prevents that to happen.
-                let addresses = scheme::Account::generate_addresses(account, [addressing].iter());
+                let addresses = scheme::Account::generate_addresses(
+                    account, [addressing].iter(), address.attributes.network_magic);
 
                 debug_assert!(addresses.len() == 1, "we expect to generate only one address here...");
 
@@ -216,10 +217,10 @@ impl scheme::Wallet for Wallet {
 impl scheme::Account for RootKey {
     type Addressing = Addressing;
 
-    fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
+    fn generate_addresses<'a, I>(&'a self, addresses: I, network_magic: NetworkMagic) -> Vec<ExtendedAddr>
         where I: Iterator<Item = &'a Self::Addressing>
     {
-        self.address_generator().iter_with(addresses).collect()
+        self.address_generator().iter_with(addresses, network_magic).collect()
     }
 }
 
@@ -348,10 +349,10 @@ impl<K> AddressGenerator<K> {
     /// # Example
     ///
     /// TODO
-    pub fn iter_with<'a, I>(self, iter: I) -> AddressIterator<K, I>
+    pub fn iter_with<'a, I>(self, iter: I, network_magic: NetworkMagic) -> AddressIterator<K, I>
         where I: Iterator<Item = &'a Addressing>
     {
-        AddressIterator::new(self, iter)
+        AddressIterator::new(self, iter, network_magic)
     }
 
     pub fn try_get_addressing(&self, address: &ExtendedAddr) -> Result<Option<Addressing>> {
@@ -414,11 +415,11 @@ impl AddressGenerator<XPub> {
     }
 
     /// create an address with the given addressing
-    pub fn address(&self, path: &Addressing) -> Result<ExtendedAddr> {
+    pub fn address(&self, path: &Addressing, network_magic: NetworkMagic) -> Result<ExtendedAddr> {
         let key = self.key(path)?;
 
         let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
-        let attributes = Attributes::new_bootstrap_era(Some(payload));
+        let attributes = Attributes::new_bootstrap_era(Some(payload), network_magic);
         Ok(ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes))
     }
 }
@@ -448,11 +449,11 @@ impl AddressGenerator<XPrv> {
     }
 
     /// create an address with the given addressing
-    pub fn address(&self, path: &Addressing) -> ExtendedAddr {
+    pub fn address(&self, path: &Addressing, network_magic: NetworkMagic) -> ExtendedAddr {
         let key = self.key(path).public();
 
         let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
-        let attributes = Attributes::new_bootstrap_era(Some(payload));
+        let attributes = Attributes::new_bootstrap_era(Some(payload), network_magic);
         ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes)
     }
 
@@ -465,14 +466,15 @@ impl AddressGenerator<XPrv> {
 
 pub struct AddressIterator<K, I> {
     generator: AddressGenerator<K>,
-
-    iter: I
+    iter: I,
+    network_magic: NetworkMagic,
 }
 impl<K, I> AddressIterator<K, I> {
-    fn new(generator: AddressGenerator<K>, iter: I) -> Self {
+    fn new(generator: AddressGenerator<K>, iter: I, network_magic: NetworkMagic) -> Self {
         AddressIterator {
             generator,
-            iter
+            iter,
+            network_magic
         }
     }
 }
@@ -481,7 +483,7 @@ impl<'a, I> Iterator for AddressIterator<XPrv, I>
 {
     type Item = ExtendedAddr;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|path| { self.generator.address(path) })
+        self.iter.next().map(|path| { self.generator.address(path, self.network_magic) })
     }
 }
 impl<'a, I> Iterator for AddressIterator<XPub, I>
@@ -489,6 +491,6 @@ impl<'a, I> Iterator for AddressIterator<XPub, I>
 {
     type Item = Result<ExtendedAddr>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|path| { self.generator.address(path) })
+        self.iter.next().map(|path| { self.generator.address(path, self.network_magic) })
     }
 }

@@ -1,4 +1,3 @@
-use cardano::hdwallet;
 use cardano::fee::{self, LinearFee};
 use cardano::coin::Coin;
 use cardano::config::ProtocolMagic;
@@ -7,10 +6,8 @@ use cardano::txbuild::{TxBuilder, TxFinalized};
 use cardano::tx::{self, TxInWitness, TxId};
 use cardano::txutils::OutputPolicy;
 use std::{
-    ffi,
     ptr,
     slice,
-    os::raw::{c_char, c_int},
 };
 use types::*;
 

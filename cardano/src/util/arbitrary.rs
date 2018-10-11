@@ -19,6 +19,16 @@ impl Arbitrary for Wrapper<config::ProtocolMagic> {
     }
 }
 
+impl Arbitrary for Wrapper<config::NetworkMagic> {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        if Arbitrary::arbitrary(g) {
+            Wrapper(config::NetworkMagic::NoMagic)
+        } else {
+            Wrapper(config::NetworkMagic::Magic(Arbitrary::arbitrary(g)))
+        }
+    }
+}
+
 impl Arbitrary for Wrapper<coin::Coin> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let mut coin = coin::Coin::zero();
@@ -58,9 +68,11 @@ impl Arbitrary for Wrapper<hdwallet::XPrv> {
 impl Arbitrary for Wrapper<(hdwallet::XPrv, address::ExtendedAddr)> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let xprv : Wrapper<hdwallet::XPrv> = Arbitrary::arbitrary(g);
+        let network_magic : Wrapper<config::NetworkMagic> = Arbitrary::arbitrary(g);
         let attributes = address::Attributes {
             derivation_path: None,
-            stake_distribution: address::StakeDistribution::BootstrapEraDistr
+            stake_distribution: address::StakeDistribution::BootstrapEraDistr,
+            network_magic: *network_magic,
         };
         let addr_type = address::AddrType::ATPubKey;
         let addr = address::HashedSpendingData::new(

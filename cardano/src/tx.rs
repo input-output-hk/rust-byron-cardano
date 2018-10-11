@@ -24,13 +24,10 @@ use coin::{self, Coin};
 pub type TxId = Blake2b256;
 
 pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey, protocol_magic: ProtocolMagic) -> (TxId, ExtendedAddr) {
-    let mut attrs = Attributes::new_bootstrap_era(None);
-    // FIXME: this should probably be moved to Attributes::new_*.
-    attrs.network_magic = NetworkMagic::from(protocol_magic);
     let address = ExtendedAddr::new(
         AddrType::ATRedeem,
         SpendingData::RedeemASD(*pubkey),
-        attrs);
+        Attributes::new_bootstrap_era(None, NetworkMagic::from(protocol_magic)));
     let txid = Blake2b256::new(&cbor!(&address).unwrap());
     (txid, address)
 }
@@ -547,7 +544,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
         let value = Coin::new(42).unwrap();
@@ -593,7 +590,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
         let value = Coin::new(42).unwrap();
         let txout = TxOut::new(ea, value);
@@ -642,7 +639,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::from(protocol_magic));
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
 
         // create a transaction

@@ -6,7 +6,7 @@ use bip::bip44::{BIP44_PURPOSE, BIP44_COIN_TYPE, BIP44_SOFT_UPPER_BOUND};
 use bip::bip39;
 use tx::{TxId, TxInWitness};
 use address::{ExtendedAddr};
-use config::{ProtocolMagic};
+use config::{ProtocolMagic, NetworkMagic};
 use std::{ops::Deref, collections::{BTreeMap}};
 
 use super::scheme::{self};
@@ -163,6 +163,7 @@ impl Account<XPrv> {
     /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
     /// # use cardano::address::ExtendedAddr;
     /// # use cardano::util::base58;
+    /// # use cardano::config::{NetworkMagic};
     ///
     /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
@@ -176,7 +177,7 @@ impl Account<XPrv> {
     ///                           .filter(|(idx, _)| idx % 2 == 0)
     ///                           .take(20)
     /// {
-    ///   let address = ExtendedAddr::new_simple(*xprv.public());
+    ///   let address = ExtendedAddr::new_simple(*xprv.public(), NetworkMagic::from(1234));
     ///   println!("address index {}: {}", idx, address);
     /// }
     ///
@@ -204,6 +205,7 @@ impl Account<XPub> {
     /// # use cardano::bip::bip39::{MnemonicString, dictionary::ENGLISH};
     /// # use cardano::address::ExtendedAddr;
     /// # use cardano::util::base58;
+    /// # use cardano::config::{NetworkMagic};
     ///
     /// let mnemonics = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     /// let mnemonics = MnemonicString::new(&ENGLISH, mnemonics.to_owned()).unwrap();
@@ -216,7 +218,7 @@ impl Account<XPub> {
     ///                           .take(10)
     ///                           .enumerate()
     /// {
-    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap());
+    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap(), NetworkMagic::from(1234));
     ///   println!("address index {}: {}", idx, address);
     /// }
     ///
@@ -241,7 +243,7 @@ impl Deref for Account<XPub> {
 impl scheme::Account for Account<XPub> {
     type Addressing = (bip44::AddrType, u32);
 
-    fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
+    fn generate_addresses<'a, I>(&'a self, addresses: I, network_magic: NetworkMagic) -> Vec<ExtendedAddr>
         where I: Iterator<Item = &'a Self::Addressing>
     {
         let (hint_low, hint_max) = addresses.size_hint();
@@ -251,7 +253,7 @@ impl scheme::Account for Account<XPub> {
             let key = self.cached_root_key
                           .change(self.derivation_scheme, addressing.0).expect("cannot fail")
                           .index(self.derivation_scheme, addressing.1).expect("cannot fail");
-            let addr = ExtendedAddr::new_simple(key.0);
+            let addr = ExtendedAddr::new_simple(key.0, network_magic);
             vec.push(addr);
         }
 
@@ -261,7 +263,7 @@ impl scheme::Account for Account<XPub> {
 impl scheme::Account for Account<XPrv> {
     type Addressing = (bip44::AddrType, u32);
 
-    fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
+    fn generate_addresses<'a, I>(&'a self, addresses: I, network_magic: NetworkMagic) -> Vec<ExtendedAddr>
         where I: Iterator<Item = &'a Self::Addressing>
     {
         let (hint_low, hint_max) = addresses.size_hint();
@@ -272,7 +274,7 @@ impl scheme::Account for Account<XPrv> {
                           .change(self.derivation_scheme, addressing.0)
                           .index(self.derivation_scheme, addressing.1)
                           .public();
-            let addr = ExtendedAddr::new_simple(key.0);
+            let addr = ExtendedAddr::new_simple(key.0, network_magic);
             vec.push(addr);
         }
 

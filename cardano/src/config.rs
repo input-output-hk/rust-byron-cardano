@@ -72,13 +72,19 @@ pub enum NetworkMagic {
 
 impl From<ProtocolMagic> for NetworkMagic {
     fn from(pm: ProtocolMagic) -> Self {
+        NetworkMagic::from(*pm)
+    }
+}
+
+impl From<u32> for NetworkMagic {
+    fn from(pm: u32) -> Self {
         // FIXME: is there a better way to determine whether to emit
         // NetworkMagic? There is a requiresNetworkMagic field in
         // lib/configuration.yaml, but not in the genesis data.
-        if pm == ProtocolMagic::default() || *pm == 633343913 {
+        if pm == *ProtocolMagic::default() || pm == 633343913 {
             NetworkMagic::NoMagic
         } else {
-            NetworkMagic::Magic(*pm)
+            NetworkMagic::Magic(pm)
         }
     }
 }

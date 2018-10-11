@@ -3,6 +3,7 @@ use cardano::bip;
 use cardano::hdwallet;
 use cardano::wallet::bip44;
 use cardano::wallet::scheme::Wallet;
+use cardano::config::{ProtocolMagic, NetworkMagic};
 
 use std::os::raw::c_char;
 use std::{ffi, ptr, slice};
@@ -95,6 +96,7 @@ pub extern "C" fn cardano_account_generate_addresses(
     from_index: u32,
     num_indices: usize,
     addresses_ptr: *mut *mut c_char,
+    protocol_magic: ProtocolMagic,
 ) -> usize {
     let account = unsafe { account_ptr.as_mut() }.expect("Not a NULL PTR");
 
@@ -110,7 +112,7 @@ pub extern "C" fn cardano_account_generate_addresses(
         .take(num_indices)
         .enumerate()
         .map(|(idx, xpub)| {
-            let address = address::ExtendedAddr::new_simple(*xpub.unwrap());
+            let address = address::ExtendedAddr::new_simple(*xpub.unwrap(), NetworkMagic::from(protocol_magic));
             let c_address = ffi_address_to_base58(&address);
             // make sure the ptr is stored at the right place with alignments and all
             unsafe {

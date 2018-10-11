@@ -196,18 +196,18 @@ pub struct Attributes {
     // attr_remains ? whatever...
 }
 impl Attributes {
-    pub fn new_bootstrap_era(hdap: Option<HDAddressPayload>) -> Self {
+    pub fn new_bootstrap_era(hdap: Option<HDAddressPayload>, network_magic: NetworkMagic) -> Self {
         Attributes {
             derivation_path: hdap,
             stake_distribution: StakeDistribution::BootstrapEraDistr,
-            network_magic: NetworkMagic::NoMagic,
+            network_magic,
         }
     }
-    pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>) -> Self {
+    pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>, network_magic: NetworkMagic) -> Self {
         Attributes {
             derivation_path: hdap,
             stake_distribution: StakeDistribution::new_single_key(pubk),
-            network_magic: NetworkMagic::NoMagic,
+            network_magic,
         }
     }
 }
@@ -475,8 +475,10 @@ impl ExtendedAddr {
     }
 
     // bootstrap era + no hdpayload address
-    pub fn new_simple(xpub: XPub) -> Self {
-        ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
+    pub fn new_simple(xpub: XPub, network_magic: NetworkMagic) -> Self {
+        ExtendedAddr::new(AddrType::ATPubKey,
+                          SpendingData::PubKeyASD(xpub),
+                          Attributes::new_bootstrap_era(None, network_magic))
     }
 
     pub fn to_address(&self) -> Addr {
@@ -644,7 +646,7 @@ mod tests {
         let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
-        let attrs = Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
@@ -670,7 +672,7 @@ mod tests {
         let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
-        let attrs = Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
@@ -730,6 +732,7 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
     }
 
     #[test]
@@ -744,6 +747,7 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
     }
 
     #[test]
@@ -754,6 +758,7 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
         assert_eq!(bytes, cbor!(r).unwrap())
     }
 }
