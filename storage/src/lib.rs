@@ -5,7 +5,6 @@ extern crate storage_units;
 extern crate cardano;
 extern crate rand;
 
-pub mod block;
 pub mod types;
 pub mod config;
 pub mod pack;
@@ -13,6 +12,7 @@ pub mod tag;
 pub mod epoch;
 pub mod refpack;
 pub mod utxo;
+pub mod iter;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -31,9 +31,11 @@ use pack::{packreader_init, packreader_block_next};
 #[derive(Debug)]
 pub enum Error {
     StorageError(StorageError),
-    BlockError(block::Error),
     CborBlockError(cbor_event::Error),
     RefPackUnexpectedBoundary(SlotId),
+
+    HashNotFound(HeaderHash),
+
     // ** Epoch pack assumption errors
     EpochExpectingBoundary,
     EpochError(EpochId, EpochId),
@@ -47,9 +49,6 @@ impl From<io::Error> for Error {
 impl From<StorageError> for Error {
     fn from(e: StorageError) -> Self { Error::StorageError(e) }
 }
-impl From<block::Error> for Error {
-    fn from(e: block::Error) -> Self { Error::BlockError(e) }
-}
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborBlockError(e) }
 }
@@ -57,8 +56,8 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::StorageError(_) => write!(f, "Storage error"),
-            Error::BlockError(_) => write!(f, "Invalid block"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
+            Error::HashNotFound(hh) => write!(f, "Hash not found {}", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
@@ -72,8 +71,8 @@ impl error::Error for Error {
     fn cause(&self) -> Option<& error::Error> {
         match self {
             Error::StorageError(ref err) => Some(err),
-            Error::BlockError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
+            Error::HashNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
@@ -116,22 +115,9 @@ impl Storage {
         Ok(storage)
     }
 
-    /// create a reverse iterator over the stored blocks
-    ///
-    /// it will iterate from the tag `HEAD` until there is no more
-    /// value to parse
-    //pub fn reverse_iter<'a>(&'a self) -> Result<block::ReverseIter<'a>> {
-    //    block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
-    //}
-
-    /// create a block iterator starting from the given EpochId
-    //pub fn iterate_from_epoch<'a>(&'a self, from: cardano::block::EpochId) -> Result<block::Iter<'a>> {
-    //    Ok(block::Iter::new(&self.config, from)?)
-    //}
-
     /// construct a range between the given hash
-    pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
-        block::Range::new(self, from, to).map_err(|err| Error::BlockError(err))
+    pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<iter::Range> {
+        iter::Range::new(self, from, to)
     }
 
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
