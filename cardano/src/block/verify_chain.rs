@@ -124,7 +124,7 @@ impl ChainState {
 
                 // If this is a genesis block, it should be the next
                 // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid() != (prev_date.get_epochid() + if date.is_genesis() { 1 } else { 0 }) {
+                if date.get_epochid() != (prev_date.get_epochid() + if date.is_boundary() { 1 } else { 0 }) {
                     return Err(Error::BlockDateInFuture)
                 }
             }

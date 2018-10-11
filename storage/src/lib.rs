@@ -33,9 +33,9 @@ pub enum Error {
     StorageError(StorageError),
     BlockError(block::Error),
     CborBlockError(cbor_event::Error),
-    RefPackUnexpectedGenesis(SlotId),
+    RefPackUnexpectedBoundary(SlotId),
     // ** Epoch pack assumption errors
-    EpochExpectingGenesis,
+    EpochExpectingBoundary,
     EpochError(EpochId, EpochId),
     EpochSlotRewind(EpochId, SlotId),
     EpochChainInvalid(BlockDate, HeaderHash, HeaderHash),
@@ -59,8 +59,8 @@ impl fmt::Display for Error {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::BlockError(_) => write!(f, "Invalid block"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
-            Error::RefPackUnexpectedGenesis(sid) => write!(f, "Ref pack has an unexpected Genesis `{}`", sid),
-            Error::EpochExpectingGenesis => write!(f, "Expected a genesis block"),
+            Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
+            Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
             Error::EpochSlotRewind(eid, sid) => write!(f, "Cannot pack block {} because is prior to {} already packed", sid, eid),
             Error::EpochChainInvalid(bd, rhh, ehh) => write!(f, "Cannot pack block {} ({}) because it does not follow the blockchain hash (expected: {})", bd, ehh, rhh),
@@ -74,8 +74,8 @@ impl error::Error for Error {
             Error::StorageError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
-            Error::RefPackUnexpectedGenesis(_) => None,
-            Error::EpochExpectingGenesis => None,
+            Error::RefPackUnexpectedBoundary(_) => None,
+            Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
             Error::EpochSlotRewind(_, _) => None,
             Error::EpochChainInvalid(_, _, _) => None,
@@ -338,8 +338,8 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
         // either we have seen genesis yet or not
         match current_state {
             None      => {
-                if !hdr.is_genesis_block() {
-                    return Err(Error::EpochExpectingGenesis)
+                if !hdr.is_boundary_block() {
+                    return Err(Error::EpochExpectingBoundary)
                 }
                 current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
                 rp.append_hash(hash.into());
@@ -347,7 +347,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
                     cardano::block::BlockDate::Genesis(_) => {
-                        return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
+                        return Err(Error::RefPackUnexpectedBoundary(expected_slotid));
                     },
                     cardano::block::BlockDate::Normal(ref slotid) => {
                         if slotid.epoch != current_epoch {
@@ -404,8 +404,8 @@ fn epoch_integrity_check(storage: &Storage, epochid: EpochId, last_known_hash: H
         // either we have seen genesis yet or not
         match current_state {
             None      => {
-                if !hdr.is_genesis_block() {
-                    return Err(Error::EpochExpectingGenesis)
+                if !hdr.is_boundary_block() {
+                    return Err(Error::EpochExpectingBoundary)
                 }
                 if last_known_hash != prevhash {
                     return Err(Error::EpochChainInvalid(date, last_known_hash, prevhash))
@@ -415,7 +415,7 @@ fn epoch_integrity_check(storage: &Storage, epochid: EpochId, last_known_hash: H
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
                     cardano::block::BlockDate::Genesis(_) => {
-                        return Err(Error::RefPackUnexpectedGenesis(expected_slotid));
+                        return Err(Error::RefPackUnexpectedBoundary(expected_slotid));
                     },
                     cardano::block::BlockDate::Normal(slotid) => {
                         if slotid.epoch != current_epoch {

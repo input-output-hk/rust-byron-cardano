@@ -1,4 +1,4 @@
-//! Abstraction of either genesis or normal blocks
+//! Abstraction of either boundary or normal blocks
 //!
 //! The main types are `Header` and `Block`
 use std::{fmt};
@@ -7,7 +7,7 @@ use std::ops::{Deref, DerefMut};
 
 use cbor_event::{self, de::RawCbor};
 use super::types::{HeaderHash, EpochSlotId, EpochId};
-use super::genesis;
+use super::boundary;
 use super::normal;
 use super::super::cbor::hs::util::decode_sum_type;
 
@@ -48,10 +48,10 @@ impl RawBlock {
 impl AsRef<[u8]> for RawBlockHeader { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 
-/// Block Header of either a genesis header or a normal header
+/// Block Header of either a boundary header or a normal header
 #[derive(Debug, Clone)]
 pub enum BlockHeader {
-    GenesisBlockHeader(genesis::BlockHeader),
+    GenesisBlockHeader(boundary::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
 }
 
@@ -69,7 +69,7 @@ impl DerefMut for BlockHeaders {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
-/// Block Date which is either an epoch id for a genesis block or a slot id for a normal block
+/// Block Date which is either an epoch id for a boundary block or a slot id for a normal block
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum BlockDate {
@@ -122,7 +122,7 @@ impl BlockDate {
         }
     }
 
-    pub fn is_genesis(&self) -> bool {
+    pub fn is_boundary(&self) -> bool {
         match self {
             BlockDate::Genesis(_) => true,
             _                     => false
@@ -164,7 +164,7 @@ impl BlockHeader {
         self.get_blockdate()
     }
 
-    pub fn is_genesis_block(&self) -> bool {
+    pub fn is_boundary_block(&self) -> bool {
         match self {
             &BlockHeader::GenesisBlockHeader(_) => true,
             &BlockHeader::MainBlockHeader(_) => false,
@@ -200,14 +200,14 @@ impl fmt::Display for BlockHeader {
     }
 }
 
-/// Block of either a genesis block or a normal block
+/// Block of either a boundary block or a normal block
 #[derive(Debug, Clone)]
 pub enum Block {
-    GenesisBlock(genesis::Block),
+    GenesisBlock(boundary::Block),
     MainBlock(normal::Block),
 }
 impl Block {
-    pub fn is_genesis_block(&self) -> bool {
+    pub fn is_boundary_block(&self) -> bool {
         match self {
             &Block::GenesisBlock(_) => true,
             &Block::MainBlock(_) => false
@@ -382,7 +382,7 @@ mod test {
     }
 
     #[test]
-    fn check_genesis_block() {
+    fn check_boundary_block() {
         check_blockheader_serialization(&GENESISBLOCK_HEX[..], GENESIS_HASH);
     }
 
