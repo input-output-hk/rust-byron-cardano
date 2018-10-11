@@ -51,7 +51,7 @@ impl AsRef<[u8]> for RawBlock { fn as_ref(&self) -> &[u8] { self.0.as_ref() } }
 /// Block Header of either a boundary header or a normal header
 #[derive(Debug, Clone)]
 pub enum BlockHeader {
-    GenesisBlockHeader(boundary::BlockHeader),
+    BoundaryBlockHeader(boundary::BlockHeader),
     MainBlockHeader(normal::BlockHeader),
 }
 
@@ -73,7 +73,7 @@ impl DerefMut for BlockHeaders {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum BlockDate {
-    Genesis(EpochId),
+    Boundary(EpochId),
     Normal(EpochSlotId),
 }
 impl ::std::ops::Sub<BlockDate> for BlockDate {
@@ -92,15 +92,15 @@ impl PartialOrd for BlockDate {
 impl Ord for BlockDate {
     fn cmp(&self, other: &BlockDate) -> Ordering {
         match self {
-            BlockDate::Genesis(e1) => {
+            BlockDate::Boundary(e1) => {
                 match other {
-                    BlockDate::Genesis(e2) => e1.cmp(e2),
+                    BlockDate::Boundary(e2) => e1.cmp(e2),
                     BlockDate::Normal(slot2) => e1.cmp(&slot2.epoch).then(Ordering::Less),
                 }
             },
             BlockDate::Normal(slot1) => {
                 match other {
-                    BlockDate::Genesis(e2) => slot1.epoch.cmp(e2).then(Ordering::Greater),
+                    BlockDate::Boundary(e2) => slot1.epoch.cmp(e2).then(Ordering::Greater),
                     BlockDate::Normal(slot2) => slot1.epoch.cmp(&slot2.epoch).then(slot1.slotid.cmp(&slot2.slotid)),
                 }
             },
@@ -111,26 +111,26 @@ impl Ord for BlockDate {
 impl BlockDate {
     pub fn get_epochid(&self) -> EpochId {
         match self {
-            &BlockDate::Genesis(e) => e,
+            &BlockDate::Boundary(e) => e,
             &BlockDate::Normal(ref s) => s.epoch,
         }
     }
     pub fn next(&self) -> Self {
         match self {
-            &BlockDate::Genesis(e) => BlockDate::Normal(EpochSlotId { epoch: e, slotid: 0 }),
+            &BlockDate::Boundary(e) => BlockDate::Normal(EpochSlotId { epoch: e, slotid: 0 }),
             &BlockDate::Normal(ref s) => BlockDate::Normal(s.next()), // TODO next should wrap after full epoch
         }
     }
 
     pub fn is_boundary(&self) -> bool {
         match self {
-            BlockDate::Genesis(_) => true,
+            BlockDate::Boundary(_) => true,
             _                     => false
         }
     }
     pub fn slot_number(&self) -> usize {
         match self {
-            BlockDate::Genesis(eid) => (*eid as usize) * 21600, // TODO de-hardcode this value
+            BlockDate::Boundary(eid) => (*eid as usize) * 21600, // TODO de-hardcode this value
             BlockDate::Normal(sid)  => sid.slot_number()
         }
     }
@@ -139,7 +139,7 @@ impl BlockDate {
 impl fmt::Display for BlockDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BlockDate::Genesis(epoch) => write!(f, "{}.GENESIS", epoch),
+            BlockDate::Boundary(epoch) => write!(f, "{}.GENESIS", epoch),
             BlockDate::Normal(slotid) => write!(f, "{}.{}", slotid.epoch, slotid.slotid),
         }
     }
@@ -148,14 +148,14 @@ impl fmt::Display for BlockDate {
 impl BlockHeader {
     pub fn get_previous_header(&self) -> HeaderHash {
         match self {
-            &BlockHeader::GenesisBlockHeader(ref blo) => blo.previous_header.clone(),
+            &BlockHeader::BoundaryBlockHeader(ref blo) => blo.previous_header.clone(),
             &BlockHeader::MainBlockHeader(ref blo) => blo.previous_header.clone(),
         }
     }
 
     pub fn get_blockdate(&self) -> BlockDate {
         match self {
-            &BlockHeader::GenesisBlockHeader(ref blo) => BlockDate::Genesis(blo.consensus.epoch),
+            &BlockHeader::BoundaryBlockHeader(ref blo) => BlockDate::Boundary(blo.consensus.epoch),
             &BlockHeader::MainBlockHeader(ref blo) => BlockDate::Normal(blo.consensus.slot_id.clone()),
         }
     }
@@ -166,7 +166,7 @@ impl BlockHeader {
 
     pub fn is_boundary_block(&self) -> bool {
         match self {
-            &BlockHeader::GenesisBlockHeader(_) => true,
+            &BlockHeader::BoundaryBlockHeader(_) => true,
             &BlockHeader::MainBlockHeader(_) => false,
         }
     }
@@ -190,7 +190,7 @@ impl BlockHeader {
 impl fmt::Display for BlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &BlockHeader::GenesisBlockHeader(ref mbh) => {
+            &BlockHeader::BoundaryBlockHeader(ref mbh) => {
                 write!(f, "{}", mbh)
             },
             &BlockHeader::MainBlockHeader(ref mbh) => {
@@ -203,33 +203,33 @@ impl fmt::Display for BlockHeader {
 /// Block of either a boundary block or a normal block
 #[derive(Debug, Clone)]
 pub enum Block {
-    GenesisBlock(boundary::Block),
+    BoundaryBlock(boundary::Block),
     MainBlock(normal::Block),
 }
 impl Block {
     pub fn is_boundary_block(&self) -> bool {
         match self {
-            &Block::GenesisBlock(_) => true,
+            &Block::BoundaryBlock(_) => true,
             &Block::MainBlock(_) => false
         }
     }
     pub fn get_header(&self) -> BlockHeader {
         match self {
-            &Block::GenesisBlock(ref blk) => BlockHeader::GenesisBlockHeader(blk.header.clone()),
+            &Block::BoundaryBlock(ref blk) => BlockHeader::BoundaryBlockHeader(blk.header.clone()),
             &Block::MainBlock(ref blk) => BlockHeader::MainBlockHeader(blk.header.clone()),
         }
     }
 
     pub fn has_transactions(&self) -> bool {
         match self {
-            &Block::GenesisBlock(_) => false,
+            &Block::BoundaryBlock(_) => false,
             &Block::MainBlock(ref blk) => blk.header.body_proof.tx.number > 0,
         }
     }
 
     pub fn get_transactions(&self) -> Option<normal::TxPayload> {
         match self {
-            &Block::GenesisBlock(_) => None,
+            &Block::BoundaryBlock(_) => None,
             &Block::MainBlock(ref blk) => Some(blk.body.tx.clone()),
         }
     }
@@ -238,7 +238,7 @@ impl Block {
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Block::GenesisBlock(ref blk) => write!(f, "{}", blk),
+            &Block::BoundaryBlock(ref blk) => write!(f, "{}", blk),
             &Block::MainBlock(ref blk) => write!(f, "{}", blk)
         }
     }
@@ -253,7 +253,7 @@ impl cbor_event::se::Serialize for Block {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
-            &Block::GenesisBlock(ref gbh) => {
+            &Block::BoundaryBlock(ref gbh) => {
                 serializer.write_unsigned_integer(0)?.serialize(gbh)
             },
             &Block::MainBlock(ref mbh) => {
@@ -267,7 +267,7 @@ impl cbor_event::de::Deserialize for Block {
         match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
-                Ok(Block::GenesisBlock(blk))
+                Ok(Block::BoundaryBlock(blk))
             },
             1 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -284,7 +284,7 @@ impl cbor_event::se::Serialize for BlockHeader {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
-            &BlockHeader::GenesisBlockHeader(ref gbh) => {
+            &BlockHeader::BoundaryBlockHeader(ref gbh) => {
                 serializer.write_unsigned_integer(0)?.serialize(gbh)
             },
             &BlockHeader::MainBlockHeader(ref mbh) => {
@@ -299,7 +299,7 @@ impl cbor_event::de::Deserialize for BlockHeader {
         match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
-                Ok(BlockHeader::GenesisBlockHeader(blk))
+                Ok(BlockHeader::BoundaryBlockHeader(blk))
             },
             1 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;

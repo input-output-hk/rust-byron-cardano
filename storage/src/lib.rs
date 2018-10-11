@@ -346,7 +346,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
-                    cardano::block::BlockDate::Genesis(_) => {
+                    cardano::block::BlockDate::Boundary(_) => {
                         return Err(Error::RefPackUnexpectedBoundary(expected_slotid));
                     },
                     cardano::block::BlockDate::Normal(ref slotid) => {
@@ -414,7 +414,7 @@ fn epoch_integrity_check(storage: &Storage, epochid: EpochId, last_known_hash: H
             },
             Some((current_epoch, expected_slotid, current_prevhash)) => {
                 match date.clone() {
-                    cardano::block::BlockDate::Genesis(_) => {
+                    cardano::block::BlockDate::Boundary(_) => {
                         return Err(Error::RefPackUnexpectedBoundary(expected_slotid));
                     },
                     cardano::block::BlockDate::Normal(slotid) => {

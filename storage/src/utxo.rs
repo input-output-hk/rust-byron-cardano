@@ -62,7 +62,7 @@ pub fn write_utxos_delta<W: Write>(
         .serialize(&last_block)?
         .serialize(&last_date.get_epochid())?
         .serialize(&match last_date {
-            BlockDate::Genesis(_) => 0u16,
+            BlockDate::Boundary(_) => 0u16,
             BlockDate::Normal(s) => s.slotid + 1,
         })?;
     let serializer = se::serialize_fixed_array(removed.iter(), serializer)?;
@@ -136,7 +136,7 @@ pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
     let last_block = raw.deserialize()?;
     let epoch = raw.deserialize()?;
     let last_date = match raw.deserialize()? {
-        0 => BlockDate::Genesis(epoch),
+        0 => BlockDate::Boundary(epoch),
         n => BlockDate::Normal(EpochSlotId { epoch, slotid: n - 1 }),
     };
     let removed = raw.deserialize()?;

@@ -86,7 +86,7 @@ impl ChainState {
 
         match blk {
 
-            Block::GenesisBlock(blk) => {
+            Block::BoundaryBlock(blk) => {
                 self.slot_leaders = blk.body.slot_leaders.clone();
             },
 
@@ -130,7 +130,7 @@ impl ChainState {
             }
 
             None => {
-                if date != BlockDate::Genesis(0) { // FIXME: use epoch_start
+                if date != BlockDate::Boundary(0) { // FIXME: use epoch_start
                     return Err(Error::BlockDateInFuture)
                 }
             }
@@ -139,7 +139,7 @@ impl ChainState {
         // Check that the block was signed by the appointed slot leader.
         match blk {
 
-            Block::GenesisBlock(_) => { },
+            Block::BoundaryBlock(_) => { },
 
             Block::MainBlock(blk) => {
                 let slot_id = blk.header.consensus.slot_id.slotid as usize;

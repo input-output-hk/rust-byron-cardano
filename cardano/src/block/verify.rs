@@ -127,7 +127,7 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
 {
     match blk {
 
-        Block::GenesisBlock(blk) => {
+        Block::BoundaryBlock(blk) => {
             blk.verify(protocol_magic)?;
         },
 
@@ -802,7 +802,7 @@ mod tests {
             expect_error(&rblk.decode(), cbor_event::Error::TrailingData);
         }
 
-        // TODO: SelfSignedPSK, WrongGenesisProof
+        // TODO: SelfSignedPSK, WrongBoundaryProof
     }
 
     const PROTOCOL_MAGIC: u32 = 633343913;
