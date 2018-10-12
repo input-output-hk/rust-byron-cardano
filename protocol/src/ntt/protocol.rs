@@ -1,12 +1,38 @@
+//! Constant and network/IO independent part of network-transport-tcp
 
 use std::{fmt};
 use cardano::util::{hex};
 
 const PROTOCOL_VERSION : u32 = 0x00000000;
 
-pub type LightweightConnectionId = u32;
+/// Light weight connection ID contains a valid NTT light weight connection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LightweightConnectionId(u32);
 
 pub const LIGHT_ID_MIN : u32 = 1024;
+
+impl LightweightConnectionId {
+    /// create a `LightweightConnectionId` from the given number
+    ///
+    /// identifier from 0 to 1023 are reserved.
+    pub fn new(p: u32) -> Self {
+        assert!(p >= LIGHT_ID_MIN);
+        LightweightConnectionId(p)
+    }
+
+    pub fn initial() -> Self {
+        LightweightConnectionId(LIGHT_ID_MIN)
+    }
+    pub fn next(&self) -> Self {
+        LightweightConnectionId(self.0 + 1)
+    }
+}
+
+impl fmt::Display for LightweightConnectionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug)]
 pub enum ControlHeader {
@@ -34,8 +60,8 @@ impl ControlHeader {
 
 #[derive(Debug)]
 pub enum Command {
-    Control(ControlHeader, super::LightweightConnectionId),
-    Data(super::LightweightConnectionId, u32),
+    Control(ControlHeader, LightweightConnectionId),
+    Data(LightweightConnectionId, u32),
 }
 
 pub type Nonce = u64;
@@ -154,20 +180,24 @@ fn append_u32(v: u32, buf: &mut Vec<u8>) {
     buf.push(v as u8);
 }
 
-pub fn append_lightweight_data(cid: super::LightweightConnectionId, len: u32, buf: &mut Vec<u8>) {
-    assert!(cid >= 1024);
-    append_u32(cid, buf);
+fn append_lightweightid(cid: LightweightConnectionId, buf: &mut Vec<u8>) {
+    assert!(cid.0 >= 1024);
+    append_u32(cid.0, buf);
+}
+
+pub fn append_lightweight_data(cid: LightweightConnectionId, len: u32, buf: &mut Vec<u8>) {
+    append_lightweightid(cid, buf);
     append_u32(len, buf);
 }
 
-pub fn create_conn(cid: super::LightweightConnectionId, buf: &mut Vec<u8>) {
+pub fn create_conn(cid: LightweightConnectionId, buf: &mut Vec<u8>) {
     append_u32(ControlHeader::CreateNewConnection as u32, buf);
-    append_u32(cid, buf);
+    append_lightweightid(cid, buf);
 }
 
-pub fn delete_conn(cid: super::LightweightConnectionId, buf: &mut Vec<u8>) {
+pub fn delete_conn(cid: LightweightConnectionId, buf: &mut Vec<u8>) {
     append_u32(ControlHeader::CloseConnection as u32, buf);
-    append_u32(cid, buf);
+    append_lightweightid(cid, buf);
 }
 
 pub fn append_with_length(dat: &[u8], buf: &mut Vec<u8>) {

@@ -21,6 +21,7 @@ impl EndPoint {
 pub enum Error {
     IOError(io::Error),
     UnsupportedVersion,
+    InvalidLightid,
     InvalidRequest,
     CrossedRequest,
     UnknownErrorCode(u32),
@@ -35,6 +36,7 @@ impl fmt::Display for Error {
             Error::IOError(_) => write!(f, "I/O error"),
             Error::UnsupportedVersion => write!(f, "Unsupported protocol version"),
             Error::InvalidRequest     => write!(f, "Invalid request"),
+            Error::InvalidLightid     => write!(f, "Invalid lightid"),
             Error::CrossedRequest     => write!(f, "Crossed request"),
             Error::UnknownErrorCode(c) => write!(f, "Failed with an unknown error code: {}", c),
             Error::CommandFailed      => write!(f, "Command failed")
@@ -90,14 +92,12 @@ impl<W: Sized+Write+Read> Connection<W> {
     }
 
     pub fn create_light(&mut self, cid: LightweightConnectionId) -> Result<()> {
-        assert!(cid >= LIGHT_ID_MIN);
         let mut buf = vec![];
         protocol::create_conn(cid, &mut buf);
         self.emit("create-connection", &buf)
     }
 
     pub fn close_light(&mut self, cid: LightweightConnectionId) -> Result<()> {
-        assert!(cid >= LIGHT_ID_MIN);
         let mut buf = vec![];
         protocol::delete_conn(cid, &mut buf);
         self.emit("close-connection", &buf)
@@ -134,25 +134,34 @@ impl<W: Sized+Write+Read> Connection<W> {
         Ok(v)
     }
 
+    fn recv_cid(&mut self) -> Result<LightweightConnectionId> {
+        let id = self.recv_u32()?;
+        if id >= LIGHT_ID_MIN {
+            Ok(LightweightConnectionId::new(id))
+        } else {
+            Err(Error::InvalidLightid)
+        }
+    }
+
     pub fn recv(&mut self) -> Result<protocol::Command>  {
         let hdr = self.recv_u32()?;
         if hdr < LIGHT_ID_MIN {
             match protocol::ControlHeader::from_u32(hdr) {
                 Some(c)  => {
-                    let r = self.recv_u32()?;
+                    let r = self.recv_cid()?;
                     Ok(protocol::Command::Control(c, r))
                 },
                 None => Err(Error::CommandFailed)
             }
         } else {
             let len = self.recv_u32()?;
-            Ok(protocol::Command::Data(hdr, len))
+            Ok(protocol::Command::Data(LightweightConnectionId::new(hdr), len))
         }
     }
 
     pub fn recv_cmd(&mut self) -> Result<()> {
         let lwc = self.recv_u32()?;
-        assert!(lwc < 0x400);
+        assert!(lwc < LIGHT_ID_MIN);
         let len = self.recv_u32()?;
         trace!("received lwc {} and len {}", lwc, len);
         Ok(())
@@ -160,11 +169,12 @@ impl<W: Sized+Write+Read> Connection<W> {
 
     pub fn recv_data(&mut self) -> Result<(LightweightConnectionId, Vec<u8>)> {
         let lwc = self.recv_u32()?;
+        assert!(lwc >= LIGHT_ID_MIN);
         trace!("received data: {}", lwc);
         let len = self.recv_u32()?;
         let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
         self.stream.read_exact(&mut buf[..])?;
-        Ok((lwc,buf))
+        Ok((LightweightConnectionId::new(lwc),buf))
     }
 
     pub fn recv_len(&mut self, len: u32) -> Result<Vec<u8>> {
