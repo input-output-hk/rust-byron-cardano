@@ -55,7 +55,6 @@ type Result<T> = result::Result<T, Error>;
 pub struct Connection<W: Sized> {
     stream: W,
     drg: u64,
-    debug: bool,
 }
 
 impl<W: Sized+Write+Read> Connection<W> {
@@ -64,13 +63,9 @@ impl<W: Sized+Write+Read> Connection<W> {
         &self.stream
     }
 
-    pub fn set_debug(&mut self) {
-        self.debug = true
-    }
-
     pub fn handshake(drg_seed: u64, stream: W) -> Result<Self> {
         trace!("sending initial handshake");
-        let mut conn = Connection { stream: stream, drg: drg_seed, debug: false };
+        let mut conn = Connection { stream: stream, drg: drg_seed };
         let mut buf = vec![];
         protocol::handshake(&mut buf);
         conn.emit("handshake", &buf)?;
