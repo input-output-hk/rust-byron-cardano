@@ -6,17 +6,6 @@ use cardano::util::hex;
 
 pub use self::protocol::{LightweightConnectionId, LIGHT_ID_MIN};
 
-pub struct EndPoint(Vec<u8>);
-impl AsRef<[u8]> for EndPoint {
-    fn as_ref(&self) -> &[u8] { &self.0 }
-}
-
-impl EndPoint {
-    pub fn unaddressable() -> Self {
-        EndPoint(vec![])
-    }
-}
-
 #[derive(Debug)]
 pub enum Error {
     IOError(io::Error),
@@ -96,12 +85,6 @@ impl<W: Sized+Write+Read> Connection<W> {
         let mut buf = vec![];
         protocol::delete_conn(cid, &mut buf);
         self.emit("close-connection", &buf)
-    }
-
-    pub fn send_endpoint(&mut self, endpoint: &EndPoint) -> Result<()> {
-        let mut buf = vec![];
-        protocol::append_with_length(endpoint.as_ref(), &mut buf);
-        self.emit("send endpoint", &buf)
     }
 
     pub fn light_send_data(&mut self, lwc: LightweightConnectionId, dat: &[u8]) -> Result<()> {
