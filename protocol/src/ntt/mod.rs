@@ -43,6 +43,9 @@ impl error::Error for Error {
 
 type Result<T> = result::Result<T, Error>;
 
+/// The "Heavy" connection owning the full control of the network-transport-tcp stream.
+///
+/// This is where the basic multiplexing is done, and where command (open/close light connection) are handled.
 pub struct Connection<W: Sized> {
     stream: W,
     drg: u64,
