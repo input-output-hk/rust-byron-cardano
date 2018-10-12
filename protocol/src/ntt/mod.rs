@@ -137,6 +137,7 @@ impl<W: Sized+Write+Read> Connection<W> {
         }
     }
 
+    /*
     pub fn recv_cmd(&mut self) -> Result<()> {
         let lwc = self.recv_u32()?;
         assert!(lwc < LIGHT_ID_MIN);
@@ -144,15 +145,19 @@ impl<W: Sized+Write+Read> Connection<W> {
         trace!("received lwc {} and len {}", lwc, len);
         Ok(())
     }
+    */
 
     pub fn recv_data(&mut self) -> Result<(LightweightConnectionId, Vec<u8>)> {
         let lwc = self.recv_u32()?;
-        assert!(lwc >= LIGHT_ID_MIN);
-        trace!("received data: {}", lwc);
-        let len = self.recv_u32()?;
-        let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
-        self.stream.read_exact(&mut buf[..])?;
-        Ok((LightweightConnectionId::new(lwc),buf))
+        if lwc < LIGHT_ID_MIN {
+            return Err(Error::InvalidLightid)
+        } else {
+            trace!("received data: {}", lwc);
+            let len = self.recv_u32()?;
+            let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
+            self.stream.read_exact(&mut buf[..])?;
+            Ok((LightweightConnectionId::new(lwc),buf))
+        }
     }
 
     pub fn recv_len(&mut self, len: u32) -> Result<Vec<u8>> {
