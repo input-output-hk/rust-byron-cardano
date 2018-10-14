@@ -5,7 +5,6 @@ extern crate storage_units;
 extern crate cardano;
 extern crate rand;
 
-pub mod block;
 pub mod types;
 pub mod config;
 pub mod pack;
@@ -13,6 +12,7 @@ pub mod tag;
 pub mod epoch;
 pub mod refpack;
 pub mod utxo;
+pub mod iter;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -27,13 +27,16 @@ use storage_units::utils::error::StorageError;
 
 use storage_units::{packfile, indexfile, reffile};
 use pack::{packreader_init, packreader_block_next};
+use std::cmp::Ordering;
 
 #[derive(Debug)]
 pub enum Error {
     StorageError(StorageError),
-    BlockError(block::Error),
     CborBlockError(cbor_event::Error),
     RefPackUnexpectedBoundary(SlotId),
+
+    HashNotFound(HeaderHash),
+
     // ** Epoch pack assumption errors
     EpochExpectingBoundary,
     EpochError(EpochId, EpochId),
@@ -47,9 +50,6 @@ impl From<io::Error> for Error {
 impl From<StorageError> for Error {
     fn from(e: StorageError) -> Self { Error::StorageError(e) }
 }
-impl From<block::Error> for Error {
-    fn from(e: block::Error) -> Self { Error::BlockError(e) }
-}
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborBlockError(e) }
 }
@@ -57,8 +57,8 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::StorageError(_) => write!(f, "Storage error"),
-            Error::BlockError(_) => write!(f, "Invalid block"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
+            Error::HashNotFound(hh) => write!(f, "Hash not found {}", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
@@ -72,8 +72,8 @@ impl error::Error for Error {
     fn cause(&self) -> Option<& error::Error> {
         match self {
             Error::StorageError(ref err) => Some(err),
-            Error::BlockError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
+            Error::HashNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
@@ -116,22 +116,9 @@ impl Storage {
         Ok(storage)
     }
 
-    /// create a reverse iterator over the stored blocks
-    ///
-    /// it will iterate from the tag `HEAD` until there is no more
-    /// value to parse
-    //pub fn reverse_iter<'a>(&'a self) -> Result<block::ReverseIter<'a>> {
-    //    block::ReverseIter::new(self).map_err(|err| Error::BlockError(err))
-    //}
-
-    /// create a block iterator starting from the given EpochId
-    //pub fn iterate_from_epoch<'a>(&'a self, from: cardano::block::EpochId) -> Result<block::Iter<'a>> {
-    //    Ok(block::Iter::new(&self.config, from)?)
-    //}
-
     /// construct a range between the given hash
-    pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<block::Range> {
-        block::Range::new(self, from, to).map_err(|err| Error::BlockError(err))
+    pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<iter::Range> {
+        iter::Range::new(self, from, to)
     }
 
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
@@ -253,6 +240,64 @@ pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<RawBlock> {
     match block_location(storage, hash) {
         None      => None,
         Some(loc) => block_read_location(storage, &loc, hash),
+    }
+}
+
+enum ReverseSearch {
+    Continue,
+    Found,
+    Abort,
+}
+
+fn previous_block(storage: &Storage, block: &Block) -> Block {
+    let prev_hash = block.get_header().get_previous_header();
+    let blk = blob::read(&storage, &header_to_blockhash(&prev_hash)).unwrap().decode().unwrap();
+    blk
+}
+
+fn block_reverse_search_from_tip<F>(storage: &Storage, first_block: &Block, find: F) -> Result<Option<Block>>
+    where F: Fn(&Block) -> Result<ReverseSearch>
+{
+    let mut current_blk = first_block.clone();
+    loop {
+        match find(&current_blk)? {
+            ReverseSearch::Continue => {
+                let blk = previous_block(&storage, &current_blk);
+                current_blk = blk;
+            },
+            ReverseSearch::Found => { return Ok(Some(current_blk)) },
+            ReverseSearch::Abort => { return Ok(None) },
+        };
+    }
+}
+
+pub fn resolve_date_to_blockhash(storage: &Storage, tip: &BlockHash, date: &BlockDate) -> Result<Option<BlockHash>> {
+    let epoch = date.get_epochid();
+    match epoch::epoch_open_packref(&storage.config, epoch) {
+        Ok(mut handle) => {
+            let slotid = match date {
+                BlockDate::Boundary(_) => 0,
+                BlockDate::Normal(sid) => sid.slotid,
+            };
+            let r = handle.getref_at_index(slotid as u32)?;
+            Ok(r)
+        },
+        Err(_) => {
+            let tip_rblk = block_read(&storage, tip);
+            match tip_rblk {
+                None => return Ok(None),
+                Some(rblk) => {
+                    let blk = rblk.decode()?;
+                    let found = block_reverse_search_from_tip(storage, &blk, |x|
+                        match x.get_header().get_blockdate().cmp(date) {
+                            Ordering::Equal => Ok(ReverseSearch::Found),
+                            Ordering::Greater => Ok(ReverseSearch::Continue),
+                            Ordering::Less => Ok(ReverseSearch::Abort),
+                        })?;
+                    Ok(found.map(|x| header_to_blockhash(&x.get_header().compute_hash())))
+                }
+            }
+        },
     }
 }
 
