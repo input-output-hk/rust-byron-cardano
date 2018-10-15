@@ -7,9 +7,16 @@ script:
 matrix:
   include:
     - rust: stable
+      os: windows
+    - rust: stable
+      os: osx
+    - rust: stable
+      os: linux
     - rust: nightly
+      os: linux
     - rust: nightly
       env:  TARGET="wasm32-unknown-unknown"
+      os: linux
       before_script:
         - rustup target add ${TARGET} --toolchain nightly
       script:
