@@ -155,29 +155,36 @@ pub trait InputSelectionAlgorithm<Addressing> {
                     // here we don't have enough inputs, continue the loop
                     continue;
                 },
+                Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(_)) => {
+                    // we accept we might lose some dust here...
+                    break;
+                },
                 Err(txbuild_err) => { return Err(Error::TxBuildError(txbuild_err)); },
                 Ok(_) => { break; }
             }
         }
 
-        match builder.add_output_policy(fee_algorithm, output_policy) {
+        let change = match builder.add_output_policy(fee_algorithm, output_policy) {
             Err(txbuild::Error::TxNotEnoughTotalInput) => {
-                Err(Error::NotEnoughInput)
+                return Err(Error::NotEnoughInput);
+            },
+            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(_)) => {
+                None
             },
             Err(txbuild_err) => {
-                Err(Error::TxBuildError(txbuild_err))
+                return Err(Error::TxBuildError(txbuild_err));
             },
             Ok(change_outputs) => {
-                let fees = builder.calculate_fee(fee_algorithm).unwrap();
-                let change = if change_outputs.is_empty() { None } else { Some(output_sum(change_outputs.iter())?) };
-                let result = InputSelectionResult {
-                    estimated_fees: fees,
-                    estimated_change: change,
-                    selected_inputs: selected
-                };
-
-                Ok(result)
+                if change_outputs.is_empty() { None } else { Some(output_sum(change_outputs.iter())?) }
             }
-        }
+        };
+
+        let fees = builder.calculate_fee(fee_algorithm).unwrap();
+        let result = InputSelectionResult {
+            estimated_fees: fees,
+            estimated_change: change,
+            selected_inputs: selected
+        };
+        Ok(result)
     }
 }
