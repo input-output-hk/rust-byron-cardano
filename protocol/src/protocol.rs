@@ -4,7 +4,7 @@ use std::{io, fmt, result, error};
 
 use packet;
 use packet::{Handshake, Message};
-use ntt;
+use ntt::{self, LightweightConnectionId};
 
 use cardano;
 
@@ -70,32 +70,7 @@ impl error::Error for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 /// Light ID create by the server or by the client
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct LightId(pub u32);
-impl LightId {
-    /// create a `LightId` from the given number
-    ///
-    /// identifier from 0 to 1023 are reserved.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use protocol::{LightId};
-    /// let id = LightId::new(0x400);
-    /// ```
-    pub fn new(id: u32) -> Self {
-        assert!(id >= 1024);
-        LightId(id)
-    }
-    pub fn next(self) -> Self {
-        LightId(self.0 + 1)
-    }
-}
-impl fmt::Display for LightId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+pub type LightId = LightweightConnectionId;
 
 /// A client light connection will hold pending message to send or
 /// awaiting to be read data
@@ -164,7 +139,7 @@ pub struct Connection<T> {
     ntt: ntt::Connection<T>,
     // this is a line of active connections open by the server/client
     // that have not been closed yet. Note that light connections are
-    // unidirectional, and the same LightId can be used for a
+    // unidirectional, and the same Li ghtId can be used for a
     // (unrelated) connection in both directions.
     server_cons: BTreeMap<LightId, LightConnection>,
     client_cons: BTreeMap<LightId, LightConnection>,
@@ -180,7 +155,7 @@ pub struct Connection<T> {
     latest_tip: Option<cardano::block::BlockHeader>,
 }
 
-const INITIAL_LIGHT_ID : u32 = ntt::LIGHT_ID_MIN;
+//const INITIAL_LIGHT_ID : LightweightConnectionId::initial();
 
 impl<T: Write+Read> Connection<T> {
 
@@ -201,18 +176,18 @@ impl<T: Write+Read> Connection<T> {
             client_cons: BTreeMap::new(),
             map_to_client: BTreeMap::new(),
             //server_dones: BTreeMap::new(),
-            next_light_id: LightId::new(INITIAL_LIGHT_ID + 1),
+            next_light_id: LightweightConnectionId::initial().next(),
             latest_tip: None,
         }
     }
 
     pub fn handshake(&mut self, hs: &packet::Handshake) -> Result<()> {
         use ntt::protocol::{ControlHeader, Command};
-        let lcid = LightId::new(INITIAL_LIGHT_ID);
+        let lcid = LightweightConnectionId::initial();
         let lc = LightConnection::new_with_nodeid(lcid, self.ntt.get_nonce());
 
         /* create a connection, then send the handshake data, followed by the node id associated with this connection */
-        self.ntt.create_light(lcid.0)?;
+        self.ntt.create_light(lcid)?;
         self.send_bytes(lcid, &packet::send_handshake(hs))?;
         self.send_nodeid(lcid, &lc.node_id.unwrap())?;
 
@@ -226,14 +201,14 @@ impl<T: Write+Read> Connection<T> {
          * followed by the handshake data and then the node id
          */
         let siv = match self.ntt.recv()? {
-            Command::Control(ControlHeader::CreateNewConnection, cid) => { LightId::new(cid) },
+            Command::Control(ControlHeader::CreateNewConnection, cid) => { cid },
             _ => { unimplemented!() }
         };
 
         fn data_recv_on<T: Read+Write>(con: &mut Connection<T>, expected_id: LightId) -> Result<Vec<u8>> {
             match con.ntt.recv()? {
                 ntt::protocol::Command::Data(cid, len) => {
-                    if cid == expected_id.0 {
+                    if cid == expected_id {
                         let bytes = con.ntt.recv_len(len)?;
                         Ok(bytes)
                     } else {
@@ -265,7 +240,7 @@ impl<T: Write+Read> Connection<T> {
         let id = self.get_free_light_id();
         trace!("creating light connection: {}", id);
 
-        self.ntt.create_light(id.0)?;
+        self.ntt.create_light(id)?;
 
         let lc = LightConnection::new_with_nodeid(id, self.ntt.get_nonce());
         self.send_nodeid(id, &lc.node_id.unwrap())?;
@@ -275,7 +250,7 @@ impl<T: Write+Read> Connection<T> {
 
     pub fn close_light_connection(&mut self, id: LightId) {
         self.client_cons.remove(&id);
-        self.ntt.close_light(id.0).unwrap();
+        self.ntt.close_light(id).unwrap();
     }
 
     pub fn has_bytes_to_read_or_finish(&self, id: LightId) -> bool {
@@ -322,7 +297,7 @@ impl<T: Write+Read> Connection<T> {
     }
 
     pub fn send_bytes(&mut self, id: LightId, bytes: &[u8]) -> Result<()> {
-        self.ntt.light_send_data(id.0, bytes)?;
+        self.ntt.light_send_data(id, bytes)?;
         Ok(())
     }
 
@@ -336,7 +311,7 @@ impl<T: Write+Read> Connection<T> {
 
     pub fn send_nodeid(&mut self, id: LightId, nodeid: &ntt::protocol::NodeId) -> Result<()> {
         trace!("send NodeID {} associated to light id {}", nodeid, id);
-        self.ntt.light_send_data(id.0, nodeid.as_ref())?;
+        self.ntt.light_send_data(id, nodeid.as_ref())?;
         Ok(())
     }
 
@@ -345,7 +320,7 @@ impl<T: Write+Read> Connection<T> {
         match self.client_cons.get(&id) {
             None => panic!("send bytes ack ERROR. connection doesn't exist"),
             Some(con) => {
-                self.ntt.light_send_data(id.0, bytes)?;
+                self.ntt.light_send_data(id, bytes)?;
                 Ok(con.node_id.unwrap())
             }
         }
@@ -360,8 +335,7 @@ impl<T: Write+Read> Connection<T> {
         use ntt::protocol::{ControlHeader, Command};
         let x = self.ntt.recv();
         match x? {
-            Command::Control(ControlHeader::CloseConnection, cid) => {
-                let id = LightId::new(cid);
+            Command::Control(ControlHeader::CloseConnection, id) => {
                 debug!("received close of light connection {}", id);
                 match &self.server_cons.remove(&id) {
                     Some(LightConnection { node_id: None, .. }) => {
@@ -401,8 +375,7 @@ impl<T: Write+Read> Connection<T> {
                     },
                 }
             },
-            Command::Control(ControlHeader::CreateNewConnection, cid) => {
-                let id = LightId::new(cid);
+            Command::Control(ControlHeader::CreateNewConnection, id) => {
                 if let Some(_) = self.server_cons.get(&id) {
                     // TODO report this as an error to the logger
                     error!("light id created twice, {}", id);
@@ -416,9 +389,8 @@ impl<T: Write+Read> Connection<T> {
                 error!("LightId({}) Unsupported control `{:?}`", cid, ch);
                 Err(Error::UnsupportedControl(ch))
             },
-            Command::Data(server_id, len) => {
+            Command::Data(id, len) => {
                 let bytes = self.ntt.recv_len(len).unwrap();
-                let id = LightId::new(server_id);
                 match self.server_cons.get_mut(&id) {
                     // connection is established to a client side yet
                     // append the data to the receiving buffer
@@ -464,12 +436,12 @@ impl<T: Write+Read> Connection<T> {
                             //let ack_conn_id = self.get_free_light_id(); // FIXME: mutable borrow of self
                             let ack_conn_id = self.next_light_id;
                             self.next_light_id = id.next();
-                            self.ntt.create_light(ack_conn_id.0)?;
+                            self.ntt.create_light(ack_conn_id)?;
                             let ack = &nodeid.syn_to_ack();
                             debug!("sending ack {} on {}", ack, ack_conn_id);
                             //self.send_nodeid(ack_conn_id, ack)?; // FIXME: mutable borrow of self
-                            self.ntt.light_send_data(ack_conn_id.0, ack.as_ref())?;
-                            self.ntt.close_light(ack_conn_id.0).unwrap();
+                            self.ntt.light_send_data(ack_conn_id, ack.as_ref())?;
+                            self.ntt.close_light(ack_conn_id).unwrap();
                         } else {
                             // This is an ACK, so it should correspond
                             // to a SYN sent by us.
@@ -486,7 +458,7 @@ impl<T: Write+Read> Connection<T> {
                         Ok(())
                     },
                     None => {
-                        warn!("LightId({}) does not exist but received data", server_id);
+                        warn!("LightId({}) does not exist but received data", id);
                         Ok(())
                     },
                 }
@@ -495,7 +467,7 @@ impl<T: Write+Read> Connection<T> {
     }
 
     pub fn subscribe(&mut self) -> Result<()> {
-        let id = LightId::new(INITIAL_LIGHT_ID);
+        let id = LightId::initial();
         info!("subscribing on light connection {}", id);
 
         // FIXME: use keep-alive?
