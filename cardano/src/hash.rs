@@ -1,7 +1,7 @@
 //! module to provide some handy interfaces atop the hashes so we have
 //! the common interfaces for the project to work with.
 
-use std::{fmt, result, str::{FromStr}, ops::{Deref}};
+use std::{fmt, result, str::{FromStr}, ops::{Deref}, hash::{Hash, Hasher}};
 
 use cryptoxide::digest::Digest;
 use cryptoxide::blake2b::Blake2b;
@@ -86,6 +86,11 @@ macro_rules! define_hash_object {
 
                 buf[0..Self::HASH_SIZE].clone_from_slice(slice);
                 Ok(Self::from(buf))
+            }
+        }
+        impl Hash for $hash_ty {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.0.hash(state)
             }
         }
         impl fmt::Display for $hash_ty {
