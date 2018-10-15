@@ -1,0 +1,17 @@
+[package]
+name = "protocol-tokio"
+version = "0.1.0"
+authors = ["Nicolas Di Prima <nicolas.diprima@iohk.io>"]
+edition = "2018"
+
+[dependencies]
+cardano    = { path = "../cardano" }
+cbor_event = "^1.0.1"
+futures = "^0.1.25"
+tokio = "^0.1.11"
+bytes = "^0.4.10"
+log   = "^0.4.5"
+
+[dev-dependencies]
+quickcheck = "^0.7.1"
+env_logger = "^0.5.13"
