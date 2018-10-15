@@ -1,23 +1,32 @@
 language: rust
 cache: cargo
-script:
-  - cargo build --verbose --all
-  - cargo test --verbose --all
-  - ./cardano-c/test.sh
 matrix:
   include:
     - rust: stable
       os: windows
+      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
     - rust: stable
       os: osx
+      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
     - rust: stable
       os: linux
+      env: CARDANO_C="true" CARDANO_WASM="false" RUN_TEST="true"
     - rust: nightly
       os: linux
+      env: CARDANO_C="true" CARDANO_WASM="false" RUN_TEST="true"
     - rust: nightly
-      env:  TARGET="wasm32-unknown-unknown"
+      env:  TARGET="wasm32-unknown-unknown" CARDANO_C="false" CARDANO_WASM="true" RUN_TEST="false"
       os: linux
-      before_script:
-        - rustup target add ${TARGET} --toolchain nightly
-      script:
-        - cargo  +nightly build --target ${TARGET} --release --verbose  --package cryptoxide --package cardano --package protocol
+
+before_script:
+  - |
+    if [ "${CARDANO_WASM}" = "true" ]; then
+       rustup target add ${TARGET} --toolchain nightly
+    fi
+script:
+  - if [ "${RUN_TEST}" = "true" ]; then cargo build --verbose --all && cargo test --verbose --all; fi
+  - if [ "${CARDANO_C}" = "true" ]; then ./cardano-c/test.sh; fi
+  - |
+    if [ "${CARDANO_WASM}" = "true" ]; then
+       cargo  +nightly build --target ${TARGET} --release --verbose --package cardano
+    fi
