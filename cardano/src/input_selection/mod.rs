@@ -164,22 +164,27 @@ pub trait InputSelectionAlgorithm<Addressing> {
             }
         }
 
-        let change = match builder.add_output_policy(fee_algorithm, output_policy) {
+        let (change, loss) = match builder.add_output_policy(fee_algorithm, output_policy) {
             Err(txbuild::Error::TxNotEnoughTotalInput) => {
                 return Err(Error::NotEnoughInput);
             },
-            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(_)) => {
-                None
+            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(loss)) => {
+                (None, Some(loss))
             },
             Err(txbuild_err) => {
                 return Err(Error::TxBuildError(txbuild_err));
             },
             Ok(change_outputs) => {
-                if change_outputs.is_empty() { None } else { Some(output_sum(change_outputs.iter())?) }
+                ( if change_outputs.is_empty() { None } else { Some(output_sum(change_outputs.iter())?) }
+                , None
+                )
             }
         };
 
         let fees = builder.calculate_fee(fee_algorithm).unwrap();
+        let fees = if let Some(loss) = loss {
+            Fee::new((fees.to_coin() + loss)?)
+        } else { fees };
         let result = InputSelectionResult {
             estimated_fees: fees,
             estimated_change: change,
