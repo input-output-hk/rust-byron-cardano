@@ -2,6 +2,9 @@ use tokio::prelude::{*};
 use futures::{Poll, sink::{SendAll}, stream::{self, IterOk, StreamFuture}};
 use bytes::{IntoBuf, Buf};
 
+use std::{self, vec};
+use cbor_event::{self, de::{RawCbor}};
+
 use super::{nt, Connection, Message, Handshake, NodeId};
 
 enum AcceptingState<T> {
@@ -9,7 +12,7 @@ enum AcceptingState<T> {
     ExpectNewLightWeightId(StreamFuture<Connection<T>>),
     ExpectHandshake(StreamFuture<Connection<T>>),
     ExpectNodeId(StreamFuture<Connection<T>>),
-    SendHandshake(SendAll<Connection<T>, IterOk<std::vec::IntoIter<nt::Event>, std::io::Error>>),
+    SendHandshake(SendAll<Connection<T>, IterOk<vec::IntoIter<nt::Event>, std::io::Error>>),
     Consumed,
 }
 
@@ -67,7 +70,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Accepting<T> {
                         Some(e) => {
                             if let Ok((lwcid, bytes)) = e.expect_data() {
                                 let bytes : Vec<_> = bytes.into_iter().collect();
-                                let peer_handshake : Handshake = cbor_event::de::RawCbor::from(&bytes)
+                                let peer_handshake : Handshake = RawCbor::from(&bytes)
                                     .deserialize().map_err(AcceptingError::InvalidHandshake)?;
                                 (lwcid, peer_handshake)
                             } else { return Err(AcceptingError::ExpectedHandshake) }

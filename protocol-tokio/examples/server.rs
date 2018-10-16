@@ -1,10 +1,11 @@
 extern crate tokio;
 extern crate log;
 extern crate env_logger;
+extern crate protocol_tokio;
 
-use protocol_tokio::{Connection, AcceptingError};
+use protocol_tokio::{Connection};
 
-use tokio::net::{TcpListener};
+use tokio::{net::{TcpListener}};
 use tokio::prelude::*;
 
 fn main() {

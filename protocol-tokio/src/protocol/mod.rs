@@ -4,7 +4,7 @@ mod codec;
 
 use super::network_transport as nt;
 
-use tokio::prelude::{*};
+use tokio::{self, prelude::{*}};
 use futures::{StartSend, Poll};
 
 pub use self::connecting::{Connecting, ConnectingError};

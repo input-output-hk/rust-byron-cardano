@@ -1,11 +1,12 @@
 extern crate tokio;
 extern crate log;
 extern crate env_logger;
+extern crate protocol_tokio;
 
 use protocol_tokio::{Connection, ConnectingError};
 
 use tokio::net::TcpStream;
-use tokio::prelude::*;
+use tokio::{prelude::{*}};
 
 fn main() {
     env_logger::Builder::from_default_env()

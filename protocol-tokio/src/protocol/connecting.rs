@@ -1,12 +1,16 @@
+use std::{vec};
+
 use tokio::prelude::{*};
 use futures::{Poll, sink::{SendAll}, stream::{self, IterOk, StreamFuture}};
 use bytes::{IntoBuf, Buf};
+
+use cbor_event::{self, de::RawCbor};
 
 use super::{nt, Connection, Message, Handshake, NodeId};
 
 enum ConnectingState<T> {
     NtConnecting(nt::Connecting<T>),
-    SendHandshake(SendAll<Connection<T>, IterOk<std::vec::IntoIter<nt::Event>, std::io::Error>>),
+    SendHandshake(SendAll<Connection<T>, IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>>),
     ExpectNewLightWeightId(StreamFuture<Connection<T>>),
     ExpectHandshake(StreamFuture<Connection<T>>),
     ExpectNodeId(StreamFuture<Connection<T>>),
@@ -72,7 +76,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
                         Some(e) => {
                             if let Ok((lwcid, bytes)) = e.expect_data() {
                                 let bytes : Vec<_> = bytes.into_iter().collect();
-                                let peer_handshake : Handshake = cbor_event::de::RawCbor::from(&bytes)
+                                let peer_handshake : Handshake = RawCbor::from(&bytes)
                                     .deserialize().map_err(ConnectingError::InvalidHandshake)?;
                                 (lwcid, peer_handshake)
                             } else { return Err(ConnectingError::ExpectedHandshake) }
@@ -103,7 +107,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
                 Transition::Connected(mut connection) => {
                     let lid = connection.next_lightweight_connection_id.next();
                     let nid = connection.next_node_id.next();
-                    let commands = stream::iter_ok::<_, std::io::Error>(vec![
+                    let commands = stream::iter_ok::<_, ::std::io::Error>(vec![
                         Message::CreateLightWeightConnectionId(lid).to_nt_event(),
                         Message::Handshake(lid, Handshake::default()).to_nt_event(),
                         Message::CreateNodeId(lid, nid).to_nt_event(),
@@ -132,7 +136,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
 #[derive(Debug)]
 pub enum ConnectingError {
     NtError(nt::ConnectingError),
-    IoError(std::io::Error),
+    IoError(::std::io::Error),
     EventDecodeError(nt::DecodeEventError),
     ConnectionClosed,
     ExpectedNewLightWeightConnectionId,
@@ -141,8 +145,8 @@ pub enum ConnectingError {
     ExpectedNodeId,
     AlreadyConnected,
 }
-impl From<std::io::Error> for ConnectingError {
-    fn from(e: std::io::Error) -> Self { ConnectingError::IoError(e) }
+impl From<::std::io::Error> for ConnectingError {
+    fn from(e: ::std::io::Error) -> Self { ConnectingError::IoError(e) }
 }
 impl From<nt::ConnectingError> for ConnectingError {
     fn from(e: nt::ConnectingError) -> Self { ConnectingError::NtError(e) }

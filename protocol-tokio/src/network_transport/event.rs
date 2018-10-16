@@ -1,6 +1,6 @@
 use std::{ops::{Deref}};
 
-use tokio::codec::{self};
+use tokio::{self, codec::{self}};
 use bytes::{Buf, BufMut, IntoBuf, Bytes, BytesMut};
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
@@ -125,16 +125,25 @@ impl codec::Decoder for EventCodec {
         // we know we need at least 8 bytes
         if src.len() < 8 { return Ok(None); }
 
-        // the bytes are not consummed yet
+        // the bytes are not consumed yet
         // this is because we might have an incomplete frame or event
         // better keeping the complete transaction byte stream for now
         // an wait for more later.
-        let mut header = src[0..8].into_buf();
+        let (r, l) = {
+            // we do the work in this scope for compatibility with rust edition 2015
+            // when using `src[0..8]` we borrow an immutable reference to the `src`
+            // but later we need to call `src.advance` which needs a mutable reference
+            // and in 2015 the scope of the `header` is not dropped unless there is
+            // an explicit scope for it.
 
-        // either a ControlHeader or a LightWeightConnectionId
-        let r = header.get_u32_be();
-        // either a LightWeightConnectionId or a Length
-        let l = header.get_u32_be();
+            let mut header = src[0..8].into_buf();
+            // either a ControlHeader or a LightWeightConnectionId
+            let r = header.get_u32_be();
+            // either a LightWeightConnectionId or a Length
+            let l = header.get_u32_be();
+            (r, l)
+        };
+
 
         match r.into() {
             ControlHeaderOrLightWeightConnectionId::ControlHeader(ch) => {
@@ -199,14 +208,14 @@ impl codec::Encoder for EventCodec {
 
 #[cfg(test)]
 impl ::quickcheck::Arbitrary for LightWeightConnectionId {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
         let b = u32::arbitrary(g) | LightWeightConnectionId::FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID;
         LightWeightConnectionId(b)
     }
 }
 #[cfg(test)]
 impl ::quickcheck::Arbitrary for ControlHeader {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
         let b = u32::arbitrary(g);
         match b % 6 {
             0 => ControlHeader::CreateNewConnection,
@@ -222,14 +231,14 @@ impl ::quickcheck::Arbitrary for ControlHeader {
 
 #[cfg(test)]
 impl ::quickcheck::Arbitrary for Event {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-        let gen_control = <bool as quickcheck::Arbitrary>::arbitrary(g);
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+        let gen_control = <bool as ::quickcheck::Arbitrary>::arbitrary(g);
         let lwcid = LightWeightConnectionId::arbitrary(g);
         if gen_control {
             let ch = ControlHeader::arbitrary(g);
             Event::Control(ch, lwcid)
         } else {
-            let bytes = <Vec<u8> as quickcheck::Arbitrary>::arbitrary(g);
+            let bytes = <Vec<u8> as ::quickcheck::Arbitrary>::arbitrary(g);
             Event::Data(lwcid, bytes.into())
         }
     }

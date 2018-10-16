@@ -4,7 +4,7 @@ mod connecting;
 mod accepting;
 mod closing;
 
-use tokio::prelude::{*};
+use tokio::{self, prelude::{*}};
 use tokio::codec::{Framed};
 use futures::{StartSend, Poll};
 

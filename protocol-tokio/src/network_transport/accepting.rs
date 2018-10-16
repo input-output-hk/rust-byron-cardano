@@ -32,7 +32,7 @@ pub struct Accepting<T> {
     state: AcceptingState,
     handshake: [u8;16],
     handshake_read: usize,
-    response: std::io::Cursor<Bytes>,
+    response: ::std::io::Cursor<Bytes>,
 }
 impl<T> Accepting<T> {
     pub fn new(inner: T) -> Self {
@@ -143,4 +143,3 @@ impl error::Error for AcceptingError {
         }
     }
 }
-

@@ -45,7 +45,7 @@ impl error::Error for ResponseCode {}
 
 #[cfg(test)]
 impl ::quickcheck::Arbitrary for ResponseCode {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
         ResponseCode::from(u32::arbitrary(g))
     }
 }
