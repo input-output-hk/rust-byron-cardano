@@ -15,18 +15,19 @@ fn main() {
     // Parse the address of whatever address we're listening to
     let addr = "127.0.0.1:3000".parse().unwrap();
 
-    let server = TcpListener::bind(&addr).unwrap().incoming().into_future()
-    .map_err(|(err, _)| AcceptingError::IoError(err))
-    .and_then(|(stream, _)| {
-        let stream = stream.unwrap();
-        println!("accept stream: {}", stream.peer_addr().unwrap());
-
-        Connection::accept(stream)
-    }).map_err(|err| {
-        println!("accepting error = {:?}", err);
-    }).map(|_| {
-        println!("Accepting succeed");
-    });
+    let server = TcpListener::bind(&addr).unwrap().incoming()
+        .map_err(|err| {
+            println!("incoming error = {:?}", err);
+        })
+        .for_each( move | stream | {
+            let task = Connection::accept(stream)
+                .map_err(|err| println!("connecting error {:?}", err))
+                .map(|_| println!("connection accepted"))
+            ;
+            tokio::spawn(task)
+        }).map(|_| {
+            println!("Accepting succeed");
+        });
 
     println!("About to create the server and wait for connection...");
     tokio::run(server);
