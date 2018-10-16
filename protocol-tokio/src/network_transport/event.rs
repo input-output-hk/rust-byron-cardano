@@ -18,6 +18,12 @@ impl LightWeightConnectionId {
     pub fn first_non_reserved() -> Self {
         LightWeightConnectionId(Self::FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID)
     }
+
+    pub fn next(&mut self) -> Self {
+        let current = *self;
+        self.0 += 1;
+        current
+    }
 }
 
 ///
@@ -42,6 +48,21 @@ pub enum Event {
 
     /// send `Bytes` to the given `LightWeightConnectionId`.
     Data(LightWeightConnectionId, Bytes)
+}
+impl Event {
+    pub fn expect_control(self) -> Result<(ControlHeader, LightWeightConnectionId), Self> {
+        match self {
+            Event::Control(ch, lwcid) => Ok((ch, lwcid)),
+            event@Event::Data(_, _)   => Err(event),
+        }
+    }
+
+    pub fn expect_data(self) -> Result<(LightWeightConnectionId, Bytes), Self> {
+        match self {
+            event@Event::Control(_, _) => Err(event),
+            Event::Data(lwcid, data)   => Ok((lwcid, data)),
+        }
+    }
 }
 
 /// Decode Error that may happen while decoding the Event

@@ -14,3 +14,10 @@ extern crate quickcheck;
 
 pub mod network_transport;
 pub mod protocol;
+
+pub use self::protocol::{
+    Connection,
+
+    Connecting, ConnectingError,
+    Accepting, AcceptingError,
+};

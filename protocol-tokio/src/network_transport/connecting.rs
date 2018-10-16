@@ -20,7 +20,7 @@ enum ConnectingState {
 /// Future object to establish a connection to a remote node.
 /// Only establishing the low level network transport protocol.
 ///
-/// Once this future has successfuly returned the expected value it
+/// Once this future has successfully returned the expected value it
 /// be discarded as any other attempt to poll value from it will
 /// result to an error.
 ///
@@ -28,7 +28,7 @@ enum ConnectingState {
 ///
 /// `Future::poll` may failed if the response to the initial handshake
 /// handshake did not succeed: the remote server did not accept or
-/// recognise the query.
+/// recognize the query.
 ///
 pub struct Connecting<T> {
     inner: Option<T>,
@@ -101,7 +101,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
 }
 
 /// Error that may happen while establishing the connection to a
-/// remove NT
+/// remote NT
 #[derive(Debug)]
 pub enum ConnectingError {
     /// this is in case the underlying operation reported an error

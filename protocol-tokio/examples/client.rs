@@ -2,7 +2,7 @@ extern crate tokio;
 extern crate log;
 extern crate env_logger;
 
-use protocol_tokio::network_transport::*;
+use protocol_tokio::{Connection, ConnectingError};
 
 use tokio::net::TcpStream;
 use tokio::prelude::*;
@@ -12,8 +12,8 @@ fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    // Parse the address of whatever server we're talking to
-    let addr = "13.229.185.80:3000".parse().unwrap();
+    // let addr = "13.229.185.80:3000".parse().unwrap();
+    let addr = "127.0.0.1:3000".parse().unwrap();
 
     let client = TcpStream::connect(&addr)
     .map_err(ConnectingError::IoError)
@@ -22,10 +22,6 @@ fn main() {
 
         Connection::connect(stream)
     }).map_err(|err| {
-        // All tasks must have an `Error` type of `()`. This forces error
-        // handling and helps avoid silencing failures.
-        //
-        // In our example, we are only going to log the error to STDOUT.
         println!("connection error = {:?}", err);
     }).map(|_| {
         println!("Connection succeed");

@@ -1,7 +1,6 @@
 use std::{ops::{Deref}, fmt, collections::{BTreeMap}};
 
-use tokio::codec::{self};
-use bytes::{Buf, BufMut, IntoBuf, Bytes, BytesMut};
+use bytes::{BufMut, BytesMut};
 
 use cbor_event::{self, se, de::{self, RawCbor}};
 use cardano::{
@@ -154,35 +153,63 @@ pub enum MsgType {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeId(u64);
+impl NodeId {
+    pub fn next(&mut self) -> Self {
+        let current = *self;
+        self.0 += 1;
+        current
+    }
+}
+impl From<u64> for NodeId { fn from(v: u64) -> Self { NodeId(v) } }
 impl Default for NodeId { fn default() -> Self { NodeId(0) } }
 impl Deref for NodeId {
     type Target = u64;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug)]
 pub enum Message {
-    CreateNodeId(NodeId),
+    CreateLightWeightConnectionId(nt::LightWeightConnectionId),
+    CreateNodeId(nt::LightWeightConnectionId, NodeId),
+    AckNodeId(nt::LightWeightConnectionId, NodeId),
+    Handshake(nt::LightWeightConnectionId, Handshake),
 }
-
-pub struct MessageCodec;
-
-#[derive(Debug)]
-pub enum MessageEncodeError {
-    IoError(std::io::Error),
-}
-impl From<std::io::Error> for MessageEncodeError {
-    fn from(e: std::io::Error) -> Self { MessageEncodeError::IoError(e) }
-}
-
-impl codec::Encoder for MessageCodec {
-    type Item = Message;
-    type Error = MessageEncodeError;
-
-    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        match item {
-            Message::CreateNodeId(node_id) => { dst.put_u64_be(*node_id); },
+impl Message {
+    pub fn to_nt_event(&self) -> nt::Event {
+        use self::Message::*;
+        use self::nt::{Event::{*}, ControlHeader::{*}};
+        match self {
+            CreateLightWeightConnectionId(lwcid) => Control(CreateNewConnection, *lwcid),
+            CreateNodeId(lwcid, node_id) => {
+                let mut bytes = BytesMut::with_capacity(9);
+                bytes.put_u8(0x53);
+                bytes.put_u64_be(**node_id);
+                Data(*lwcid, bytes.freeze())
+            },
+            AckNodeId(lwcid, node_id) => {
+                let mut bytes = BytesMut::with_capacity(9);
+                bytes.put_u8(0x41);
+                bytes.put_u64_be(**node_id);
+                Data(*lwcid, bytes.freeze())
+            },
+            Handshake(lwcid, handshake) => {
+                let bytes = cbor!(handshake).unwrap().into();
+                Data(*lwcid, bytes)
+            }
         }
-        Ok(())
+    }
+
+    pub fn expect_control(event: nt::Event) -> Result<Self, nt::Event> {
+        use self::nt::{ControlHeader};
+
+        let (ch, lwcid) = event.expect_control()?;
+        Ok(match ch {
+            ControlHeader::CreateNewConnection => Message::CreateLightWeightConnectionId(lwcid),
+            ControlHeader::CloseConnection     => unimplemented!(),
+            ControlHeader::CloseEndPoint       => unimplemented!(),
+            ControlHeader::CloseSocket         => unimplemented!(),
+            ControlHeader::ProbeSocket         => unimplemented!(),
+            ControlHeader::ProbeSocketAck      => unimplemented!(),
+        })
     }
 }
