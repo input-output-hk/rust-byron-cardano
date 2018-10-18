@@ -10,6 +10,8 @@ use block;
 use fee;
 use coin;
 use redeem;
+use address;
+use hdwallet;
 use std::collections::BTreeMap;
 
 /// this is the protocol magic number
@@ -81,17 +83,49 @@ impl Default for Config {
     }
 }
 
+/// Chain configuration parameters. Most of these can be changed
+/// through update proposals. (This is cardano-sl's BlockVersionData
+/// extended with protocol_magic.)
+#[derive(Debug, Clone)]
+pub struct ChainParameters {
+    pub protocol_magic: ProtocolMagic,
+    pub epoch_stability_depth: usize, // a.k.a. 'k'
+    pub max_block_size: u64,
+    pub max_header_size: u64,
+    pub max_tx_size: u64,
+    pub max_proposal_size: u64,
+    // TODO: why "softfork"? Is there another threshold for hard
+    // forks?
+    // TODO: use update::SoftforkRule.
+    pub softfork_init_thd: Fraction15,
+    pub softfork_min_thd: Fraction15,
+    pub softfork_thd_decrement: Fraction15,
+    pub fee_policy: fee::LinearFee,
+    pub update_proposal_thd: Fraction15,
+    pub update_vote_thd: Fraction15,
+}
+
+// FIXME: use CoinPortion
+pub type Fraction15 = u64;
+
 /// A subset of the genesis data. The genesis data is a JSON file
 /// whose canonicalized form has the hash 'genesis_prev', which is the
 /// parent of the genesis block of epoch 0. (Note that "genesis data"
 /// is something completely different from a epoch genesis block. The
 /// genesis data is not stored in the chain as a block.)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GenesisData {
     pub genesis_prev: block::HeaderHash,
-    pub epoch_stability_depth: usize, // a.k.a. 'k'
-    pub protocol_magic: ProtocolMagic,
-    pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
     pub non_avvm_balances: BTreeMap<String, coin::Coin>,
+    pub chain_parameters: ChainParameters,
+    pub boot_stakeholders: BTreeMap<address::StakeholderId, BootStakeholder>,
 }
+
+#[derive(Debug, Clone)]
+pub struct BootStakeholder {
+    pub weight: BootStakeWeight,
+    pub delegate_pk: hdwallet::XPub,
+}
+
+pub type BootStakeWeight = u16;

@@ -173,7 +173,7 @@ fn net_sync_to<A: Api>(
             if let Some(epoch_writer_state) = epoch_writer_state.as_mut() {
 
                 // FIXME: propagate errors
-                epoch_writer_state.chain_state.verify_block(block_hash, block)
+                epoch_writer_state.chain_state.verify_block(block_hash, block, block_raw)
                     .expect(&format!("Block {} failed to verify.", block_hash));
 
                 epoch_writer_state.writer.append(
@@ -272,7 +272,7 @@ fn append_blocks_to_epoch_reverse(
     while let Some((hash, block_raw, block)) = blocks.pop() {
 
         // FIXME: propagate errors
-        epoch_writer_state.chain_state.verify_block(&hash, &block)
+        epoch_writer_state.chain_state.verify_block(&hash, &block, &block_raw)
             .expect(&format!("Block {} failed to verify.", hash));
 
         epoch_writer_state.writer.append(&types::header_to_blockhash(&hash),

@@ -5,7 +5,7 @@ use tx;
 use coin;
 use address;
 use hash;
-use config::{ProtocolMagic};
+use config::{ChainParameters};
 use cbor_event::{self, se};
 use std::{collections::{BTreeSet, HashSet}, fmt, error};
 use merkle;
@@ -20,20 +20,24 @@ pub enum Error {
     BadUpdateProposalSig,
     BadUpdateVoteSig,
     BadVssCertSig,
+    BlockTooBig,
     DuplicateInputs,
     DuplicateSigningKeys,
     DuplicateVSSKeys,
     EncodingError(cbor_event::Error),
-    UnexpectedWitnesses,
+    HeaderTooBig,
     MissingWitnesses,
-    RedeemOutput,
     NoInputs,
     NoOutputs,
+    ProposalTooBig,
+    RedeemOutput,
     SelfSignedPSK,
+    TxTooBig,
+    UnexpectedWitnesses,
     WrongBlockHash,
+    WrongBoundaryProof,
     WrongDelegationProof,
     WrongExtraDataProof,
-    WrongBoundaryProof,
     WrongMagic,
     WrongMerkleRoot,
     WrongMpcProof,
@@ -55,6 +59,12 @@ pub enum Error {
     FeeError(fee::Error),
     AddressMismatch,
     DuplicateTxo,
+    UnknownProposer,
+    UnknownVoter,
+    InsufficientProposerStake,
+    InsufficientVoterStake,
+    MissingProposal,
+    WrongBlockVersion(BlockVersion),
 }
 
 impl fmt::Display for Error {
@@ -66,16 +76,20 @@ impl fmt::Display for Error {
             BadUpdateProposalSig => write!(f, "invalid update proposal signature"),
             BadUpdateVoteSig => write!(f, "invalid update vote signature"),
             BadVssCertSig => write!(f, "invalid VSS certificate signature"),
+            BlockTooBig => write!(f, "block is too big"),
             DuplicateInputs => write!(f, "duplicated inputs"),
             DuplicateSigningKeys => write!(f, "duplicated signing keys"),
             DuplicateVSSKeys => write!(f, "duplicated VSS keys"),
             EncodingError(_error) => write!(f, "encoding error"),
+            HeaderTooBig => write!(f, "header is too big"),
             UnexpectedWitnesses => write!(f, "transaction has more witnesses than inputs"),
             MissingWitnesses => write!(f, "transaction has more inputs than witnesses"),
             RedeemOutput => write!(f, "invalid redeem output"),
             NoInputs => write!(f, "transaction has no inputs"),
             NoOutputs => write!(f, "transaction has no outputs"),
+            ProposalTooBig => write!(f, "update proposal is too big"),
             SelfSignedPSK => write!(f, "invalid self signing PSK"),
+            TxTooBig => write!(f, "transaction is too big"),
             WrongBlockHash => write!(f, "block hash is invalid"),
             WrongDelegationProof => write!(f, "delegation proof is invalid"),
             WrongExtraDataProof => write!(f, "extra data proof is invalid"),
@@ -99,6 +113,12 @@ impl fmt::Display for Error {
             WrongRedeemTxId => write!(f, "transaction input's ID does not match redeem public key"),
             AddressMismatch => write!(f, "transaction input witness does not match utxo address"),
             DuplicateTxo => write!(f, "transaction has an output that already exists"),
+            UnknownProposer => write!(f, "update proposer is unknown"),
+            UnknownVoter => write!(f, "update voter is unknown"),
+            InsufficientProposerStake => write!(f, "update proposer does not have sufficient stake to be allowed to "),
+            InsufficientVoterStake => write!(f, "update voter does not have sufficient stake to be allowed to vote"),
+            MissingProposal => write!(f, "vote for non-existent update proposal"),
+            WrongBlockVersion(version) => write!(f, "block version {} is neither the currently adopted version nor a competing version", version),
         }
     }
 }
@@ -118,21 +138,22 @@ impl error::Error for Error {
 }
 
 pub trait Verify {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error>;
 }
 
-pub fn verify_block(protocol_magic: ProtocolMagic,
+pub fn verify_block(chain_parameters: &ChainParameters,
                     block_hash: &HeaderHash,
-                    blk: &Block) -> Result<(), Error>
+                    blk: &Block,
+                    rblk: &RawBlock) -> Result<(), Error>
 {
     match blk {
 
         Block::BoundaryBlock(blk) => {
-            blk.verify(protocol_magic)?;
+            blk.verify(chain_parameters)?;
         },
 
         Block::MainBlock(blk) => {
-            blk.verify(protocol_magic)?;
+            blk.verify(chain_parameters)?;
         }
     };
 
@@ -140,15 +161,28 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
         return Err(Error::WrongBlockHash);
     }
 
+    // Verify that the encoded block is not bigger than the current
+    // limit.
+    if rblk.as_ref().len() as u64 > chain_parameters.max_block_size {
+        return Err(Error::BlockTooBig);
+    }
+
     Ok(())
 }
 
 impl Verify for boundary::Block {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error> {
         let hdr = &self.header;
 
-        if hdr.protocol_magic != protocol_magic {
+        if hdr.protocol_magic != chain_parameters.protocol_magic {
             return Err(Error::WrongMagic);
+        }
+
+        // Verify that the encoded header is not bigger than the current
+        // limit. FIXME: find a way to prevent CBOR-encoding a value that
+        // we just decoded.
+        if cbor!(hdr)?.len() as u64 > chain_parameters.max_header_size {
+            return Err(Error::HeaderTooBig);
         }
 
         // check body proof
@@ -161,12 +195,19 @@ impl Verify for boundary::Block {
 }
 
 impl Verify for normal::Block {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error> {
         let hdr = &self.header;
         let body = &self.body;
 
-        if hdr.protocol_magic != protocol_magic {
+        if hdr.protocol_magic != chain_parameters.protocol_magic {
             return Err(Error::WrongMagic);
+        }
+
+        // Verify that the encoded header is not bigger than the current
+        // limit. FIXME: find a way to prevent CBOR-encoding a value that
+        // we just decoded.
+        if cbor!(hdr)?.len() as u64 > chain_parameters.max_header_size {
+            return Err(Error::HeaderTooBig);
         }
 
         // check extra data
@@ -175,16 +216,16 @@ impl Verify for normal::Block {
         // enforced by the SoftwareVersion constructor.
 
         // check tx
-        body.tx.iter().try_for_each(|txaux| txaux.verify(protocol_magic))?;
+        body.tx.iter().try_for_each(|txaux| txaux.verify(chain_parameters))?;
 
         // check ssc
-        body.ssc.get_vss_certificates().verify(protocol_magic)?;
+        body.ssc.get_vss_certificates().verify(chain_parameters)?;
 
         // check delegation
         // TODO
 
         // check update
-        body.update.verify(protocol_magic)?;
+        body.update.verify(chain_parameters)?;
 
         // check tx merkle root
         let mut txs = vec![];
@@ -300,7 +341,7 @@ impl Verify for normal::Block {
                     extra_data: &hdr.extra_data,
                 };
 
-                if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
+                if !verify_proxy_sig(chain_parameters, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
                     return Err(Error::BadBlockSig);
                 }
             }
@@ -311,12 +352,12 @@ impl Verify for normal::Block {
 }
 
 impl Verify for update::UpdatePayload {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error> {
         if let Some(proposal) = &self.proposal {
-            proposal.verify(protocol_magic)?;
+            proposal.verify(chain_parameters)?;
         }
 
-        self.votes.iter().try_for_each(|vote| vote.verify(protocol_magic))?;
+        self.votes.iter().try_for_each(|vote| vote.verify(chain_parameters))?;
 
         Ok(())
     }
@@ -350,7 +391,7 @@ impl<'a> cbor_event::se::Serialize for MainToSign<'a> {
 }
 
 pub fn verify_proxy_sig<T>(
-    protocol_magic: ProtocolMagic,
+    chain_parameters: &ChainParameters,
     tag: tags::SigningTag,
     proxy_sig: &ProxySignature,
     data: &T)
@@ -363,7 +404,7 @@ pub fn verify_proxy_sig<T>(
 
     se::Serializer::new(&mut buf)
         .serialize(&(tag as u8)).unwrap()
-        .serialize(&protocol_magic).unwrap()
+        .serialize(&chain_parameters.protocol_magic).unwrap()
         .serialize(data).unwrap();
 
     proxy_sig.psk.delegate_pk.verify(
@@ -371,7 +412,7 @@ pub fn verify_proxy_sig<T>(
 }
 
 impl Verify for tx::TxAux {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error>
     {
         // check that there are inputs
         if self.tx.inputs.is_empty() {
@@ -414,7 +455,7 @@ impl Verify for tx::TxAux {
         }
 
         self.witness.iter().try_for_each(|in_witness| {
-            if !in_witness.verify_tx(protocol_magic, &self.tx) {
+            if !in_witness.verify_tx(chain_parameters.protocol_magic, &self.tx) {
                 return Err(Error::BadTxWitness);
             }
             Ok(())
@@ -429,12 +470,18 @@ impl Verify for tx::TxAux {
             }
         }
 
+        // verify that the encoded transaction is not bigger than the current limit
+        // FIXME: find a way to prevent CBOR-encoding a value that we just decoded.
+        if cbor!(self)?.len() as u64 > chain_parameters.max_tx_size {
+            return Err(Error::TxTooBig);
+        }
+
         Ok(())
     }
 }
 
 impl Verify for VssCertificates {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error> {
         // check that there are no duplicate VSS keys
         let mut vss_keys = BTreeSet::new();
         if !self.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
@@ -454,7 +501,7 @@ impl Verify for VssCertificates {
             {
                 let serializer = se::Serializer::new(&mut buf)
                     .serialize(&(tags::SigningTag::VssCert as u8)).unwrap()
-                    .serialize(&protocol_magic).unwrap();
+                    .serialize(&chain_parameters.protocol_magic).unwrap();
                 let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
                 serializer
                     .serialize(&vss_cert.vss_key).unwrap()
@@ -471,8 +518,15 @@ impl Verify for VssCertificates {
 }
 
 impl Verify for update::UpdateProposal {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error>
     {
+        // Verify that the encoded proposal is not bigger than the
+        // current limit. FIXME: find a way to prevent CBOR-encoding a
+        // value that we just decoded.
+        if cbor!(self)?.len() as u64 > chain_parameters.max_proposal_size {
+            return Err(Error::ProposalTooBig);
+        }
+
         // CoinPortion fields in block_version_mod and
         // block_version_mod.softfork_rule are checked by
         // CoinPortion::new().
@@ -494,7 +548,7 @@ impl Verify for update::UpdateProposal {
 
         se::Serializer::new(&mut buf)
             .serialize(&(tags::SigningTag::USProposal as u8)).unwrap()
-            .serialize(&protocol_magic).unwrap()
+            .serialize(&chain_parameters.protocol_magic).unwrap()
             .serialize(&to_sign).unwrap();
 
         if !self.from.verify(&buf, &Signature::<()>::from_bytes(*self.signature.to_bytes())) {
@@ -506,12 +560,12 @@ impl Verify for update::UpdateProposal {
 }
 
 impl Verify for update::UpdateVote {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>
+    fn verify(&self, chain_parameters: &ChainParameters) -> Result<(), Error>
     {
         let mut buf = vec![];
         se::Serializer::new(&mut buf)
             .serialize(&(tags::SigningTag::USVote as u8)).unwrap()
-            .serialize(&protocol_magic).unwrap()
+            .serialize(&chain_parameters.protocol_magic).unwrap()
             .serialize(&(&self.proposal_id, &self.decision)).unwrap();
 
         if !self.key.verify(&buf, &Signature::<()>::from_bytes(*self.signature.to_bytes())) {
