@@ -335,21 +335,13 @@ impl Verify for VssCertificates {
 
         // verify every certificate's signature
         for vss_cert in self.iter() {
-            let mut buf = {
-                let mut serializer = se::Serializer::new_vec();
-                serializer
-                    .serialize(&(tags::SigningTag::VssCert as u8))
-                    .unwrap()
-                    .serialize(&protocol_magic)
-                    .unwrap();
-                serializer.write_array(cbor_event::Len::Len(2))?;
-                serializer
-                    .serialize(&vss_cert.vss_key)
-                    .unwrap()
-                    .serialize(&vss_cert.expiry_epoch)
-                    .unwrap();
-                serializer.finalize()
-            };
+            let mut buf = vec![];
+            buf.push(tags::SigningTag::VssCert as u8);
+            se::Serializer::new(&mut buf)
+                .serialize(&protocol_magic)?
+                .write_array(cbor_event::Len::Len(2))?
+                .serialize(&vss_cert.vss_key)?
+                .serialize(&vss_cert.expiry_epoch)?;
 
             if !vss_cert.signing_key.verify(
                 &buf,

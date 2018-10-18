@@ -106,25 +106,24 @@ impl chain_core::property::Deserialize for HeaderHash {
 impl chain_core::property::BlockId for HeaderHash {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct BlockVersion(u16, u16, u8);
+pub struct BlockVersion {
+    pub major: u16,
+    pub minor: u16,
+    pub alt: u8,
+}
 impl BlockVersion {
-    pub fn new(major: u16, minor: u16, revision: u8) -> Self {
-        BlockVersion(major, minor, revision)
+    pub fn new(major: u16, minor: u16, alt: u8) -> Self {
+        BlockVersion { major, minor, alt }
     }
 }
 impl fmt::Debug for BlockVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.0, self.1, self.2)
+        write!(f, "{}.{}.{}", self.major, self.minor, self.alt)
     }
 }
 impl fmt::Display for BlockVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
-    }
-}
-impl Default for BlockVersion {
-    fn default() -> Self {
-        BlockVersion::new(0, 1, 0)
     }
 }
 
@@ -302,21 +301,17 @@ impl cbor_event::se::Serialize for BlockVersion {
         &self,
         serializer: &'se mut Serializer<W>,
     ) -> cbor_event::Result<&'se mut Serializer<W>> {
-        serializer
-            .write_array(cbor_event::Len::Len(3))?
-            .write_unsigned_integer(self.0 as u64)?
-            .write_unsigned_integer(self.1 as u64)?
-            .write_unsigned_integer(self.2 as u64)
+        serializer.serialize(&(&self.major, &self.minor, &self.alt))
     }
 }
 impl cbor_event::de::Deserialize for BlockVersion {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "BlockVersion")?;
-        let major = raw.unsigned_integer()? as u16;
-        let minor = raw.unsigned_integer()? as u16;
-        let revision = raw.unsigned_integer()? as u8;
-
-        Ok(BlockVersion::new(major, minor, revision))
+        Ok(Self {
+            major: raw.deserialize()?,
+            minor: raw.deserialize()?,
+            alt: raw.deserialize()?,
+        })
     }
 }
 
