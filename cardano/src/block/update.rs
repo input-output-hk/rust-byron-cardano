@@ -30,7 +30,7 @@ impl cbor_event::de::Deserialize for UpdatePayload {
 
 #[derive(Debug, Clone)]
 pub struct UpdateProposal {
-    pub block_version: BlockVersion,
+    pub block_version: types::BlockVersion,
     pub block_version_mod: BlockVersionModifier,
     pub software_version: types::SoftwareVersion,
     pub data: BTreeMap<SystemTag, UpdateData>,
@@ -66,30 +66,6 @@ impl cbor_event::de::Deserialize for UpdateProposal {
             attributes: raw.deserialize()?,
             from: raw.deserialize()?,
             signature: raw.deserialize()?
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BlockVersion {
-    pub major: u16,
-    pub minor: u16,
-    pub alt: u8,
-}
-
-impl cbor_event::se::Serialize for BlockVersion {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.serialize(&(&self.major, &self.minor, &self.alt))
-    }
-}
-
-impl cbor_event::de::Deserialize for BlockVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        raw.tuple(3, "BlockVersion")?;
-        Ok(Self {
-            major: raw.deserialize()?,
-            minor: raw.deserialize()?,
-            alt: raw.deserialize()?
         })
     }
 }
@@ -248,7 +224,7 @@ impl cbor_event::de::Deserialize for UpdateVote {
 
 #[derive(Debug, Clone)]
 pub struct UpdateProposalToSign<'a> {
-    pub block_version: &'a BlockVersion,
+    pub block_version: &'a types::BlockVersion,
     pub block_version_mod: &'a BlockVersionModifier,
     pub software_version: &'a types::SoftwareVersion,
     pub data: &'a BTreeMap<SystemTag, UpdateData>,
