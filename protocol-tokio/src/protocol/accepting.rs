@@ -113,11 +113,11 @@ impl<T: AsyncRead+AsyncWrite> Future for Accepting<T> {
                     self.state = AcceptingState::ExpectNodeId(connection.into_future());
                 },
                 Transition::ReceivedNodeId(mut connection) => {
-                    let lid = connection.next_lightweight_connection_id.next();
-                    let nid = connection.next_node_id.next();
+                    let lid = connection.get_next_light_id();
+                    let nid = connection.get_next_node_id();
                     let commands = stream::iter_ok::<_, std::io::Error>(vec![
                         Message::CreateLightWeightConnectionId(lid).to_nt_event(),
-                        Message::Handshake(lid, Handshake::default()).to_nt_event(),
+                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into()).to_nt_event(),
                         Message::CreateNodeId(lid, nid).to_nt_event(),
                     ]);
                     let send_all = connection.send_all(commands);
@@ -125,7 +125,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Accepting<T> {
                 },
                 Transition::HandshakeSent(connection) => {
                     self.state = AcceptingState::Consumed;
-                    return Ok(Async::Ready(connection));
+                    return Ok(Async::Ready(connection))
                 },
             }
         }

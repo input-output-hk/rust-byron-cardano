@@ -20,4 +20,9 @@ pub use self::protocol::{
 
     Connecting, ConnectingError,
     Accepting, AcceptingError,
+
+    InboundStream, Inbound, InboundError,
+    OutboundSink, Outbound, OutboundError,
+
+    Message,
 };
