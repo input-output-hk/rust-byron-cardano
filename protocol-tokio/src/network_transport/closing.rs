@@ -1,11 +1,11 @@
-use std::{fmt, error};
+use std::{fmt, error, io, mem};
 
-use tokio::prelude::{*};
-use futures::{Poll};
+use tokio_io::{AsyncRead, AsyncWrite};
+use futures::{Poll, Future, Async};
 
 /// Future object to terminate a connection with a peer.
 ///
-/// Once this future has successfuly returned the expected value it
+/// Once this future has successfully returned the expected value it
 /// be discarded as any other attempt to poll value from it will
 /// result to an error.
 ///
@@ -25,7 +25,7 @@ impl<T: AsyncRead+AsyncWrite> Future for Closing<T> {
     type Error = ClosingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(inner) = ::std::mem::replace(&mut self.inner, None) {
+        if let Some(inner) = mem::replace(&mut self.inner, None) {
             Ok(Async::Ready(inner))
         } else { Err(ClosingError::AlreadyClosed) }
     }
@@ -37,12 +37,12 @@ impl<T: AsyncRead+AsyncWrite> Future for Closing<T> {
 pub enum ClosingError {
     /// this is in case the underlying operation reported an error
     /// (it is required by the AsyncRead/AsyncWrite dependency).
-    IoError(::std::io::Error),
+    IoError(io::Error),
 
     AlreadyClosed,
 }
-impl From<::std::io::Error> for ClosingError {
-    fn from(e: ::std::io::Error) -> Self { ClosingError::IoError(e) }
+impl From<io::Error> for ClosingError {
+    fn from(e: io::Error) -> Self { ClosingError::IoError(e) }
 }
 impl fmt::Display for ClosingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -60,4 +60,3 @@ impl error::Error for ClosingError {
         }
     }
 }
-

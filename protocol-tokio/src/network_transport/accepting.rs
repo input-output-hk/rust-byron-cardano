@@ -1,9 +1,9 @@
 use std::{fmt, error};
 
 use bytes::{Bytes, Buf, IntoBuf};
-use tokio::prelude::{*};
-use tokio::codec::{Framed};
-use futures::{Poll};
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_codec::{Framed};
+use futures::{Poll, Future, Async};
 
 use super::{event, ResponseCode, Connection};
 

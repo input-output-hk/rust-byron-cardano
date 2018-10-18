@@ -1,7 +1,7 @@
 use std::{vec};
 
-use tokio::prelude::{*};
-use futures::{Poll, sink::{SendAll}, stream::{self, IterOk, StreamFuture}};
+use futures::{Poll, sink::{SendAll}, Future, Stream, Sink, Async, stream::{self, IterOk, StreamFuture}};
+use tokio_io::{AsyncRead, AsyncWrite};
 use bytes::{IntoBuf, Buf};
 
 use cbor_event::{self, de::RawCbor};

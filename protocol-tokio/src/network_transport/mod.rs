@@ -4,9 +4,10 @@ mod connecting;
 mod accepting;
 mod closing;
 
-use tokio::{self, prelude::{*}};
-use tokio::codec::{Framed};
-use futures::{StartSend, Poll};
+use std::{io};
+use tokio_codec::{Framed};
+use tokio_io::{AsyncRead, AsyncWrite};
+use futures::{StartSend, Poll, Stream, Sink};
 
 pub use self::response_code::{ResponseCode};
 pub use self::event::{
@@ -43,7 +44,7 @@ impl<T: AsyncRead> Stream for Connection<T> {
 }
 impl<T: AsyncWrite> Sink for Connection<T> {
     type SinkItem = Event;
-    type SinkError = tokio::io::Error;
+    type SinkError = io::Error;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError>
     {

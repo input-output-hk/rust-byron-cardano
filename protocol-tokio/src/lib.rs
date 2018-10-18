@@ -1,7 +1,8 @@
 #[macro_use]
 extern crate cbor_event;
 extern crate cardano;
-extern crate tokio;
+extern crate tokio_io;
+extern crate tokio_codec;
 extern crate bytes;
 #[macro_use]
 extern crate futures;

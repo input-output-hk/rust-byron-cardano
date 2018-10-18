@@ -6,10 +6,9 @@ mod outbound_sink;
 
 use super::network_transport as nt;
 
-use std::{sync::{Arc, Mutex}, collections::{BTreeMap}};
-use bytes::{Bytes};
-use tokio::{io, prelude::{*}};
-use futures::{StartSend, Poll, stream::{SplitStream, SplitSink}};
+use std::{sync::{Arc, Mutex}, collections::{BTreeMap}, io};
+use tokio_io::{AsyncRead, AsyncWrite};
+use futures::{StartSend, Poll, Stream, Sink};
 
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::accepting::{Accepting, AcceptingError};

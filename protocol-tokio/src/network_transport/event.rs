@@ -1,6 +1,6 @@
-use std::{ops::{Deref}};
+use std::{ops::{Deref}, io};
 
-use tokio::{self, codec::{self}};
+use tokio_codec::{self as codec};
 use bytes::{Buf, BufMut, IntoBuf, Bytes, BytesMut};
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
@@ -72,7 +72,7 @@ pub enum DecodeEventError {
     ///
     /// this is a requirement from `tokio`'s codec's `Decoder` trait
     /// that `DecodeEventError` implements `From<tokio::io::Error>`.
-    IoError(tokio::io::Error),
+    IoError(io::Error),
 
     /// This means we have received an unknown `ControlHeader` or an
     /// *invalid* `ControlHeader`.
@@ -85,8 +85,8 @@ pub enum DecodeEventError {
     /// includes value in range `[0..1024[`
     InvalidLightWeightConnectionId(u32),
 }
-impl From<tokio::io::Error> for DecodeEventError {
-    fn from(e: tokio::io::Error) -> Self { DecodeEventError::IoError(e) }
+impl From<io::Error> for DecodeEventError {
+    fn from(e: io::Error) -> Self { DecodeEventError::IoError(e) }
 }
 
 #[derive(Debug)]
@@ -186,7 +186,7 @@ impl codec::Decoder for EventCodec {
 }
 impl codec::Encoder for EventCodec {
     type Item = Event;
-    type Error = tokio::io::Error;
+    type Error = io::Error;
 
     fn encode(&mut self, item: Event, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
@@ -248,7 +248,7 @@ impl ::quickcheck::Arbitrary for Event {
 mod test {
     use super::*;
 
-    use tokio::codec::{Encoder, Decoder};
+    use tokio_codec::{Encoder, Decoder};
 
     quickcheck!{
         fn event_encode_decode(event: Event) -> bool {

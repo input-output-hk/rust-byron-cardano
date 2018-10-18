@@ -1,5 +1,8 @@
-use super::{*};
-use super::codec::{Message};
+use std::{sync::{Arc, Mutex}, io};
+use tokio_io::{AsyncWrite};
+use futures::{future, Poll, Future, Sink, StartSend, stream::{SplitSink}};
+
+use super::{nt, NodeId, ConnectionState, Message, LightWeightConnectionState};
 
 pub type Outbound = Message;
 
@@ -9,7 +12,7 @@ pub enum OutboundError {
     Unknown,
 }
 impl From<()> for OutboundError {
-    fn from(e: ()) -> Self { OutboundError::Unknown }
+    fn from(_: ()) -> Self { OutboundError::Unknown }
 }
 impl From<io::Error> for OutboundError {
     fn from(e: io::Error) -> Self { OutboundError::IoError(e) }

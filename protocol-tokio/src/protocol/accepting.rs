@@ -1,5 +1,5 @@
-use tokio::prelude::{*};
-use futures::{Poll, sink::{SendAll}, stream::{self, IterOk, StreamFuture}};
+use futures::{Poll, Future, Async, Sink, Stream, sink::{SendAll}, stream::{self, IterOk, StreamFuture}};
+use tokio_io::{AsyncRead, AsyncWrite};
 use bytes::{IntoBuf, Buf};
 
 use std::{self, vec};
