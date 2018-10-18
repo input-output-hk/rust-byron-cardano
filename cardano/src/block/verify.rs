@@ -580,12 +580,13 @@ impl Verify for update::UpdateVote {
 mod tests {
     use std::str::FromStr;
     use block::*;
-    use config::{ProtocolMagic};
+    use config::{ProtocolMagic, ChainParameters};
     use std::mem;
     use coin;
     use merkle;
     use address;
     use cbor_event;
+    use fee;
     use std::fmt::Debug;
 
     #[test]
@@ -630,30 +631,48 @@ mod tests {
 
     #[test]
     fn test_verify() {
+        let params = ChainParameters {
+            protocol_magic: ProtocolMagic::new(PROTOCOL_MAGIC),
+            epoch_stability_depth: 2160,
+            max_block_size: 2000000,
+            max_header_size: 2000000,
+            max_tx_size: 4096,
+            max_proposal_size: 700,
+            softfork_init_thd: 900000000000000,
+            softfork_min_thd: 600000000000000,
+            softfork_thd_decrement: 50000000000000,
+            fee_policy: fee::LinearFee::new(fee::Milli(43946), fee::Milli(155381000)),
+            update_proposal_thd: 100000000000000,
+            update_vote_thd: 1000000000000,
+        };
+
         let hash = HeaderHash::from_str(&HEADER_HASH1).unwrap();
         let rblk = RawBlock(BLOCK1.to_vec());
         let blk = rblk.decode().unwrap();
-        let pm = ProtocolMagic::new(PROTOCOL_MAGIC);
-        assert!(verify_block(pm, &hash, &blk).is_ok());
+        assert!(verify_block(&params, &hash, &blk, &rblk).is_ok());
 
         let hash2 = HeaderHash::from_str(&HEADER_HASH2).unwrap();
         let rblk2 = RawBlock(BLOCK2.to_vec());
         let blk2 = rblk2.decode().unwrap();
-        assert!(verify_block(pm, &hash2, &blk2).is_ok());
+        assert!(verify_block(&params, &hash2, &blk2, &rblk2).is_ok());
 
         let hash3 = HeaderHash::from_str(&HEADER_HASH3).unwrap();
         let rblk3 = RawBlock(BLOCK3.to_vec());
         let blk3 = rblk3.decode().unwrap();
-        assert!(verify_block(pm, &hash3, &blk3).is_ok());
+        assert!(verify_block(&params, &hash3, &blk3, &rblk3).is_ok());
 
         // invalidate the protocol magic
-        expect_error(&verify_block(ProtocolMagic::new(123), &hash, &blk), Error::WrongMagic);
+        {
+            let mut params = params.clone();
+            params.protocol_magic = ProtocolMagic::new(123);
+            expect_error(&verify_block(&params, &hash, &blk, &rblk), Error::WrongMagic);
+        }
 
         // use a wrong header hash
         {
             expect_error(&verify_block(
-                pm, &HeaderHash::from_str(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
-                &blk), Error::WrongBlockHash);
+                &params, &HeaderHash::from_str(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
+                &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongBlockHash);
         }
 
         // duplicate a tx input
@@ -663,7 +682,7 @@ mod tests {
                 let input = mblk.body.tx[0].tx.inputs[0].clone();
                 mblk.body.tx[0].tx.inputs.push(input);
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::DuplicateInputs);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::DuplicateInputs);
         }
 
         // invalidate a transaction witness
@@ -672,7 +691,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(123).unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadTxWitness);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::BadTxWitness);
         }
 
         // create a zero output
@@ -681,7 +700,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(0).unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::ZeroCoin);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::ZeroCoin);
         }
 
         // create a redeem output
@@ -690,7 +709,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].address.addr_type = address::AddrType::ATRedeem;
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::RedeemOutput);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::RedeemOutput);
         }
 
         // remove the transaction input witness
@@ -699,7 +718,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].witness.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::MissingWitnesses);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::MissingWitnesses);
         }
 
         // add a transaction input witness
@@ -709,7 +728,7 @@ mod tests {
                 let in_witness = mblk.body.tx[0].witness[0].clone();
                 mblk.body.tx[0].witness.push(in_witness);
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::UnexpectedWitnesses);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::UnexpectedWitnesses);
         }
 
         // remove all transaction inputs
@@ -718,7 +737,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.inputs.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::NoInputs);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::NoInputs);
         }
 
         // remove all transaction outputs
@@ -727,7 +746,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::NoOutputs);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::NoOutputs);
         }
 
         // invalidate the Merkle root by deleting a transaction
@@ -736,7 +755,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx.pop();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongMerkleRoot);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongMerkleRoot);
         }
 
         // invalidate the tx proof
@@ -752,7 +771,7 @@ mod tests {
                 }
                 mblk.header.body_proof.tx.root = merkle::MerkleTree::new(&txs).get_root_hash();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongTxProof);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongTxProof);
         }
 
         // invalidate the block signature
@@ -761,7 +780,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.header.previous_header = HeaderHash::from_str(&"aaaaaaaaaaaaaaa9de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadBlockSig);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::BadBlockSig);
         }
 
         // invalidate a VSS certificate
@@ -775,7 +794,7 @@ mod tests {
                     _ => panic!()
                 }
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadVssCertSig);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::BadVssCertSig);
         }
 
         // duplicate a VSS certificate
@@ -790,7 +809,7 @@ mod tests {
                     _ => panic!()
                 }
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::DuplicateVSSKeys);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::DuplicateVSSKeys);
         }
 
         // invalidate the MPC proof
@@ -800,7 +819,7 @@ mod tests {
                 mblk.body.ssc = normal::SscPayload::CertificatesPayload(
                     normal::VssCertificates::new(vec![]));
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongMpcProof);
+            expect_error(&verify_block(&params, &hash, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongMpcProof);
         }
 
         // invalidate the update proof
@@ -809,7 +828,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.proposal = None;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongUpdateProof);
+            expect_error(&verify_block(&params, &hash2, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongUpdateProof);
         }
 
         // invalidate the update proposal signature
@@ -818,7 +837,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.proposal.as_mut().unwrap().block_version.major = 123;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::BadUpdateProposalSig);
+            expect_error(&verify_block(&params, &hash2, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::BadUpdateProposalSig);
         }
 
         // invalidate the update vote signature
@@ -827,7 +846,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.votes[0].decision = false;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::BadUpdateVoteSig);
+            expect_error(&verify_block(&params, &hash2, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::BadUpdateVoteSig);
         }
 
         // invalidate the extra data proof
@@ -836,7 +855,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.extra = cbor_event::Value::U64(123);
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongExtraDataProof);
+            expect_error(&verify_block(&params, &hash2, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongExtraDataProof);
         }
 
         // invalidate the delegation proof
@@ -845,7 +864,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.delegation = cbor_event::Value::U64(123);
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongDelegationProof);
+            expect_error(&verify_block(&params, &hash2, &blk, &RawBlock::from_dat(cbor!(blk).unwrap())), Error::WrongDelegationProof);
         }
 
         // add trailing data
