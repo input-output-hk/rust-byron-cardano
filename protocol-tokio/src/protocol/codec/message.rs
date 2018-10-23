@@ -9,7 +9,8 @@ use super::super::{nt};
 
 pub type MessageCode = u32;
 
-pub enum MsgType {
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum MessageType {
     MsgGetHeaders = 4,
     MsgHeaders = 5,
     MsgGetBlocks = 6,
@@ -21,39 +22,39 @@ pub enum MsgType {
     MsgAnnounceTx = 37, // == InvOrData key TxMsgContents
     MsgTxMsgContents = 94,
 }
-impl MsgType {
+impl MessageType {
     #[inline]
     fn encode_with<T>(&self, cbor: &T) -> Bytes
         where T: se::Serialize
     {
-        let mut bytes = se::Serializer::new_vec();
+        let bytes = se::Serializer::new_vec();
         let bytes = bytes.serialize(self).unwrap()
                 .serialize(cbor).unwrap()
                 .finalize();
         bytes.into()
     }
 }
-impl se::Serialize for MsgType {
+impl se::Serialize for MessageType {
     fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
         where W: ::std::io::Write
     {
         serializer.serialize(&(*self as u32))
     }
 }
-impl de::Deserialize for MsgType {
+impl de::Deserialize for MessageType {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let v = raw.unsigned_integer()? as u32;
         match v {
-            4  => Ok(MsgType::MsgGetHeaders),
-            5  => Ok(MsgType::MsgHeaders),
-            6  => Ok(MsgType::MsgGetBlocks),
-            7  => Ok(MsgType::MsgBlock),
-            13 => Ok(MsgType::MsgSubscribe1),
-            14 => Ok(MsgType::MsgSubscribe),
-            15 => Ok(MsgType::MsgStream),
-            16 => Ok(MsgType::MsgStreamBlock),
-            37 => Ok(MsgType::MsgAnnounceTx),
-            93 => Ok(MsgType::MsgTxMsgContents),
+            4  => Ok(MessageType::MsgGetHeaders),
+            5  => Ok(MessageType::MsgHeaders),
+            6  => Ok(MessageType::MsgGetBlocks),
+            7  => Ok(MessageType::MsgBlock),
+            13 => Ok(MessageType::MsgSubscribe1),
+            14 => Ok(MessageType::MsgSubscribe),
+            15 => Ok(MessageType::MsgStream),
+            16 => Ok(MessageType::MsgStreamBlock),
+            37 => Ok(MessageType::MsgAnnounceTx),
+            93 => Ok(MessageType::MsgTxMsgContents),
             v  => return Err(cbor_event::Error::CustomError(format!("Unsupported message type: {:20x}", v))),
         }
     }
@@ -98,10 +99,10 @@ impl Message {
                 Data(lwcid, bytes.freeze())
             },
             Message::GetBlockHeaders(lwcid, gbh) => {
-                Data(lwcid, MsgType::MsgGetHeaders.encode_with(&gbh))
+                Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh))
             },
             Message::BlockHeaders(lwcid, bh) => {
-                Data(lwcid, MsgType::MsgHeaders.encode_with(&bh))
+                Data(lwcid, MessageType::MsgHeaders.encode_with(&bh))
             },
             Message::Bytes(lwcid, bytes) => {
                 Data(lwcid, bytes)
@@ -136,12 +137,12 @@ impl Message {
         }
 
         let mut cbor = de::RawCbor::from(bytes.deref());
-        let msg_type : MsgType = cbor.deserialize().unwrap();
+        let msg_type : MessageType = cbor.deserialize().unwrap();
         match msg_type {
-            MsgType::MsgGetHeaders => {
+            MessageType::MsgGetHeaders => {
                 Ok(Message::GetBlockHeaders(lwcid, cbor.deserialize_complete().unwrap()))
             },
-            MsgType::MsgHeaders => {
+            MessageType::MsgHeaders => {
                 Ok(Message::BlockHeaders(lwcid, cbor.deserialize_complete().unwrap()))
             },
             _ => unimplemented!()

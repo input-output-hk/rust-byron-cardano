@@ -6,7 +6,7 @@ use cardano::{
     block::{self},
 };
 
-use super::{MessageCode, MsgType};
+use super::{MessageCode, MessageType};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HandlerSpec(u16);
@@ -49,16 +49,16 @@ pub struct HandlerSpecs(BTreeMap<MessageCode, HandlerSpec>);
 impl HandlerSpecs {
     pub fn default_ins() -> Self {
         let mut bm = BTreeMap::new();
-        bm.insert(MsgType::MsgHeaders as u32, HandlerSpec::new(MsgType::MsgGetHeaders as u16));
+        bm.insert(MessageType::MsgHeaders as u32, HandlerSpec::new(MessageType::MsgGetHeaders as u16));
         HandlerSpecs(bm)
     }
     pub fn default_outs() -> Self {
         let mut bm = BTreeMap::new();
-        bm.insert(MsgType::MsgGetHeaders as u32, HandlerSpec::new(MsgType::MsgHeaders as u16));
-        bm.insert(MsgType::MsgGetBlocks as u32, HandlerSpec::new(MsgType::MsgBlock as u16));
-        bm.insert(MsgType::MsgAnnounceTx as u32, HandlerSpec::new(MsgType::MsgTxMsgContents as u16));
-        bm.insert(MsgType::MsgSubscribe1 as u32, HandlerSpec::new(0x00));
-        bm.insert(MsgType::MsgStream as u32, HandlerSpec::new(MsgType::MsgStreamBlock as u16));
+        bm.insert(MessageType::MsgGetHeaders as u32, HandlerSpec::new(MessageType::MsgHeaders as u16));
+        bm.insert(MessageType::MsgGetBlocks as u32, HandlerSpec::new(MessageType::MsgBlock as u16));
+        bm.insert(MessageType::MsgAnnounceTx as u32, HandlerSpec::new(MessageType::MsgTxMsgContents as u16));
+        bm.insert(MessageType::MsgSubscribe1 as u32, HandlerSpec::new(0x00));
+        bm.insert(MessageType::MsgStream as u32, HandlerSpec::new(MessageType::MsgStreamBlock as u16));
         HandlerSpecs(bm)
     }
 }
