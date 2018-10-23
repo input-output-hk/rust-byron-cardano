@@ -1,4 +1,8 @@
+use std::{ops::{Deref}};
 use bytes::{BufMut, BytesMut, Bytes};
+
+use cbor_event::{self, se, de::{self, RawCbor}};
+use cardano::block::{self, HeaderHash};
 
 use super::{NodeId};
 use super::super::{nt};
@@ -17,6 +21,44 @@ pub enum MsgType {
     MsgAnnounceTx = 37, // == InvOrData key TxMsgContents
     MsgTxMsgContents = 94,
 }
+impl MsgType {
+    #[inline]
+    fn encode_with<T>(&self, cbor: &T) -> Bytes
+        where T: se::Serialize
+    {
+        let mut bytes = se::Serializer::new_vec();
+        let bytes = bytes.serialize(self).unwrap()
+                .serialize(cbor).unwrap()
+                .finalize();
+        bytes.into()
+    }
+}
+impl se::Serialize for MsgType {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        serializer.serialize(&(*self as u32))
+    }
+}
+impl de::Deserialize for MsgType {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let v = raw.unsigned_integer()? as u32;
+        match v {
+            4  => Ok(MsgType::MsgGetHeaders),
+            5  => Ok(MsgType::MsgHeaders),
+            6  => Ok(MsgType::MsgGetBlocks),
+            7  => Ok(MsgType::MsgBlock),
+            13 => Ok(MsgType::MsgSubscribe1),
+            14 => Ok(MsgType::MsgSubscribe),
+            15 => Ok(MsgType::MsgStream),
+            16 => Ok(MsgType::MsgStreamBlock),
+            37 => Ok(MsgType::MsgAnnounceTx),
+            93 => Ok(MsgType::MsgTxMsgContents),
+            v  => return Err(cbor_event::Error::CustomError(format!("Unsupported message type: {:20x}", v))),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -29,7 +71,8 @@ pub enum Message {
     CreateNodeId(nt::LightWeightConnectionId, NodeId),
     AckNodeId(nt::LightWeightConnectionId, NodeId),
 
-
+    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeader),
+    BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
 impl Message {
@@ -53,6 +96,12 @@ impl Message {
                 bytes.put_u8(0x41);
                 bytes.put_u64_be(*node_id);
                 Data(lwcid, bytes.freeze())
+            },
+            Message::GetBlockHeaders(lwcid, gbh) => {
+                Data(lwcid, MsgType::MsgGetHeaders.encode_with(&gbh))
+            },
+            Message::BlockHeaders(lwcid, bh) => {
+                Data(lwcid, MsgType::MsgHeaders.encode_with(&bh))
             },
             Message::Bytes(lwcid, bytes) => {
                 Data(lwcid, bytes)
@@ -82,18 +131,179 @@ impl Message {
 
     pub fn expect_bytes(event: nt::Event) -> Result<Self, nt::Event> {
         let (lwcid, bytes) = event.expect_data()?;
-        if bytes.len() == 9 {
-            use bytes::{IntoBuf, Buf};
-            let mut buf = bytes.into_buf();
-            let key = buf.get_u8();
-            let v   = buf.get_u64_be();
-            match key {
-                0x53 => { Ok(Message::CreateNodeId(lwcid, NodeId::from(v))) },
-                0x41 => { Ok(Message::AckNodeId(lwcid, NodeId::from(v))) },
-                _    => { Ok(Message::Bytes(lwcid, buf.into_inner())) },
+        if let Some(msg) = decode_node_ack_or_syn(lwcid, &bytes) {
+            return Ok(msg);
+        }
+
+        let mut cbor = de::RawCbor::from(bytes.deref());
+        let msg_type : MsgType = cbor.deserialize().unwrap();
+        match msg_type {
+            MsgType::MsgGetHeaders => {
+                Ok(Message::GetBlockHeaders(lwcid, cbor.deserialize_complete().unwrap()))
+            },
+            MsgType::MsgHeaders => {
+                Ok(Message::BlockHeaders(lwcid, cbor.deserialize_complete().unwrap()))
+            },
+            _ => unimplemented!()
+        }
+    }
+}
+
+fn decode_node_ack_or_syn(lwcid: nt::LightWeightConnectionId, bytes: &Bytes) -> Option<Message> {
+    use bytes::{IntoBuf, Buf};
+    let mut buf = bytes.into_buf();
+    let key = buf.get_u8();
+    let v   = buf.get_u64_be();
+    match key {
+        0x53 => { Some(Message::CreateNodeId(lwcid, NodeId::from(v))) },
+        0x41 => { Some(Message::AckNodeId(lwcid, NodeId::from(v))) },
+        _    => { None },
+    }
+
+}
+
+#[derive(Clone, Debug)]
+pub enum Response<T, E> {
+    Ok(T),
+    Err(E),
+}
+impl<T: se::Serialize, E: se::Serialize> se::Serialize for Response<T, E> {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        match self {
+            &Response::Ok(ref t)  => {
+                serializer.serialize(&0u64)?.serialize(t)
+            },
+            &Response::Err(ref e) => {
+                serializer.serialize(&1u64)?.serialize(e)
             }
-        } else {
-            Ok(Message::Bytes(lwcid, bytes))
+        }
+    }
+}
+impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.tuple(2, "protocol::Response")?;
+        let id = raw.deserialize()?;
+        match id {
+            0u64 => { Ok(Response::Ok(raw.deserialize()?)) },
+            1u64 => { Ok(Response::Err(raw.deserialize()?)) },
+            v    => {
+                Err(cbor_event::Error::CustomError(format!("Invalid Response Enum header expected 0 or 1 but got {}", v)))
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct GetBlockHeader {
+    from: Vec<HeaderHash>,
+    to: Option<HeaderHash>
+}
+impl GetBlockHeader {
+    pub fn tip() -> Self {
+        GetBlockHeader {
+            from: Vec::new(),
+            to:   None,
+        }
+    }
+    pub fn range(from: Vec<HeaderHash>, to: HeaderHash) -> Self {
+        GetBlockHeader {
+            from: from,
+            to: Some(to),
+        }
+    }
+}
+impl se::Serialize for GetBlockHeader {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        let serializer = se::serialize_indefinite_array(self.from.iter(), serializer)?;
+        match &self.to {
+            &None    => serializer.write_array(cbor_event::Len::Len(0)),
+            &Some(ref h) => {
+                serializer.write_array(cbor_event::Len::Len(1))?
+                    .serialize(h)
+            }
+        }
+    }
+}
+impl de::Deserialize for GetBlockHeader {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.tuple(2, "GetBlockHeader")?;
+        let from = raw.deserialize()?;
+        let to = {
+            let len = raw.array()?;
+            match len {
+                cbor_event::Len::Len(0) => None,
+                cbor_event::Len::Len(1) => {
+                    let h = raw.deserialize()?;
+                    Some(h)
+                },
+                len => return Err(cbor_event::Error::CustomError(format!("Len {:?} not supported for the `GetBlockHeader.to`", len))),
+            }
+        };
+        Ok(GetBlockHeader { from: from, to: to })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockHeaders(Vec<block::BlockHeader>);
+impl se::Serialize for BlockHeaders {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+        where W: ::std::io::Write
+    {
+        se::serialize_fixed_array(self.0.iter(), serializer)
+    }
+}
+impl de::Deserialize for BlockHeaders {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.deserialize().map(BlockHeaders)
+    }
+}
+
+
+#[cfg(test)]
+fn random_headerhash<G: ::quickcheck::Gen>(g: &mut G) -> HeaderHash {
+    let bytes : Vec<u8> = ::quickcheck::Arbitrary::arbitrary(g);
+    HeaderHash::new(&bytes)
+}
+
+#[cfg(test)]
+fn random_to<G: ::quickcheck::Gen>(g: &mut G) -> Option<HeaderHash> {
+    let value : Option<()> = ::quickcheck::Arbitrary::arbitrary(g);
+    value.map(|_| random_headerhash(g))
+}
+
+#[cfg(test)]
+fn random_from<G: ::quickcheck::Gen>(g: &mut G) -> Vec<HeaderHash> {
+    let num : usize = ::quickcheck::Arbitrary::arbitrary(g);
+    ::std::iter::repeat_with(|| random_headerhash(g)).take(num).collect()
+}
+
+#[cfg(test)]
+impl ::quickcheck::Arbitrary for GetBlockHeader {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+        let from = random_from(g);
+        let to   = random_to(g);
+        GetBlockHeader { from: from, to: to }
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    quickcheck!{
+        fn command_encode_decode(command: GetBlockHeader) -> bool {
+            let encoded = cbor!(command).unwrap();
+            let decoded : GetBlockHeader = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
+
+            decoded == command
         }
     }
 }
