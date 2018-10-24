@@ -22,6 +22,7 @@ install_lib() {
     echo " * installing to \`${TARGET_PATH}'"
     ${CP} ${SOURCE_PATH}/*.a ${TARGET_PATH}
     ${CP} ${SOURCE_PATH}/*.d ${TARGET_PATH}
+    ${CP} ${SOURCE_PATH}/*.so ${TARGET_PATH}
 }
 
 rustup_target_add() {
