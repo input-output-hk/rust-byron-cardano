@@ -1,4 +1,5 @@
 use std::collections::{HashMap, BTreeMap};
+use std::io::Read;
 use serde_json;
 use cardano::{config, fee, block, coin, redeem};
 use base64;
@@ -31,9 +32,11 @@ struct TxFeePolicy {
     multiplier: String,
 }
 
-pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Result
+pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: use Result
 
-    let data: RawGenesisData = serde_json::from_str(&json).unwrap();
+    let data_value: serde_json::Value = serde_json::from_reader(json).unwrap();
+    let genesis_prev = block::HeaderHash::new(data_value.to_string().as_bytes());
+    let data: RawGenesisData = serde_json::from_value(data_value.clone()).unwrap();
 
     let parse_fee_constant = |s: &str| {
         let n = s.parse::<u64>().unwrap();
@@ -50,7 +53,7 @@ pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Res
     }
 
     config::GenesisData {
-        genesis_prev: block::HeaderHash::new(canonicalize_json(json).as_bytes()),
+        genesis_prev,
         epoch_stability_depth: data.protocolConsts.k,
         protocol_magic: config::ProtocolMagic::from(data.protocolConsts.protocolMagic),
         fee_policy: fee::LinearFee::new(
@@ -61,8 +64,8 @@ pub fn parse_genesis_data(json: &str) -> config::GenesisData { // FIXME: use Res
     }
 }
 
-pub fn canonicalize_json(json: &str) -> String
+pub fn canonicalize_json<R: Read>(json: R) -> String
 {
-    let data: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let data: serde_json::Value = serde_json::from_reader(json).unwrap();
     data.to_string()
 }
