@@ -5,7 +5,9 @@ use std::collections::HashMap;
 pub struct GenesisData {
     pub avvmDistr: HashMap<String, String>,
     pub nonAvvmBalances: HashMap<String, String>,
+    pub bootStakeholders: HashMap<String, u32>,
     pub protocolConsts: ProtocolConsts,
+    pub startTime: u64,
     pub blockVersionData: BlockVersionData,
 }
 
@@ -14,6 +16,8 @@ pub struct GenesisData {
 pub struct ProtocolConsts {
     pub k: usize,
     pub protocolMagic: u32,
+    pub vssMaxTTL: u32,
+    pub vssMinTTL: u32,
 }
 
 #[allow(non_snake_case)]
