@@ -72,7 +72,7 @@ pub enum Message {
     CreateNodeId(nt::LightWeightConnectionId, NodeId),
     AckNodeId(nt::LightWeightConnectionId, NodeId),
 
-    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeader),
+    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
@@ -199,25 +199,25 @@ impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> 
 
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct GetBlockHeader {
+pub struct GetBlockHeaders {
     from: Vec<HeaderHash>,
     to: Option<HeaderHash>
 }
-impl GetBlockHeader {
+impl GetBlockHeaders {
     pub fn tip() -> Self {
-        GetBlockHeader {
+        GetBlockHeaders {
             from: Vec::new(),
             to:   None,
         }
     }
     pub fn range(from: Vec<HeaderHash>, to: HeaderHash) -> Self {
-        GetBlockHeader {
+        GetBlockHeaders {
             from: from,
             to: Some(to),
         }
     }
 }
-impl se::Serialize for GetBlockHeader {
+impl se::Serialize for GetBlockHeaders {
     fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
         where W: ::std::io::Write
     {
@@ -232,7 +232,7 @@ impl se::Serialize for GetBlockHeader {
         }
     }
 }
-impl de::Deserialize for GetBlockHeader {
+impl de::Deserialize for GetBlockHeaders {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
@@ -247,7 +247,7 @@ impl de::Deserialize for GetBlockHeader {
                 len => return Err(cbor_event::Error::CustomError(format!("Len {:?} not supported for the `GetBlockHeader.to`", len))),
             }
         };
-        Ok(GetBlockHeader { from: from, to: to })
+        Ok(GetBlockHeaders { from: from, to: to })
     }
 }
 
@@ -286,11 +286,11 @@ fn random_from<G: ::quickcheck::Gen>(g: &mut G) -> Vec<HeaderHash> {
 }
 
 #[cfg(test)]
-impl ::quickcheck::Arbitrary for GetBlockHeader {
+impl ::quickcheck::Arbitrary for GetBlockHeaders {
     fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
         let from = random_from(g);
         let to   = random_to(g);
-        GetBlockHeader { from: from, to: to }
+        GetBlockHeaders { from: from, to: to }
     }
 }
 
@@ -300,9 +300,9 @@ mod test {
     use super::*;
 
     quickcheck!{
-        fn command_encode_decode(command: GetBlockHeader) -> bool {
+        fn command_encode_decode(command: GetBlockHeaders) -> bool {
             let encoded = cbor!(command).unwrap();
-            let decoded : GetBlockHeader = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
+            let decoded : GetBlockHeaders = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
 
             decoded == command
         }
