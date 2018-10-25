@@ -3,7 +3,8 @@ use bytes::{Bytes};
 use tokio_io::{AsyncRead};
 use futures::{Poll, Async, Stream, stream::{SplitStream}};
 
-use super::{nt, NodeId, ConnectionState, Message, LightWeightConnectionState};
+use super::{nt, NodeId, ConnectionState, Message, Response, LightWeightConnectionState};
+use super::{GetBlockHeaders, BlockHeaders};
 
 #[derive(Debug)]
 pub enum InboundError {
@@ -40,6 +41,8 @@ pub enum Inbound {
 
     // need to call Connection::ack_node_id(node_id)
     NewNode(nt::LightWeightConnectionId, NodeId),
+    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
+    BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     Data(nt::LightWeightConnectionId, Bytes),
 }
 
@@ -101,8 +104,14 @@ impl<T> InboundStream<T> {
             Message::AckNodeId(lwcid, node_id) => {
                 self.process_ack_node_id(lwcid, node_id)
             },
+            Message::GetBlockHeaders(lwcid, gbh) => {
+                self.forward_message(lwcid, Inbound::GetBlockHeaders, gbh)
+            },
+            Message::BlockHeaders(lwcid, bh) => {
+                self.forward_message(lwcid, Inbound::BlockHeaders, bh)
+            },
             Message::Bytes(lwcid, bytes) => {
-                self.process_bytes(lwcid, bytes)
+                self.forward_message(lwcid, Inbound::Data, bytes)
             },
         }
     }
@@ -176,8 +185,9 @@ impl<T> InboundStream<T> {
         }
     }
 
-    fn process_bytes(&mut self, lwcid: nt::LightWeightConnectionId, bytes: Bytes)
+    fn forward_message<A, F>(&mut self, lwcid: nt::LightWeightConnectionId, f: F, t: A)
         -> Result<Inbound, InboundError>
+      where F: FnOnce(nt::LightWeightConnectionId, A) -> Inbound
     {
         let state = self.state.lock().unwrap();
         let light_connection = state.server_handles.get(&lwcid).cloned();
@@ -185,7 +195,7 @@ impl<T> InboundStream<T> {
             None => { Err(InboundError::RemoteLightConnectionIdUnknown(lwcid)) },
             Some(light_state) => {
                 if light_state.remote_initiated {
-                    Ok(Inbound::Data(lwcid, bytes))
+                    Ok(f(lwcid, t))
                 } else {
                     match light_state.node {
                         None => { Err(InboundError::RemoteLightConnectionIdNotLinkedToLocalClientId(lwcid)) },
@@ -195,7 +205,7 @@ impl<T> InboundStream<T> {
                                 None => { Err(InboundError::RemoteLightConnectionIdNotLinkedToKnownLocalClientId(lwcid, node_id)) },
                                 Some(client_id) => {
                                     if state.client_handles.contains_key(&client_id) {
-                                        Ok(Inbound::Data(client_id, bytes))
+                                        Ok(f(lwcid, t))
                                     } else {
                                         unimplemented!()
                                     }

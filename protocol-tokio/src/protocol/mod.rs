@@ -14,7 +14,12 @@ pub use self::connecting::{Connecting, ConnectingError};
 pub use self::accepting::{Accepting, AcceptingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
 pub use self::outbound_sink::{Outbound, OutboundError, OutboundSink};
-pub use self::codec::{Message, NodeId, Handshake, HandlerSpec, HandlerSpecs};
+pub use self::codec::{
+    Message, Response,
+    GetBlockHeaders, BlockHeaders,
+    NodeId,
+    Handshake, HandlerSpec, HandlerSpecs
+};
 
 /// the connection state, shared between the `ConnectionStream` and the `ConnectionSink`.
 ///
