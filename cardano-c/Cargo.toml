@@ -12,7 +12,7 @@ other languages.
 """
 
 [lib]
-crate-type = ["staticlib" ]
+crate-type = ["staticlib", "cdylib" ]
 
 [dependencies]
 cardano = { path = "../cardano" }

@@ -7,3 +7,4 @@ rls
 *.swp
 npm-debug.log
 .vscode
+result
