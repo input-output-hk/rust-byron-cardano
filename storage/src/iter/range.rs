@@ -1,11 +1,10 @@
 use refpack;
-use super::super::{Storage};
 use types::{BlockHash};
-
-use super::error::{Error, Result};
-use super::iter::{ReverseIter};
 use storage_units::reffile;
 use std::collections::VecDeque;
+
+use super::{ReverseIter};
+use super::super::{Error, Result, Storage};
 
 pub struct Range(VecDeque<BlockHash>);
 impl Range {
@@ -21,7 +20,7 @@ impl Range {
         }
 
         if ! finished {
-            Err(Error::HashNotFound(to))
+            Err(Error::HashNotFound(to.into()))
         } else {
             Ok(Range(rp))
         }
