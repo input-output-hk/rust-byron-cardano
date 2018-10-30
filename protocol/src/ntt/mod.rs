@@ -1,8 +1,8 @@
 pub mod protocol;
 
-use std::io::{Write, Read};
-use std::{iter, io, result, fmt, error};
 use cardano::util::hex;
+use std::io::{Read, Write};
+use std::{error, fmt, io, iter, result};
 
 pub use self::protocol::{LightweightConnectionId, LIGHT_ID_MIN};
 
@@ -14,29 +14,31 @@ pub enum Error {
     InvalidRequest,
     CrossedRequest,
     UnknownErrorCode(u32),
-    CommandFailed // TODO add command error in this sum type
+    CommandFailed, // TODO add command error in this sum type
 }
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self { Error::IOError(e) }
+    fn from(e: io::Error) -> Self {
+        Error::IOError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::IOError(_) => write!(f, "I/O error"),
             Error::UnsupportedVersion => write!(f, "Unsupported protocol version"),
-            Error::InvalidRequest     => write!(f, "Invalid request"),
-            Error::InvalidLightid     => write!(f, "Invalid lightid"),
-            Error::CrossedRequest     => write!(f, "Crossed request"),
+            Error::InvalidRequest => write!(f, "Invalid request"),
+            Error::InvalidLightid => write!(f, "Invalid lightid"),
+            Error::CrossedRequest => write!(f, "Crossed request"),
             Error::UnknownErrorCode(c) => write!(f, "Failed with an unknown error code: {}", c),
-            Error::CommandFailed      => write!(f, "Command failed")
+            Error::CommandFailed => write!(f, "Command failed"),
         }
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::IOError(ref error) => Some(error),
-            _                         => None,
+            _ => None,
         }
     }
 }
@@ -51,15 +53,17 @@ pub struct Connection<W: Sized> {
     drg: u64,
 }
 
-impl<W: Sized+Write+Read> Connection<W> {
-
+impl<W: Sized + Write + Read> Connection<W> {
     pub fn get_backend(&self) -> &W {
         &self.stream
     }
 
     pub fn handshake(drg_seed: u64, stream: W) -> Result<Self> {
         trace!("sending initial handshake");
-        let mut conn = Connection { stream: stream, drg: drg_seed };
+        let mut conn = Connection {
+            stream: stream,
+            drg: drg_seed,
+        };
         let mut buf = vec![];
         protocol::handshake(&mut buf);
         conn.emit("handshake", &buf)?;
@@ -67,8 +71,11 @@ impl<W: Sized+Write+Read> Connection<W> {
             0xffffffff => Err(Error::UnsupportedVersion),
             0x00000001 => Err(Error::InvalidRequest),
             0x00000002 => Err(Error::CrossedRequest),
-            0x00000000 => { info!("HANDSHAKE OK"); Ok(conn) },
-            v          => Err(Error::UnknownErrorCode(v)),
+            0x00000000 => {
+                info!("HANDSHAKE OK");
+                Ok(conn)
+            }
+            v => Err(Error::UnknownErrorCode(v)),
         }
     }
 
@@ -94,7 +101,7 @@ impl<W: Sized+Write+Read> Connection<W> {
         let mut buf = vec![];
         protocol::append_lightweight_data(lwc, dat.len() as u32, &mut buf);
         self.emit("send lightcon data header", &buf)?;
-        self.emit("send lightcon data",  &dat)
+        self.emit("send lightcon data", &dat)
     }
 
     // emit utility
@@ -108,10 +115,10 @@ impl<W: Sized+Write+Read> Connection<W> {
     fn recv_u32(&mut self) -> Result<u32> {
         let mut buf = [0u8; 4];
         self.stream.read_exact(&mut buf)?;
-        let v = ((buf[0] as u32) << 24) |
-                ((buf[1] as u32) << 16) |
-                ((buf[2] as u32) << 8) |
-                (buf[3] as u32);
+        let v = ((buf[0] as u32) << 24)
+            | ((buf[1] as u32) << 16)
+            | ((buf[2] as u32) << 8)
+            | (buf[3] as u32);
         Ok(v)
     }
 
@@ -124,19 +131,22 @@ impl<W: Sized+Write+Read> Connection<W> {
         }
     }
 
-    pub fn recv(&mut self) -> Result<protocol::Command>  {
+    pub fn recv(&mut self) -> Result<protocol::Command> {
         let hdr = self.recv_u32()?;
         if hdr < LIGHT_ID_MIN {
             match protocol::ControlHeader::from_u32(hdr) {
-                Some(c)  => {
+                Some(c) => {
                     let r = self.recv_cid()?;
                     Ok(protocol::Command::Control(c, r))
-                },
-                None => Err(Error::CommandFailed)
+                }
+                None => Err(Error::CommandFailed),
             }
         } else {
             let len = self.recv_u32()?;
-            Ok(protocol::Command::Data(LightweightConnectionId::new(hdr), len))
+            Ok(protocol::Command::Data(
+                LightweightConnectionId::new(hdr),
+                len,
+            ))
         }
     }
 
@@ -153,18 +163,18 @@ impl<W: Sized+Write+Read> Connection<W> {
     pub fn recv_data(&mut self) -> Result<(LightweightConnectionId, Vec<u8>)> {
         let lwc = self.recv_u32()?;
         if lwc < LIGHT_ID_MIN {
-            return Err(Error::InvalidLightid)
+            return Err(Error::InvalidLightid);
         } else {
             trace!("received data: {}", lwc);
             let len = self.recv_u32()?;
-            let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
+            let mut buf: Vec<u8> = iter::repeat(0).take(len as usize).collect();
             self.stream.read_exact(&mut buf[..])?;
-            Ok((LightweightConnectionId::new(lwc),buf))
+            Ok((LightweightConnectionId::new(lwc), buf))
         }
     }
 
     pub fn recv_len(&mut self, len: u32) -> Result<Vec<u8>> {
-        let mut buf : Vec<u8> = iter::repeat(0).take(len as usize).collect();
+        let mut buf: Vec<u8> = iter::repeat(0).take(len as usize).collect();
         self.stream.read_exact(&mut buf[..])?;
         trace!("received({}): {:?}", buf.len(), hex::encode(&buf));
         Ok(buf)
