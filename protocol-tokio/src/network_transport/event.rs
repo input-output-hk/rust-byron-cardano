@@ -1,16 +1,18 @@
-use std::{ops::{Deref}, io};
+use std::{io, ops::Deref};
 
-use tokio_codec::{self as codec};
-use bytes::{Buf, BufMut, IntoBuf, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
+use tokio_codec as codec;
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct LightWeightConnectionId(u32);
 impl Deref for LightWeightConnectionId {
     type Target = u32;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 impl LightWeightConnectionId {
-    const FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID : u32 = 1024;
+    const FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID: u32 = 1024;
 
     /// This is the first non reserved light weight connection identifier
     ///
@@ -30,14 +32,16 @@ impl LightWeightConnectionId {
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ControlHeader {
     CreateNewConnection = 0,
-    CloseConnection     = 1,
-    CloseSocket         = 2,
-    CloseEndPoint       = 3,
-    ProbeSocket         = 4,
-    ProbeSocketAck      = 5,
+    CloseConnection = 1,
+    CloseSocket = 2,
+    CloseEndPoint = 3,
+    ProbeSocket = 4,
+    ProbeSocketAck = 5,
 }
 impl From<ControlHeader> for u32 {
-    fn from(ch: ControlHeader) -> Self { ch as u32 }
+    fn from(ch: ControlHeader) -> Self {
+        ch as u32
+    }
 }
 
 /// represent control commands or data exchanged between connections
@@ -47,20 +51,20 @@ pub enum Event {
     Control(ControlHeader, LightWeightConnectionId),
 
     /// send `Bytes` to the given `LightWeightConnectionId`.
-    Data(LightWeightConnectionId, Bytes)
+    Data(LightWeightConnectionId, Bytes),
 }
 impl Event {
     pub fn expect_control(self) -> Result<(ControlHeader, LightWeightConnectionId), Self> {
         match self {
             Event::Control(ch, lwcid) => Ok((ch, lwcid)),
-            event@Event::Data(_, _)   => Err(event),
+            event @ Event::Data(_, _) => Err(event),
         }
     }
 
     pub fn expect_data(self) -> Result<(LightWeightConnectionId, Bytes), Self> {
         match self {
-            event@Event::Control(_, _) => Err(event),
-            Event::Data(lwcid, data)   => Ok((lwcid, data)),
+            event @ Event::Control(_, _) => Err(event),
+            Event::Data(lwcid, data) => Ok((lwcid, data)),
         }
     }
 }
@@ -86,17 +90,18 @@ pub enum DecodeEventError {
     InvalidLightWeightConnectionId(u32),
 }
 impl From<io::Error> for DecodeEventError {
-    fn from(e: io::Error) -> Self { DecodeEventError::IoError(e) }
+    fn from(e: io::Error) -> Self {
+        DecodeEventError::IoError(e)
+    }
 }
 
 #[derive(Debug)]
 pub struct EventCodec;
 impl codec::Decoder for EventCodec {
-    type Item  = Event;
+    type Item = Event;
     type Error = DecodeEventError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-
         // parse a given u32 and make sense of what is being read
         //
         enum ControlHeaderOrLightWeightConnectionId {
@@ -110,20 +115,36 @@ impl codec::Decoder for EventCodec {
         impl From<u32> for ControlHeaderOrLightWeightConnectionId {
             fn from(v: u32) -> Self {
                 match v {
-                    0        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::CreateNewConnection),
-                    1        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::CloseConnection),
-                    2        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::CloseSocket),
-                    3        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::CloseEndPoint),
-                    4        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::ProbeSocket),
-                    5        => ControlHeaderOrLightWeightConnectionId::ControlHeader(ControlHeader::ProbeSocketAck),
+                    0 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::CreateNewConnection,
+                    ),
+                    1 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::CloseConnection,
+                    ),
+                    2 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::CloseSocket,
+                    ),
+                    3 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::CloseEndPoint,
+                    ),
+                    4 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::ProbeSocket,
+                    ),
+                    5 => ControlHeaderOrLightWeightConnectionId::ControlHeader(
+                        ControlHeader::ProbeSocketAck,
+                    ),
                     6..=1023 => ControlHeaderOrLightWeightConnectionId::UnknownControlHeader(v),
-                    v        => ControlHeaderOrLightWeightConnectionId::LightWeightConnectionId(LightWeightConnectionId(v)),
+                    v => ControlHeaderOrLightWeightConnectionId::LightWeightConnectionId(
+                        LightWeightConnectionId(v),
+                    ),
                 }
             }
         }
 
         // we know we need at least 8 bytes
-        if src.len() < 8 { return Ok(None); }
+        if src.len() < 8 {
+            return Ok(None);
+        }
 
         // the bytes are not consumed yet
         // this is because we might have an incomplete frame or event
@@ -144,7 +165,6 @@ impl codec::Decoder for EventCodec {
             (r, l)
         };
 
-
         match r.into() {
             ControlHeaderOrLightWeightConnectionId::ControlHeader(ch) => {
                 if l < LightWeightConnectionId::FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID {
@@ -157,10 +177,10 @@ impl codec::Decoder for EventCodec {
                     let lwcid = LightWeightConnectionId(l);
                     Ok(Some(Event::Control(ch, lwcid)))
                 }
-            },
+            }
             ControlHeaderOrLightWeightConnectionId::UnknownControlHeader(ch) => {
                 Err(DecodeEventError::InvalidControlHeader(ch))
-            },
+            }
             ControlHeaderOrLightWeightConnectionId::LightWeightConnectionId(lwcid) => {
                 // the length of the data
                 let len = l as usize;
@@ -194,7 +214,7 @@ impl codec::Encoder for EventCodec {
                 dst.reserve(8);
                 dst.put_u32_be(ch.into());
                 dst.put_u32_be(*lwcid);
-            },
+            }
             Event::Data(lwcid, bytes) => {
                 dst.reserve(8 + bytes.len());
                 dst.put_u32_be(*lwcid);
@@ -209,7 +229,8 @@ impl codec::Encoder for EventCodec {
 #[cfg(test)]
 impl ::quickcheck::Arbitrary for LightWeightConnectionId {
     fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
-        let b = u32::arbitrary(g) | LightWeightConnectionId::FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID;
+        let b = u32::arbitrary(g)
+            | LightWeightConnectionId::FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID;
         LightWeightConnectionId(b)
     }
 }
@@ -248,7 +269,7 @@ impl ::quickcheck::Arbitrary for Event {
 mod test {
     use super::*;
 
-    use tokio_codec::{Encoder, Decoder};
+    use tokio_codec::{Decoder, Encoder};
 
     quickcheck!{
         fn event_encode_decode(event: Event) -> bool {

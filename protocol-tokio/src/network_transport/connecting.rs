@@ -1,11 +1,11 @@
-use std::{fmt, error};
+use std::{error, fmt};
 
-use bytes::{Bytes, Buf, IntoBuf};
+use bytes::{Buf, Bytes, IntoBuf};
+use futures::{Async, Future, Poll};
+use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_codec::{Framed};
-use futures::{Poll, Future, Async};
 
-use super::{event, ResponseCode, Connection};
+use super::{event, Connection, ResponseCode};
 
 /// the connecting states
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -34,23 +34,23 @@ pub struct Connecting<T> {
     inner: Option<T>,
     state: ConnectingState,
     handshake: ::std::io::Cursor<Bytes>,
-    response: [u8;4],
+    response: [u8; 4],
     response_read: usize,
 }
 impl<T> Connecting<T> {
     pub fn new(inner: T) -> Self {
-        const HANDSHAKE : [u8;16] = [0;16];
+        const HANDSHAKE: [u8; 16] = [0; 16];
         Connecting {
             inner: Some(inner),
             state: ConnectingState::ToSendHandshake,
             handshake: Bytes::from(HANDSHAKE.as_ref()).into_buf(),
-            response: [0;4],
+            response: [0; 4],
             response_read: 0,
         }
     }
 }
 
-impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
+impl<T: AsyncRead + AsyncWrite> Future for Connecting<T> {
     type Item = Connection<T>;
     type Error = ConnectingError;
 
@@ -59,19 +59,25 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
             match self.state {
                 ConnectingState::ToSendHandshake => {
                     if let Some(ref mut inner) = &mut self.inner {
-                        debug!("sending handshake ({} out of {} bytes)", self.handshake.position(), 16);
+                        debug!(
+                            "sending handshake ({} out of {} bytes)",
+                            self.handshake.position(),
+                            16
+                        );
                         try_ready!(inner.write_buf(&mut self.handshake));
 
                         if self.handshake.get_ref().len() == (self.handshake.position() as usize) {
                             debug!("handshake sent, awaiting response");
                             self.state = ConnectingState::AwaitResponse;
                         }
-                    } else { return Err(ConnectingError::AlreadyConnected); }
-                },
+                    } else {
+                        return Err(ConnectingError::AlreadyConnected);
+                    }
+                }
                 ConnectingState::AwaitResponse => {
                     let done = if let Some(ref mut inner) = &mut self.inner {
                         let from = self.response_read;
-                        let to   = 4 - self.response_read;
+                        let to = 4 - self.response_read;
                         debug!("handshake response ({} out of {} bytes)", from, 4);
                         let read = try_ready!(inner.poll_read(&mut self.response[from..to]));
                         self.response_read += read;
@@ -81,20 +87,28 @@ impl<T: AsyncRead+AsyncWrite> Future for Connecting<T> {
                             let response = bytes.get_u32_be();
                             debug!("handshake response 0x{:08X}", response);
                             match response.into() {
-                                ResponseCode::Success => { true },
+                                ResponseCode::Success => true,
                                 c => return Err(ConnectingError::ConnectionFailed(c)),
                             }
-                        } else { false }
-
-                    } else { return Err(ConnectingError::AlreadyConnected); };
+                        } else {
+                            false
+                        }
+                    } else {
+                        return Err(ConnectingError::AlreadyConnected);
+                    };
 
                     if done {
                         if let Some(inner) = ::std::mem::replace(&mut self.inner, None) {
                             info!("connection initialized");
-                            return Ok(Async::Ready(Connection(Framed::new(inner, event::EventCodec))));
-                        } else { unreachable!() /* `self.inner` is already guaranteed to be `Some(inner)` here */ }
+                            return Ok(Async::Ready(Connection(Framed::new(
+                                inner,
+                                event::EventCodec,
+                            ))));
+                        } else {
+                            unreachable!() /* `self.inner` is already guaranteed to be `Some(inner)` here */
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -116,14 +130,19 @@ pub enum ConnectingError {
     AlreadyConnected,
 }
 impl From<::std::io::Error> for ConnectingError {
-    fn from(e: ::std::io::Error) -> Self { ConnectingError::IoError(e) }
+    fn from(e: ::std::io::Error) -> Self {
+        ConnectingError::IoError(e)
+    }
 }
 impl fmt::Display for ConnectingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ConnectingError::IoError(_) => write!(f, "I/O Error"),
             ConnectingError::ConnectionFailed(_) => write!(f, "Cannot establish connection"),
-            ConnectingError::AlreadyConnected => write!(f, "The connecting object was already connected and should have not been reused"),
+            ConnectingError::AlreadyConnected => write!(
+                f,
+                "The connecting object was already connected and should have not been reused"
+            ),
         }
     }
 }

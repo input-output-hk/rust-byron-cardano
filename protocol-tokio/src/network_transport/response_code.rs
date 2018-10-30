@@ -1,4 +1,4 @@
-use std::{fmt, error};
+use std::{error, fmt};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ResponseCode {
@@ -6,15 +6,15 @@ pub enum ResponseCode {
     InvalidRequest,
     CrossedRequest,
     UnsupportedVersion,
-    UnknownErrorCode(u32)
+    UnknownErrorCode(u32),
 }
 impl From<ResponseCode> for u32 {
     fn from(rc: ResponseCode) -> u32 {
         match rc {
-            ResponseCode::Success             => 0x0000_0000,
-            ResponseCode::InvalidRequest      => 0x0000_0001,
-            ResponseCode::CrossedRequest      => 0x0000_0002,
-            ResponseCode::UnsupportedVersion  => 0xFFFF_FFFF,
+            ResponseCode::Success => 0x0000_0000,
+            ResponseCode::InvalidRequest => 0x0000_0001,
+            ResponseCode::CrossedRequest => 0x0000_0002,
+            ResponseCode::UnsupportedVersion => 0xFFFF_FFFF,
             ResponseCode::UnknownErrorCode(v) => v,
         }
     }
@@ -26,7 +26,7 @@ impl From<u32> for ResponseCode {
             0x00000001 => ResponseCode::InvalidRequest,
             0x00000002 => ResponseCode::CrossedRequest,
             0xFFFFFFFF => ResponseCode::UnsupportedVersion,
-            v          => ResponseCode::UnknownErrorCode(v),
+            v => ResponseCode::UnknownErrorCode(v),
         }
     }
 }
@@ -37,7 +37,9 @@ impl fmt::Display for ResponseCode {
             ResponseCode::UnsupportedVersion => write!(f, "Unsupported version"),
             ResponseCode::InvalidRequest => write!(f, "Invalid request"),
             ResponseCode::CrossedRequest => write!(f, "Crossed request"),
-            ResponseCode::UnknownErrorCode(code) => write!(f, "Unknown error code {} (0x{:08X})", code, code),
+            ResponseCode::UnknownErrorCode(code) => {
+                write!(f, "Unknown error code {} (0x{:08X})", code, code)
+            }
         }
     }
 }
