@@ -1,8 +1,8 @@
-pub mod directory_name;
 pub mod bitmap;
 pub mod bloom;
-pub mod tmpfile;
-pub mod lock;
-pub mod serialize;
-pub mod magic;
+pub mod directory_name;
 pub mod error;
+pub mod lock;
+pub mod magic;
+pub mod serialize;
+pub mod tmpfile;

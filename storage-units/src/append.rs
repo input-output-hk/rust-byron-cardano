@@ -1,13 +1,18 @@
-use std::{result, fmt, error, io::{self, Write, Read}, fs::{self, OpenOptions}};
+use std::{
+    error, fmt,
+    fs::{self, OpenOptions},
+    io::{self, Read, Write},
+    result,
+};
 use utils::lock::{self, Lock};
-use utils::serialize::{write_size, read_size};
+use utils::serialize::{read_size, write_size};
 
 #[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
     EOF,
     NotFound,
-    LockError(lock::Error)
+    LockError(lock::Error),
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
@@ -21,24 +26,26 @@ impl From<io::Error> for Error {
     }
 }
 impl From<lock::Error> for Error {
-    fn from(e: lock::Error) -> Error { Error::LockError(e) }
+    fn from(e: lock::Error) -> Error {
+        Error::LockError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::IoError(_)   => write!(f, "I/O Error"),
-            Error::EOF          => write!(f, "Unexpected End Of File"),
-            Error::NotFound     => write!(f, "Append file not found"),
+            Error::IoError(_) => write!(f, "I/O Error"),
+            Error::EOF => write!(f, "Unexpected End Of File"),
+            Error::NotFound => write!(f, "Append file not found"),
             Error::LockError(_) => write!(f, "Lock Error"),
         }
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
-            Error::IoError(ref err)   => Some(err),
-            Error::EOF                => None,
-            Error::NotFound           => None,
+            Error::IoError(ref err) => Some(err),
+            Error::EOF => None,
+            Error::NotFound => None,
             Error::LockError(ref err) => Some(err),
         }
     }
@@ -47,7 +54,7 @@ impl error::Error for Error {
 pub type Result<R> = result::Result<R, Error>;
 
 /// the first 4 bytes are the size of the entry in the append file
-const SIZE_SIZE : usize = 4;
+const SIZE_SIZE: usize = 4;
 
 type Size = u32;
 
@@ -67,7 +74,7 @@ type Size = u32;
 ///
 pub struct Writer {
     lock: Lock,
-    file: fs::File
+    file: fs::File,
 }
 
 impl Writer {
@@ -76,18 +83,17 @@ impl Writer {
     /// When the Writer drop out of scope, the lock will be released too.
     /// Use `Writer::close` function to close the Writer yet keep the lock live.
     pub fn open(lock: Lock) -> Result<Self> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&lock)?;
+        let file = OpenOptions::new().create(true).append(true).open(&lock)?;
 
-        Ok(Writer { lock, file})
+        Ok(Writer { lock, file })
     }
 
     /// close the writer, yet take ownership of the lock, keeping the lock alive
     /// for other operations.
     ///
-    pub fn close(self) -> Lock { self.lock }
+    pub fn close(self) -> Lock {
+        self.lock
+    }
 
     /// append a block of bytes
     ///
@@ -95,20 +101,24 @@ impl Writer {
     /// The slice **must** contain all the bytes that needs to be written in the
     /// append only file.
     pub fn append_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        if bytes.is_empty() { return Ok(()) }
+        if bytes.is_empty() {
+            return Ok(());
+        }
 
         let len = bytes.len() as Size;
-        let mut sz_buf = [0u8;SIZE_SIZE];
+        let mut sz_buf = [0u8; SIZE_SIZE];
         write_size(&mut sz_buf, len);
         self.file.write_all(&sz_buf[..])?;
         self.file.write_all(bytes)?;
 
-        let pad = [0u8;SIZE_SIZE-1];
+        let pad = [0u8; SIZE_SIZE - 1];
         if (len % 4 as u32) != 0 {
             let pad_sz = 4 - len % 4;
             self.file.write_all(&pad[0..pad_sz as usize])?;
             pad_sz
-        } else { 0 };
+        } else {
+            0
+        };
         Ok(())
     }
 }
@@ -129,7 +139,7 @@ impl Writer {
 ///
 pub struct Reader {
     lock: Lock,
-    file: fs::File
+    file: fs::File,
 }
 
 impl Reader {
@@ -138,40 +148,39 @@ impl Reader {
     /// When the Reader drop out of scope, the lock will be released too.
     /// Use `Reader::close` function to close the Reader yet keep the lock live.
     pub fn open(lock: Lock) -> Result<Self> {
-        let file = OpenOptions::new()
-            .create(false)
-            .read(true)
-            .open(&lock)?;
+        let file = OpenOptions::new().create(false).read(true).open(&lock)?;
 
-        Ok(Reader { lock, file})
+        Ok(Reader { lock, file })
     }
 
     /// close the `Reader`, yet take ownership of the lock, keeping the lock alive
     /// for other operations.
     ///
-    pub fn close(self) -> Lock { self.lock }
+    pub fn close(self) -> Lock {
+        self.lock
+    }
 
     /// get the next entry from the append only file
     /// returns `None` when we reach the end of the file.
     ///
     pub fn next(&mut self) -> Result<Option<Vec<u8>>> {
         match self.read_block_raw_next() {
-            Err(Error::EOF) => { Ok(None) },
-            Err(err) => { Err(err) },
-            Ok(block_raw) => { Ok(Some(block_raw)) },
+            Err(Error::EOF) => Ok(None),
+            Err(err) => Err(err),
+            Ok(block_raw) => Ok(Some(block_raw)),
         }
     }
 
     #[inline]
     fn read_block_raw_next(&mut self) -> Result<Vec<u8>> {
-        let mut sz_buf = [0u8;SIZE_SIZE];
+        let mut sz_buf = [0u8; SIZE_SIZE];
         self.file.read_exact(&mut sz_buf)?;
         let sz = read_size(&sz_buf);
         let mut v = vec![0; sz as usize];
         self.file.read_exact(v.as_mut_slice())?;
         if (v.len() % 4) != 0 {
             let to_align = 4 - (v.len() % 4);
-            let mut align = [0u8;4];
+            let mut align = [0u8; 4];
             self.file.read_exact(&mut align[0..to_align])?;
         }
         Ok(v)

@@ -1,7 +1,7 @@
-use utils::magic;
+use std::{error, fmt, io, result};
+use utils::directory_name::DirectoryNameError;
 use utils::lock;
-use std::{io, result, fmt, error};
-use utils::directory_name::{DirectoryNameError};
+use utils::magic;
 
 /// Unified storage IO errors, with a set of common ones
 #[derive(Debug)]
@@ -16,7 +16,9 @@ pub enum StorageError {
 }
 
 impl From<io::Error> for StorageError {
-    fn from(e: io::Error) -> Self { StorageError::IoError(e) }
+    fn from(e: io::Error) -> Self {
+        StorageError::IoError(e)
+    }
 }
 
 impl fmt::Display for StorageError {
@@ -24,9 +26,21 @@ impl fmt::Display for StorageError {
         match self {
             StorageError::IoError(_) => write!(f, "I/O Error"),
             StorageError::MissingMagic => write!(f, "Missing storage file Magic bytes"),
-            StorageError::WrongFileType(ftexpected, ftreceived) => write!(f, "Wrong file type, expected `0x{:04x}` but received `{:04x}`", ftexpected, ftreceived),
-            StorageError::VersionTooOld(mv, v) => write!(f, "File version is too old, supported at least `{}` but received `{}`", mv, v),
-            StorageError::VersionTooNew(mv, v) => write!(f, "File version is not supported yet, supported at most `{}` but received `{}`", mv, v),
+            StorageError::WrongFileType(ftexpected, ftreceived) => write!(
+                f,
+                "Wrong file type, expected `0x{:04x}` but received `{:04x}`",
+                ftexpected, ftreceived
+            ),
+            StorageError::VersionTooOld(mv, v) => write!(
+                f,
+                "File version is too old, supported at least `{}` but received `{}`",
+                mv, v
+            ),
+            StorageError::VersionTooNew(mv, v) => write!(
+                f,
+                "File version is not supported yet, supported at most `{}` but received `{}`",
+                mv, v
+            ),
             StorageError::InvalidDirectoryName(_) => write!(f, "Invalid Directory name"),
             StorageError::LockError(_) => write!(f, "Lock file error"),
         }
@@ -34,7 +48,7 @@ impl fmt::Display for StorageError {
 }
 
 impl error::Error for StorageError {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             StorageError::IoError(ref err) => Some(err),
             StorageError::MissingMagic => None,

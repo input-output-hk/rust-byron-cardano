@@ -1,11 +1,11 @@
-use cardano::block::{EpochId, Utxos, HeaderHash, BlockDate, EpochSlotId};
-use cardano::tx::{TxoPointer};
-use cbor_event::{se, de, Len};
+use super::{Result, Storage};
+use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos};
+use cardano::tx::TxoPointer;
+use cbor_event::{de, se, Len};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{Read, Write};
 use storage_units::utils::magic;
-use super::{Result, Storage};
 
 const FILE_TYPE: magic::FileType = 0x5554584f; // = UTXO
 const VERSION: magic::Version = 1;
@@ -17,14 +17,24 @@ const VERSION: magic::Version = 1;
 /// epoch) files. The parent of an epoch is that epoch with the least
 /// significant bit cleared. For example, for epoch 37, the patch
 /// sequence is 0 -> 32 -> 36 -> 37.
-pub fn write_utxos(storage: &Storage, last_block: &HeaderHash, last_date: &BlockDate, utxos: &Utxos) -> Result<()> {
-
+pub fn write_utxos(
+    storage: &Storage,
+    last_block: &HeaderHash,
+    last_date: &BlockDate,
+    utxos: &Utxos,
+) -> Result<()> {
     let epoch = last_date.get_epochid();
 
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Epoch);
 
-    write_utxos_delta(storage, last_block, last_date, utxos,
-                      parent_for_epoch(epoch), &mut tmpfile)?;
+    write_utxos_delta(
+        storage,
+        last_block,
+        last_date,
+        utxos,
+        parent_for_epoch(epoch),
+        &mut tmpfile,
+    )?;
 
     tmpfile.render_permanent(&storage.config.get_epoch_utxos_filepath(epoch))?;
 
@@ -41,20 +51,25 @@ pub fn write_utxos_delta<W: Write>(
     last_date: &BlockDate,
     utxos: &Utxos,
     parent_epoch: Option<EpochId>,
-    writer: &mut W) -> Result<()>
-{
+    writer: &mut W,
+) -> Result<()> {
     magic::write_header(writer, FILE_TYPE, VERSION)?;
 
     let parent_utxos = match parent_epoch {
         None => BTreeMap::new(),
-        Some(parent_epoch) => get_utxos_for_epoch(storage, parent_epoch)?.utxos
+        Some(parent_epoch) => get_utxos_for_epoch(storage, parent_epoch)?.utxos,
     };
 
     let (removed, added) = diff_maps(&parent_utxos, &utxos);
 
-    debug!("writing utxo delta {:?} -> {}, total {}, added {}, removed {}",
-           parent_epoch, last_date.get_epochid(),
-           utxos.len(), added.len(), removed.len());
+    debug!(
+        "writing utxo delta {:?} -> {}, total {}, added {}, removed {}",
+        parent_epoch,
+        last_date.get_epochid(),
+        utxos.len(),
+        added.len(),
+        removed.len()
+    );
 
     let serializer = se::Serializer::new(writer)
         .write_array(Len::Len(5))?
@@ -79,16 +94,21 @@ pub struct UtxoState {
 
 /// Reconstruct the full utxo state at the end of the specified epoch
 /// by reading and applying the epoch's ancestor delta chain.
-pub fn get_utxos_for_epoch(storage: &Storage, epoch: EpochId)
-                           -> Result<UtxoState>
-{
+pub fn get_utxos_for_epoch(storage: &Storage, epoch: EpochId) -> Result<UtxoState> {
     let mut utxos = Utxos::new();
     let (last_block, last_date) = do_get_utxos(storage, epoch, &mut utxos)?;
-    Ok(UtxoState { last_block, last_date, utxos })
+    Ok(UtxoState {
+        last_block,
+        last_date,
+        utxos,
+    })
 }
 
-fn do_get_utxos(storage: &Storage, epoch: EpochId, utxos: &mut Utxos) -> Result<(HeaderHash, BlockDate)>
-{
+fn do_get_utxos(
+    storage: &Storage,
+    epoch: EpochId,
+    utxos: &mut Utxos,
+) -> Result<(HeaderHash, BlockDate)> {
     let filename = storage.config.get_epoch_utxos_filepath(epoch);
 
     let file = decode_utxo_file(&mut fs::File::open(&filename)?)?;
@@ -137,18 +157,29 @@ pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
     let epoch = raw.deserialize()?;
     let last_date = match raw.deserialize()? {
         0 => BlockDate::Boundary(epoch),
-        n => BlockDate::Normal(EpochSlotId { epoch, slotid: n - 1 }),
+        n => BlockDate::Normal(EpochSlotId {
+            epoch,
+            slotid: n - 1,
+        }),
     };
     let removed = raw.deserialize()?;
     let added = raw.deserialize()?;
 
-    Ok(UtxoFile { parent, last_block, last_date, removed, added })
+    Ok(UtxoFile {
+        parent,
+        last_block,
+        last_date,
+        removed,
+        added,
+    })
 }
 
 /// Compute the parent of this epoch in the patch chain by clearing
 /// the least-significant bit.
 fn parent_for_epoch(epoch: EpochId) -> Option<EpochId> {
-    if epoch == 0 { return None; }
+    if epoch == 0 {
+        return None;
+    }
     for n in 0..63 {
         if epoch & (1 << n) != 0 {
             return Some(epoch & !(1 << n));
@@ -160,10 +191,13 @@ fn parent_for_epoch(epoch: EpochId) -> Option<EpochId> {
 /// Compute the diff from BTreeMap 'm1' to BTreeMap 'm2', returning
 /// the set of keys in 'm1' that are not in 'm2', and the map of
 /// keys/values that are in 'm2' but not in 'm1'.
-fn diff_maps<'a, K, V>(m1: &'a BTreeMap<K, V>, m2: &'a BTreeMap<K, V>) -> (BTreeSet<&'a K>, BTreeMap<&'a K, &'a V>)
-    where K: Ord
+fn diff_maps<'a, K, V>(
+    m1: &'a BTreeMap<K, V>,
+    m2: &'a BTreeMap<K, V>,
+) -> (BTreeSet<&'a K>, BTreeMap<&'a K, &'a V>)
+where
+    K: Ord,
 {
-
     let mut removed = BTreeSet::new();
     let mut added = BTreeMap::new();
 
@@ -174,10 +208,9 @@ fn diff_maps<'a, K, V>(m1: &'a BTreeMap<K, V>, m2: &'a BTreeMap<K, V>) -> (BTree
     let mut e2 = i2.next();
 
     loop {
-
         match e1 {
             None => match e2 {
-                None => { break }
+                None => break,
                 Some((n2, v2)) => {
                     added.insert(n2, v2);
                     e2 = i2.next();
@@ -187,7 +220,7 @@ fn diff_maps<'a, K, V>(m1: &'a BTreeMap<K, V>, m2: &'a BTreeMap<K, V>) -> (BTree
                 None => {
                     removed.insert(n1);
                     e1 = i1.next();
-                },
+                }
                 Some((n2, v2)) => {
                     if n1 < n2 {
                         removed.insert(n1);
@@ -200,9 +233,9 @@ fn diff_maps<'a, K, V>(m1: &'a BTreeMap<K, V>, m2: &'a BTreeMap<K, V>) -> (BTree
                         e2 = i2.next();
                     }
                 }
-            }
+            },
         };
-    };
+    }
 
     (removed, added)
 }
