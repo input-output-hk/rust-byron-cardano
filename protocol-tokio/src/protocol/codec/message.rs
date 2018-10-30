@@ -87,6 +87,8 @@ pub enum Message {
 
     GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
+    GetBlocks(nt::LightWeightConnectionId, GetBlocks),
+    Block(nt::LightWeightConnectionId, Response<Block, String>),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
 impl Message {
@@ -117,6 +119,10 @@ impl Message {
             Message::BlockHeaders(lwcid, bh) => {
                 Data(lwcid, MessageType::MsgHeaders.encode_with(&bh))
             }
+            Message::GetBlocks(lwcid, gb) => {
+                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb))
+            }
+            Message::Block(lwcid, b) => Data(lwcid, MessageType::MsgBlock.encode_with(&b)),
             Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
         }
     }
@@ -158,6 +164,13 @@ impl Message {
                 lwcid,
                 cbor.deserialize_complete().unwrap(),
             )),
+            MessageType::MsgGetBlocks => Ok(Message::GetBlocks(
+                lwcid,
+                cbor.deserialize_complete().unwrap(),
+            )),
+            MessageType::MsgBlock => {
+                Ok(Message::Block(lwcid, cbor.deserialize_complete().unwrap()))
+            }
             _ => unimplemented!(),
         }
     }
@@ -281,6 +294,38 @@ impl de::Deserialize for BlockHeaders {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetBlocks {
+    from: HeaderHash,
+    to: HeaderHash,
+}
+impl GetBlocks {
+    pub fn new(from: HeaderHash, to: HeaderHash) -> Self {
+        GetBlocks { from, to }
+    }
+}
+impl se::Serialize for GetBlocks {
+    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
+    where
+        W: ::std::io::Write,
+    {
+        serializer
+            .write_array(cbor_event::Len::Len(2))?
+            .serialize(&self.from)?
+            .serialize(&self.to)
+    }
+}
+impl de::Deserialize for GetBlocks {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        raw.tuple(2, "GetBlockHeader")?;
+        let from = raw.deserialize()?;
+        let to = raw.deserialize()?;
+        Ok(GetBlocks::new(from, to))
+    }
+}
+
+pub type Block = block::block::Block;
+
 #[cfg(test)]
 fn random_headerhash<G: ::quickcheck::Gen>(g: &mut G) -> HeaderHash {
     let bytes: Vec<u8> = ::quickcheck::Arbitrary::arbitrary(g);
@@ -311,13 +356,29 @@ impl ::quickcheck::Arbitrary for GetBlockHeaders {
 }
 
 #[cfg(test)]
+impl ::quickcheck::Arbitrary for GetBlocks {
+    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+        let from = random_headerhash(g);
+        let to = random_headerhash(g);
+        GetBlocks { from: from, to: to }
+    }
+}
+
+#[cfg(test)]
 mod test {
     use super::*;
 
     quickcheck!{
-        fn command_encode_decode(command: GetBlockHeaders) -> bool {
+        fn get_block_headers_encode_decode(command: GetBlockHeaders) -> bool {
             let encoded = cbor!(command).unwrap();
             let decoded : GetBlockHeaders = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
+
+            decoded == command
+        }
+
+        fn get_blocks_encode_decode(command: GetBlocks) -> bool {
+            let encoded = cbor!(command).unwrap();
+            let decoded : GetBlocks = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
 
             decoded == command
         }
