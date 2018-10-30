@@ -1,7 +1,7 @@
-use std::{fmt, error, io, mem};
+use std::{error, fmt, io, mem};
 
+use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
-use futures::{Poll, Future, Async};
 
 /// Future object to terminate a connection with a peer.
 ///
@@ -14,20 +14,20 @@ pub struct Closing<T> {
 }
 impl<T> Closing<T> {
     pub fn new(inner: T) -> Self {
-        Closing {
-            inner: Some(inner),
-        }
+        Closing { inner: Some(inner) }
     }
 }
 
-impl<T: AsyncRead+AsyncWrite> Future for Closing<T> {
+impl<T: AsyncRead + AsyncWrite> Future for Closing<T> {
     type Item = T;
     type Error = ClosingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(inner) = mem::replace(&mut self.inner, None) {
             Ok(Async::Ready(inner))
-        } else { Err(ClosingError::AlreadyClosed) }
+        } else {
+            Err(ClosingError::AlreadyClosed)
+        }
     }
 }
 
@@ -42,13 +42,18 @@ pub enum ClosingError {
     AlreadyClosed,
 }
 impl From<io::Error> for ClosingError {
-    fn from(e: io::Error) -> Self { ClosingError::IoError(e) }
+    fn from(e: io::Error) -> Self {
+        ClosingError::IoError(e)
+    }
 }
 impl fmt::Display for ClosingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ClosingError::IoError(_) => write!(f, "I/O Error"),
-            ClosingError::AlreadyClosed => write!(f, "The connecting object was already closed and should have not been reused"),
+            ClosingError::AlreadyClosed => write!(
+                f,
+                "The connecting object was already closed and should have not been reused"
+            ),
         }
     }
 }

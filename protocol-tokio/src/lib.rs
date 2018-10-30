@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate cbor_event;
-extern crate cardano;
-extern crate tokio_io;
-extern crate tokio_codec;
 extern crate bytes;
+extern crate cardano;
+extern crate tokio_codec;
+extern crate tokio_io;
 #[macro_use]
 extern crate futures;
 #[macro_use]
@@ -17,13 +17,6 @@ pub mod network_transport;
 pub mod protocol;
 
 pub use self::protocol::{
-    Connection,
-
-    Connecting, ConnectingError,
-    Accepting, AcceptingError,
-
-    InboundStream, Inbound, InboundError,
-    OutboundSink, Outbound, OutboundError,
-
-    Message,
+    Accepting, AcceptingError, Connecting, ConnectingError, Connection, Inbound, InboundError,
+    InboundStream, Message, Outbound, OutboundError, OutboundSink,
 };

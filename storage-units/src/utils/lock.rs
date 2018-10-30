@@ -1,8 +1,15 @@
-use std::{fmt, error, result, num, io::{self, Write}, process::{self}, fs::{self, OpenOptions}, path::{Path, PathBuf}};
+use std::{
+    error, fmt,
+    fs::{self, OpenOptions},
+    io::{self, Write},
+    num,
+    path::{Path, PathBuf},
+    process, result,
+};
 
 /// the extension that will be added to the file, this will allow us to
 /// lock a specific file.
-const EXTENSION : &'static str = ".LOCK";
+const EXTENSION: &'static str = ".LOCK";
 
 /// different lock errors that may happen when acquiring the lock
 /// or when releasing the lock.
@@ -15,7 +22,7 @@ pub enum Error {
     /// ID, this will be the error.
     ParseError(num::ParseIntError),
     /// tell the file was already locked and by whom (which process ID)
-    AlreadyLocked(PathBuf, u32)
+    AlreadyLocked(PathBuf, u32),
 }
 impl Error {
     /// convenient function to check if the error is because the file
@@ -23,31 +30,38 @@ impl Error {
     pub fn already_locked(&self) -> bool {
         match self {
             Error::AlreadyLocked(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 }
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Error { Error::IoError(e) }
+    fn from(e: io::Error) -> Error {
+        Error::IoError(e)
+    }
 }
 impl From<num::ParseIntError> for Error {
-    fn from(e: num::ParseIntError) -> Error { Error::ParseError(e) }
+    fn from(e: num::ParseIntError) -> Error {
+        Error::ParseError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::IoError(_) => write!(f, "I/O Error"),
-            Error::ParseError(_) => write!(f, "Unable to read the lock file with the id of the locking process"),
-            Error::AlreadyLocked(path, id) => write!(f, "file {:?} already locked by {}", path, id)
+            Error::ParseError(_) => write!(
+                f,
+                "Unable to read the lock file with the id of the locking process"
+            ),
+            Error::AlreadyLocked(path, id) => write!(f, "file {:?} already locked by {}", path, id),
         }
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::IoError(ref err) => Some(err),
             Error::ParseError(ref err) => Some(err),
-            Error::AlreadyLocked(_, _) => None
+            Error::AlreadyLocked(_, _) => None,
         }
     }
 }
@@ -68,7 +82,7 @@ pub struct Lock {
     // the process ID associated to the current loc
     id: u32,
     // the path to the locked file
-    path: PathBuf
+    path: PathBuf,
 }
 
 impl Lock {
@@ -83,7 +97,10 @@ impl Lock {
     /// for the other process to release the `Lock`.
     ///
     pub fn lock(path: PathBuf) -> Result<Self> {
-        let lock = Lock { id: process::id(), path };
+        let lock = Lock {
+            id: process::id(),
+            path,
+        };
         lock.acquire()?;
         Ok(lock)
     }
@@ -94,7 +111,7 @@ impl Lock {
 
     fn acquire(&self) -> Result<()> {
         if let Some(dir) = self.lock_path().parent() {
-            if ! dir.is_dir() {
+            if !dir.is_dir() {
                 fs::create_dir_all(dir)?;
             }
         }
@@ -109,7 +126,7 @@ impl Lock {
     }
 
     fn fail_with_lock<A: Sized>(path: PathBuf) -> Result<A> {
-        let id : u32 = fs::read_to_string(&path)?.parse()?;
+        let id: u32 = fs::read_to_string(&path)?.parse()?;
         Err(Error::AlreadyLocked(path, id))
     }
 
@@ -119,7 +136,9 @@ impl Lock {
 }
 
 impl Drop for Lock {
-    fn drop(&mut self) { self.unlock().unwrap(); }
+    fn drop(&mut self) {
+        self.unlock().unwrap();
+    }
 }
 
 impl fmt::Display for Lock {
@@ -133,5 +152,7 @@ impl fmt::Display for Lock {
 }
 
 impl AsRef<Path> for Lock {
-    fn as_ref(&self) -> &Path { self.path.as_ref() }
+    fn as_ref(&self) -> &Path {
+        self.path.as_ref()
+    }
 }

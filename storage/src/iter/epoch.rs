@@ -6,13 +6,13 @@
 use cardano::block::{EpochId, RawBlock};
 use storage_units::packfile;
 
-use super::super::{StorageConfig};
-use epoch::{epoch_read_pack, epoch_open_pack_reader};
-use pack::{packreader_init};
+use super::super::StorageConfig;
+use epoch::{epoch_open_pack_reader, epoch_read_pack};
+use pack::packreader_init;
 
-use std::{fs};
+use std::fs;
 
-use super::{Result};
+use super::Result;
 
 /// Iterator over every blocks of a given epoch
 pub struct Iter(packfile::Reader<fs::File>);
@@ -44,11 +44,14 @@ impl Iterator for Iter {
 pub struct Epochs<'a> {
     storage_config: &'a StorageConfig,
 
-    epoch_id: EpochId
+    epoch_id: EpochId,
 }
 impl<'a> Epochs<'a> {
     pub fn new(storage: &'a StorageConfig) -> Self {
-        Epochs { storage_config: storage, epoch_id: 0 }
+        Epochs {
+            storage_config: storage,
+            epoch_id: 0,
+        }
     }
 
     pub fn from_epoch(mut self, epoch_id: EpochId) -> Self {
@@ -62,13 +65,13 @@ impl<'a> Iterator for Epochs<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let r = epoch_open_pack_reader(&self.storage_config, self.epoch_id);
         match r {
-            Err(e) => { Some(Err(e)) },
-            Ok(None) => { None },
+            Err(e) => Some(Err(e)),
+            Ok(None) => None,
             Ok(Some(r)) => {
                 let iter = Iter(r);
                 self.epoch_id += 1;
                 Some(Ok(iter))
-            },
+            }
         }
     }
 }

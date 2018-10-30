@@ -1,15 +1,15 @@
 //! Constant and network/IO independent part of network-transport-tcp
 
-use std::{fmt};
-use cardano::util::{hex};
+use cardano::util::hex;
+use std::fmt;
 
-const PROTOCOL_VERSION : u32 = 0x00000000;
+const PROTOCOL_VERSION: u32 = 0x00000000;
 
 /// Light weight connection ID contains a valid NTT light weight connection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LightweightConnectionId(u32);
 
-pub const LIGHT_ID_MIN : u32 = 1024;
+pub const LIGHT_ID_MIN: u32 = 1024;
 
 impl LightweightConnectionId {
     /// create a `LightweightConnectionId` from the given number
@@ -73,26 +73,28 @@ pub enum NodeControlHeader {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct NodeId([u8;9]);
+pub struct NodeId([u8; 9]);
 impl fmt::Display for NodeId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
 
-const NODEID_SYN : u8 = 0x53; // 'S'
-const NODEID_ACK : u8 = 0x41; // 'A'
+const NODEID_SYN: u8 = 0x53; // 'S'
+const NODEID_ACK: u8 = 0x41; // 'A'
 
 impl AsRef<[u8]> for NodeId {
-    fn as_ref(&self) -> &[u8] { &self.0 }
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 // use make_syn_nodeid or make_ack_nodeid
 fn make_nodeid(header: NodeControlHeader, nonce: Nonce) -> NodeId {
-    let mut v = [0;9];
+    let mut v = [0; 9];
     v[0] = match header {
-                NodeControlHeader::Syn => NODEID_SYN,
-                NodeControlHeader::Ack => NODEID_ACK,
+        NodeControlHeader::Syn => NODEID_SYN,
+        NodeControlHeader::Ack => NODEID_ACK,
     };
     v[1] = (nonce >> 56) as u8;
     v[2] = (nonce >> 48) as u8;
@@ -107,9 +109,13 @@ fn make_nodeid(header: NodeControlHeader, nonce: Nonce) -> NodeId {
 
 impl NodeId {
     pub fn from_slice(slice: &[u8]) -> Option<Self> {
-        if slice[0] != NODEID_SYN && slice[0] != NODEID_ACK { return None }
-        if slice.len() != 9 { return None }
-        let mut buf = [0u8;9];
+        if slice[0] != NODEID_SYN && slice[0] != NODEID_ACK {
+            return None;
+        }
+        if slice.len() != 9 {
+            return None;
+        }
+        let mut buf = [0u8; 9];
         buf.clone_from_slice(slice);
         Some(NodeId(buf))
     }
@@ -123,7 +129,11 @@ impl NodeId {
     }
 
     pub fn get_control_header(&self) -> NodeControlHeader {
-        if self.0[0] == NODEID_ACK { NodeControlHeader::Ack } else { NodeControlHeader::Syn }
+        if self.0[0] == NODEID_ACK {
+            NodeControlHeader::Ack
+        } else {
+            NodeControlHeader::Syn
+        }
     }
 
     pub fn is_syn(&self) -> bool {
@@ -159,8 +169,8 @@ pub fn handshake(buf: &mut Vec<u8>) {
     append_u32(handshake_length, buf);
     append_u32(0, buf); // ourEndPointId
     append_u32(0, buf); // send length 0
-    //append_u32(0, buf); // ignored but should be handshake length
-    //append_u32(0, buf); // ignored but should be handshake length
+                        //append_u32(0, buf); // ignored but should be handshake length
+                        //append_u32(0, buf); // ignored but should be handshake length
 }
 
 /// encode an int32

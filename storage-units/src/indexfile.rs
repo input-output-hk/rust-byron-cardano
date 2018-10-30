@@ -1,3 +1,6 @@
+use hash::{BlockHash, HASH_SIZE};
+use std::fs;
+use std::io::{Read, Seek, SeekFrom, Write};
 /// Indexfile format
 ///
 /// An index file is:
@@ -20,28 +23,26 @@
 /// nature of a bloom filter, it can only answer with certainty whether it
 /// is present in this pack, there will be false positive in search.
 ///
-
 use std::iter::repeat;
-use std::io::{Write,Read,Seek,SeekFrom};
-use std::fs;
 use std::path::Path;
-use hash::{BlockHash, HASH_SIZE};
 use utils::bloom;
-use utils::tmpfile::{TmpFile};
-use utils::serialize::{read_offset, read_size, write_offset, write_size, Offset, SIZE_SIZE, OFF_SIZE};
-use utils::magic;
 use utils::error::Result;
+use utils::magic;
+use utils::serialize::{
+    read_offset, read_size, write_offset, write_size, Offset, OFF_SIZE, SIZE_SIZE,
+};
+use utils::tmpfile::TmpFile;
 
 const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
 const VERSION: magic::Version = 1;
 
-const FANOUT_ELEMENTS : usize = 256;
-const FANOUT_SIZE : usize = FANOUT_ELEMENTS*SIZE_SIZE;
+const FANOUT_ELEMENTS: usize = 256;
+const FANOUT_SIZE: usize = FANOUT_ELEMENTS * SIZE_SIZE;
 
-const HEADER_SIZE : usize = BLOOM_OFFSET - magic::HEADER_SIZE;
+const HEADER_SIZE: usize = BLOOM_OFFSET - magic::HEADER_SIZE;
 
-const FANOUT_OFFSET : usize = magic::HEADER_SIZE + 8;
-const BLOOM_OFFSET : usize = FANOUT_OFFSET + FANOUT_SIZE;
+const FANOUT_OFFSET: usize = magic::HEADER_SIZE + 8;
+const BLOOM_OFFSET: usize = FANOUT_OFFSET + FANOUT_SIZE;
 
 // calculate the file offset from where the hashes are stored
 fn offset_hashes(bloom_size: u32) -> u64 {
@@ -67,7 +68,7 @@ pub struct Lookup {
     pub bloom: Bloom,
 }
 
-pub struct Fanout([u32;FANOUT_ELEMENTS]);
+pub struct Fanout([u32; FANOUT_ELEMENTS]);
 pub struct FanoutStart(u32);
 pub struct FanoutNb(pub u32);
 pub struct FanoutTotal(u32);
@@ -81,9 +82,9 @@ impl Fanout {
         match hier as usize {
             0 => (FanoutStart(0), FanoutNb(self.0[0])),
             c => {
-                let start = self.0[c-1];
+                let start = self.0[c - 1];
                 (FanoutStart(start), FanoutNb(self.0[c] - start))
-            },
+            }
         }
     }
     pub fn get_total(&self) -> FanoutTotal {
@@ -98,7 +99,9 @@ impl Bloom {
         bloom::is_set(&self.0[..], blk)
     }
 
-    pub fn len(&self) -> usize { self.0.len() }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 // the default size (in bytes) of the bloom filter related to the number of
@@ -123,7 +126,10 @@ pub struct Index {
 
 impl Index {
     pub fn new() -> Self {
-        Index { hashes: Vec::new(), offsets: Vec::new() }
+        Index {
+            hashes: Vec::new(),
+            offsets: Vec::new(),
+        }
     }
 
     pub fn append(&mut self, hash: &BlockHash, offset: Offset) {
@@ -134,27 +140,29 @@ impl Index {
     pub fn write_to_tmpfile(&self, tmpfile: &mut TmpFile) -> Result<Lookup> {
         magic::write_header(tmpfile, FILE_TYPE, VERSION)?;
 
-        let mut hdr_buf = [0u8;HEADER_SIZE];
+        let mut hdr_buf = [0u8; HEADER_SIZE];
 
         let entries = self.hashes.len();
 
         assert!(entries == self.offsets.len());
 
         let bloom_size = default_bloom_size(entries);
-        let params = Params { bloom_size: bloom_size };
+        let params = Params {
+            bloom_size: bloom_size,
+        };
 
         write_size(&mut hdr_buf[0..4], bloom_size as u32);
         write_size(&mut hdr_buf[4..8], 0);
 
         // write fanout to hdr_buf
         let fanout = {
-            let mut fanout_abs = [0u32;FANOUT_ELEMENTS];
+            let mut fanout_abs = [0u32; FANOUT_ELEMENTS];
             for &hash in self.hashes.iter() {
                 let ofs = hash[0] as usize;
-                fanout_abs[ofs] = fanout_abs[ofs]+1;
+                fanout_abs[ofs] = fanout_abs[ofs] + 1;
             }
             let mut fanout_sum = 0;
-            let mut fanout_incr = [0u32;FANOUT_ELEMENTS];
+            let mut fanout_incr = [0u32; FANOUT_ELEMENTS];
             for i in 0..FANOUT_ELEMENTS {
                 fanout_sum += fanout_abs[i];
                 fanout_incr[i] = fanout_sum;
@@ -162,13 +170,13 @@ impl Index {
 
             for i in 0..FANOUT_ELEMENTS {
                 let ofs = FANOUT_OFFSET + i * SIZE_SIZE - magic::HEADER_SIZE;
-                write_size(&mut hdr_buf[ofs..ofs+SIZE_SIZE], fanout_incr[i]);
+                write_size(&mut hdr_buf[ofs..ofs + SIZE_SIZE], fanout_incr[i]);
             }
             Fanout(fanout_incr)
         };
         tmpfile.write_all(&hdr_buf)?;
 
-        let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
+        let mut bloom: Vec<u8> = repeat(0).take(bloom_size as usize).collect();
         for hash in self.hashes.iter() {
             bloom::set(&mut bloom[..], hash);
         }
@@ -181,52 +189,58 @@ impl Index {
         }
         sorted.sort_by(|a, b| a.0.cmp(&b.0));
 
-        for &(hash,_) in sorted.iter() {
+        for &(hash, _) in sorted.iter() {
             tmpfile.write_all(&hash[..])?;
         }
 
         for &(_, ofs) in sorted.iter() {
-            let mut buf = [0u8;OFF_SIZE];
+            let mut buf = [0u8; OFF_SIZE];
             write_offset(&mut buf, ofs);
             tmpfile.write_all(&buf[..])?;
         }
-        Ok(Lookup { params: params, fanout: fanout, bloom: Bloom(bloom) })
+        Ok(Lookup {
+            params: params,
+            fanout: fanout,
+            bloom: Bloom(bloom),
+        })
     }
 }
 
 impl Lookup {
     pub fn read_from_file(file: &mut fs::File) -> Result<Self> {
         magic::check_header(file, FILE_TYPE, VERSION, VERSION)?;
-        let mut hdr_buf = [0u8;HEADER_SIZE];
+        let mut hdr_buf = [0u8; HEADER_SIZE];
 
         file.read_exact(&mut hdr_buf)?;
         let bloom_size = read_size(&hdr_buf[0..4]);
 
-        let mut fanout = [0u32;FANOUT_ELEMENTS];
+        let mut fanout = [0u32; FANOUT_ELEMENTS];
         for i in 0..FANOUT_ELEMENTS {
-            let ofs = FANOUT_OFFSET+i*SIZE_SIZE - magic::HEADER_SIZE;
-            fanout[i] = read_size(&hdr_buf[ofs..ofs+SIZE_SIZE])
+            let ofs = FANOUT_OFFSET + i * SIZE_SIZE - magic::HEADER_SIZE;
+            fanout[i] = read_size(&hdr_buf[ofs..ofs + SIZE_SIZE])
         }
-        let mut bloom : Vec<u8> = repeat(0).take(bloom_size as usize).collect();
+        let mut bloom: Vec<u8> = repeat(0).take(bloom_size as usize).collect();
 
         file.read_exact(&mut bloom[..])?;
 
         Ok(Lookup {
-            params: Params { bloom_size: bloom_size },
+            params: Params {
+                bloom_size: bloom_size,
+            },
             fanout: Fanout(fanout),
-            bloom: Bloom(bloom)
+            bloom: Bloom(bloom),
         })
     }
 }
 
 fn file_read_offset(mut file: &fs::File) -> Offset {
-    let mut buf = [0u8;OFF_SIZE];
+    let mut buf = [0u8; OFF_SIZE];
     file.read_exact(&mut buf).unwrap();
     read_offset(&buf)
 }
 
 fn file_read_hash(mut file: &fs::File) -> BlockHash {
-    let mut buf = [0u8;HASH_SIZE];
+    let mut buf = [0u8; HASH_SIZE];
     file.read_exact(&mut buf).unwrap();
     buf
 }
@@ -274,13 +288,22 @@ impl Reader<fs::File> {
     pub fn init<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut file = fs::File::open(path)?;
         let lookup = Lookup::read_from_file(&mut file)?;
-        Ok(Reader { lookup: lookup, handle: file })
+        Ok(Reader {
+            lookup: lookup,
+            handle: file,
+        })
     }
 
     // conduct a search in the index file, returning the offset index of a found element
     //
     // TODO switch to bilinear search with n > something
-    pub fn search(&mut self, params: &Params, blk: &BlockHash, start_elements: FanoutStart, hier_elements: FanoutNb) -> Option<IndexOffset> {
+    pub fn search(
+        &mut self,
+        params: &Params,
+        blk: &BlockHash,
+        start_elements: FanoutStart,
+        hier_elements: FanoutNb,
+    ) -> Option<IndexOffset> {
         let hsz = offset_hashes(params.bloom_size);
         match hier_elements.0 {
             0 => None,
@@ -289,16 +312,26 @@ impl Reader<fs::File> {
                 let ofs = ofs_element as u64 * HASH_SIZE as u64;
                 self.handle.seek(SeekFrom::Start(hsz + ofs)).unwrap();
                 let hash = file_read_hash(&mut self.handle);
-                if &hash == blk { Some(ofs_element) } else { None }
-            },
+                if &hash == blk {
+                    Some(ofs_element)
+                } else {
+                    None
+                }
+            }
             2 => {
                 let ofs_element = start_elements.0;
                 let ofs = ofs_element as u64 * HASH_SIZE as u64;
                 self.handle.seek(SeekFrom::Start(hsz + ofs)).unwrap();
                 let hash = file_read_hash(&mut self.handle);
                 let hash2 = file_read_hash(&mut self.handle);
-                if &hash == blk { Some(ofs_element) } else if &hash2 == blk { Some(ofs_element+1) } else { None }
-            },
+                if &hash == blk {
+                    Some(ofs_element)
+                } else if &hash2 == blk {
+                    Some(ofs_element + 1)
+                } else {
+                    None
+                }
+            }
             n => {
                 let start = start_elements.0;
                 let end = start_elements.0 + n;
@@ -308,12 +341,12 @@ impl Reader<fs::File> {
                 while ofs_element < end {
                     let hash = file_read_hash(&mut self.handle);
                     if &hash == blk {
-                        return Some(ofs_element)
+                        return Some(ofs_element);
                     }
                     ofs_element += 1
                 }
                 None
-            },
+            }
         }
     }
 

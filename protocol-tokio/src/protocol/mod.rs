@@ -1,25 +1,26 @@
+mod accepting;
 mod codec;
 mod connecting;
-mod accepting;
 mod inbound_stream;
 mod outbound_sink;
 
 use super::network_transport as nt;
 
-use std::{sync::{Arc, Mutex}, collections::{BTreeMap}, io};
+use futures::{Poll, Sink, StartSend, Stream};
+use std::{
+    collections::BTreeMap,
+    io,
+    sync::{Arc, Mutex},
+};
 use tokio_io::{AsyncRead, AsyncWrite};
-use futures::{StartSend, Poll, Stream, Sink};
 
-pub use self::connecting::{Connecting, ConnectingError};
 pub use self::accepting::{Accepting, AcceptingError};
+pub use self::codec::{
+    BlockHeaders, GetBlockHeaders, HandlerSpec, HandlerSpecs, Handshake, Message, NodeId, Response,
+};
+pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
 pub use self::outbound_sink::{Outbound, OutboundError, OutboundSink};
-pub use self::codec::{
-    Message, Response,
-    GetBlockHeaders, BlockHeaders,
-    NodeId,
-    Handshake, HandlerSpec, HandlerSpecs
-};
 
 /// the connection state, shared between the `ConnectionStream` and the `ConnectionSink`.
 ///
@@ -51,8 +52,12 @@ impl ConnectionState {
         }
     }
 
-    fn get_next_light_id(&mut self) -> nt::LightWeightConnectionId { self.next_lightweight_connection_id.next() }
-    fn get_next_node_id(&mut self) -> NodeId { self.next_node_id.next() }
+    fn get_next_light_id(&mut self) -> nt::LightWeightConnectionId {
+        self.next_lightweight_connection_id.next()
+    }
+    fn get_next_node_id(&mut self) -> NodeId {
+        self.next_node_id.next()
+    }
 }
 
 /// this is the connection to establish or listen from
@@ -64,7 +69,7 @@ pub struct Connection<T> {
     state: Arc<Mutex<ConnectionState>>,
 }
 
-impl<T: AsyncRead+AsyncWrite> Connection<T> {
+impl<T: AsyncRead + AsyncWrite> Connection<T> {
     fn new(connection: nt::Connection<T>) -> Self {
         Connection {
             connection: connection,
@@ -82,17 +87,22 @@ impl<T: AsyncRead+AsyncWrite> Connection<T> {
 
     /// this function is to use when establishing a connection with
     /// with a remote.
-    pub fn connect(inner: T) -> Connecting<T> { Connecting::new(inner) }
+    pub fn connect(inner: T) -> Connecting<T> {
+        Connecting::new(inner)
+    }
 
     /// this function is to use when receiving inbound connection
-    pub fn accept(inner: T) -> Accepting<T> { Accepting::new(inner) }
+    pub fn accept(inner: T) -> Accepting<T> {
+        Accepting::new(inner)
+    }
 
     pub fn split(self) -> (OutboundSink<T>, InboundStream<T>) {
         let state = self.state;
         let (sink, stream) = self.connection.split();
 
-        ( OutboundSink::new(sink, state.clone())
-        , InboundStream::new(stream, state)
+        (
+            OutboundSink::new(sink, state.clone()),
+            InboundStream::new(stream, state),
         )
     }
 }
@@ -109,8 +119,7 @@ impl<T: AsyncWrite> Sink for Connection<T> {
     type SinkItem = nt::Event;
     type SinkError = io::Error;
 
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError>
-    {
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         self.connection.start_send(item)
     }
 

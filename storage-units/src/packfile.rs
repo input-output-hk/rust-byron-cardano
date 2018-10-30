@@ -1,3 +1,9 @@
+use cryptoxide::blake2b;
+use cryptoxide::digest::Digest;
+use hash::{BlockHash, PackHash, HASH_SIZE};
+use indexfile;
+use std::fs;
+use std::io;
 /// packfile format
 ///
 /// a pack file is a collection of blobs, prefixed by their 32 bits size in BE:
@@ -6,20 +12,13 @@
 /// DATA (SIZE bytes)
 /// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
 ///
-
-use std::io::{Read,Seek,SeekFrom, Write};
-use std::io;
-use std::fs;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::iter::repeat;
 use std::path::Path;
-use utils::serialize::{Offset, Size, SIZE_SIZE, read_size, write_size, offset_align4};
-use utils::tmpfile::TmpFile;
 use utils::error::Result;
 use utils::magic;
-use hash::{PackHash, BlockHash, HASH_SIZE};
-use cryptoxide::blake2b;
-use cryptoxide::digest::Digest;
-use indexfile;
+use utils::serialize::{offset_align4, read_size, write_size, Offset, Size, SIZE_SIZE};
+use utils::tmpfile::TmpFile;
 
 const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
 const VERSION: magic::Version = 1;
@@ -46,7 +45,11 @@ impl<R: Read> Reader<R> {
     pub fn init(mut r: R) -> Result<Self> {
         magic::check_header(&mut r, FILE_TYPE, VERSION, VERSION)?;
         let ctxt = blake2b::Blake2b::new(HASH_SIZE);
-        Ok(Reader { reader: r, pos: 0, hash_context: ctxt })
+        Ok(Reader {
+            reader: r,
+            pos: 0,
+            hash_context: ctxt,
+        })
     }
 }
 
@@ -69,16 +72,16 @@ impl<R: Seek> From<R> for Seeker<R> {
 // * data of the size above
 // * 0 to 3 bytes of 0-alignment to make sure the next block is aligned
 pub fn read_next_block<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
-    let mut sz_buf = [0u8;SIZE_SIZE];
+    let mut sz_buf = [0u8; SIZE_SIZE];
     file.read_exact(&mut sz_buf)?;
     let sz = read_size(&sz_buf);
     // don't potentially consume all memory when reading a corrupt file
     assert!(sz < 20000000, "read block of size: {}", sz);
-    let mut v : Vec<u8> = repeat(0).take(sz as usize).collect();
+    let mut v: Vec<u8> = repeat(0).take(sz as usize).collect();
     file.read_exact(v.as_mut_slice())?;
     if (v.len() % 4) != 0 {
         let to_align = 4 - (v.len() % 4);
-        let mut align = [0u8;4];
+        let mut align = [0u8; 4];
         file.read_exact(&mut align[0..to_align])?;
     }
     Ok(v)
@@ -87,7 +90,13 @@ pub fn read_next_block<R: Read>(mut file: R) -> io::Result<Vec<u8>> {
 // same as read_next_block, but when receiving EOF it will wrapped into returning None
 pub fn read_next_block_or_eof<R: Read>(file: R) -> io::Result<Option<Vec<u8>>> {
     match read_next_block(file) {
-        Err(err) => if err.kind() == io::ErrorKind::UnexpectedEof { Ok(None) } else { Err(err) },
+        Err(err) => {
+            if err.kind() == io::ErrorKind::UnexpectedEof {
+                Ok(None)
+            } else {
+                Err(err)
+            }
+        }
         Ok(data) => Ok(Some(data)),
     }
 }
@@ -100,7 +109,7 @@ impl<R: Read> Reader<R> {
         // TODO: remove unwrap()
         let mdata = read_next_block_or_eof(&mut self.reader).unwrap();
         match mdata {
-            None => {},
+            None => {}
             Some(ref data) => {
                 self.hash_context.input(data);
                 self.pos += 4 + offset_align4(data.len() as u64);
@@ -110,7 +119,7 @@ impl<R: Read> Reader<R> {
     }
 }
 
-impl<S: Read+Seek> Seeker<S> {
+impl<S: Read + Seek> Seeker<S> {
     /// Return the next data chunk if it exists
     /// on file EOF, None is returned
     pub fn get_next(&mut self) -> io::Result<Option<Vec<u8>>> {
@@ -126,7 +135,7 @@ impl<S: Read+Seek> Seeker<S> {
 
 impl<R> Reader<R> {
     pub fn finalize(&mut self) -> PackHash {
-        let mut packhash = [0u8;HASH_SIZE];
+        let mut packhash = [0u8; HASH_SIZE];
         self.hash_context.result(&mut packhash);
         packhash
     }
@@ -158,18 +167,20 @@ impl Writer {
 
     pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
         let len = block.len() as Size;
-        let mut sz_buf = [0u8;SIZE_SIZE];
+        let mut sz_buf = [0u8; SIZE_SIZE];
         write_size(&mut sz_buf, len);
         self.tmpfile.write_all(&sz_buf[..])?;
         self.tmpfile.write_all(block)?;
         self.hash_context.input(block);
 
-        let pad = [0u8;SIZE_SIZE-1];
+        let pad = [0u8; SIZE_SIZE - 1];
         let pad_bytes = if (len % 4 as u32) != 0 {
-                            let pad_sz = 4 - len % 4;
-                            self.tmpfile.write_all(&pad[0..pad_sz as usize])?;
-                            pad_sz
-                        } else { 0 };
+            let pad_sz = 4 - len % 4;
+            self.tmpfile.write_all(&pad[0..pad_sz as usize])?;
+            pad_sz
+        } else {
+            0
+        };
         self.index.append(blockhash, self.pos);
         self.pos += 4 + len as u64 + pad_bytes as u64;
         self.nb_blobs += 1;
@@ -177,7 +188,7 @@ impl Writer {
     }
 
     pub fn finalize(mut self) -> io::Result<(TmpFile, PackHash, indexfile::Index)> {
-        let mut packhash : PackHash = [0u8;HASH_SIZE];
+        let mut packhash: PackHash = [0u8; HASH_SIZE];
         self.hash_context.result(&mut packhash);
         Ok((self.tmpfile, packhash, self.index))
     }

@@ -1,10 +1,10 @@
 use refpack;
-use types::{BlockHash};
-use storage_units::reffile;
 use std::collections::VecDeque;
+use storage_units::reffile;
+use types::BlockHash;
 
-use super::{ReverseIter};
 use super::super::{Error, Result, Storage};
+use super::ReverseIter;
 
 pub struct Range(VecDeque<BlockHash>);
 impl Range {
@@ -16,10 +16,13 @@ impl Range {
         for block in ri {
             let hash = block.get_header().compute_hash().into();
             rp.push_front(hash);
-            if hash == from { finished = true; break; }
+            if hash == from {
+                finished = true;
+                break;
+            }
         }
 
-        if ! finished {
+        if !finished {
             Err(Error::HashNotFound(to.into()))
         } else {
             Ok(Range(rp))
@@ -27,11 +30,13 @@ impl Range {
     }
 
     pub fn refpack(self) -> reffile::Lookup {
-        let v : Vec<BlockHash> = self.0.into();
+        let v: Vec<BlockHash> = self.0.into();
         v.into()
     }
 
-    pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> { self.0.iter() }
+    pub fn iter<'a>(&'a self) -> refpack::Iter<'a, BlockHash> {
+        self.0.iter()
+    }
 }
 impl Iterator for Range {
     type Item = BlockHash;

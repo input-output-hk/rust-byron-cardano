@@ -1,8 +1,8 @@
 use rand;
-use std::io;
-use std::io::Write;
 use std::fs;
 use std::fs::OpenOptions;
+use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 
 pub struct TmpFile {
@@ -11,8 +11,8 @@ pub struct TmpFile {
 }
 
 fn template_create_temp(prefix: &str, suffix: &str) -> String {
-    let v1 : u64 = rand::random();
-    let v2 : u64 = rand::random();
+    let v1: u64 = rand::random();
+    let v2: u64 = rand::random();
     format!("{}{}{}{}", prefix, v1, v2, suffix)
 }
 
@@ -26,7 +26,10 @@ impl TmpFile {
             .read(true)
             .create_new(true)
             .open(&path)
-            .map(|file| TmpFile { file: file, path: path })
+            .map(|file| TmpFile {
+                file: file,
+                path: path,
+            })
     }
 
     pub fn render_permanent(&self, path: &PathBuf) -> io::Result<()> {
@@ -36,7 +39,7 @@ impl TmpFile {
         // NOTE2: also we consider that the rename is atomic for the tmpfile abstraction to work correctly,
         // but it mostly depends on the actual filesystem. POSIX requires it to be atomic.
         match fs::rename(&self.path, path) {
-            _ => {},
+            _ => {}
         };
         Ok(())
     }
@@ -55,7 +58,9 @@ impl io::Write for TmpFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.file.write(buf)
     }
-    fn flush(&mut self) -> io::Result<()> { self.file.flush() }
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
 }
 
 // write the content buf atomically to the path.

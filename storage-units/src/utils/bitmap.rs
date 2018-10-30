@@ -34,7 +34,9 @@ impl ByteAddr {
         }
     }
 
-    pub fn get_shifter(self) -> u8 { self.0 }
+    pub fn get_shifter(self) -> u8 {
+        self.0
+    }
 
     #[allow(dead_code)]
     pub fn get_next(self) -> Option<ByteAddr> {
@@ -48,7 +50,7 @@ impl ByteAddr {
 
 #[allow(dead_code)]
 pub fn new(size: usize) -> Vec<u8> {
-    let v : Vec<u8> = repeat(0).take(size as usize).collect();
+    let v: Vec<u8> = repeat(0).take(size as usize).collect();
     v
 }
 
@@ -78,15 +80,15 @@ pub fn get_bits(data: &[u8], start_bit: usize, nb_bits: usize) -> Vec<bool> {
     for i in 0..nb_bits {
         v[nb_bits - i - 1] = (current_val & 0x1) == 0x1;
         match current_bit_addr.get_next() {
-            None           => {
+            None => {
                 current_byte_addr += 1;
                 current_bit_addr = ByteAddr(0);
                 current_val = data[current_byte_addr];
-            },
+            }
             Some(new_addr) => {
                 current_bit_addr = new_addr;
                 current_val = current_val >> 1;
-            },
+            }
         }
     }
     v

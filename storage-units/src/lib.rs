@@ -1,9 +1,9 @@
-extern crate rand;
 extern crate cryptoxide;
+extern crate rand;
 
-pub mod hash;
 pub mod append;
-pub mod packfile;
+pub mod hash;
 pub mod indexfile;
+pub mod packfile;
 pub mod reffile;
 pub mod utils;

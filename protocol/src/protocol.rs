@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::{io, fmt, result, error};
+use std::{error, fmt, io, result};
 
+use ntt::{self, LightweightConnectionId};
 use packet;
 use packet::{Handshake, Message};
-use ntt::{self, LightweightConnectionId};
 
 use cardano;
 
-use cbor_event::{self, se, de::{RawCbor}, Deserialize};
+use cbor_event::{self, de::RawCbor, se, Deserialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -25,24 +25,34 @@ pub enum Error {
     TransactionRejected,
 }
 impl From<cbor_event::Error> for Error {
-    fn from(e: cbor_event::Error) -> Self { Error::ByteEncodingError(e) }
+    fn from(e: cbor_event::Error) -> Self {
+        Error::ByteEncodingError(e)
+    }
 }
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self { Error::IOError(e) }
+    fn from(e: io::Error) -> Self {
+        Error::IOError(e)
+    }
 }
 impl From<ntt::Error> for Error {
-    fn from(e: ntt::Error) -> Self { Error::NttError(e) }
+    fn from(e: ntt::Error) -> Self {
+        Error::NttError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::NttError(_) => write!(f, "Protocol error"),
-            Error::IOError(_)  => write!(f, "I/O error"),
+            Error::IOError(_) => write!(f, "I/O error"),
             Error::ByteEncodingError(_) => write!(f, "Bytes encoded in an unknown format"),
-            Error::ServerCreatedLightIdTwice(lid) => write!(f, "Same LightId created twice by peer {}", lid),
+            Error::ServerCreatedLightIdTwice(lid) => {
+                write!(f, "Same LightId created twice by peer {}", lid)
+            }
             Error::UnsupportedControl(ctr) => write!(f, "Control unsupported here: `{:?}`", ctr),
             Error::NodeIdNotFound(nid) => write!(f, "NodeId `{}` not found", nid),
-            Error::ClientIdNotFoundFromNodeId(nid, lid) => write!(f, "ClientId `{}` not found in Node `{}`", lid, nid),
+            Error::ClientIdNotFoundFromNodeId(nid, lid) => {
+                write!(f, "ClientId `{}` not found in Node `{}`", lid, nid)
+            }
             Error::UnexpectedResponse => write!(f, "Unexpected response from peer"),
             Error::NoResponse => write!(f, "No response from peer"),
             Error::ServerError(err) => write!(f, "Error from server: {}", err),
@@ -51,10 +61,10 @@ impl fmt::Display for Error {
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::NttError(ref err) => Some(err),
-            Error::IOError(ref err)  => Some(err),
+            Error::IOError(ref err) => Some(err),
             Error::ByteEncodingError(ref err) => Some(err),
             Error::ServerCreatedLightIdTwice(_) => None,
             Error::UnsupportedControl(_) => None,
@@ -109,7 +119,9 @@ impl LightConnection {
         }
     }
 
-    pub fn get_id(&self) -> LightId { self.id }
+    pub fn get_id(&self) -> LightId {
+        self.id
+    }
 
     /// tell if the `LightConnection` has some pending message to read
     pub fn pending_received(&self) -> bool {
@@ -124,7 +136,11 @@ impl LightConnection {
     ///
     /// to call only if you are ready to process the data
     pub fn pop_received(&mut self) -> Option<Vec<u8>> {
-        if self.received.len() > 0 { Some(self.received.remove(0)) } else { None }
+        if self.received.len() > 0 {
+            Some(self.received.remove(0))
+        } else {
+            None
+        }
     }
 
     /// add data to the received bucket
@@ -149,7 +165,6 @@ pub struct Connection<T> {
     // to process it on the client, so keep the buffer alive here
     //server_dones: BTreeMap<LightId, LightConnection>,
     //await_reply: BTreeMap<ntt::protocol::NodeId, >
-
     next_light_id: LightId,
 
     latest_tip: Option<cardano::block::BlockHeader>,
@@ -157,8 +172,7 @@ pub struct Connection<T> {
 
 //const INITIAL_LIGHT_ID : LightweightConnectionId::initial();
 
-impl<T: Write+Read> Connection<T> {
-
+impl<T: Write + Read> Connection<T> {
     pub fn get_backend(&self) -> &T {
         self.ntt.get_backend()
     }
@@ -182,7 +196,7 @@ impl<T: Write+Read> Connection<T> {
     }
 
     pub fn handshake(&mut self, hs: &packet::Handshake) -> Result<()> {
-        use ntt::protocol::{ControlHeader, Command};
+        use ntt::protocol::{Command, ControlHeader};
         let lcid = LightweightConnectionId::initial();
         let lc = LightConnection::new_with_nodeid(lcid, self.ntt.get_nonce());
 
@@ -201,11 +215,14 @@ impl<T: Write+Read> Connection<T> {
          * followed by the handshake data and then the node id
          */
         let siv = match self.ntt.recv()? {
-            Command::Control(ControlHeader::CreateNewConnection, cid) => { cid },
-            _ => { unimplemented!() }
+            Command::Control(ControlHeader::CreateNewConnection, cid) => cid,
+            _ => unimplemented!(),
         };
 
-        fn data_recv_on<T: Read+Write>(con: &mut Connection<T>, expected_id: LightId) -> Result<Vec<u8>> {
+        fn data_recv_on<T: Read + Write>(
+            con: &mut Connection<T>,
+            expected_id: LightId,
+        ) -> Result<Vec<u8>> {
             match con.ntt.recv()? {
                 ntt::protocol::Command::Data(cid, len) => {
                     if cid == expected_id {
@@ -215,23 +232,26 @@ impl<T: Write+Read> Connection<T> {
                         unimplemented!()
                     }
                 }
-                _ => { unimplemented!() }
+                _ => unimplemented!(),
             }
         };
 
         info!("creating initial light connection {}", lcid);
         let server_bytes_hs = data_recv_on(self, siv)?;
-        let _server_handshake : Handshake = RawCbor::from(&server_bytes_hs).deserialize()?;
+        let _server_handshake: Handshake = RawCbor::from(&server_bytes_hs).deserialize()?;
 
         let server_bytes_nodeid = data_recv_on(self, siv)?;
         let server_nodeid = match ntt::protocol::NodeId::from_slice(&server_bytes_nodeid[..]) {
-            None   => unimplemented!(),
+            None => unimplemented!(),
             Some(nodeid) => nodeid,
         };
 
         // TODO compare server_nodeid and client_id
 
-        self.server_cons.insert(siv, LightConnection::new_expecting_nodeid(siv, server_nodeid));
+        self.server_cons.insert(
+            siv,
+            LightConnection::new_expecting_nodeid(siv, server_nodeid),
+        );
 
         Ok(())
     }
@@ -267,11 +287,9 @@ impl<T: Write+Read> Connection<T> {
 
         match self.client_cons.get_mut(&id) {
             None => panic!("oops"),
-            Some(ref mut con) => {
-                match con.pop_received() {
-                    None => Err(Error::NoResponse),
-                    Some(yy) => Ok(yy),
-                }
+            Some(ref mut con) => match con.pop_received() {
+                None => Err(Error::NoResponse),
+                Some(yy) => Ok(yy),
             },
         }
     }
@@ -286,11 +304,15 @@ impl<T: Write+Read> Connection<T> {
 
             match self.client_cons.get_mut(&id) {
                 None => panic!("oops"),
-                Some(ref mut con) => {
-                    match con.pop_received() {
-                        None => { if con.eos { return Ok(r) } else { panic!("oops 2") } },
-                        Some(yy) => r.push(yy),
+                Some(ref mut con) => match con.pop_received() {
+                    None => {
+                        if con.eos {
+                            return Ok(r);
+                        } else {
+                            panic!("oops 2")
+                        }
                     }
+                    Some(yy) => r.push(yy),
                 },
             }
         }
@@ -332,34 +354,37 @@ impl<T: Write+Read> Connection<T> {
     // control message control light stream creation and closing
     // whereas data message are associated to a light connection
     pub fn process_message(&mut self) -> Result<()> {
-        use ntt::protocol::{ControlHeader, Command};
+        use ntt::protocol::{Command, ControlHeader};
         let x = self.ntt.recv();
         match x? {
             Command::Control(ControlHeader::CloseConnection, id) => {
                 debug!("received close of light connection {}", id);
                 match &self.server_cons.remove(&id) {
-                    Some(LightConnection { node_id: None, .. }) => {
-                        Ok(())
-                    },
-                    Some(LightConnection { node_id: Some(node_id), received, .. }) if node_id.is_syn() => {
+                    Some(LightConnection { node_id: None, .. }) => Ok(()),
+                    Some(LightConnection {
+                        node_id: Some(node_id),
+                        received,
+                        ..
+                    }) if node_id.is_syn() => {
                         let mut r = Vec::new();
-                        for s in received { r.extend(s.iter()); }
+                        for s in received {
+                            r.extend(s.iter());
+                        }
                         if r.len() > 0 {
                             self.process_async_message(r[0], &r[1..]);
                         }
                         Ok(())
-                    },
-                    Some(LightConnection { node_id: Some(node_id), .. }) => {
+                    }
+                    Some(LightConnection {
+                        node_id: Some(node_id),
+                        ..
+                    }) => {
                         match self.map_to_client.remove(&node_id) {
-                            Some(lightid) => {
-                                match self.client_cons.get_mut(&lightid) {
-                                    None => {},
-                                    Some (ref mut con) => {
-                                        con.eos = true
-                                    },
-                                }
+                            Some(lightid) => match self.client_cons.get_mut(&lightid) {
+                                None => {}
+                                Some(ref mut con) => con.eos = true,
                             },
-                            None          => {},
+                            None => {}
                         }
                         /*
                         if let Some(_) = v.received {
@@ -367,14 +392,14 @@ impl<T: Write+Read> Connection<T> {
                         }
                         */
                         Ok(())
-                    },
-                    None    => {
+                    }
+                    None => {
                         // BUG, server asked to close connection but connection doesn't exists in tree
                         // TODO, we might wanto to warn about this, but this is not an error.
                         Ok(())
-                    },
+                    }
                 }
-            },
+            }
             Command::Control(ControlHeader::CreateNewConnection, id) => {
                 if let Some(_) = self.server_cons.get(&id) {
                     // TODO report this as an error to the logger
@@ -384,17 +409,21 @@ impl<T: Write+Read> Connection<T> {
                     self.server_cons.insert(id, LightConnection::new(id));
                     Ok(())
                 }
-            },
+            }
             Command::Control(ch, cid) => {
                 error!("LightId({}) Unsupported control `{:?}`", cid, ch);
                 Err(Error::UnsupportedControl(ch))
-            },
+            }
             Command::Data(id, len) => {
                 let bytes = self.ntt.recv_len(len).unwrap();
                 match self.server_cons.get_mut(&id) {
                     // connection is established to a client side yet
                     // append the data to the receiving buffer
-                    Some(scon@LightConnection { node_id: Some(_), .. }) => {
+                    Some(
+                        scon @ LightConnection {
+                            node_id: Some(_), ..
+                        },
+                    ) => {
                         let node_id = scon.node_id.unwrap();
                         if node_id.is_syn() {
                             // Data on a server-initiated connection.
@@ -404,25 +433,25 @@ impl<T: Write+Read> Connection<T> {
                             // Response to a client-initiated connection.
                             match self.map_to_client.get(&node_id) {
                                 None => Err(Error::NodeIdNotFound(node_id)),
-                                Some(client_id) => {
-                                    match self.client_cons.get_mut(client_id) {
-                                        None => Err(Error::ClientIdNotFoundFromNodeId(node_id, *client_id)),
-                                        Some(con) => {
-                                            con.add_to_receive(&bytes);
-                                            Ok(())
-                                        }
+                                Some(client_id) => match self.client_cons.get_mut(client_id) {
+                                    None => {
+                                        Err(Error::ClientIdNotFoundFromNodeId(node_id, *client_id))
+                                    }
+                                    Some(con) => {
+                                        con.add_to_receive(&bytes);
+                                        Ok(())
                                     }
                                 },
                             }
                         }
-                    },
+                    }
                     // connection is not established to client side yet
                     // wait for the nodeid and try to match to an existing client
                     // if matching, then we remove the establishing server connection and
                     // add a established connection and setup the routing to the client
-                    Some(scon@LightConnection { node_id: None, .. }) => {
+                    Some(scon @ LightConnection { node_id: None, .. }) => {
                         let nodeid = match ntt::protocol::NodeId::from_slice(&bytes[..]) {
-                            None         => panic!("ERROR: expecting nodeid but received data"),
+                            None => panic!("ERROR: expecting nodeid but received data"),
                             Some(nodeid) => nodeid,
                         };
 
@@ -445,24 +474,28 @@ impl<T: Write+Read> Connection<T> {
                         } else {
                             // This is an ACK, so it should correspond
                             // to a SYN sent by us.
-                            match self.client_cons.iter().find(|&(_,v)| v.node_id.unwrap().match_ack(&nodeid)) {
-                                None        => {
+                            match self
+                                .client_cons
+                                .iter()
+                                .find(|&(_, v)| v.node_id.unwrap().match_ack(&nodeid))
+                            {
+                                None => {
                                     info!("server sent unexpected ACK {}", nodeid);
-                                },
-                                Some((z,_)) => {
+                                }
+                                Some((z, _)) => {
                                     self.map_to_client.insert(nodeid, *z);
                                 }
                             }
                         }
 
                         Ok(())
-                    },
+                    }
                     None => {
                         warn!("LightId({}) does not exist but received data", id);
                         Ok(())
-                    },
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -505,13 +538,13 @@ impl<T: Write+Read> Connection<T> {
 }
 
 pub mod command {
-    use std::io::{Read, Write};
-    use super::{LightId, Connection, Result, Error};
+    use super::{Connection, Error, LightId, Result};
     use cardano::{self, tx};
+    use cbor_event::{self, de::RawCbor, se};
     use packet;
-    use cbor_event::{de::RawCbor, se, self};
+    use std::io::{Read, Write};
 
-    pub trait Command<W: Read+Write> {
+    pub trait Command<W: Read + Write> {
         type Output;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()>;
         fn result(&self, connection: &mut Connection<W>, id: LightId) -> Result<Self::Output>;
@@ -536,19 +569,23 @@ pub mod command {
         }
     }
 
-    pub fn stream_blocks<W: Read+Write, F>(
+    pub fn stream_blocks<W: Read + Write, F>(
         connection: &mut Connection<W>,
         from: &[cardano::block::HeaderHash],
         to: cardano::block::HeaderHash,
-        got_block: &mut F) -> Result<()>
-        where F: FnMut(cardano::block::RawBlock) -> Result<()>
+        got_block: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(cardano::block::RawBlock) -> Result<()>,
     {
         let id = connection.new_light_connection()?;
 
         let window_size = 65536;
 
-        connection.send_message(id, &packet::send_msg_stream_start(
-            &from[..], &to, window_size))?;
+        connection.send_message(
+            id,
+            &packet::send_msg_stream_start(&from[..], &to, window_size),
+        )?;
 
         let mut window_left = window_size;
 
@@ -563,9 +600,15 @@ pub mod command {
                     let rblk = cardano::block::RawBlock::from_dat(msg.as_ref().to_vec());
                     got_block(rblk)?;
                 }
-                1 => { return Err(Error::ServerError(msg.text()?)); }
-                2 => { break; }
-                _ => { return Err(Error::UnexpectedResponse); }
+                1 => {
+                    return Err(Error::ServerError(msg.text()?));
+                }
+                2 => {
+                    break;
+                }
+                _ => {
+                    return Err(Error::UnexpectedResponse);
+                }
             }
 
             // The peer will stop sending blocks when the window size
@@ -588,16 +631,27 @@ pub mod command {
     #[derive(Debug)]
     pub struct GetBlockHeader {
         from: Vec<cardano::block::HeaderHash>,
-        to: Option<cardano::block::HeaderHash>
+        to: Option<cardano::block::HeaderHash>,
     }
     impl GetBlockHeader {
-        pub fn tip() -> Self { GetBlockHeader { from: vec![], to: None } }
+        pub fn tip() -> Self {
+            GetBlockHeader {
+                from: vec![],
+                to: None,
+            }
+        }
         pub fn range(from: &[cardano::block::HeaderHash], to: cardano::block::HeaderHash) -> Self {
-            GetBlockHeader { from: from.clone().to_vec(), to: Some(to) }
+            GetBlockHeader {
+                from: from.clone().to_vec(),
+                to: Some(to),
+            }
         }
     }
 
-    impl<W> Command<W> for GetBlockHeader where W: Read+Write {
+    impl<W> Command<W> for GetBlockHeader
+    where
+        W: Read + Write,
+    {
         type Output = cardano::block::RawBlockHeaderMultiple;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
             connection.send_message(id, &packet::send_msg_getheaders(&self.from[..], &self.to))?;
@@ -612,9 +666,9 @@ pub mod command {
                     let mut v = Vec::new();
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
-                },
+                }
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse),
             }
         }
     }
@@ -622,11 +676,18 @@ pub mod command {
     #[derive(Debug)]
     pub struct GetBlock {
         from: cardano::block::HeaderHash,
-        to:   cardano::block::HeaderHash
+        to: cardano::block::HeaderHash,
     }
     impl GetBlock {
-        pub fn only(hh: &cardano::block::HeaderHash) -> Self { GetBlock::from(&hh.clone(), &hh.clone()) }
-        pub fn from(from: &cardano::block::HeaderHash, to: &cardano::block::HeaderHash) -> Self { GetBlock { from: from.clone(), to: to.clone() } }
+        pub fn only(hh: &cardano::block::HeaderHash) -> Self {
+            GetBlock::from(&hh.clone(), &hh.clone())
+        }
+        pub fn from(from: &cardano::block::HeaderHash, to: &cardano::block::HeaderHash) -> Self {
+            GetBlock {
+                from: from.clone(),
+                to: to.clone(),
+            }
+        }
     }
 
     fn strip_msg_response(msg: &[u8]) -> Result<cardano::block::RawBlock> {
@@ -641,11 +702,14 @@ pub mod command {
                 } else {
                     Err(Error::UnexpectedResponse)
                 }
-            },
+            }
         }
     }
 
-    impl<W> Command<W> for GetBlock where W: Read+Write {
+    impl<W> Command<W> for GetBlock
+    where
+        W: Read + Write,
+    {
         type Output = Vec<cardano::block::RawBlock>;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
             // require the initial header
@@ -676,9 +740,14 @@ pub mod command {
     #[derive(Debug)]
     pub struct SendTx(tx::TxAux);
     impl SendTx {
-        pub fn new(tx: tx::TxAux) -> Self { SendTx(tx) }
+        pub fn new(tx: tx::TxAux) -> Self {
+            SendTx(tx)
+        }
     }
-    impl<W> Command<W> for SendTx where W: Read+Write {
+    impl<W> Command<W> for SendTx
+    where
+        W: Read + Write,
+    {
         type Output = ();
 
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()> {
@@ -693,13 +762,14 @@ pub mod command {
                 Some((0, dat)) => {
                     let mut raw = RawCbor::from(dat);
                     if raw.array()? != cbor_event::Len::Len(1) {
-                        return Err(Error::TransactionRejected)
+                        return Err(Error::TransactionRejected);
                     }
                     let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
 
                     // We now have to send the TxAux on the same connection.
-                    let msg = se::Serializer::new_vec().write_array(cbor_event::Len::Len(2))?
+                    let msg = se::Serializer::new_vec()
+                        .write_array(cbor_event::Len::Len(2))?
                         .serialize(&1u8)? // == Right constructor of InvOrData (i.e. DataMsg)
                         .serialize(&self.0)?
                         .finalize();
@@ -709,27 +779,26 @@ pub mod command {
                     let dat = connection.wait_msg(id)?;
                     let mut raw = RawCbor::from(&dat);
                     if raw.array()? != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse)
+                        return Err(Error::UnexpectedResponse);
                     }
                     if raw.unsigned_integer()? != 1 {
-                        return Err(Error::UnexpectedResponse)
+                        return Err(Error::UnexpectedResponse);
                     }
                     let arr = raw.array()?;
                     if arr != cbor_event::Len::Len(2) {
-                        return Err(Error::UnexpectedResponse)
+                        return Err(Error::UnexpectedResponse);
                     }
                     let txid: tx::TxId = raw.deserialize()?;
                     assert_eq!(txid, self.0.tx.id());
                     let result = raw.bool()?;
                     if !result {
-                        return Err(Error::TransactionRejected)
+                        return Err(Error::TransactionRejected);
                     }
 
                     Ok(())
-
-                },
+                }
                 Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-                Some((_n, _dat)) => Err(Error::UnexpectedResponse)
+                Some((_n, _dat)) => Err(Error::UnexpectedResponse),
             }
         }
     }

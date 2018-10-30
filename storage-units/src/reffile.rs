@@ -3,13 +3,13 @@
 //! Contains a list of blockhash
 //! hash containing all 0 are considered as the absence of a hash
 
-use std::io::{Read,Seek,SeekFrom};
-use std::io;
-use std::fs;
-use std::path::Path;
 use hash::{BlockHash, HASH_SIZE};
-use utils::magic;
+use std::fs;
+use std::io;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
 use utils::error::{Result, StorageError};
+use utils::magic;
 
 const FILE_TYPE: magic::FileType = 0x52454653; // = REFS
 const VERSION: magic::Version = 1;
@@ -32,15 +32,15 @@ impl Reader {
     }
 
     pub fn next(&mut self) -> io::Result<Option<BlockHash>> {
-        let mut buf = [0;HASH_SIZE];
+        let mut buf = [0; HASH_SIZE];
         self.handle.read_exact(&mut buf)?;
         // if all 0, then it's a empty slot otherwise return
         for v in buf.iter() {
             if *v != 0 {
-                return Ok(Some(buf))
+                return Ok(Some(buf));
             }
         }
-        return Ok(None)
+        return Ok(None);
     }
 }
 
@@ -49,10 +49,14 @@ pub struct Lookup(Vec<BlockHash>);
 
 impl ::std::ops::Deref for Lookup {
     type Target = Vec<BlockHash>;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 impl ::std::ops::DerefMut for Lookup {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl From<Vec<BlockHash>> for Lookup {
@@ -73,13 +77,15 @@ impl Lookup {
         loop {
             match reader.next() {
                 Err(err) => {
-                    if err.kind() == io::ErrorKind::UnexpectedEof { break } else { return Err(StorageError::IoError(err)) }
-                },
-                Ok(r) => {
-                    match r {
-                        None => v.append_missing_hash(),
-                        Some(z) => v.append_hash(z),
+                    if err.kind() == io::ErrorKind::UnexpectedEof {
+                        break;
+                    } else {
+                        return Err(StorageError::IoError(err));
                     }
+                }
+                Ok(r) => match r {
+                    None => v.append_missing_hash(),
+                    Some(z) => v.append_hash(z),
                 },
             }
         }
@@ -94,12 +100,14 @@ impl Lookup {
 
     pub fn write<W: io::Write>(&self, writer: &mut W) -> Result<()> {
         magic::write_header(writer, FILE_TYPE, VERSION)?;
-        for bh in self.iter() { writer.write_all(&bh[..])?; }
+        for bh in self.iter() {
+            writer.write_all(&bh[..])?;
+        }
         Ok(())
     }
 
     pub fn append_missing_hash(&mut self) {
-        let buf = [0;HASH_SIZE];
+        let buf = [0; HASH_SIZE];
         self.0.push(buf);
     }
 
