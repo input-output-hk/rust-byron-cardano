@@ -7,7 +7,7 @@ use std::{
 use tokio_io::AsyncRead;
 
 use super::{nt, ConnectionState, LightWeightConnectionState, Message, NodeId, Response};
-use super::{BlockHeaders, GetBlockHeaders};
+use super::{Block, BlockHeaders, GetBlockHeaders, GetBlocks};
 
 #[derive(Debug)]
 pub enum InboundError {
@@ -50,6 +50,8 @@ pub enum Inbound {
     NewNode(nt::LightWeightConnectionId, NodeId),
     GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
+    GetBlocks(nt::LightWeightConnectionId, GetBlocks),
+    Block(nt::LightWeightConnectionId, Response<Block, String>),
     Data(nt::LightWeightConnectionId, Bytes),
 }
 
@@ -110,6 +112,8 @@ impl<T> InboundStream<T> {
             Message::BlockHeaders(lwcid, bh) => {
                 self.forward_message(lwcid, Inbound::BlockHeaders, bh)
             }
+            Message::GetBlocks(lwcid, gb) => self.forward_message(lwcid, Inbound::GetBlocks, gb),
+            Message::Block(lwcid, b) => self.forward_message(lwcid, Inbound::Block, b),
             Message::Bytes(lwcid, bytes) => self.forward_message(lwcid, Inbound::Data, bytes),
         }
     }

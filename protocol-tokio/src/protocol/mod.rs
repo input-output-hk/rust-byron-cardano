@@ -16,7 +16,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use self::accepting::{Accepting, AcceptingError};
 pub use self::codec::{
-    BlockHeaders, GetBlockHeaders, HandlerSpec, HandlerSpecs, Handshake, Message, NodeId, Response,
+    Block, BlockHeaders, GetBlockHeaders, GetBlocks, HandlerSpec, HandlerSpecs, Handshake, Message,
+    NodeId, Response,
 };
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};

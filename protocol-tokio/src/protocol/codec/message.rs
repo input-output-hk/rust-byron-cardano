@@ -87,6 +87,8 @@ pub enum Message {
 
     GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
+    GetBlocks(nt::LightWeightConnectionId, GetBlocks),
+    Block(nt::LightWeightConnectionId, Response<Block, String>),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
 impl Message {
@@ -117,6 +119,10 @@ impl Message {
             Message::BlockHeaders(lwcid, bh) => {
                 Data(lwcid, MessageType::MsgHeaders.encode_with(&bh))
             }
+            Message::GetBlocks(lwcid, gb) => {
+                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb))
+            }
+            Message::Block(lwcid, b) => Data(lwcid, MessageType::MsgBlock.encode_with(&b)),
             Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
         }
     }
@@ -158,6 +164,13 @@ impl Message {
                 lwcid,
                 cbor.deserialize_complete().unwrap(),
             )),
+            MessageType::MsgGetBlocks => Ok(Message::GetBlocks(
+                lwcid,
+                cbor.deserialize_complete().unwrap(),
+            )),
+            MessageType::MsgBlock => {
+                Ok(Message::Block(lwcid, cbor.deserialize_complete().unwrap()))
+            }
             _ => unimplemented!(),
         }
     }
