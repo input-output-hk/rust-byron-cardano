@@ -2,7 +2,7 @@ language: rust
 cache: cargo
 matrix:
   include:
-    - rust: nighlyt
+    - rust: nightly
       os: linux
       env: CHECK_RUSTFMT="true"
     - rust: stable
@@ -21,7 +21,7 @@ matrix:
       env:  TARGET="wasm32-unknown-unknown" CARDANO_C="false" CARDANO_WASM="true" RUN_TEST="false"
       os: linux
   allow_failures:
-    - rust: nighlyt
+    - rust: nightly
       os: linux
       env: CHECK_RUSTFMT="true"
 
