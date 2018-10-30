@@ -311,6 +311,8 @@ impl de::Deserialize for GetBlocks {
     }
 }
 
+pub type Block = block::block::Block;
+
 #[cfg(test)]
 fn random_headerhash<G: ::quickcheck::Gen>(g: &mut G) -> HeaderHash {
     let bytes: Vec<u8> = ::quickcheck::Arbitrary::arbitrary(g);
