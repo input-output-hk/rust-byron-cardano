@@ -222,10 +222,13 @@ impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> 
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct GetBlockHeaders {
-    from: Vec<HeaderHash>,
-    to: Option<HeaderHash>,
+    pub from: Vec<HeaderHash>,
+    pub to: Option<HeaderHash>,
 }
 impl GetBlockHeaders {
+    pub fn is_tip(&self) -> bool {
+        self.from.is_empty() && self.to.is_none()
+    }
     pub fn tip() -> Self {
         GetBlockHeaders {
             from: Vec::new(),
@@ -279,7 +282,10 @@ impl de::Deserialize for GetBlockHeaders {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockHeaders(Vec<block::BlockHeader>);
+pub struct BlockHeaders(pub Vec<block::BlockHeader>);
+impl From<Vec<block::BlockHeader>> for BlockHeaders {
+    fn from(v: Vec<block::BlockHeader>) -> Self { BlockHeaders(v) }
+}
 impl se::Serialize for BlockHeaders {
     fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
     where
@@ -296,8 +302,8 @@ impl de::Deserialize for BlockHeaders {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetBlocks {
-    from: HeaderHash,
-    to: HeaderHash,
+    pub from: HeaderHash,
+    pub to: HeaderHash,
 }
 impl GetBlocks {
     pub fn new(from: HeaderHash, to: HeaderHash) -> Self {
