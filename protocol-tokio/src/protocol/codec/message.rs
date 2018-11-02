@@ -178,6 +178,7 @@ impl Message {
 
 fn decode_node_ack_or_syn(lwcid: nt::LightWeightConnectionId, bytes: &Bytes) -> Option<Message> {
     use bytes::{Buf, IntoBuf};
+    if bytes.len() != 9 { return None }
     let mut buf = bytes.into_buf();
     let key = buf.get_u8();
     let v = buf.get_u64_be();
