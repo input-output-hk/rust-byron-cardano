@@ -95,11 +95,20 @@ impl<T: AsyncWrite> OutboundSink<T> {
         mut self,
         node_id: NodeId,
     ) -> impl Future<Item = Self, Error = OutboundError> {
-        let tmp_lwcid = self.get_next_light_id();
+        let our_lwcid = self.get_next_light_id();
 
-        self.send(Message::CreateLightWeightConnectionId(tmp_lwcid))
-            .and_then(move |connection| connection.send(Message::AckNodeId(tmp_lwcid, node_id)))
-            .and_then(move |connection| connection.send(Message::CloseConnection(tmp_lwcid)))
+        self.send(Message::CreateLightWeightConnectionId(our_lwcid))
+            .and_then(move |connection| connection.send(Message::AckNodeId(our_lwcid, node_id)))
+            .map(move |connection| {
+                // here we need to wire the acknowledged NodeId to our new created client LWCID
+                connection
+                    .state
+                    .lock()
+                    .unwrap()
+                    .map_to_client
+                    .insert(node_id, our_lwcid);
+                connection
+            })
     }
 }
 
