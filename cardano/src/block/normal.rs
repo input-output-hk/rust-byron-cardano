@@ -5,23 +5,32 @@ use std::collections::{BTreeMap, btree_map};
 
 use cbor_event::{self, de::RawCbor};
 use super::types;
-use super::types::{HeaderHash, HeaderExtraData, EpochSlotId, ChainDifficulty};
+use super::types::{HeaderHash, HeaderExtraData, EpochSlotId, ChainDifficulty, SscProof};
 use super::update;
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
     pub tx: tx::TxProof,
     pub mpc: types::SscProof,
-    pub proxy_sk: Blake2b256, // hash of DlgPayload
-    pub update: Blake2b256, // UpdateProof (hash of UpdatePayload)
+    pub delegation: DlgProof,
+    pub update: update::UpdateProof,
 }
 impl BodyProof {
-    pub fn new(tx: tx::TxProof, mpc: types::SscProof, proxy_sk: Blake2b256, update: Blake2b256) -> Self {
+    pub fn new(tx: tx::TxProof, mpc: types::SscProof, delegation: DlgProof, update: update::UpdateProof) -> Self {
         BodyProof {
             tx: tx,
             mpc: mpc,
-            proxy_sk: proxy_sk,
-            update: update
+            delegation: delegation,
+            update: update,
+        }
+    }
+
+    pub fn generate_from_body(body: &Body) -> Self {
+        BodyProof {
+            tx: tx::TxProof::generate(&body.tx),
+            mpc: SscProof::generate(&body.ssc),
+            delegation: DlgProof::generate(&body.delegation),
+            update: update::UpdateProof::generate(&body.update),
         }
     }
 }
@@ -31,7 +40,7 @@ impl cbor_event::se::Serialize for BodyProof {
         serializer.write_array(cbor_event::Len::Len(4))?
             .serialize(&self.tx)?
             .serialize(&self.mpc)?
-            .serialize(&self.proxy_sk)?
+            .serialize(&self.delegation)?
             .serialize(&self.update)
     }
 }
@@ -44,6 +53,30 @@ impl cbor_event::de::Deserialize for BodyProof {
         let update   = cbor_event::de::Deserialize::deserialize(raw)?;
 
         Ok(BodyProof::new(tx, mpc, proxy_sk, update))
+    }
+}
+
+/// Witness of delegation payload consisting of a simple hash
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DlgProof(pub Blake2b256);
+
+impl DlgProof {
+    pub fn generate(delegation: &DlgPayload) -> Self {
+        let h = Blake2b256::new(&cbor!(delegation).unwrap());
+        DlgProof(h)
+    }
+}
+
+impl cbor_event::se::Serialize for DlgProof {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for DlgProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let hash = cbor_event::de::Deserialize::deserialize(raw)?;
+        Ok(DlgProof(hash))
     }
 }
 
@@ -114,11 +147,11 @@ impl cbor_event::de::Deserialize for TxPayload {
 pub struct Body {
     pub tx: TxPayload,
     pub ssc: SscPayload,
-    pub delegation: cbor_event::Value, // TODO: decode into DlgPayload
+    pub delegation: DlgPayload,
     pub update: update::UpdatePayload,
 }
 impl Body {
-    pub fn new(tx: TxPayload, ssc: SscPayload, delegation: cbor_event::Value, update: update::UpdatePayload) -> Self {
+    pub fn new(tx: TxPayload, ssc: SscPayload, delegation: DlgPayload, update: update::UpdatePayload) -> Self {
         Body { tx, ssc, delegation, update }
     }
 }
@@ -157,6 +190,12 @@ pub enum SscPayload {
 }
 
 impl SscPayload {
+    pub fn fake() -> Self {
+        let coms = Commitments(Vec::new());
+        let vsses = VssCertificates(Vec::new());
+        SscPayload::CommitmentsPayload(coms, vsses)
+    }
+
     pub fn get_vss_certificates(&self) -> &VssCertificates {
         match &self {
             SscPayload::CommitmentsPayload(_, vss) => vss,
@@ -227,6 +266,21 @@ impl cbor_event::de::Deserialize for SscPayload {
                 Err(cbor_event::Error::CustomError(format!("Unsupported BlockSignature: {}", sum_type_idx)))
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DlgPayload(pub cbor_event::Value);
+
+impl cbor_event::de::Deserialize for DlgPayload {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let payload = raw.deserialize()?;
+        Ok(DlgPayload(payload))
+    }
+}
+impl cbor_event::se::Serialize for DlgPayload {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
     }
 }
 
@@ -421,6 +475,12 @@ impl VssCertificates {
             hash.insert(address::StakeholderId::new(&vss_cert.signing_key), vss_cert);
         };
         cbor_event::se::serialize_fixed_map(hash.iter(), serializer)
+    }
+
+    pub fn hash_for_proof(&self) -> Blake2b256 {
+        let mut buf = vec![];
+        self.serialize_for_proof(cbor_event::se::Serializer::new(&mut buf)).unwrap();
+        Blake2b256::new(&buf)
     }
 }
 

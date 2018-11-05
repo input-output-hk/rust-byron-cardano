@@ -464,7 +464,7 @@ pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
     cborsize.0
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxProof {
     /// Number of Transactions in this tree
     pub number: u32,

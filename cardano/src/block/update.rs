@@ -1,5 +1,5 @@
 use cbor_event::{self, de::RawCbor};
-use hash;
+use hash::{self, Blake2b256};
 use hdwallet;
 use std::collections::{BTreeMap};
 use super::types;
@@ -25,6 +25,30 @@ impl cbor_event::de::Deserialize for UpdatePayload {
             proposal: raw.deserialize()?,
             votes: raw.deserialize()?
         })
+    }
+}
+
+/// Witness of delegation payload consisting of a simple hash
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateProof(Blake2b256);
+
+impl UpdateProof {
+    pub fn generate(update: &UpdatePayload) -> Self {
+        let h = Blake2b256::new(&cbor!(update).unwrap());
+        UpdateProof(h)
+    }
+}
+
+impl cbor_event::se::Serialize for UpdateProof {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer.serialize(&self.0)
+    }
+}
+
+impl cbor_event::de::Deserialize for UpdateProof {
+    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+        let hash = cbor_event::de::Deserialize::deserialize(raw)?;
+        Ok(UpdateProof(hash))
     }
 }
 
