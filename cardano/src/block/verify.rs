@@ -34,7 +34,6 @@ pub enum Error {
     WrongExtraDataProof,
     WrongBoundaryProof,
     WrongMagic,
-    WrongMerkleRoot,
     WrongMpcProof,
     WrongRedeemTxId,
     WrongTxProof,
@@ -80,7 +79,6 @@ impl fmt::Display for Error {
             WrongExtraDataProof => write!(f, "extra data proof is invalid"),
             WrongBoundaryProof => write!(f, "boundary proof is invalid"),
             WrongMagic => write!(f, "magic number is invalid"),
-            WrongMerkleRoot => write!(f, "merkle root is invalid"),
             WrongMpcProof => write!(f, "MPC proof is invalid"),
             WrongTxProof => write!(f, "transaction proof is invalid"),
             WrongUpdateProof => write!(f, "update proof is invalid"),
@@ -447,6 +445,7 @@ impl Verify for update::UpdateVote {
 mod tests {
     use std::str::FromStr;
     use block::*;
+    use self::normal::DlgPayload;
     use config::{ProtocolMagic};
     use std::mem;
     use coin;
@@ -603,7 +602,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx.pop();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongMerkleRoot);
+            expect_error(&verify_block(pm, &hash, &blk), Error::WrongTxProof);
         }
 
         // invalidate the tx proof
@@ -710,7 +709,7 @@ mod tests {
         {
             let mut blk = blk2.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.delegation = cbor_event::Value::U64(123);
+                mblk.body.delegation = DlgPayload(cbor_event::Value::U64(123));
             }
             expect_error(&verify_block(pm, &hash2, &blk), Error::WrongDelegationProof);
         }
