@@ -74,6 +74,8 @@ impl de::Deserialize for MessageType {
     }
 }
 
+pub type KeepAlive = bool;
+
 #[derive(Clone, Debug)]
 pub enum Message {
     CreateLightWeightConnectionId(nt::LightWeightConnectionId),
@@ -89,6 +91,7 @@ pub enum Message {
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     GetBlocks(nt::LightWeightConnectionId, GetBlocks),
     Block(nt::LightWeightConnectionId, Response<Block, String>),
+    Subscribe(nt::LightWeightConnectionId, KeepAlive),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
 impl Message {
@@ -123,6 +126,10 @@ impl Message {
                 Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb))
             }
             Message::Block(lwcid, b) => Data(lwcid, MessageType::MsgBlock.encode_with(&b)),
+            Message::Subscribe(lwcid, keep_alive) => {
+                let keep_alive : u64 = if keep_alive { 43 } else { 42 };
+                Data(lwcid, MessageType::MsgSubscribe1.encode_with(&keep_alive))
+            }
             Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
         }
     }
@@ -170,6 +177,11 @@ impl Message {
             )),
             MessageType::MsgBlock => {
                 Ok(Message::Block(lwcid, cbor.deserialize_complete().unwrap()))
+            }
+            MessageType::MsgSubscribe1 => {
+                let v : u64 = cbor.deserialize_complete().unwrap();
+                let keep_alive = v == 43;
+                Ok(Message::Subscribe(lwcid, keep_alive))
             }
             _ => unimplemented!(),
         }
