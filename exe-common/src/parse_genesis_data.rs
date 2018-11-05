@@ -3,7 +3,7 @@ use std::io::Read;
 use serde_json;
 use cardano::{config, fee, block, coin, redeem};
 use base64;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use genesisdata::raw;
 
@@ -33,7 +33,7 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
     };
     let start_time = {
         let unix_displacement = Duration::from_secs(data.startTime);
-        SystemTime::UNIX_EPOCH + unix_displacement
+        UNIX_EPOCH + unix_displacement
     };
 
     config::GenesisData {
