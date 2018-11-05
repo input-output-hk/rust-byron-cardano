@@ -14,6 +14,7 @@ use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use config::{ProtocolMagic};
 use redeem;
 use tags::{SigningTag};
+use merkle;
 
 use hdwallet::{Signature, XPub, XPrv, XPUB_SIZE, SIGNATURE_SIZE};
 use address::{ExtendedAddr, SpendingData, AddrType, Attributes};
@@ -465,16 +466,31 @@ pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
 
 #[derive(Debug, Clone)]
 pub struct TxProof {
+    /// Number of Transactions in this tree
     pub number: u32,
-    pub root: Blake2b256,
+    /// Root of the merkle tree of transactions
+    pub root: merkle::Hash,
+    /// Hash of Sequence of TxWitnesses encoded in CBOR
     pub witnesses_hash: Blake2b256,
 }
 impl TxProof {
-    pub fn new(number: u32, root: Blake2b256, witnesses_hash: Blake2b256) -> Self {
+    pub fn new(number: u32, root: merkle::Hash, witnesses_hash: Blake2b256) -> Self {
         TxProof {
             number: number,
             root: root,
             witnesses_hash: witnesses_hash
+        }
+    }
+
+    pub fn generate(txaux: &[TxAux]) -> Self {
+        let txs : Vec<&Tx> = txaux.iter().map(|w| &w.tx).collect();
+        let witnesses : Vec<&TxWitness> = txaux.iter().map(|w| &w.witness).collect();
+        let ser = cbor_event::se::Serializer::new(Vec::new());
+        let out = cbor_event::se::serialize_indefinite_array(witnesses.iter(), ser).unwrap().finalize();
+        TxProof {
+            number: txs.len() as u32,
+            root: merkle::MerkleTree::new(&txs[..]).get_root_hash(),
+            witnesses_hash: Blake2b256::new(&out[..]),
         }
     }
 }

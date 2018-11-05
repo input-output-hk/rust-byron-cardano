@@ -15,14 +15,14 @@ pub enum MerkleNode {
 
 impl MerkleTree {
 
-    pub fn new<T>(xs: &Vec<T>) -> Self
+    pub fn new<T>(xs: &[T]) -> Self
         where T: se::Serialize
     {
         if xs.is_empty() {
             return MerkleTree::Empty;
         }
 
-        MerkleTree::Tree(xs.len(), MerkleNode::make_tree(&xs[..]))
+        MerkleTree::Tree(xs.len(), MerkleNode::make_tree(xs))
     }
 
     pub fn get_root_hash(&self) -> Hash {
