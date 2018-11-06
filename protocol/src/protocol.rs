@@ -355,8 +355,7 @@ impl<T: Write + Read> Connection<T> {
     // whereas data message are associated to a light connection
     pub fn process_message(&mut self) -> Result<()> {
         use ntt::protocol::{Command, ControlHeader};
-        let x = self.ntt.recv();
-        match x? {
+        match self.ntt.recv()? {
             Command::Control(ControlHeader::CloseConnection, id) => {
                 debug!("received close of light connection {}", id);
                 match &self.server_cons.remove(&id) {
@@ -694,15 +693,13 @@ pub mod command {
         // here we unwrap the CBOR of Array(2, [uint(0), something]) to something
         match decode_sum_type(msg) {
             None => Err(Error::UnexpectedResponse),
-            Some((sumval, dat)) => {
-                if sumval == 0 {
-                    let mut v = Vec::new();
-                    v.extend_from_slice(dat);
-                    Ok(cardano::block::RawBlock::from_dat(v))
-                } else {
-                    Err(Error::UnexpectedResponse)
-                }
+            Some((0, dat)) => {
+                let mut v = Vec::new();
+                v.extend_from_slice(dat);
+                Ok(cardano::block::RawBlock::from_dat(v))
             }
+            Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+            Some((_n, _dat)) => Err(Error::UnexpectedResponse)
         }
     }
 

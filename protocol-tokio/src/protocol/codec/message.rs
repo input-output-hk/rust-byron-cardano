@@ -116,16 +116,13 @@ impl Message {
                 bytes.put_u64_be(*node_id);
                 Data(lwcid, bytes.freeze())
             }
-            Message::GetBlockHeaders(lwcid, gbh) => {
-                Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh))
-            }
-            Message::BlockHeaders(lwcid, bh) => {
-                Data(lwcid, MessageType::MsgHeaders.encode_with(&bh))
-            }
-            Message::GetBlocks(lwcid, gb) => {
-                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb))
-            }
-            Message::Block(lwcid, b) => Data(lwcid, MessageType::MsgBlock.encode_with(&b)),
+            Message::GetBlockHeaders(lwcid, gbh) =>
+                Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh)),
+            Message::BlockHeaders(lwcid, bh) =>
+                Data(lwcid, cbor!(&bh).unwrap().into()),
+            Message::GetBlocks(lwcid, gb) =>
+                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb)),
+            Message::Block(lwcid, b) => Data(lwcid, cbor!(&b).unwrap().into()),
             Message::Subscribe(lwcid, keep_alive) => {
                 let keep_alive : u64 = if keep_alive { 43 } else { 42 };
                 Data(lwcid, MessageType::MsgSubscribe1.encode_with(&keep_alive))
