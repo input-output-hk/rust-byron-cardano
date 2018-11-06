@@ -96,10 +96,10 @@ impl Lock {
     /// already exists, the function fail straight away and do not wait
     /// for the other process to release the `Lock`.
     ///
-    pub fn lock(path: PathBuf) -> Result<Self> {
+    pub fn lock<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let lock = Lock {
             id: process::id(),
-            path,
+            path: path.into(),
         };
         lock.acquire()?;
         Ok(lock)
