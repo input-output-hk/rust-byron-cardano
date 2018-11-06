@@ -5,7 +5,7 @@ use std::{
 };
 use tokio_io::AsyncWrite;
 
-use super::{nt, ConnectionState, LightWeightConnectionState, Message, NodeId};
+use super::{nt, ConnectionState, LightWeightConnectionState, Message, NodeId, KeepAlive};
 
 pub type Outbound = Message;
 
@@ -67,6 +67,18 @@ impl<T: AsyncWrite> OutboundSink<T> {
                     .insert(lwcid, light_weight_connection_state);
 
                 future::ok((lwcid, connection))
+            })
+    }
+
+    /// initialize a subscription from the given outbound halve.
+    pub fn subscribe(
+        self,
+        keep_alive: KeepAlive,
+    ) -> impl Future<Item = (nt::LightWeightConnectionId, Self), Error = OutboundError> {
+        self.new_light_connection()
+            .and_then(move |(lwcid, connection)| {
+                connection.send(Message::Subscribe(lwcid, keep_alive))
+                    .map(move |connection| (lwcid, connection))
             })
     }
 
