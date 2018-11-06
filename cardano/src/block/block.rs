@@ -312,6 +312,13 @@ impl cbor_event::de::Deserialize for BlockHeader {
     }
 }
 
+impl cbor_event::se::Serialize for BlockHeaders {
+    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?
+            .write_unsigned_integer(0)?;
+        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer)
+    }
+}
 impl cbor_event::de::Deserialize for BlockHeaders {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         match decode_sum_type(raw)? {

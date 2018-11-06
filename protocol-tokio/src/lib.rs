@@ -18,5 +18,5 @@ pub mod protocol;
 
 pub use self::protocol::{
     Accepting, AcceptingError, Connecting, ConnectingError, Connection, Inbound, InboundError,
-    InboundStream, Message, Outbound, OutboundError, OutboundSink,
+    InboundStream, Message, MessageType, Outbound, OutboundError, OutboundSink, Response,
 };

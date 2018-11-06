@@ -28,7 +28,7 @@ pub enum MessageType {
 }
 impl MessageType {
     #[inline]
-    fn encode_with<T>(&self, cbor: &T) -> Bytes
+    pub fn encode_with<T>(&self, cbor: &T) -> Bytes
     where
         T: se::Serialize,
     {
