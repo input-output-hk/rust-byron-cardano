@@ -3,7 +3,20 @@ mod range;
 mod reverse;
 
 pub use self::range::Range;
+
+/// Constructs a `Range` iterator.
+///
+/// This function is meant for internal use.
+/// It's more convenient to use the `range` method of `Storage`.
+pub use self::range::iter as range_iter;
+
 pub use self::reverse::ReverseIter;
+
+/// Constructs a `ReverseIter` iterator.
+///
+/// This function is meant for internal use.
+/// It's more convenient to use the `reverse_from` method of `Storage`.
+pub use self::reverse::iter as reverse_iter;
 
 use super::Result;
 
