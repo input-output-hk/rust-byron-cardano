@@ -74,6 +74,7 @@ impl<'a> Iterator for IteratorType<'a> {
     }
 }
 
+#[deprecated]
 pub struct Iter<'a> {
     storage: &'a Storage,
 
@@ -87,7 +88,9 @@ pub struct Iter<'a> {
     iterator: IteratorType<'a>
 }
 
+#[allow(deprecated)]
 impl<'a> Iter<'a> {
+    #[deprecated]
     pub fn new<H>(
         storage: &'a Storage,
         from: H,
@@ -135,6 +138,8 @@ impl<'a> Iter<'a> {
         Ok(iter)
     }
 }
+
+#[allow(deprecated)]
 impl<'a> Iterator for Iter<'a> {
     type Item = Result<(RawBlock, Block)>;
 
