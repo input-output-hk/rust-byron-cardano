@@ -122,7 +122,7 @@ impl<'a> Iter<'a> {
     ) -> Result<Self> {
         let iterator = match block_location(&storage, &from)? {
             BlockLocation::Loose => {
-                let mut range = Range::new(storage, from, to)?;
+                let mut range = range_iter(storage, from, to)?;
                 IteratorType::Loose(storage, range)
             }
             location => {
@@ -183,8 +183,8 @@ impl<'a> Iterator for Iter<'a> {
         } else {
             match self.iterator.next() {
                 None => {
-                    if ! self.iterator.is_loose() {
-                        let mut range = Range::new(
+                    if !self.iterator.is_loose() {
+                        let mut range = range_iter(
                             &self.storage,
                             self.last_known_block_hash.clone().unwrap(),
                             self.ending_at.clone()
