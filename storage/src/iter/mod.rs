@@ -20,7 +20,7 @@ pub use self::reverse::iter as reverse_iter;
 
 use super::Result;
 
-use super::{block_location, block_read_location, BlockLocation, Storage};
+use super::{BlockLocation2, Storage};
 
 use cardano::block::{Block, RawBlock};
 use storage_units::hash::BlockHash;
@@ -77,8 +77,8 @@ impl<'a> Iterator for IteratorType<'a> {
             }
             IteratorType::Loose(ref storage, ref mut range) => {
                 if let Some(bh) = range.next() {
-                    let location = BlockLocation::Loose;
-                    Some(Ok(block_read_location(&storage, &location, &bh.into()).unwrap()))
+                    let location = BlockLocation2::Loose(bh);
+                    Some(storage.read_block_at(&location))
                 } else {
                     None
                 }
@@ -120,13 +120,13 @@ impl<'a> Iter<'a> {
         from: BlockHash,
         to: BlockHash,
     ) -> Result<Self> {
-        let iterator = match block_location(&storage, &from)? {
-            BlockLocation::Loose => {
+        let iterator = match storage.block_location(&from)? {
+            BlockLocation2::Loose(to) => {
                 let mut range = range_iter(storage, from, to)?;
                 IteratorType::Loose(storage, range)
             }
             location => {
-                let block_header = block_read_location(&storage, &location, &from)
+                let block_header = storage.read_block_at(&location)
                     .unwrap()
                     .decode()?
                     .get_header();
