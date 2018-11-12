@@ -1,13 +1,9 @@
 use block::*;
 use self::normal::{BodyProof};
-use self::update;
-use tx;
 use config::{ProtocolMagic};
 use cbor_event::{self, se, de::RawCbor};
-use std::{collections::{BTreeSet, HashSet}, fmt, error};
 use tags;
 use hdwallet;
-use fee;
 
 #[derive(Debug, Clone)]
 pub struct MainToSign<'a>

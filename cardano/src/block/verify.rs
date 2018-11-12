@@ -1,7 +1,7 @@
 use block::*;
 use self::normal::{VssCertificates, BodyProof};
 use self::update;
-use self::sign::{BlockSignature, ProxySignature, MainToSign};
+use self::sign::{BlockSignature, MainToSign};
 use tx;
 use coin;
 use address;
