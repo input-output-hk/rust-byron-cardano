@@ -12,7 +12,7 @@ use std::{ops::Deref, collections::{BTreeMap}};
 use super::scheme::{self};
 use super::keygen;
 
-pub use bip::bip44::{self, AddrType, Addressing, Change, Index};
+pub use bip::bip44::{self, AddrType, Addressing, Change, Error, Index};
 
 /// BIP44 based wallet, i.e. using sequential indexing.
 ///
