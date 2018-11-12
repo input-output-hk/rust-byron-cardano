@@ -1,6 +1,7 @@
 use block::*;
-use self::normal::{VssCertificates, BlockSignature, ProxySignature, BodyProof};
+use self::normal::{VssCertificates, BodyProof};
 use self::update;
+use self::sign::{BlockSignature, MainToSign};
 use tx;
 use coin;
 use address;
@@ -217,15 +218,9 @@ impl Verify for normal::Block {
                 }
 
                 // verify the signature
-                let to_sign = MainToSign {
-                    previous_header: &hdr.previous_header,
-                    body_proof: &hdr.body_proof,
-                    slot: &hdr.consensus.slot_id,
-                    chain_difficulty: &hdr.consensus.chain_difficulty,
-                    extra_data: &hdr.extra_data,
-                };
+                let to_sign = MainToSign::from_header(&hdr);
 
-                if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
+                if !to_sign.verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig) {
                     return Err(Error::BadBlockSig);
                 }
             }
@@ -245,48 +240,6 @@ impl Verify for update::UpdatePayload {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Clone)]
-struct MainToSign<'a>
-{
-    previous_header: &'a HeaderHash,
-    body_proof: &'a BodyProof,
-    slot: &'a EpochSlotId,
-    chain_difficulty: &'a ChainDifficulty,
-    extra_data: &'a HeaderExtraData,
-}
-
-impl<'a> cbor_event::se::Serialize for MainToSign<'a> {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(5))?
-            .serialize(&self.previous_header)?
-            .serialize(&self.body_proof)?
-            .serialize(&self.slot)?
-            .serialize(&self.chain_difficulty)?
-            .serialize(&self.extra_data)
-    }
-}
-
-pub fn verify_proxy_sig<T>(
-    protocol_magic: ProtocolMagic,
-    tag: tags::SigningTag,
-    proxy_sig: &ProxySignature,
-    data: &T)
-    -> bool
-    where T: se::Serialize
-{
-    let mut buf = vec!['0' as u8, '1' as u8];
-
-    buf.extend(proxy_sig.psk.issuer_pk.as_ref());
-
-    se::Serializer::new(&mut buf)
-        .serialize(&(tag as u8)).unwrap()
-        .serialize(&protocol_magic).unwrap()
-        .serialize(data).unwrap();
-
-    proxy_sig.psk.delegate_pk.verify(
-        &buf, &Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
 }
 
 impl Verify for tx::TxAux {
