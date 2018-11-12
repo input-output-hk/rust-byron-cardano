@@ -36,11 +36,11 @@ impl Ord for BlockDate {
     fn cmp(&self, other: &BlockDate) -> Ordering {
         match self {
             BlockDate::Boundary(e1) => match other {
-                    BlockDate::Boundary(e2) => e1.cmp(e2),
-                    BlockDate::Normal(slot2) => e1.cmp(&slot2.epoch).then(Ordering::Less),
+                BlockDate::Boundary(e2) => e1.cmp(e2),
+                BlockDate::Normal(slot2) => e1.cmp(&slot2.epoch).then(Ordering::Less),
             },
             BlockDate::Normal(slot1) => match other {
-                    BlockDate::Boundary(e2) => slot1.epoch.cmp(e2).then(Ordering::Greater),
+                BlockDate::Boundary(e2) => slot1.epoch.cmp(e2).then(Ordering::Greater),
                 BlockDate::Normal(slot2) => slot1
                     .epoch
                     .cmp(&slot2.epoch)
@@ -87,5 +87,105 @@ impl fmt::Display for BlockDate {
             BlockDate::Boundary(epoch) => write!(f, "{}.GENESIS", epoch),
             BlockDate::Normal(slotid) => write!(f, "{}.{}", slotid.epoch, slotid.slotid),
         }
+    }
+}
+
+impl str::FromStr for BlockDate {
+    type Err = BlockDateParseError;
+
+    fn from_str(s: &str) -> Result<BlockDate, BlockDateParseError> {
+        use self::ParseErrorKind::*;
+
+        let (ep, opt_sp) = match s.find('.') {
+            None => (s, None),
+            Some(pos) => (&s[..pos], Some(&s[(pos + 1)..])),
+        };
+        let epoch = str::parse::<EpochId>(ep)
+            .map_err(|e| BlockDateParseError(BadEpochId(e)))?;
+        match opt_sp {
+            None => Ok(BlockDate::Boundary(epoch)),
+            Some(sp) => {
+                if sp == "GENESIS" {
+                    return Ok(BlockDate::Boundary(epoch));
+                }
+                let slotid = str::parse::<SlotId>(sp)
+                    .map_err(|e| BlockDateParseError(BadSlotId(e)))?;
+                Ok(BlockDate::Normal(EpochSlotId { epoch, slotid }))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BlockDateParseError(ParseErrorKind);
+
+#[derive(Debug)]
+enum ParseErrorKind {
+    BadEpochId(ParseIntError),
+    BadSlotId(ParseIntError),
+}
+
+const EXPECT_FORMAT_MESSAGE: &'static str = "expected block date format EPOCH[.SLOT]";
+
+impl fmt::Display for BlockDateParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::ParseErrorKind::*;
+        match self.0 {
+            BadEpochId(_) => write!(f, "invalid epoch ID, {}", EXPECT_FORMAT_MESSAGE),
+            BadSlotId(_) => write!(f, "invalid slot ID, {}", EXPECT_FORMAT_MESSAGE),
+        }
+    }
+}
+
+impl Error for BlockDateParseError {
+    fn cause(&self) -> Option<&dyn Error> {
+        use self::ParseErrorKind::*;
+        match self.0 {
+            BadEpochId(ref e) => Some(e),
+            BadSlotId(ref e) => Some(e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BlockDate, BlockDateParseError};
+    use block::EpochSlotId;
+    use std::error::Error;
+
+    #[test]
+    fn parse_bare_epoch() {
+        let date = "42".parse::<BlockDate>().unwrap();
+        assert_eq!(date, BlockDate::Boundary(42));
+    }
+
+    #[test]
+    fn parse_epoch_slot_id() {
+        let date = "42.12".parse::<BlockDate>().unwrap();
+        assert_eq!(
+            date,
+            BlockDate::Normal(EpochSlotId {
+                epoch: 42,
+                slotid: 12
+            })
+        );
+    }
+
+    #[test]
+    fn parse_epoch_genesis() {
+        let date = "42.GENESIS".parse::<BlockDate>().unwrap();
+        assert_eq!(date, BlockDate::Boundary(42));
+    }
+
+    #[test]
+    fn parse_bad_epoch() {
+        let err = "".parse::<BlockDate>().unwrap_err();
+        println!("{}: {}", err, err.cause().unwrap());
+    }
+
+    #[test]
+    fn parse_bad_slotid() {
+        let err = "42.INVALID".parse::<BlockDate>().unwrap_err();
+        println!("{}: {}", err, err.cause().unwrap());
     }
 }
