@@ -7,6 +7,7 @@ pub mod types;
 pub mod boundary; /* boundary block related value */
 pub mod normal; /* normal block related value */
 pub mod block;
+pub mod sign;
 pub mod verify;
 pub mod verify_chain;
 pub mod update;
