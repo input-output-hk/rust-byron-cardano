@@ -68,6 +68,12 @@ impl DlgProof {
     }
 }
 
+impl fmt::Display for DlgProof {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl cbor_event::se::Serialize for DlgProof {
     fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         serializer.serialize(&self.0)

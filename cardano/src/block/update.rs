@@ -1,8 +1,12 @@
 use cbor_event::{self, de::RawCbor};
 use hash::{self, Blake2b256};
 use hdwallet;
-use std::collections::{BTreeMap};
 use super::types;
+
+use std::{
+    collections::{BTreeMap},
+    fmt,
+};
 
 #[derive(Debug, Clone)]
 pub struct UpdatePayload {
@@ -36,6 +40,12 @@ impl UpdateProof {
     pub fn generate(update: &UpdatePayload) -> Self {
         let h = Blake2b256::new(&cbor!(update).unwrap());
         UpdateProof(h)
+    }
+}
+
+impl fmt::Display for UpdateProof {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
