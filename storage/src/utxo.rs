@@ -1,5 +1,6 @@
 use super::{Result, Storage};
-use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos};
+use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos, ChainState};
+use cardano::config::{GenesisData};
 use cardano::tx::TxoPointer;
 use cbor_event::{de, se, Len};
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,30 +9,28 @@ use std::io::{Read, Write};
 use storage_units::utils::magic;
 
 const FILE_TYPE: magic::FileType = 0x5554584f; // = UTXO
-const VERSION: magic::Version = 1;
+const VERSION: magic::Version = 2;
 
-/// Write the utxo state at the end of the specified epoch to disk. To
-/// reduce storage requirements, we actually write a delta between
-/// some "parent" epoch and the specified epoch, such that the full
-/// utxo state for an epoch can be reconstructed by reading O(lg
-/// epoch) files. The parent of an epoch is that epoch with the least
-/// significant bit cleared. For example, for epoch 37, the patch
-/// sequence is 0 -> 32 -> 36 -> 37.
-pub fn write_utxos(
+/// Write the chain state at the end of the specified epoch to
+/// disk. To reduce storage requirements (in particular of the utxo
+/// state), we actually write a delta between some "parent" epoch and
+/// the specified epoch, such that the full utxo state for an epoch
+/// can be reconstructed by reading O(lg epoch) files. The parent of
+/// an epoch is that epoch with the least significant bit cleared. For
+/// example, for epoch 37, the patch sequence is 0 -> 32 -> 36 -> 37.
+pub fn write_chain_state(
     storage: &Storage,
-    last_block: &HeaderHash,
-    last_date: &BlockDate,
-    utxos: &Utxos,
+    chain_state: &ChainState,
 ) -> Result<()> {
+    let last_date = chain_state.last_date.unwrap();
+    assert!(last_date.is_boundary());
     let epoch = last_date.get_epochid();
 
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Epoch);
 
-    write_utxos_delta(
+    write_chain_state_delta(
         storage,
-        last_block,
-        last_date,
-        utxos,
+        chain_state,
         parent_for_epoch(epoch),
         &mut tmpfile,
     )?;
@@ -43,45 +42,60 @@ pub fn write_utxos(
     Ok(())
 }
 
-/// Write the utxo delta between two arbitrary epochs, or write a full
-/// utxo dump if parent_epoch is None.
-pub fn write_utxos_delta<W: Write>(
+/// Write the chain state delta between two arbitrary epochs, or write
+/// a full utxo dump if parent_epoch is None.
+fn write_chain_state_delta<W: Write>(
     storage: &Storage,
-    last_block: &HeaderHash,
-    last_date: &BlockDate,
-    utxos: &Utxos,
+    chain_state: &ChainState,
     parent_epoch: Option<EpochId>,
     writer: &mut W,
 ) -> Result<()> {
+    let last_date = chain_state.last_date.unwrap();
+
     magic::write_header(writer, FILE_TYPE, VERSION)?;
 
     let parent_utxos = match parent_epoch {
         None => BTreeMap::new(),
-        Some(parent_epoch) => get_utxos_for_epoch(storage, parent_epoch)?.utxos,
+        Some(parent_epoch) => {
+            let mut dummy_chain_state = ChainState {
+                protocol_magic: chain_state.protocol_magic,
+                fee_policy: chain_state.fee_policy,
+                last_block: chain_state.last_block.clone(),
+                last_date: None,
+                slot_leaders: vec![],
+                utxos: BTreeMap::new(),
+                chain_length: 0,
+                nr_transactions: 0,
+                spend_txos: 0,
+            };
+            do_get_chain_state(storage, parent_epoch, &mut dummy_chain_state)?;
+            dummy_chain_state.utxos
+        }
     };
 
-    let (removed, added) = diff_maps(&parent_utxos, &utxos);
+    let (removed_utxos, added_utxos) = diff_maps(&parent_utxos, &chain_state.utxos);
 
     debug!(
-        "writing utxo delta {:?} -> {}, total {}, added {}, removed {}",
+        "writing chain state delta {:?} -> {}, total {} utxos, added {} utxos, removed {} utxos",
         parent_epoch,
         last_date.get_epochid(),
-        utxos.len(),
-        added.len(),
-        removed.len()
+        chain_state.utxos.len(),
+        added_utxos.len(),
+        removed_utxos.len()
     );
 
     let serializer = se::Serializer::new(writer)
-        .write_array(Len::Len(5))?
+        .write_array(Len::Len(7))?
         .serialize(&parent_epoch)?
-        .serialize(&last_block)?
+        .serialize(&chain_state.last_block)?
         .serialize(&last_date.get_epochid())?
         .serialize(&match last_date {
             BlockDate::Boundary(_) => 0u16,
             BlockDate::Normal(s) => s.slotid + 1,
-        })?;
-    let serializer = se::serialize_fixed_array(removed.iter(), serializer)?;
-    se::serialize_fixed_map(added.iter(), serializer)?;
+        })?
+        .serialize(&chain_state.chain_length)?;
+    let serializer = se::serialize_fixed_array(removed_utxos.iter(), serializer)?;
+    se::serialize_fixed_map(added_utxos.iter(), serializer)?;
 
     Ok(())
 }
@@ -94,56 +108,59 @@ pub struct UtxoState {
 
 /// Reconstruct the full utxo state at the end of the specified epoch
 /// by reading and applying the epoch's ancestor delta chain.
-pub fn get_utxos_for_epoch(storage: &Storage, epoch: EpochId) -> Result<UtxoState> {
-    let mut utxos = Utxos::new();
-    let (last_block, last_date) = do_get_utxos(storage, epoch, &mut utxos)?;
-    Ok(UtxoState {
-        last_block,
-        last_date,
-        utxos,
-    })
+pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, epoch: EpochId) -> Result<ChainState> {
+    let mut chain_state = ChainState::new(genesis_data);
+    do_get_chain_state(storage, epoch, &mut chain_state)?;
+    Ok(chain_state)
 }
 
-fn do_get_utxos(
+fn do_get_chain_state(
     storage: &Storage,
     epoch: EpochId,
-    utxos: &mut Utxos,
-) -> Result<(HeaderHash, BlockDate)> {
+    chain_state: &mut ChainState,
+) -> Result<()> {
     let filename = storage.config.get_epoch_utxos_filepath(epoch);
 
-    let file = decode_utxo_file(&mut fs::File::open(&filename)?)?;
+    let file = decode_chain_state_file(&mut fs::File::open(&filename)?)?;
 
     assert_eq!(file.last_date.get_epochid(), epoch);
 
     if let Some(parent) = file.parent {
-        do_get_utxos(storage, parent, utxos)?;
+        do_get_chain_state(storage, parent, chain_state)?;
     }
 
-    for txo_ptr in &file.removed {
-        if utxos.remove(txo_ptr).is_none() {
+    for txo_ptr in &file.removed_utxos {
+        if chain_state.utxos.remove(txo_ptr).is_none() {
             panic!("utxo delta removes non-existent utxo {}", txo_ptr);
         }
     }
 
-    for (txo_ptr, txo) in file.added {
-        if utxos.insert(txo_ptr, txo).is_some() {
+    for (txo_ptr, txo) in file.added_utxos {
+        if chain_state.utxos.insert(txo_ptr, txo).is_some() {
             panic!("utxo delta inserts duplicate utxo");
         }
     }
 
-    Ok((file.last_block, file.last_date))
+    chain_state.last_block = file.last_block;
+    chain_state.last_date = Some(file.last_date);
+    chain_state.chain_length = file.chain_length;
+
+    assert_eq!(chain_state.last_date.unwrap(), BlockDate::Boundary(epoch));
+
+    Ok(())
 }
 
 #[derive(Debug)]
-pub struct UtxoFile {
+struct ChainStateFile {
     pub parent: Option<EpochId>,
     pub last_block: HeaderHash,
     pub last_date: BlockDate,
-    pub removed: Vec<TxoPointer>,
-    pub added: Utxos,
+    pub chain_length: u64,
+    pub removed_utxos: Vec<TxoPointer>,
+    pub added_utxos: Utxos,
 }
 
-pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
+fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
     magic::check_header(file, FILE_TYPE, VERSION, VERSION)?;
 
     let mut data = vec![];
@@ -151,7 +168,7 @@ pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
 
     let mut raw = de::RawCbor::from(&data);
 
-    raw.tuple(5, "utxo delta file")?;
+    raw.tuple(7, "chain state delta file")?;
     let parent = raw.deserialize()?;
     let last_block = raw.deserialize()?;
     let epoch = raw.deserialize()?;
@@ -162,15 +179,17 @@ pub fn decode_utxo_file<R: Read>(file: &mut R) -> Result<UtxoFile> {
             slotid: n - 1,
         }),
     };
-    let removed = raw.deserialize()?;
-    let added = raw.deserialize()?;
+    let chain_length = raw.deserialize()?;
+    let removed_utxos = raw.deserialize()?;
+    let added_utxos = raw.deserialize()?;
 
-    Ok(UtxoFile {
+    Ok(ChainStateFile {
         parent,
         last_block,
         last_date,
-        removed,
-        added,
+        chain_length,
+        removed_utxos,
+        added_utxos,
     })
 }
 

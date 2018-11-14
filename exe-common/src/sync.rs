@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, utxo::{UtxoState, get_utxos_for_epoch}};
+use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, utxo::{read_chain_state}};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader, Block, RawBlock, ChainState};
 use cardano::config::{GenesisData};
 use cardano::util::{hex};
@@ -315,16 +315,12 @@ fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
         );
     }
 
-    assert_eq!(epoch_writer_state.chain_state.prev_date.unwrap().get_epochid(), epoch_id);
+    assert_eq!(epoch_writer_state.chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
     epoch::epoch_create(&storage,
                         &packhash,
                         epoch_id,
-                        Some(&UtxoState {
-                            last_block: epoch_writer_state.chain_state.prev_block,
-                            last_date: epoch_writer_state.chain_state.prev_date.unwrap(),
-                            utxos: epoch_writer_state.chain_state.utxos
-                        }));
+                        Some(&epoch_writer_state.chain_state));
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
           epoch_id, duration_print(epoch_time_elapsed));
@@ -360,8 +356,7 @@ pub fn get_chain_state_at_start_of(
     if epoch_id == net_cfg.epoch_start {
         ChainState::new(genesis_data)
     } else {
-        let utxo_state = get_utxos_for_epoch(storage, epoch_id - 1)
-            .expect("unable to read epoch utxo state");
-        ChainState::new_from_epoch_start(genesis_data, utxo_state.last_block, utxo_state.last_date, utxo_state.utxos)
+        read_chain_state(storage, genesis_data, epoch_id - 1)
+            .expect("unable to read epoch utxo state")
     }
 }
