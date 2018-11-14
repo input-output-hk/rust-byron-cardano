@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, utxo::{read_chain_state}};
+use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, chain_state};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader, Block, RawBlock, ChainState};
 use cardano::config::{GenesisData};
 use cardano::util::{hex};
@@ -356,7 +356,7 @@ pub fn get_chain_state_at_start_of(
     if epoch_id == net_cfg.epoch_start {
         ChainState::new(genesis_data)
     } else {
-        read_chain_state(storage, genesis_data, epoch_id - 1)
+        chain_state::read_chain_state(storage, genesis_data, epoch_id - 1)
             .expect("unable to read epoch utxo state")
     }
 }

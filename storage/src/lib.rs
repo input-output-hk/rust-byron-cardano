@@ -12,7 +12,7 @@ pub mod pack;
 pub mod refpack;
 pub mod tag;
 pub mod types;
-pub mod utxo;
+pub mod chain_state;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;

@@ -2,7 +2,7 @@ use cardano::block::{BlockDate, EpochId, ChainState};
 use cardano::util::hex;
 use std::fs;
 use std::io::Read;
-use utxo::{write_chain_state};
+use chain_state;
 
 use super::{
     header_to_blockhash, packreader_block_next, packreader_init, Error, PackHash, Result, Storage,
@@ -74,7 +74,7 @@ pub fn epoch_create(
     // write the utxos
     if let Some(chain_state) = chain_state {
         assert_eq!(chain_state.last_date.unwrap(), BlockDate::Boundary(epochid));
-        write_chain_state(storage, chain_state).unwrap();
+        chain_state::write_chain_state(storage, chain_state).unwrap();
     }
 
     // write the pack pointer
