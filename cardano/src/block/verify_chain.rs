@@ -20,6 +20,7 @@ pub struct ChainState {
     pub prev_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
     pub utxos: Utxos,
+    pub chain_length: u64,
 
     // Some stats.
     pub nr_transactions: u64,
@@ -50,6 +51,7 @@ impl ChainState {
             prev_date: None,
             slot_leaders: vec![],
             utxos,
+            chain_length: 0,
             nr_transactions: 0,
             spend_txos: 0,
         }
@@ -83,6 +85,7 @@ impl ChainState {
 
         self.prev_block = block_hash.clone();
         self.prev_date = Some(blk.get_header().get_blockdate());
+        self.chain_length += 1;
 
         match blk {
 
