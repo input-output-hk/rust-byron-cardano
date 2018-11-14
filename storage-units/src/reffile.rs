@@ -26,8 +26,8 @@ impl Reader {
     }
 
     pub fn getref_at_index(&mut self, index: u32) -> io::Result<Option<BlockHash>> {
-        let offset = index as usize * HASH_SIZE;
-        self.handle.seek(SeekFrom::Start(offset as u64))?;
+        let offset = (index as u64) * (HASH_SIZE as u64);
+        self.handle.seek(SeekFrom::Start(offset))?;
         self.next()
     }
 
