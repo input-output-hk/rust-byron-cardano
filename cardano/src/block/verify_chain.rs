@@ -9,7 +9,7 @@ use fee::{self, FeeAlgorithm};
 
 pub type Utxos = BTreeMap<TxoPointer, TxOut>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ChainState {
     // FIXME: maybe we should just keep a ref to GenesisData?  Though
     // I guess at least the fee policy could change in an update.
@@ -24,7 +24,7 @@ pub struct ChainState {
 
     // Some stats.
     pub nr_transactions: u64,
-    pub spend_txos: u64,
+    pub spent_txos: u64,
 }
 
 impl ChainState {
@@ -53,7 +53,7 @@ impl ChainState {
             utxos,
             chain_length: 0,
             nr_transactions: 0,
-            spend_txos: 0,
+            spent_txos: 0,
         }
     }
 
@@ -175,7 +175,7 @@ impl ChainState {
                 }
                 Some(txout) => {
 
-                    self.spend_txos += 1;
+                    self.spent_txos += 1;
 
                     let witness_address = match in_witness {
 

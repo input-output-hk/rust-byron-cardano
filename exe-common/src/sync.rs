@@ -141,7 +141,7 @@ fn net_sync_to<A: Api>(
             mem::swap(&mut writer_state, &mut epoch_writer_state);
 
             if let Some(epoch_writer_state) = writer_state {
-                finish_epoch(storage, epoch_writer_state);
+                finish_epoch(storage, genesis_data, epoch_writer_state);
 
                 // Checkpoint the tip so we don't have to refetch
                 // everything if we get interrupted.
@@ -252,7 +252,7 @@ fn maybe_create_epoch(net_cfg: &net::Config, storage: &Storage,
 
     read_and_append_blocks_to_epoch_reverse(&storage, &mut epoch_writer_state, last_block);
 
-    finish_epoch(storage, epoch_writer_state);
+    finish_epoch(storage, genesis_data, epoch_writer_state);
 }
 
 fn read_and_append_blocks_to_epoch_reverse(
@@ -299,7 +299,11 @@ fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoc
     (cur_hash, blocks)
 }
 
-fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
+fn finish_epoch(
+    storage: &Storage,
+    genesis_data: &GenesisData,
+    epoch_writer_state: EpochWriterState)
+{
     let epoch_id = epoch_writer_state.epoch_id;
     let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
     let (_, tmpfile) = pack::create_index(&storage, &index);
@@ -320,7 +324,7 @@ fn finish_epoch(storage: &Storage, epoch_writer_state: EpochWriterState) {
     epoch::epoch_create(&storage,
                         &packhash,
                         epoch_id,
-                        Some(&epoch_writer_state.chain_state));
+                        Some((&epoch_writer_state.chain_state, genesis_data)));
 
     info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
           epoch_id, duration_print(epoch_time_elapsed));
@@ -356,7 +360,9 @@ pub fn get_chain_state_at_start_of(
     if epoch_id == net_cfg.epoch_start {
         ChainState::new(genesis_data)
     } else {
-        chain_state::read_chain_state(storage, genesis_data, epoch_id - 1)
+        chain_state::read_chain_state(
+            storage, genesis_data,
+            &chain_state::get_first_block_of_epoch(storage, epoch_id - 1).unwrap())
             .expect("unable to read epoch utxo state")
     }
 }

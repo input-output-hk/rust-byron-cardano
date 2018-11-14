@@ -1,4 +1,5 @@
 use cardano::block::{BlockDate, EpochId, ChainState};
+use cardano::config::{GenesisData};
 use cardano::util::hex;
 use std::fs;
 use std::io::Read;
@@ -36,7 +37,7 @@ pub fn epoch_create(
     storage: &Storage,
     packref: &PackHash,
     epochid: EpochId,
-    chain_state: Option<&ChainState>,
+    chain_state: Option<(&ChainState, &GenesisData)>,
 ) {
     // read the pack and append the block hash as we find them in the refpack.
     let mut rp = reffile::Lookup::new();
@@ -72,9 +73,9 @@ pub fn epoch_create(
         .unwrap();
 
     // write the utxos
-    if let Some(chain_state) = chain_state {
+    if let Some((chain_state, genesis_data)) = chain_state {
         assert_eq!(chain_state.last_date.unwrap(), BlockDate::Boundary(epochid));
-        chain_state::write_chain_state(storage, chain_state).unwrap();
+        chain_state::write_chain_state(storage, genesis_data, chain_state).unwrap();
     }
 
     // write the pack pointer
