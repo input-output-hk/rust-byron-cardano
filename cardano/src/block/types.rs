@@ -1,8 +1,15 @@
-use std::{fmt, str::{FromStr}, ops::{Deref}};
 use hash::{Blake2b256};
 use cbor_event::{self, de::RawCbor};
 use util::try_from_slice::TryFromSlice;
 use super::normal::SscPayload;
+
+use std::{
+    fmt,
+    str::{FromStr},
+};
+
+#[cfg(feature = "bad-deref")]
+use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -29,6 +36,10 @@ impl fmt::Display for Version {
 pub struct HeaderHash(Blake2b256);
 impl HeaderHash {
     pub fn new(bytes: &[u8]) -> Self { HeaderHash(Blake2b256::new(bytes))  }
+
+    pub fn as_hash_bytes(&self) -> &[u8; Blake2b256::HASH_SIZE] {
+        self.0.as_hash_bytes()
+    }
 }
 impl fmt::Display for HeaderHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -41,6 +52,7 @@ impl TryFromSlice for HeaderHash {
         Ok(Self::from(Blake2b256::try_from_slice(slice)?))
     }
 }
+#[cfg(feature = "bad-deref")]
 impl Deref for HeaderHash {
     type Target = <Blake2b256 as Deref>::Target;
     fn deref(&self) -> &Self::Target { self.0.deref() }

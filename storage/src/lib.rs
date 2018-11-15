@@ -152,7 +152,7 @@ impl Storage {
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
         match tag::read_hash(&self, &tag) {
             None => Err(Error::NoSuchTag),
-            Some(hash) => Ok(block_read(&self, &hash)?.decode()?)
+            Some(hash) => Ok(block_read(&self, &hash.as_hash_bytes())?.decode()?)
         }
     }
 

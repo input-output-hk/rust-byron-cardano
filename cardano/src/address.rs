@@ -8,7 +8,6 @@
 //! All this components form an `ExtendedAddr`, which serialized
 //! to binary makes an `Addr`
 //!
-use std::{fmt, str::{FromStr}, ops::{Deref}};
 #[cfg(feature = "generic-serialization")]
 use serde;
 
@@ -21,6 +20,14 @@ use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
 use config::{NetworkMagic};
+
+use std::{
+    fmt,
+    str::{FromStr},
+};
+
+#[cfg(feature = "bad-deref")]
+use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -84,6 +91,10 @@ impl StakeholderId {
         let hash = Sha3_256::new(&buf);
         StakeholderId(Blake2b224::new(hash.as_ref()))
     }
+
+    pub fn as_hash_bytes(&self) -> &[u8; Blake2b224::HASH_SIZE] {
+        self.0.as_hash_bytes()
+    }
 }
 impl cbor_event::se::Serialize for StakeholderId {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
@@ -106,6 +117,7 @@ impl TryFromSlice for StakeholderId {
         Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
 }
+#[cfg(feature = "bad-deref")]
 impl Deref for StakeholderId {
     type Target = <Blake2b224 as Deref>::Target;
     fn deref(&self) -> &Self::Target { self.0.deref() }
@@ -300,6 +312,10 @@ impl HashedSpendingData {
         let hash = Sha3_256::new(&buf);
         HashedSpendingData(Blake2b224::new(hash.as_ref()))
     }
+
+    pub fn as_hash_bytes(&self) -> &[u8; Blake2b224::HASH_SIZE] {
+        self.0.as_hash_bytes()
+    }
 }
 impl fmt::Display for HashedSpendingData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -322,6 +338,7 @@ impl TryFromSlice for HashedSpendingData {
         Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
 }
+#[cfg(feature = "bad-deref")]
 impl Deref for HashedSpendingData {
     type Target = <Blake2b224 as Deref>::Target;
     fn deref(&self) -> &Self::Target { self.0.deref() }
