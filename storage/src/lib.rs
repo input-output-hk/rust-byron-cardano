@@ -167,7 +167,7 @@ impl Storage {
         iter::reverse_iter(self, hh)
     }
 
-    pub fn block_location(&self, hash: &BlockHash) -> Result<BlockLocation2> {
+    pub fn block_location(&self, hash: &BlockHash) -> Result<BlockLocation> {
         for (packref, lookup) in self.lookups.iter() {
             let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
             match nb {
@@ -175,28 +175,40 @@ impl Storage {
                 _ => {
                     if lookup.bloom.search(hash) {
                         let idx_filepath = self.config.get_index_filepath(packref);
-                        let mut idx_file = indexfile::Reader::init(idx_filepath).unwrap();
-                        match idx_file.search(&lookup.params, hash, start, nb) {
-                            None => {}
-                            Some(iloc) => return Ok(BlockLocation2::Packed(packref.clone(), iloc)),
+                        let mut idx_file = try_open!(
+                            indexfile::Reader::init,
+                            &idx_filepath,
+                            "index file"
+                        );
+                        let sr = idx_file.search(
+                            &lookup.params,
+                            hash,
+                            start,
+                            nb
+                        );
+                        if let Some(iloc) = sr {
+                            return Ok(BlockLocation::Packed(
+                                packref.clone(),
+                                iloc
+                            ));
                         }
                     }
                 }
             }
         }
         if blob::exist(self, hash) {
-            return Ok(BlockLocation2::Loose(hash.clone()));
+            return Ok(BlockLocation::Loose(hash.clone()));
         }
         Err(Error::BlockNotFound(hash.clone()))
     }
 
     pub fn read_block_at(
         &self,
-        loc: &BlockLocation2,
+        loc: &BlockLocation,
     ) -> Result<RawBlock> {
         match loc {
-            BlockLocation2::Loose(hash) => blob::read(self, hash),
-            BlockLocation2::Packed(ref packref, ref iofs) => {
+            BlockLocation::Loose(hash) => blob::read(self, hash),
+            BlockLocation::Packed(ref packref, ref iofs) => {
                 match self.lookups.get(packref) {
                     None => {
                         unreachable!();
@@ -293,75 +305,10 @@ pub mod blob {
     }
 }
 
-#[deprecated(note = "will be replaced by BlockLocation2")]
-#[allow(deprecated)]
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
     Packed(PackHash, indexfile::IndexOffset),
-    Loose,
-}
-
-#[derive(Clone, Debug)]
-pub enum BlockLocation2 {
-    Packed(PackHash, indexfile::IndexOffset),
     Loose(BlockHash),
-}
-
-#[deprecated(note = "use Storage::block_location")]
-#[allow(deprecated)]
-pub fn block_location(storage: &Storage, hash: &BlockHash) -> Result<BlockLocation> {
-    for (packref, lookup) in storage.lookups.iter() {
-        let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
-        match nb {
-            indexfile::FanoutNb(0) => {}
-            _ => {
-                if lookup.bloom.search(hash) {
-                    let idx_filepath = storage.config.get_index_filepath(packref);
-                    let mut idx_file = indexfile::Reader::init(idx_filepath).unwrap();
-                    match idx_file.search(&lookup.params, hash, start, nb) {
-                        None => {}
-                        Some(iloc) => return Ok(BlockLocation::Packed(packref.clone(), iloc)),
-                    }
-                }
-            }
-        }
-    }
-    if blob::exist(storage, hash) {
-        return Ok(BlockLocation::Loose);
-    }
-    Err(Error::BlockNotFound(hash.clone()))
-}
-
-#[deprecated(note = "use Storage::read_block_at")]
-#[allow(deprecated)]
-pub fn block_read_location(
-    storage: &Storage,
-    loc: &BlockLocation,
-    hash: &BlockHash,
-) -> Result<RawBlock> {
-    match loc {
-        &BlockLocation::Loose => blob::read(storage, hash),
-        &BlockLocation::Packed(ref packref, ref iofs) => match storage.lookups.get(packref) {
-            None => {
-                unreachable!();
-            }
-            Some(lookup) => {
-                let idx_filepath = storage.config.get_index_filepath(packref);
-                let mut idx_file = indexfile::ReaderNoLookup::init(idx_filepath).unwrap();
-                let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
-                let pack_filepath = storage.config.get_pack_filepath(packref);
-                let mut pack_file = packfile::Seeker::init(pack_filepath).unwrap();
-                Ok(RawBlock(pack_file
-                    .get_at_offset(pack_offset)?))
-            }
-        },
-    }
-}
-
-#[deprecated(note = "use Storage::read_block")]
-#[allow(deprecated)]
-pub fn block_read(storage: &Storage, hash: &BlockHash) -> Result<RawBlock> {
-    block_read_location(storage, &block_location(storage, hash)?, hash)
 }
 
 pub fn block_exists(storage: &Storage, hash: &BlockHash) -> Result<bool> {
