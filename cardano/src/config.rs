@@ -87,7 +87,7 @@ impl Default for Config {
 /// parent of the genesis block of epoch 0. (Note that "genesis data"
 /// is something completely different from a epoch genesis block. The
 /// genesis data is not stored in the chain as a block.)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GenesisData {
     pub genesis_prev: block::HeaderHash,
     pub epoch_stability_depth: usize, // a.k.a. 'k'
