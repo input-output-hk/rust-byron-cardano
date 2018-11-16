@@ -462,3 +462,18 @@ impl cbor_event::de::Deserialize for SystemTag {
         Ok(SystemTag::new(raw.deserialize()?)?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hash::Blake2b256;
+
+    #[test]
+    fn debug_header_hash() {
+        let h = HeaderHash(Blake2b256::new(&[0; 32]));
+        assert_eq!(
+            format!("{:?}", h),
+            "HeaderHash(Blake2b256(0x89eb0d6a8a691dae2cd15ed0369931ce0a949ecafa5c3f93f8121833646e15c3))",
+        );
+    }
+}
