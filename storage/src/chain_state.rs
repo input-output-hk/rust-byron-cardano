@@ -1,4 +1,4 @@
-use super::{Result, Storage, block_read};
+use super::{Result, Error, Storage, block_read};
 use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos, ChainState, Block};
 use cardano::config::{GenesisData};
 use cardano::tx::TxoPointer;
@@ -6,7 +6,7 @@ use cbor_event::{de, se, Len};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{Read, Write};
-use storage_units::utils::magic;
+use storage_units::utils::{magic, error::StorageError};
 use epoch;
 
 const FILE_TYPE: magic::FileType = 0x5554584f; // = UTXO
@@ -105,18 +105,18 @@ pub struct UtxoState {
 /// Reconstruct the full utxo state as of the specified block by
 /// reading and applying the blocks's ancestor delta chain.
 pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_hash: &HeaderHash) -> Result<ChainState> {
-    let mut chain_state = ChainState::new(genesis_data);
-
-    if block_hash != &genesis_data.genesis_prev {
-        do_get_chain_state(storage, genesis_data, block_hash, &mut chain_state)?;
-
-        // We don't store the slot leaders because we can easily get
-        // them from the boundary block.
-        chain_state.slot_leaders = match block_read(storage, block_hash).unwrap().decode()? {
-            Block::BoundaryBlock(blk) => blk.body.slot_leaders.clone(),
-            _ => panic!("unexpected non-boundary block")
-        }
+    if block_hash == &genesis_data.genesis_prev {
+        return Ok(ChainState::new(genesis_data));
     }
+
+    let mut chain_state = do_get_chain_state(storage, genesis_data, block_hash)?;
+
+    // We don't store the slot leaders because we can easily get
+    // them from the boundary block.
+    chain_state.slot_leaders = match block_read(storage, block_hash).unwrap().decode()? {
+        Block::BoundaryBlock(blk) => blk.body.slot_leaders.clone(),
+        _ => panic!("unexpected non-boundary block")
+    };
 
     Ok(chain_state)
 }
@@ -125,17 +125,18 @@ fn do_get_chain_state(
     storage: &Storage,
     genesis_data: &GenesisData,
     block_hash: &HeaderHash,
-    chain_state: &mut ChainState,
-) -> Result<()> {
+) -> Result<ChainState> {
     let filename = storage.config.get_chain_state_filepath(block_hash);
 
     let file = decode_chain_state_file(&mut fs::File::open(&filename)?)?;
 
     assert!(file.last_date.is_boundary());
 
-    if file.parent != genesis_data.genesis_prev {
-        do_get_chain_state(storage, genesis_data, &file.parent, chain_state)?;
-    }
+    let mut chain_state = if file.parent != genesis_data.genesis_prev {
+        do_get_chain_state(storage, genesis_data, &file.parent)?
+    } else {
+        ChainState::new(genesis_data)
+    };
 
     for txo_ptr in &file.removed_utxos {
         if chain_state.utxos.remove(txo_ptr).is_none() {
@@ -155,7 +156,7 @@ fn do_get_chain_state(
     chain_state.nr_transactions = file.nr_transactions;
     chain_state.spent_txos = file.spent_txos;
 
-    Ok(())
+    Ok(chain_state)
 }
 
 #[derive(Debug)]
@@ -276,4 +277,53 @@ where
 pub fn get_first_block_of_epoch(storage: &Storage, epoch: EpochId) -> Result<HeaderHash> {
     // FIXME: don't rely on epoch refpacks since they may not be stable.
     Ok(epoch::epoch_open_packref(&storage.config, epoch)?.next()?.unwrap().into())
+}
+
+/// Return the chain state at block 'block_hash'. This seeks backwards
+/// in the chain, starting at 'block_hash' until it reaches a block
+/// that has a chain state on disk. It then iterates forwards to
+/// 'block_hash', verifying blocks and updating the chain state.
+pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_hash: &HeaderHash) -> Result<ChainState> {
+
+    debug!("restoring chain state at block {}", block_hash);
+
+    let mut cur = block_hash.clone();
+    let mut blocks_to_apply = vec![];
+
+    loop {
+
+        let mut chain_state = match read_chain_state(storage, genesis_data, &cur) {
+            Ok(chain) => chain,
+            Err(Error::StorageError(StorageError::IoError(ref err)))
+                if err.kind() == ::std::io::ErrorKind::NotFound =>
+            {
+                let rblk = block_read(storage, &cur)
+                    .expect(&format!("reading block {}", cur));
+                let blk = rblk.decode().unwrap();
+                // FIXME: store 'blk' in blocks_to_apply? Would
+                // prevent having to read the block again below, but
+                // require more memory.
+                blocks_to_apply.push(cur);
+                cur = blk.get_header().get_previous_header();
+                continue;
+            },
+            Err(err) => return Err(err),
+        };
+
+        debug!("loaded chain state at block {}, have to apply {} blocks",
+               cur, blocks_to_apply.len());
+
+        assert_eq!(chain_state.last_block, cur);
+
+        for hash in blocks_to_apply.iter().rev() {
+            let rblk = block_read(storage, &hash)
+                .expect(&format!("reading block {}", hash));
+            let blk = rblk.decode().unwrap();
+            chain_state.verify_block(hash, &blk)?;
+        }
+
+        assert_eq!(&chain_state.last_block, block_hash);
+
+        return Ok(chain_state);
+    };
 }

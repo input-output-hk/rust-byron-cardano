@@ -33,6 +33,7 @@ use storage_units::{indexfile, packfile, reffile};
 pub enum Error {
     StorageError(StorageError),
     CborBlockError(cbor_event::Error),
+    BlockError(cardano::block::Error),
     RefPackUnexpectedBoundary(SlotId),
 
     HashNotFound(HeaderHash),
@@ -59,11 +60,17 @@ impl From<cbor_event::Error> for Error {
         Error::CborBlockError(e)
     }
 }
+impl From<cardano::block::Error> for Error {
+    fn from(e: cardano::block::Error) -> Self {
+        Error::BlockError(e)
+    }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
+            Error::BlockError(_) => write!(f, "Block error"),
             Error::HashNotFound(hh) => write!(f, "Hash not found {}", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
@@ -79,6 +86,7 @@ impl error::Error for Error {
         match self {
             Error::StorageError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
+            Error::BlockError(ref err) => Some(err),
             Error::HashNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
