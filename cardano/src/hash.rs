@@ -98,6 +98,13 @@ macro_rules! define_hash_object {
                 write!(f, "{}", hex::encode(self.as_ref()))
             }
         }
+        impl fmt::Debug for $hash_ty {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str(concat!(stringify!($hash_ty), "(0x"))?;
+                write!(f, "{}", hex::encode(self.as_ref()))?;
+                f.write_str(")")
+            }
+        }
         impl FromStr for $hash_ty {
             type Err = Error;
             fn from_str(s: &str) -> result::Result<Self, Self::Err> {
@@ -184,18 +191,18 @@ pub const HASH_SIZE_224 : usize = 28;
 
 pub const HASH_SIZE_256 : usize = 32;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Blake2b224([u8;HASH_SIZE_224]);
 define_hash_object!(Blake2b224, Blake2b224, HASH_SIZE_224);
 define_blake2b_new!(Blake2b224);
 
 /// Blake2b 256 bits
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Blake2b256([u8;HASH_SIZE_256]);
 define_hash_object!(Blake2b256, Blake2b256, HASH_SIZE_256);
 define_blake2b_new!(Blake2b256);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Sha3_256([u8;HASH_SIZE_256]);
 define_hash_object!(Sha3_256, Sha3_256, HASH_SIZE_256);
 impl Sha3_256 {
@@ -224,4 +231,12 @@ mod test {
         assert!(cbor_event::test_encode_decode(&Blake2b256::new([0;256].as_ref())).unwrap())
     }
 
+    #[test]
+    fn debug_blake2b_224() {
+        let h = Blake2b224::new([0; 28].as_ref());
+        assert_eq!(
+            format!("{:?}", h),
+            "Blake2b224(0x317512db8239e1f9c2549b04e8071f965983c938d3e649cec78532c7)",
+        );
+    }
 }
