@@ -29,6 +29,7 @@ impl StorageConfig {
             StorageFileType::Blob => p.push("blob/"),
             StorageFileType::Tag => p.push("tag/"),
             StorageFileType::Epoch => p.push("epoch/"),
+            StorageFileType::ChainState => p.push("chainstate/"),
         }
         p
     }
@@ -78,9 +79,9 @@ impl StorageConfig {
         p.push("refpack");
         p
     }
-    pub fn get_epoch_utxos_filepath(&self, epoch: EpochId) -> PathBuf {
-        let mut p = self.get_epoch_dir(epoch);
-        p.push("utxos");
+    pub fn get_chain_state_filepath(&self, blockhash: &BlockHash) -> PathBuf {
+        let mut p = self.get_filetype_dir(StorageFileType::ChainState);
+        p.push(hex::encode(blockhash));
         p
     }
 

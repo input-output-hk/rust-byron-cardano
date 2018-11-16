@@ -46,7 +46,7 @@ impl ::std::fmt::Display for Error {
     }
 }
 
-#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Milli (pub u64);
 impl Milli {
@@ -84,7 +84,7 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `A * bytes(txaux) + CONSTANT`
-#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct LinearFee {
     /// this is the minimal fee

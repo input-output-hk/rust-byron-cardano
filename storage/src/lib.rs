@@ -12,7 +12,7 @@ pub mod pack;
 pub mod refpack;
 pub mod tag;
 pub mod types;
-pub mod utxo;
+pub mod chain_state;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -107,6 +107,7 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Tag))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Epoch))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
+        fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::ChainState))?;
 
         let packhashes = cfg.list_indexes();
         for p in packhashes.iter() {
