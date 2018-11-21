@@ -11,7 +11,7 @@ use std::{fmt};
 use hash::{Blake2b256};
 
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use config::{ProtocolMagic, NetworkMagic};
+use config::{ProtocolMagic};
 use redeem;
 use tags::{SigningTag};
 use merkle;
@@ -28,7 +28,7 @@ pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey, protocol_magic: Protoco
     let address = ExtendedAddr::new(
         AddrType::ATRedeem,
         SpendingData::RedeemASD(*pubkey),
-        Attributes::new_bootstrap_era(None, NetworkMagic::from(protocol_magic)));
+        Attributes::new_bootstrap_era(None, protocol_magic.into()));
     let txid = Blake2b256::new(&cbor!(&address).unwrap());
     (txid, address)
 }
@@ -655,7 +655,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::from(protocol_magic));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), protocol_magic.into());
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
 
         // create a transaction
