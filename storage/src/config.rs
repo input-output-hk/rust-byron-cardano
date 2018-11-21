@@ -1,6 +1,6 @@
-use std::path::{PathBuf};
-use std::{fs};
 use cardano::block::EpochId;
+use std::fs;
+use std::path::PathBuf;
 
 use cardano::util::hex;
 
@@ -8,12 +8,14 @@ use types::*;
 
 #[derive(Clone)]
 pub struct StorageConfig {
-    pub root_path: PathBuf
+    pub root_path: PathBuf,
 }
 
 impl StorageConfig {
     pub fn new(path_buf: &PathBuf) -> Self {
-        StorageConfig { root_path: path_buf.clone() }
+        StorageConfig {
+            root_path: path_buf.clone(),
+        }
     }
     pub fn get_path(&self) -> PathBuf {
         self.root_path.clone()
@@ -27,6 +29,7 @@ impl StorageConfig {
             StorageFileType::Blob => p.push("blob/"),
             StorageFileType::Tag => p.push("tag/"),
             StorageFileType::Epoch => p.push("epoch/"),
+            StorageFileType::ChainState => p.push("chainstate/"),
         }
         p
     }
@@ -76,9 +79,9 @@ impl StorageConfig {
         p.push("refpack");
         p
     }
-    pub fn get_epoch_utxos_filepath(&self, epoch: EpochId) -> PathBuf {
-        let mut p = self.get_epoch_dir(epoch);
-        p.push("utxos");
+    pub fn get_chain_state_filepath(&self, blockhash: &BlockHash) -> PathBuf {
+        let mut p = self.get_filetype_dir(StorageFileType::ChainState);
+        p.push(hex::encode(blockhash));
         p
     }
 
@@ -91,7 +94,7 @@ impl StorageConfig {
                 if let Ok(s) = entry.file_name().into_string() {
                     if s.len() == 64 {
                         let v = hex::decode(s.as_ref()).unwrap();
-                        let mut packref = [0;HASH_SIZE];
+                        let mut packref = [0; HASH_SIZE];
                         packref.clone_from_slice(&v[..]);
                         packs.push(packref);
                     }
@@ -110,13 +113,19 @@ impl StorageConfig {
                 if let Ok(s) = entry.file_name().into_string() {
                     if s.len() == 64 {
                         let v = hex::decode(s.as_ref()).unwrap();
-                        let mut blobref = [0;HASH_SIZE];
+                        let mut blobref = [0; HASH_SIZE];
                         blobref.clone_from_slice(&v[..]);
                         blobs.push(blobref);
-                        if blobs.len() == 0xffffffff { break };
+                        if blobs.len() == 0xffffffff {
+                            break;
+                        };
                         match limits {
-                            None => {},
-                            Some(l) => if blobs.len() as u32 >= l { break }
+                            None => {}
+                            Some(l) => {
+                                if blobs.len() as u32 >= l {
+                                    break;
+                                }
+                            }
                         }
                     }
                 }

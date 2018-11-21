@@ -2,6 +2,7 @@ use std::{fmt, str::{FromStr}, ops::{Deref}};
 use hash::{Blake2b256};
 use cbor_event::{self, de::RawCbor};
 use util::try_from_slice::TryFromSlice;
+use super::normal::SscPayload;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -117,7 +118,7 @@ impl Default for SoftwareVersion {
 }
 
 #[derive(Debug, Clone)]
-pub struct BlockHeaderAttributes(cbor_event::Value);
+pub struct BlockHeaderAttributes(pub cbor_event::Value);
 
 #[derive(Debug, Clone)]
 pub struct HeaderExtraData {
@@ -137,12 +138,38 @@ impl HeaderExtraData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SscProof {
     Commitments(Blake2b256, Blake2b256),
     Openings(Blake2b256, Blake2b256),
     Shares(Blake2b256, Blake2b256),
     Certificate(Blake2b256)
+}
+
+impl SscProof {
+    pub fn generate(ssc: &SscPayload) -> Self {
+        match ssc {
+            SscPayload::CommitmentsPayload(commitments, vss_certs) => {
+                let h1 = Blake2b256::new(&cbor!(&commitments).unwrap());
+                let h2 = vss_certs.hash_for_proof();
+                SscProof::Commitments(h1, h2)
+            },
+            SscPayload::OpeningsPayload(openings_map, vss_certs) => {
+                let h1 = Blake2b256::new(&cbor!(&openings_map).unwrap());
+                let h2 = vss_certs.hash_for_proof();
+                SscProof::Openings(h1, h2)
+            },
+            SscPayload::SharesPayload(shares_map, vss_certs) => {
+                let h1 = Blake2b256::new(&cbor!(&shares_map).unwrap());
+                let h2 = vss_certs.hash_for_proof();
+                SscProof::Shares(h1, h2)
+            },
+            SscPayload::CertificatesPayload(vss_certs) => {
+                let h = vss_certs.hash_for_proof();
+                SscProof::Certificate(h)
+            },
+        }
+    }
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -151,6 +178,11 @@ pub struct ChainDifficulty(u64);
 impl fmt::Display for ChainDifficulty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl From<u64> for ChainDifficulty {
+    fn from(f: u64) -> Self {
+        ChainDifficulty(f)
     }
 }
 

@@ -1,6 +1,7 @@
 use block::*;
-use self::normal::{VssCertificates, BlockSignature, ProxySignature, BodyProof, SscPayload};
+use self::normal::{VssCertificates, BodyProof};
 use self::update;
+use self::sign::{BlockSignature, MainToSign};
 use tx;
 use coin;
 use address;
@@ -8,7 +9,6 @@ use hash;
 use config::{ProtocolMagic};
 use cbor_event::{self, se};
 use std::{collections::{BTreeSet, HashSet}, fmt, error};
-use merkle;
 use tags;
 use hdwallet::{Signature};
 use fee;
@@ -35,7 +35,6 @@ pub enum Error {
     WrongExtraDataProof,
     WrongBoundaryProof,
     WrongMagic,
-    WrongMerkleRoot,
     WrongMpcProof,
     WrongRedeemTxId,
     WrongTxProof,
@@ -81,7 +80,6 @@ impl fmt::Display for Error {
             WrongExtraDataProof => write!(f, "extra data proof is invalid"),
             WrongBoundaryProof => write!(f, "boundary proof is invalid"),
             WrongMagic => write!(f, "magic number is invalid"),
-            WrongMerkleRoot => write!(f, "merkle root is invalid"),
             WrongMpcProof => write!(f, "MPC proof is invalid"),
             WrongTxProof => write!(f, "transaction proof is invalid"),
             WrongUpdateProof => write!(f, "update proof is invalid"),
@@ -186,91 +184,19 @@ impl Verify for normal::Block {
         // check update
         body.update.verify(protocol_magic)?;
 
-        // check tx merkle root
-        let mut txs = vec![];
-        for txaux in body.tx.iter() {
-            txs.push(&txaux.tx);
-        }
-        let merkle_root = merkle::MerkleTree::new(&txs).get_root_hash();
-        if merkle_root != hdr.body_proof.tx.root {
-            return Err(Error::WrongMerkleRoot);
-        }
+        // compare the proofs generated from the body directly
+        let proof = BodyProof::generate_from_body(&body);
 
-        // check tx proof
-        if hdr.body_proof.tx.number as usize != body.tx.len() {
+        if proof.tx != hdr.body_proof.tx {
             return Err(Error::WrongTxProof);
         }
-
-        let mut witnesses = vec![];
-        for txaux in body.tx.iter() {
-            let mut in_witnesses = vec![];
-            for in_witness in txaux.witness.iter() {
-                in_witnesses.push(in_witness.clone());
-            }
-            witnesses.push(tx::TxWitness::from(in_witnesses));
+        if proof.mpc != hdr.body_proof.mpc {
+            return Err(Error::WrongMpcProof);
         }
-        if hash::Blake2b256::new(&cbor!(&tx::TxWitnesses::new(witnesses)).unwrap()) != hdr.body_proof.tx.witnesses_hash {
-            return Err(Error::WrongTxProof);
-        }
-
-        // check mpc proof
-        match hdr.body_proof.mpc {
-            SscProof::Commitments(h1, h2) => {
-                match &body.ssc {
-                    SscPayload::CommitmentsPayload(commitments, vss_certs) => {
-                        if hash::Blake2b256::new(&cbor!(&commitments).unwrap()) != h1
-                            || hash_vss_certs(&vss_certs) != h2
-                        {
-                            return Err(Error::WrongMpcProof);
-                        }
-                    },
-                    _ => return Err(Error::WrongMpcProof)
-                };
-            },
-            SscProof::Openings(h1, h2) => {
-                match &body.ssc {
-                    SscPayload::OpeningsPayload(openings_map, vss_certs) => {
-                        if hash::Blake2b256::new(&cbor!(&openings_map).unwrap()) != h1
-                            || hash_vss_certs(&vss_certs) != h2
-                        {
-                            return Err(Error::WrongMpcProof);
-                        }
-                    },
-                    _ => return Err(Error::WrongMpcProof)
-                };
-            },
-            SscProof::Shares(h1, h2) => {
-                match &body.ssc {
-                    SscPayload::SharesPayload(shares_map, vss_certs) => {
-                        if hash::Blake2b256::new(&cbor!(&shares_map).unwrap()) != h1
-                            || hash_vss_certs(&vss_certs) != h2
-                        {
-                            return Err(Error::WrongMpcProof);
-                        }
-                    },
-                    _ => return Err(Error::WrongMpcProof)
-                };
-            },
-            SscProof::Certificate(h) => {
-                match &body.ssc {
-                    SscPayload::CertificatesPayload(vss_certs) => {
-                        if hash_vss_certs(&vss_certs) != h
-                        {
-                            return Err(Error::WrongMpcProof);
-                        }
-                    },
-                    _ => return Err(Error::WrongMpcProof)
-                };
-            },
-        };
-
-        // check delegation proof
-        if hash::Blake2b256::new(&cbor!(&body.delegation).unwrap()) != hdr.body_proof.proxy_sk {
+        if proof.delegation != hdr.body_proof.delegation {
             return Err(Error::WrongDelegationProof);
         }
-
-        // check update proof
-        if hash::Blake2b256::new(&cbor!(&body.update).unwrap()) != hdr.body_proof.update {
+        if proof.update != hdr.body_proof.update {
             return Err(Error::WrongUpdateProof);
         }
 
@@ -292,15 +218,9 @@ impl Verify for normal::Block {
                 }
 
                 // verify the signature
-                let to_sign = MainToSign {
-                    previous_header: &hdr.previous_header,
-                    body_proof: &hdr.body_proof,
-                    slot: &hdr.consensus.slot_id,
-                    chain_difficulty: &hdr.consensus.chain_difficulty,
-                    extra_data: &hdr.extra_data,
-                };
+                let to_sign = MainToSign::from_header(&hdr);
 
-                if !verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig, &to_sign) {
+                if !to_sign.verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig) {
                     return Err(Error::BadBlockSig);
                 }
             }
@@ -320,54 +240,6 @@ impl Verify for update::UpdatePayload {
 
         Ok(())
     }
-}
-
-fn hash_vss_certs(vss_certs: &VssCertificates) -> hash::Blake2b256 {
-    let mut buf = vec![];
-    vss_certs.serialize_for_proof(se::Serializer::new(&mut buf)).unwrap();
-    hash::Blake2b256::new(&buf)
-}
-
-#[derive(Debug, Clone)]
-struct MainToSign<'a>
-{
-    previous_header: &'a HeaderHash,
-    body_proof: &'a BodyProof,
-    slot: &'a EpochSlotId,
-    chain_difficulty: &'a ChainDifficulty,
-    extra_data: &'a HeaderExtraData,
-}
-
-impl<'a> cbor_event::se::Serialize for MainToSign<'a> {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(5))?
-            .serialize(&self.previous_header)?
-            .serialize(&self.body_proof)?
-            .serialize(&self.slot)?
-            .serialize(&self.chain_difficulty)?
-            .serialize(&self.extra_data)
-    }
-}
-
-pub fn verify_proxy_sig<T>(
-    protocol_magic: ProtocolMagic,
-    tag: tags::SigningTag,
-    proxy_sig: &ProxySignature,
-    data: &T)
-    -> bool
-    where T: se::Serialize
-{
-    let mut buf = vec!['0' as u8, '1' as u8];
-
-    buf.extend(proxy_sig.psk.issuer_pk.as_ref());
-
-    se::Serializer::new(&mut buf)
-        .serialize(&(tag as u8)).unwrap()
-        .serialize(&protocol_magic).unwrap()
-        .serialize(data).unwrap();
-
-    proxy_sig.psk.delegate_pk.verify(
-        &buf, &Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
 }
 
 impl Verify for tx::TxAux {
@@ -526,6 +398,7 @@ impl Verify for update::UpdateVote {
 mod tests {
     use std::str::FromStr;
     use block::*;
+    use self::normal::DlgPayload;
     use config::{ProtocolMagic};
     use std::mem;
     use coin;
@@ -682,7 +555,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx.pop();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongMerkleRoot);
+            expect_error(&verify_block(pm, &hash, &blk), Error::WrongTxProof);
         }
 
         // invalidate the tx proof
@@ -789,7 +662,7 @@ mod tests {
         {
             let mut blk = blk2.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.delegation = cbor_event::Value::U64(123);
+                mblk.body.delegation = DlgPayload(cbor_event::Value::U64(123));
             }
             expect_error(&verify_block(pm, &hash2, &blk), Error::WrongDelegationProof);
         }

@@ -10,21 +10,22 @@ use hash;
 
 pub type Utxos = BTreeMap<TxoPointer, TxOut>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ChainState {
     // FIXME: maybe we should just keep a ref to GenesisData?  Though
     // I guess at least the fee policy could change in an update.
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
 
-    pub prev_block: HeaderHash,
-    pub prev_date: Option<BlockDate>,
+    pub last_block: HeaderHash,
+    pub last_date: Option<BlockDate>,
     pub slot_leaders: Vec<address::StakeholderId>,
     pub utxos: Utxos,
+    pub chain_length: u64,
 
     // Some stats.
     pub nr_transactions: u64,
-    pub spend_txos: u64,
+    pub spent_txos: u64,
 }
 
 impl ChainState {
@@ -53,29 +54,14 @@ impl ChainState {
         ChainState {
             protocol_magic: genesis_data.protocol_magic,
             fee_policy: genesis_data.fee_policy,
-            prev_block: genesis_data.genesis_prev.clone(),
-            prev_date: None,
+            last_block: genesis_data.genesis_prev.clone(),
+            last_date: None,
             slot_leaders: vec![],
             utxos,
+            chain_length: 0,
             nr_transactions: 0,
-            spend_txos: 0,
+            spent_txos: 0,
         }
-    }
-
-    /// Initialize the chain state at the start of an epoch from the
-    /// utxo state at the end of the previous epoch, and the last
-    /// block hash / block date in that epoch.
-    pub fn new_from_epoch_start(
-        genesis_data: &GenesisData,
-        last_block: HeaderHash,
-        last_date: BlockDate,
-        utxos: Utxos) -> Self
-    {
-        let mut chain_state = ChainState::new(genesis_data);
-        chain_state.prev_block = last_block;
-        chain_state.prev_date = Some(last_date);
-        chain_state.utxos = utxos;
-        chain_state
     }
 
     /// Verify a block in the context of the chain. Regardless of
@@ -88,8 +74,9 @@ impl ChainState {
 
         add_error(&mut res, self.do_verify(block_hash, blk));
 
-        self.prev_block = block_hash.clone();
-        self.prev_date = Some(blk.get_header().get_blockdate());
+        self.last_block = block_hash.clone();
+        self.last_date = Some(blk.get_header().get_blockdate());
+        self.chain_length += 1;
 
         match blk {
 
@@ -116,22 +103,22 @@ impl ChainState {
         // Perform stateless checks.
         verify_block(self.protocol_magic, block_hash, blk)?;
 
-        if blk.get_header().get_previous_header() != self.prev_block {
+        if blk.get_header().get_previous_header() != self.last_block {
             return Err(Error::WrongPreviousBlock)
         }
 
         // Check the block date.
         let date = blk.get_header().get_blockdate();
 
-        match self.prev_date {
-            Some(prev_date) => {
-                if date <= prev_date {
+        match self.last_date {
+            Some(last_date) => {
+                if date <= last_date {
                     return Err(Error::BlockDateInPast)
                 }
 
                 // If this is a genesis block, it should be the next
                 // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid() != (prev_date.get_epochid() + if date.is_boundary() { 1 } else { 0 }) {
+                if date.get_epochid() != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 }) {
                     return Err(Error::BlockDateInFuture)
                 }
             }
@@ -195,7 +182,7 @@ impl ChainState {
                 }
                 Some(txout) => {
 
-                    self.spend_txos += 1;
+                    self.spent_txos += 1;
 
                     let witness_address = match in_witness {
 

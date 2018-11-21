@@ -7,11 +7,14 @@ pub mod types;
 pub mod boundary; /* boundary block related value */
 pub mod normal; /* normal block related value */
 pub mod block;
+pub mod date;
+pub mod sign;
 pub mod verify;
 pub mod verify_chain;
 pub mod update;
 
 pub use block::types::*;
 pub use block::block::*;
+pub use block::date::BlockDate;
 pub use block::verify::*;
 pub use block::verify_chain::*;

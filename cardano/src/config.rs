@@ -12,6 +12,7 @@ use coin;
 use redeem;
 use address;
 use std::collections::BTreeMap;
+use std::time::{SystemTime, Duration};
 
 /// this is the protocol magic number
 ///
@@ -117,6 +118,8 @@ impl Default for Config {
 pub struct GenesisData {
     pub genesis_prev: block::HeaderHash,
     pub epoch_stability_depth: usize, // a.k.a. 'k'
+    pub start_time: SystemTime,
+    pub slot_duration: Duration,
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine

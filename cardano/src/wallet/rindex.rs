@@ -316,6 +316,11 @@ impl RootKey {
         Ok(RootKey::new(xprv, derivation_scheme))
     }
 
+    /// Converts into the inner `XPrv` value
+    pub fn into_xprv(self) -> XPrv {
+        self.root_key
+    }
+
     pub fn address_generator(&self) -> AddressGenerator<XPrv>
     {
         AddressGenerator::<XPrv>::new(self.root_key.clone(), self.derivation_scheme)

@@ -31,17 +31,8 @@ impl Arbitrary for Wrapper<config::NetworkMagic> {
 
 impl Arbitrary for Wrapper<coin::Coin> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        let mut coin = coin::Coin::zero();
-        while {
-            let v = <u64 as Arbitrary>::arbitrary(g);
-            if let Ok(r) = coin::Coin::new(v) {
-                coin = r;
-                false
-            } else {
-                true
-            }
-        } {}
-        coin.into()
+        let value = u64::arbitrary(g) % coin::MAX_COIN;
+        coin::Coin::new(value).unwrap().into()
     }
 }
 

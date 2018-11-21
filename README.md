@@ -44,12 +44,7 @@ In the mean time, it is possible to add the project using git submodules:
 
 And then by adding the following to your Cargo.toml:
 
-```[dependencies]
-cardano = { path = "cardano-deps/cardano" }```
-
-
-## Notes
-
-The rust code contains `cryptoxide/` a fork of [rust-crypto](https://github.com/DaGenix/rust-crypto)
-without the dependencies that cannot be build easily in a `wasm` environment, and minus the
-algorithms that are not useful for cardano.
+```
+[dependencies]
+cardano = { path = "cardano-deps/cardano" }
+```

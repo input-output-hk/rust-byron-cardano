@@ -1,16 +1,25 @@
+use cardano::block::{BlockDate, EpochId, ChainState};
+use cardano::config::{GenesisData};
+use cardano::util::hex;
 use std::fs;
-use std::io::{Read};
-use cardano::util::{hex};
-use cardano::block::{BlockDate, EpochId};
-use utxo::{UtxoState, write_utxos};
+use std::io::Read;
+use chain_state;
 
-use super::{Result, Error, Storage, StorageConfig, PackHash, packreader_init, packreader_block_next, header_to_blockhash};
-use storage_units::utils::tmpfile;
-use storage_units::utils::tmpfile::{TmpFile};
+use super::{
+    header_to_blockhash, packreader_block_next, packreader_init, Error, PackHash, Result, Storage,
+    StorageConfig,
+};
 use storage_units::utils::error::StorageError;
+use storage_units::utils::tmpfile;
+use storage_units::utils::tmpfile::TmpFile;
 use storage_units::{packfile, reffile};
 
-pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, refpack: &reffile::Lookup, epochid: EpochId) {
+pub fn epoch_create_with_refpack(
+    config: &StorageConfig,
+    packref: &PackHash,
+    refpack: &reffile::Lookup,
+    epochid: EpochId,
+) {
     let dir = config.get_epoch_dir(epochid);
     fs::create_dir_all(dir).unwrap();
 
@@ -19,13 +28,17 @@ pub fn epoch_create_with_refpack(config: &StorageConfig, packref: &PackHash, ref
 
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
     refpack.write(&mut tmpfile).unwrap();
-    tmpfile.render_permanent(&config.get_epoch_refpack_filepath(epochid)).unwrap();
+    tmpfile
+        .render_permanent(&config.get_epoch_refpack_filepath(epochid))
+        .unwrap();
 }
 
-pub fn epoch_create(storage: &Storage, packref: &PackHash,
-                    epochid: EpochId,
-                    utxo_state: Option<&UtxoState>) {
-
+pub fn epoch_create(
+    storage: &Storage,
+    packref: &PackHash,
+    epochid: EpochId,
+    chain_state: Option<(&ChainState, &GenesisData)>,
+) {
     // read the pack and append the block hash as we find them in the refpack.
     let mut rp = reffile::Lookup::new();
     let mut reader = packreader_init(&storage.config, packref);
@@ -55,12 +68,14 @@ pub fn epoch_create(storage: &Storage, packref: &PackHash,
     // write the refpack
     let mut tmpfile = TmpFile::create(storage.config.get_epoch_dir(epochid)).unwrap();
     rp.write(&mut tmpfile).unwrap();
-    tmpfile.render_permanent(&storage.config.get_epoch_refpack_filepath(epochid)).unwrap();
+    tmpfile
+        .render_permanent(&storage.config.get_epoch_refpack_filepath(epochid))
+        .unwrap();
 
     // write the utxos
-    if let Some(utxo_state) = utxo_state {
-        assert_eq!(utxo_state.last_date.get_epochid(), epochid);
-        write_utxos(storage, &utxo_state.last_block, &utxo_state.last_date, &utxo_state.utxos).unwrap();
+    if let Some((chain_state, genesis_data)) = chain_state {
+        assert_eq!(chain_state.last_date.unwrap(), BlockDate::Boundary(epochid));
+        chain_state::write_chain_state(storage, genesis_data, chain_state).unwrap();
     }
 
     // write the pack pointer
@@ -75,7 +90,10 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: EpochId) -> Result<PackH
     let mut file = fs::File::open(&pack_filepath)?;
     let _read = file.read_to_end(&mut content).unwrap();
 
-    let p = String::from_utf8(content.clone()).ok().and_then(|r| hex::decode(&r).ok()).unwrap();
+    let p = String::from_utf8(content.clone())
+        .ok()
+        .and_then(|r| hex::decode(&r).ok())
+        .unwrap();
     let mut ph = [0u8; super::HASH_SIZE];
     ph.clone_from_slice(&p[..]);
 
@@ -91,9 +109,16 @@ pub fn epoch_open_packref(config: &StorageConfig, epochid: EpochId) -> Result<re
 /// Try to open a packfile Reader on a specific epoch
 ///
 /// if there's no pack at this address, then nothing is return
-pub fn epoch_open_pack_reader(config: &StorageConfig, epochid: EpochId) -> Result<Option<packfile::Reader<fs::File>>> {
+pub fn epoch_open_pack_reader(
+    config: &StorageConfig,
+    epochid: EpochId,
+) -> Result<Option<packfile::Reader<fs::File>>> {
     match epoch_read_pack(config, epochid) {
-        Err(Error::StorageError(StorageError::IoError(ref err))) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(None),
+        Err(Error::StorageError(StorageError::IoError(ref err)))
+            if err.kind() == ::std::io::ErrorKind::NotFound =>
+        {
+            Ok(None)
+        }
         Err(err) => Err(err),
         Ok(epoch_ref) => {
             let reader = packreader_init(config, &epoch_ref);
@@ -122,7 +147,11 @@ pub fn epoch_read(config: &StorageConfig, epochid: EpochId) -> Result<(PackHash,
 pub fn epoch_exists(config: &StorageConfig, epochid: EpochId) -> Result<bool> {
     match epoch_read_pack(config, epochid) {
         Ok(_) => Ok(true),
-        Err(Error::StorageError(StorageError::IoError(ref err))) if err.kind() == ::std::io::ErrorKind::NotFound => Ok(false),
-        Err(err) => Err(err)
+        Err(Error::StorageError(StorageError::IoError(ref err)))
+            if err.kind() == ::std::io::ErrorKind::NotFound =>
+        {
+            Ok(false)
+        }
+        Err(err) => Err(err),
     }
 }
