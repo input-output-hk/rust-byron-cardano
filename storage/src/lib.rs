@@ -153,6 +153,10 @@ impl Storage {
             },
         }
     }
+
+    pub fn add_lookup(&mut self, packhash: PackHash, lookup: indexfile::Lookup) {
+        self.lookups.insert(packhash, lookup);
+    }
 }
 
 fn tmpfile_create_type(storage: &Storage, filetype: StorageFileType) -> TmpFile {

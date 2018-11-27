@@ -24,7 +24,7 @@ fn net_sync_to<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
-    storage: &Storage,
+    storage: &mut Storage,
     tip_header: &BlockHeader)
     -> Result<()>
 {
@@ -212,7 +212,7 @@ pub fn net_sync<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
-    storage: &Storage,
+    storage: &mut Storage,
     sync_once: bool)
     -> Result<()>
 {
@@ -300,14 +300,15 @@ fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoc
 }
 
 fn finish_epoch(
-    storage: &Storage,
+    storage: &mut Storage,
     genesis_data: &GenesisData,
     epoch_writer_state: EpochWriterState)
 {
     let epoch_id = epoch_writer_state.epoch_id;
     let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
-    let (_, tmpfile) = pack::create_index(&storage, &index);
+    let (lookup, tmpfile) = pack::create_index(&storage, &index);
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash)).unwrap();
+    storage.add_lookup(packhash, lookup);
     let epoch_time_elapsed = epoch_writer_state.write_start_time.elapsed().unwrap();
 
     if epoch_id > 0 {
