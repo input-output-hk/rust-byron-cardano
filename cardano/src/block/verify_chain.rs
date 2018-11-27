@@ -19,6 +19,7 @@ pub struct ChainState {
 
     pub last_block: HeaderHash,
     pub last_date: Option<BlockDate>,
+    pub last_boundary_block: Option<HeaderHash>,
     pub slot_leaders: Vec<address::StakeholderId>,
     pub utxos: Utxos,
     pub chain_length: u64,
@@ -56,6 +57,7 @@ impl ChainState {
             fee_policy: genesis_data.fee_policy,
             last_block: genesis_data.genesis_prev.clone(),
             last_date: None,
+            last_boundary_block: None,
             slot_leaders: vec![],
             utxos,
             chain_length: 0,
@@ -76,11 +78,13 @@ impl ChainState {
 
         self.last_block = block_hash.clone();
         self.last_date = Some(blk.get_header().get_blockdate());
+        // FIXME: count boundary blocks as part of the chain length?
         self.chain_length += 1;
 
         match blk {
 
             Block::BoundaryBlock(blk) => {
+                self.last_boundary_block = Some(block_hash.clone());
                 self.slot_leaders = blk.body.slot_leaders.clone();
             },
 

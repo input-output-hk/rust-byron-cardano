@@ -265,6 +265,7 @@ pub fn block_read_location(
     }
 }
 
+// FIXME: return Result, and remove variants in cardano-cli and cardano-http-bridge.
 pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<RawBlock> {
     match block_location(storage, hash) {
         None => None,
