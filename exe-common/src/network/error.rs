@@ -16,6 +16,7 @@ pub enum Error {
     HttpError(String, hyper::StatusCode),
     NoSuchBlock(HeaderHash),
     StorageError(storage::Error),
+    BlockError(cardano::block::Error),
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -35,6 +36,9 @@ impl From<cbor_event::Error> for Error {
 impl From<storage::Error> for Error {
     fn from(e: storage::Error) -> Self { Error::StorageError(e) }
 }
+impl From<cardano::block::Error> for Error {
+    fn from(e: cardano::block::Error) -> Self { Error::BlockError(e) }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -47,6 +51,7 @@ impl fmt::Display for Error {
             Error::HttpError(err, code) => write!(f, "HTTP error {}: {}", code, err),
             Error::NoSuchBlock(hash) => write!(f, "Requested block {} does not exist", hash),
             Error::StorageError(_) => write!(f, "Storage error"),
+            Error::BlockError(_) => write!(f, "Block error"),
         }
     }
 }
@@ -62,6 +67,7 @@ impl error::Error for Error {
             Error::HttpError(_, _) => None,
             Error::NoSuchBlock(_) => None,
             Error::StorageError(ref err) => Some(err),
+            Error::BlockError(ref err) => Some(err),
         }
     }
 }
