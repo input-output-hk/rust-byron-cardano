@@ -31,16 +31,26 @@ impl Reader {
         self.next()
     }
 
+    /// Return the next hash, skipping empty slots, or None if we're
+    /// at the end.
     pub fn next(&mut self) -> io::Result<Option<BlockHash>> {
         let mut buf = [0; HASH_SIZE];
-        self.handle.read_exact(&mut buf)?;
-        // if all 0, then it's a empty slot otherwise return
-        for v in buf.iter() {
-            if *v != 0 {
-                return Ok(Some(buf));
+        loop {
+            // FIXME: buffer I/O.
+            match self.handle.read_exact(&mut buf) {
+                Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof
+                    => { return Ok(None); },
+                Err(err) => { return Err(err); },
+                Ok(()) => {
+                    // if all 0, then it's a empty slot otherwise return
+                    for v in buf.iter() {
+                        if *v != 0 {
+                            return Ok(Some(buf));
+                        }
+                    }
+                }
             }
         }
-        return Ok(None);
     }
 }
 
