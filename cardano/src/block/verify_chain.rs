@@ -103,8 +103,9 @@ impl ChainState {
         // Perform stateless checks.
         verify_block(self.protocol_magic, block_hash, blk)?;
 
-        if blk.get_header().get_previous_header() != self.last_block {
-            return Err(Error::WrongPreviousBlock)
+        let prev_block = blk.get_header().get_previous_header();
+        if prev_block != self.last_block {
+            return Err(Error::WrongPreviousBlock(prev_block, self.last_block.clone()))
         }
 
         // Check the block date.
