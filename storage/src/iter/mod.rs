@@ -67,7 +67,7 @@ impl<'a> Iterator for IteratorType<'a> {
             IteratorType::Loose(ref storage, ref mut range) => {
                 if let Some(bh) = range.next() {
                     let location = BlockLocation::Loose;
-                    Some(Ok(block_read_location(&storage, &location, &bh)?))
+                    Some(Ok(block_read_location(&storage, &location, &bh.into()).unwrap()))
                 } else {
                     None
                 }
@@ -90,13 +90,12 @@ pub struct Iter<'a> {
 }
 impl<'a> Iter<'a> {
     pub fn new(storage: &'a Storage, from: HeaderHash, to: HeaderHash) -> Result<Self> {
-        let iterator = match block_location(&storage, &from) {
-            None => panic!(),
-            Some(BlockLocation::Loose) => {
+        let iterator = match block_location(&storage, &from)? {
+            BlockLocation::Loose => {
                 let mut range = Range::new(storage, *from.clone(), *to.clone()).unwrap(); // TODO
                 IteratorType::Loose(storage, range)
             }
-            Some(location) => {
+            location => {
                 let block_header = block_read_location(&storage, &location, &from)
                     .unwrap()
                     .decode()?
