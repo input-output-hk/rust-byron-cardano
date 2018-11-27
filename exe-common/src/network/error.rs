@@ -3,6 +3,7 @@ use protocol::{self, ntt};
 use hyper;
 use cbor_event;
 use cardano::block::HeaderHash;
+use cardano_storage as storage;
 
 #[derive(Debug)]
 pub enum Error {
@@ -13,7 +14,8 @@ pub enum Error {
     HyperError(hyper::Error),
     ConnectionTimedOut,
     HttpError(String, hyper::StatusCode),
-    NoSuchBlock(HeaderHash)
+    NoSuchBlock(HeaderHash),
+    StorageError(storage::Error),
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -30,6 +32,9 @@ impl From<ntt::Error> for Error {
 impl From<cbor_event::Error> for Error {
     fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
 }
+impl From<storage::Error> for Error {
+    fn from(e: storage::Error) -> Self { Error::StorageError(e) }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -41,6 +46,7 @@ impl fmt::Display for Error {
             Error::ConnectionTimedOut => write!(f, "connection time out"),
             Error::HttpError(err, code) => write!(f, "HTTP error {}: {}", code, err),
             Error::NoSuchBlock(hash) => write!(f, "Requested block {} does not exist", hash),
+            Error::StorageError(_) => write!(f, "Storage error"),
         }
     }
 }
@@ -55,6 +61,7 @@ impl error::Error for Error {
             Error::ConnectionTimedOut => None,
             Error::HttpError(_, _) => None,
             Error::NoSuchBlock(_) => None,
+            Error::StorageError(ref err) => Some(err),
         }
     }
 }
