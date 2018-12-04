@@ -1,4 +1,3 @@
-use std::mem;
 use block::*;
 use address;
 use config::{ProtocolMagic, GenesisData};
@@ -278,6 +277,6 @@ impl ChainState {
 // return the first.
 fn add_error(res: &mut Result<(), Error>, err: Result<(), Error>) {
     if res.is_ok() && err.is_err() {
-        mem::replace(res, err);
+        *res = err;
     }
 }

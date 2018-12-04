@@ -146,7 +146,6 @@ impl TxBuilder {
                 // being the maximum that can be paid, considering
                 // that the actual value is closer to max - cost(output_policy)
                 let mut out_total_max = max;
-                let mut out_total_min = Coin::zero();
                 let mut out_total = start;
                 loop {
                     let mut temp = self.clone();
@@ -163,7 +162,7 @@ impl TxBuilder {
                         // Input > Output+Fees. Effectively paying too much into fees
                         // need to assign more to out_total
                         CoinDiff::Positive(_x) => {
-                            out_total_min = out_total;
+                            let out_total_min = out_total;
                             if (out_total_min + Coin::unit())? == out_total_max {
                                 self.apply_policy_with(o, out_total);
                                 return Ok(outs)
