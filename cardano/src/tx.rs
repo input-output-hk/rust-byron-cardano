@@ -524,6 +524,7 @@ mod tests {
     use hdpayload;
     use hdwallet;
     use cbor_event::{self, de::RawCbor};
+    use config::{NetworkMagic};
 
     const SEED: [u8;hdwallet::SEED_SIZE] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
