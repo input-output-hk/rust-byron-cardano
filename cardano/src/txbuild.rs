@@ -211,8 +211,8 @@ impl TxBuilder {
 
     /// Try to return the differential between the outputs (including fees) and the inputs
     /// * Zero: we have a balanced transaction where inputs === outputs
-    /// * Negative: more inputs money is needed, sum of output and fees is greater than sum of inputs
-    /// * Positive: more outputs+fees than inputs, leading to more money associated to fees.
+    /// * Negative: (outputs+fees) > inputs. More inputs required.
+    /// * Positive: inputs > (outputs+fees). Excessive input goes to larger fee.
     pub fn balance<'a, F: FeeAlgorithm>(&self, f: &'a F) -> Result<CoinDiff> {
         let fee = self.calculate_fee(f)?;
         let inputs = self.get_input_total()?;
