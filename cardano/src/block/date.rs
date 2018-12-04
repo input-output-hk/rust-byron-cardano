@@ -149,7 +149,7 @@ impl Error for BlockDateParseError {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlockDate, BlockDateParseError};
+    use super::{BlockDate};
     use block::EpochSlotId;
     use std::error::Error;
 

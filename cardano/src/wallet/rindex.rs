@@ -506,7 +506,7 @@ mod test {
     use crate::wallet::scheme::{Wallet};
     use crate::wallet::rindex;
     use crate::tx::{TxoPointer};
-    use crate::config::ProtocolMagic;
+    use crate::config::{ProtocolMagic, NetworkMagic};
 
     const MNEMONICS : &'static str = "edge club wrap where juice nephew whip entry cover bullet cause jeans";
     const ENTROPY   : [u8;16] = [ 0x46, 0x45, 0x87, 0xf8, 0x7d, 0x27, 0x8d, 0x28, 0xbe, 0x9a, 0x5d, 0x31, 0x83, 0xc4, 0x92, 0x3b];
@@ -529,7 +529,8 @@ mod test {
                 , Addressing::new(0, 2)
                 , Addressing::new(0, 3)
                 , Addressing::new(0, 4)
-                ].iter()
+                ].iter(),
+                PROTOCOL_MAGIC.clone().into(),
             ).collect()
         };
         static ref INPUTS : Vec<txutils::TxoPointerInfo<Addressing>> = {
