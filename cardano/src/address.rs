@@ -20,6 +20,7 @@ use cbor;
 use cbor_event::{self, de::RawCbor, se::{Serializer}};
 use hdwallet::{XPub};
 use hdpayload::{HDAddressPayload};
+use config::{NetworkMagic};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -190,25 +191,30 @@ impl cbor_event::de::Deserialize for StakeDistribution {
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Attributes {
     pub derivation_path: Option<HDAddressPayload>,
-    pub stake_distribution: StakeDistribution
+    pub stake_distribution: StakeDistribution,
+    pub network_magic: NetworkMagic,
     // attr_remains ? whatever...
 }
 impl Attributes {
-    pub fn new_bootstrap_era(hdap: Option<HDAddressPayload>) -> Self {
+    pub fn new_bootstrap_era(hdap: Option<HDAddressPayload>, network_magic: NetworkMagic) -> Self {
         Attributes {
             derivation_path: hdap,
-            stake_distribution: StakeDistribution::BootstrapEraDistr
+            stake_distribution: StakeDistribution::BootstrapEraDistr,
+            network_magic,
         }
     }
-    pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>) -> Self {
+    pub fn new_single_key(pubk: &XPub, hdap: Option<HDAddressPayload>, network_magic: NetworkMagic) -> Self {
         Attributes {
             derivation_path: hdap,
-            stake_distribution: StakeDistribution::new_single_key(pubk)
+            stake_distribution: StakeDistribution::new_single_key(pubk),
+            network_magic,
         }
     }
 }
+
 const ATTRIBUTE_NAME_TAG_STAKE : u64 = 0;
 const ATTRIBUTE_NAME_TAG_DERIVATION : u64 = 1;
+const ATTRIBUTE_NAME_TAG_NETWORK_MAGIC : u64 = 2;
 
 impl cbor_event::se::Serialize for Attributes {
     fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
@@ -217,10 +223,8 @@ impl cbor_event::se::Serialize for Attributes {
             &StakeDistribution::BootstrapEraDistr => {},
             &StakeDistribution::SingleKeyDistr(_) => {len += 1 }
         };
-        match &self.derivation_path {
-            &None => { },
-            &Some(_) => { len += 1 }
-        };
+        if let Some(_) = &self.derivation_path { len += 1 };
+        if let NetworkMagic::Magic(_) = &self.network_magic { len += 1 };
         let serializer = serializer.write_map(cbor_event::Len::Len(len))?;
         let serializer = match &self.stake_distribution {
             &StakeDistribution::BootstrapEraDistr => { serializer },
@@ -229,13 +233,22 @@ impl cbor_event::se::Serialize for Attributes {
                           .serialize(&self.stake_distribution)?
             },
         };
-        match &self.derivation_path {
-            &None => { Ok(serializer) },
+        let serializer = match &self.derivation_path {
+            &None => { serializer },
             &Some(ref dp) => {
                 serializer.write_unsigned_integer(ATTRIBUTE_NAME_TAG_DERIVATION)?
-                          .serialize(dp)
+                          .serialize(dp)?
             }
-        }
+        };
+        let serializer = match &self.network_magic {
+            &NetworkMagic::NoMagic => { serializer },
+            &NetworkMagic::Magic(network_magic) => {
+                serializer
+                    .write_unsigned_integer(ATTRIBUTE_NAME_TAG_NETWORK_MAGIC)?
+                    .write_bytes(cbor!(&(network_magic as u32))?)?
+            },
+        };
+        Ok(serializer)
     }
 }
 impl cbor_event::de::Deserialize for Attributes {
@@ -249,18 +262,27 @@ impl cbor_event::de::Deserialize for Attributes {
         };
         let mut stake_distribution = StakeDistribution::BootstrapEraDistr;
         let mut derivation_path = None;
+        let mut network_magic = NetworkMagic::NoMagic;
         while len > 0 {
             let key = raw.unsigned_integer()?;
             match key {
-                0 => stake_distribution = cbor_event::de::Deserialize::deserialize(raw)?,
-                1 => derivation_path    = Some(cbor_event::de::Deserialize::deserialize(raw)?),
+                ATTRIBUTE_NAME_TAG_STAKE =>
+                    stake_distribution = raw.deserialize()?,
+                ATTRIBUTE_NAME_TAG_DERIVATION =>
+                    derivation_path    = Some(raw.deserialize()?),
+                ATTRIBUTE_NAME_TAG_NETWORK_MAGIC => {
+                    // Yes, this is an integer encoded as CBOR encoded as Bytes in CBOR.
+                    let bytes = raw.bytes()?;
+                    let n = RawCbor::from(bytes.bytes()).deserialize::<u32>()?;
+                    network_magic = NetworkMagic::Magic(n);
+                }
                 _ => {
                     return Err(cbor_event::Error::CustomError(format!("invalid Attribute key {}", key)));
                 }
             }
             len -= 1;
         }
-        Ok(Attributes { derivation_path, stake_distribution })
+        Ok(Attributes { derivation_path, stake_distribution, network_magic })
     }
 }
 
@@ -453,8 +475,10 @@ impl ExtendedAddr {
     }
 
     // bootstrap era + no hdpayload address
-    pub fn new_simple(xpub: XPub) -> Self {
-        ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(xpub), Attributes::new_bootstrap_era(None))
+    pub fn new_simple(xpub: XPub, network_magic: NetworkMagic) -> Self {
+        ExtendedAddr::new(AddrType::ATPubKey,
+                          SpendingData::PubKeyASD(xpub),
+                          Attributes::new_bootstrap_era(None, network_magic))
     }
 
     pub fn to_address(&self) -> Addr {
@@ -622,7 +646,7 @@ mod tests {
         let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
-        let attrs = Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
@@ -648,7 +672,7 @@ mod tests {
         let hdap = HDAddressPayload::from_vec(vec![1,2,3,4,5]);
         let addr_type = AddrType::ATPubKey;
         let sd = SpendingData::PubKeyASD(pk.clone());
-        let attrs = Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = ExtendedAddr::new(addr_type, sd, attrs);
 
@@ -708,6 +732,7 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
     }
 
     #[test]
@@ -722,6 +747,7 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
     }
 
     #[test]
@@ -732,7 +758,20 @@ mod tests {
 
         assert_eq!(r.addr_type, AddrType::ATPubKey);
         assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::NoMagic);
         assert_eq!(bytes, cbor!(r).unwrap())
+    }
+
+    #[test]
+    fn decode_address_network_magic() {
+        let bytes = include_bytes!("../test-vectors/network-magic.cbor");
+
+        let r = ExtendedAddr::try_from_slice(bytes).unwrap();
+
+        assert_eq!(r.addr_type, AddrType::ATPubKey);
+        assert_eq!(r.attributes.stake_distribution, StakeDistribution::BootstrapEraDistr);
+        assert_eq!(r.attributes.network_magic, NetworkMagic::Magic(1097911063));
+        assert_eq!(&bytes[..], &cbor!(r).unwrap()[..])
     }
 }
 

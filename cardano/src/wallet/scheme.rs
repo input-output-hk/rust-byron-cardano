@@ -8,7 +8,7 @@ use coin::{Coin};
 use input_selection::{self, InputSelectionAlgorithm};
 use txutils::{Input, OutputPolicy};
 use txbuild::{self, TxBuilder, TxFinalized};
-use config::{ProtocolMagic};
+use config::{ProtocolMagic, NetworkMagic};
 use address::{ExtendedAddr};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -152,6 +152,6 @@ pub trait Account {
     /// from a wallet point of view.
     type Addressing;
 
-    fn generate_addresses<'a, I>(&'a self, addresses: I) -> Vec<ExtendedAddr>
+    fn generate_addresses<'a, I>(&'a self, addresses: I, network_magic: NetworkMagic) -> Vec<ExtendedAddr>
         where I: Iterator<Item = &'a Self::Addressing>;
 }

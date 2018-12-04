@@ -295,7 +295,7 @@ impl Verify for tx::TxAux {
         // verify that txids of redeem inputs correspond to the redeem pubkey
         for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.iter()) {
             if let tx::TxInWitness::RedeemWitness(pubkey, _) = in_witness {
-                if tx::redeem_pubkey_to_txid(&pubkey).0 != txin.id {
+                if tx::redeem_pubkey_to_txid(&pubkey, protocol_magic).0 != txin.id {
                     return Err(Error::WrongRedeemTxId);
                 }
             }
@@ -452,7 +452,7 @@ mod tests {
         let hash = HeaderHash::from_str(&HEADER_HASH1).unwrap();
         let rblk = RawBlock(BLOCK1.to_vec());
         let blk = rblk.decode().unwrap();
-        let pm = ProtocolMagic::new(PROTOCOL_MAGIC);
+        let pm = ProtocolMagic::from(PROTOCOL_MAGIC);
         assert!(verify_block(pm, &hash, &blk).is_ok());
 
         let hash2 = HeaderHash::from_str(&HEADER_HASH2).unwrap();
@@ -466,7 +466,7 @@ mod tests {
         assert!(verify_block(pm, &hash3, &blk3).is_ok());
 
         // invalidate the protocol magic
-        expect_error(&verify_block(ProtocolMagic::new(123), &hash, &blk), Error::WrongMagic);
+        expect_error(&verify_block(ProtocolMagic::from(123), &hash, &blk), Error::WrongMagic);
 
         // use a wrong header hash
         {

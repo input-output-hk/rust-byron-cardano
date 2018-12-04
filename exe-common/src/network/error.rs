@@ -2,6 +2,7 @@ use std::{io, fmt, error};
 use protocol::{self, ntt};
 use hyper;
 use cbor_event;
+use cardano::block::HeaderHash;
 
 #[derive(Debug)]
 pub enum Error {
@@ -12,6 +13,7 @@ pub enum Error {
     HyperError(hyper::Error),
     ConnectionTimedOut,
     HttpError(String, hyper::StatusCode),
+    NoSuchBlock(HeaderHash)
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self { Error::IoError(e) }
@@ -38,6 +40,7 @@ impl fmt::Display for Error {
             Error::HyperError(_) => write!(f, "Error in HTTP engine"),
             Error::ConnectionTimedOut => write!(f, "connection time out"),
             Error::HttpError(err, code) => write!(f, "HTTP error {}: {}", code, err),
+            Error::NoSuchBlock(hash) => write!(f, "Requested block {} does not exist", hash),
         }
     }
 }
@@ -51,6 +54,7 @@ impl error::Error for Error {
             Error::HyperError(ref err) => Some(err),
             Error::ConnectionTimedOut => None,
             Error::HttpError(_, _) => None,
+            Error::NoSuchBlock(_) => None,
         }
     }
 }

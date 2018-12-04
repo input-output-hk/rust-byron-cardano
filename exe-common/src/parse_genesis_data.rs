@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap};
 use std::io::Read;
 use serde_json;
-use cardano::{config, fee, block, coin, redeem};
+use cardano::{config, fee, block, coin, redeem, address};
 use base64;
 use std::time::{Duration, SystemTime};
+use std::str::FromStr;
 
 use genesisdata::raw;
 
@@ -31,10 +32,18 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
         let v = data.blockVersionData.slotDuration.parse::<u64>().unwrap();
         Duration::from_millis(v)
     };
+
     let start_time = {
         let unix_displacement = Duration::from_secs(data.startTime);
         SystemTime::UNIX_EPOCH + unix_displacement
     };
+
+    let mut non_avvm_balances = BTreeMap::new();
+    for (address, balance) in &data.nonAvvmBalances {
+        non_avvm_balances.insert(
+            address::ExtendedAddr::from_str(address).unwrap().into(),
+            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
+    }
 
     config::GenesisData {
         genesis_prev,
@@ -44,7 +53,7 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
             parse_fee_constant(&data.blockVersionData.txFeePolicy.summand),
             parse_fee_constant(&data.blockVersionData.txFeePolicy.multiplier)),
         avvm_distr,
-        non_avvm_balances: BTreeMap::new(), // FIXME
+        non_avvm_balances,
         start_time,
         slot_duration,
     }

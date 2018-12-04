@@ -1,7 +1,7 @@
 use std::{ffi, ptr};
 use std::os::raw::{c_char, c_int};
 
-use cardano::{address::ExtendedAddr, util::{base58, try_from_slice::{TryFromSlice}}};
+use cardano::{address::ExtendedAddr, util::{base58, try_from_slice::{TryFromSlice}}, config::{ProtocolMagic}};
 
 use super::{AddressPtr, XPubPtr};
 
@@ -36,9 +36,9 @@ pub extern "C" fn cardano_address_is_valid(c_address: *mut c_char) -> c_int {
 }
 
 #[no_mangle]
-pub extern "C" fn cardano_address_new_from_pubkey(c_xpubkey: XPubPtr) -> AddressPtr {
+pub extern "C" fn cardano_address_new_from_pubkey(c_xpubkey: XPubPtr, protocol_magic: ProtocolMagic) -> AddressPtr {
     let xpub = unsafe { c_xpubkey.as_ref() }.expect("Not a NULL PTR");
-    let ea = ExtendedAddr::new_simple(xpub.clone());
+    let ea = ExtendedAddr::new_simple(xpub.clone(), protocol_magic.into());
     let address = Box::new(ea);
     Box::into_raw(address)
 }

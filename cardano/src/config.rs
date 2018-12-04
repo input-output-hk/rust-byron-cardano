@@ -10,6 +10,7 @@ use block;
 use fee;
 use coin;
 use redeem;
+use address;
 use std::collections::BTreeMap;
 use std::time::{SystemTime, Duration};
 
@@ -31,7 +32,7 @@ use std::time::{SystemTime, Duration};
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 #[repr(C)]
-pub struct ProtocolMagic(u32);
+pub struct ProtocolMagic(u32); // FIXME: should be i32
 impl ProtocolMagic {
     #[deprecated]
     pub fn new(val: u32) -> Self { ProtocolMagic(val) }
@@ -60,6 +61,32 @@ impl cbor_event::Deserialize for ProtocolMagic {
     fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
         let v = raw.unsigned_integer()? as u32;
         Ok(ProtocolMagic::from(v))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
+pub enum NetworkMagic {
+    NoMagic,
+    Magic(u32), // FIXME: should by i32
+}
+
+impl From<ProtocolMagic> for NetworkMagic {
+    fn from(pm: ProtocolMagic) -> Self {
+        NetworkMagic::from(*pm)
+    }
+}
+
+impl From<u32> for NetworkMagic {
+    fn from(pm: u32) -> Self {
+        // FIXME: is there a better way to determine whether to emit
+        // NetworkMagic? There is a requiresNetworkMagic field in
+        // lib/configuration.yaml, but not in the genesis data.
+        if pm == *ProtocolMagic::default() || pm == 633343913 {
+            NetworkMagic::NoMagic
+        } else {
+            NetworkMagic::Magic(pm)
+        }
     }
 }
 
@@ -96,5 +123,5 @@ pub struct GenesisData {
     pub protocol_magic: ProtocolMagic,
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
-    pub non_avvm_balances: BTreeMap<String, coin::Coin>,
+    pub non_avvm_balances: BTreeMap<address::Addr, coin::Coin>,
 }

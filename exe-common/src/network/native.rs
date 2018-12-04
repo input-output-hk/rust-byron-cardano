@@ -168,7 +168,10 @@ impl Api for OpenPeer {
         let b = GetBlock::only(&hash).execute(&mut self.0)
             .expect("to get one block at least");
 
-        Ok(RawBlock::from_dat(b[0].as_ref().to_vec()))
+        match b.first() {
+            Some(b) => Ok(RawBlock::from_dat(b.as_ref().to_vec())),
+            None => Err(Error::NoSuchBlock(hash.clone()))
+        }
     }
 
     fn get_blocks<F>( &mut self

@@ -24,11 +24,11 @@ use coin::{self, Coin};
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
 
-pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey) -> (TxId, ExtendedAddr) {
+pub fn redeem_pubkey_to_txid(pubkey: &redeem::PublicKey, protocol_magic: ProtocolMagic) -> (TxId, ExtendedAddr) {
     let address = ExtendedAddr::new(
         AddrType::ATRedeem,
         SpendingData::RedeemASD(*pubkey),
-        Attributes::new_bootstrap_era(None));
+        Attributes::new_bootstrap_era(None, protocol_magic.into()));
     let txid = Blake2b256::new(&cbor!(&address).unwrap());
     (txid, address)
 }
@@ -524,6 +524,7 @@ mod tests {
     use hdpayload;
     use hdwallet;
     use cbor_event::{self, de::RawCbor};
+    use config::{NetworkMagic};
 
     const SEED: [u8;hdwallet::SEED_SIZE] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
@@ -560,7 +561,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
 
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
         let value = Coin::new(42).unwrap();
@@ -606,7 +607,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), NetworkMagic::NoMagic);
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
         let value = Coin::new(42).unwrap();
         let txout = TxOut::new(ea, value);
@@ -655,7 +656,7 @@ mod tests {
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
         let addr_type = address::AddrType::ATPubKey;
         let sd = address::SpendingData::PubKeyASD(pk.clone());
-        let attrs = address::Attributes::new_single_key(&pk, Some(hdap));
+        let attrs = address::Attributes::new_single_key(&pk, Some(hdap), protocol_magic.into());
         let ea = address::ExtendedAddr::new(addr_type, sd, attrs);
 
         // create a transaction
