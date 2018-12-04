@@ -497,3 +497,75 @@ impl<'a, I> Iterator for AddressIterator<XPub, I>
         self.iter.next().map(|path| { self.generator.address(path) })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::wallet::scheme::{Wallet};
+    use crate::wallet::rindex;
+    use crate::tx::{TxoPointer};
+    use crate::config::ProtocolMagic;
+
+    const MNEMONICS : &'static str = "edge club wrap where juice nephew whip entry cover bullet cause jeans";
+    const ENTROPY   : [u8;16] = [ 0x46, 0x45, 0x87, 0xf8, 0x7d, 0x27, 0x8d, 0x28, 0xbe, 0x9a, 0x5d, 0x31, 0x83, 0xc4, 0x92, 0x3b];
+
+    lazy_static! {
+        static ref OUTPUT : ExtendedAddr = {
+            use std::str::FromStr;
+            ExtendedAddr::from_str("Ae2tdPwUPEZ81gMkWH2PgB55y18pp2hxDxM2cmzBNnQtyLhJHqUp622zVgz").unwrap()
+        };
+        static ref PROTOCOL_MAGIC : ProtocolMagic = ProtocolMagic::default();
+        static ref ADDRESSES : Vec<ExtendedAddr> = {
+            let mut wallet = rindex::Wallet::from_daedalus_mnemonics(
+                DerivationScheme::V1,
+                &bip39::dictionary::ENGLISH,
+                MNEMONICS
+            ).unwrap();
+            let generator = wallet.create_account("", 0).address_generator();
+            generator.iter_with(
+                [ Addressing::new(0, 1)
+                , Addressing::new(0, 2)
+                , Addressing::new(0, 3)
+                , Addressing::new(0, 4)
+                ].iter()
+            ).collect()
+        };
+        static ref INPUTS : Vec<txutils::TxoPointerInfo<Addressing>> = {
+            vec![
+                random_txo_pointer_info(0,1),
+                random_txo_pointer_info(0,2),
+                random_txo_pointer_info(0,3),
+                random_txo_pointer_info(0,4),
+            ]
+        };
+    }
+
+    fn random_txo_pointer_info(account: u32, index: u32) -> txutils::TxoPointerInfo<Addressing> {
+        let txin = TxoPointer {
+            id: TxId::new("".as_bytes()),
+            index: 0
+        };
+
+        txutils::TxoPointerInfo {
+            txin: txin,
+            value: Coin::from(1_000_000u32),
+            address_identified: Addressing::new(account, index),
+        }
+    }
+
+    #[test]
+    fn test_move_rindex_wallet() {
+        let wallet = rindex::Wallet::from_daedalus_mnemonics(
+            DerivationScheme::V1,
+            &bip39::dictionary::ENGLISH,
+            MNEMONICS
+        ).unwrap();
+        let policy = OutputPolicy::One(OUTPUT.clone());
+        let (txaux, _) = wallet.move_transaction(*PROTOCOL_MAGIC, &INPUTS, &policy).unwrap();
+
+        for (witness, address) in txaux.witness.iter().zip(ADDRESSES.iter()) {
+            assert!(witness.verify_address(address));
+            assert!(witness.verify_tx(*PROTOCOL_MAGIC, &txaux.tx));
+        }
+    }
+}
