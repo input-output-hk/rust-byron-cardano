@@ -62,7 +62,7 @@ impl Wallet {
     /// There are many things that can go wrong when implementing this
     /// process, it is all done correctly by this function: prefer using
     /// this function.
-    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: &str) -> Result<Self>
         where D: bip39::dictionary::Language
     {
         let root_key = RootKey::from_daedalus_mnemonics(derivation_scheme, dic, mnemonics_phrase)?;
@@ -295,10 +295,10 @@ impl RootKey {
             derivation_scheme
         }
     }
-    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: String) -> Result<Self>
+    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: &str) -> Result<Self>
         where D: bip39::dictionary::Language
     {
-        let mnemonics = bip39::Mnemonics::from_string(dic, &mnemonics_phrase)?;
+        let mnemonics = bip39::Mnemonics::from_string(dic, mnemonics_phrase)?;
         let entropy = bip39::Entropy::from_mnemonics(&mnemonics)?;
 
         let entropy_bytes = cbor_event::Value::Bytes(Vec::from(entropy.as_ref()));
