@@ -261,6 +261,14 @@ pub fn block_read(storage: &Storage, hash: &HeaderHash) -> Result<RawBlock> {
     block_read_location(storage, &block_location(storage, hash)?, hash)
 }
 
+pub fn block_exists(storage: &Storage, hash: &HeaderHash) -> Result<bool> {
+    match block_location(storage, hash) {
+        Ok(_) => Ok(true),
+        Err(Error::HashNotFound(_)) => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
 enum ReverseSearch {
     Continue,
     Found,
