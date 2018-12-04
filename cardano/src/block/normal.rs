@@ -654,3 +654,18 @@ impl cbor_event::de::Deserialize for Consensus {
         Ok(Consensus {slot_id, leader_key, chain_difficulty, block_signature })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hash::Blake2b256;
+
+    #[test]
+    fn debug_dlg_proof() {
+        let h = DlgProof(Blake2b256::new(&[0; 32]));
+        assert_eq!(
+            format!("{:?}", h),
+            "DlgProof(Blake2b256(0x89eb0d6a8a691dae2cd15ed0369931ce0a949ecafa5c3f93f8121833646e15c3))",
+        );
+    }
+}
