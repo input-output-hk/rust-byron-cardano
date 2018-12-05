@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio_io::AsyncRead;
-use cardano::tx::{Tx};
+use cardano::tx::{TxAux};
 use super::{nt, ConnectionState, LightWeightConnectionState, Message, NodeId, Response, KeepAlive};
 use super::{Block, BlockHeaders, GetBlockHeaders, GetBlocks};
 
@@ -52,7 +52,7 @@ pub enum Inbound {
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     GetBlocks(nt::LightWeightConnectionId, GetBlocks),
     Block(nt::LightWeightConnectionId, Response<Block, String>),
-    SendTransaction(nt::LightWeightConnectionId, Tx),
+    SendTransaction(nt::LightWeightConnectionId, TxAux),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
     Data(nt::LightWeightConnectionId, Bytes),

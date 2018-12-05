@@ -1,7 +1,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use std::ops::Deref;
 
-use cardano::{block::{self, HeaderHash}, tx::Tx};
+use cardano::{block::{self, HeaderHash}, tx::TxAux};
 use cbor_event::{
     self,
     de::{self, RawCbor},
@@ -91,7 +91,7 @@ pub enum Message {
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     GetBlocks(nt::LightWeightConnectionId, GetBlocks),
     Block(nt::LightWeightConnectionId, Response<Block, String>),
-    SendTransaction(nt::LightWeightConnectionId, Tx),
+    SendTransaction(nt::LightWeightConnectionId, TxAux),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
     Bytes(nt::LightWeightConnectionId, Bytes),
