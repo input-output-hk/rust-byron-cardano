@@ -44,7 +44,7 @@ impl Iterator for Iter {
 pub struct Epochs<'a> {
     storage_config: &'a StorageConfig,
 
-    epoch_id: EpochId,
+    epoch_id: EpochId
 }
 impl<'a> Epochs<'a> {
     pub fn new(storage: &'a StorageConfig) -> Self {
@@ -65,8 +65,8 @@ impl<'a> Iterator for Epochs<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let r = epoch_open_pack_reader(&self.storage_config, self.epoch_id);
         match r {
-            Err(e) => Some(Err(e)),
-            Ok(None) => None,
+            Err(e) => { Some(Err(e)) },
+            Ok(None) => { None },
             Ok(Some(r)) => {
                 let iter = Iter(r);
                 self.epoch_id += 1;

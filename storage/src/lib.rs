@@ -37,7 +37,7 @@ pub enum Error {
 
     RefPackUnexpectedBoundary(SlotId),
 
-    HashNotFound(HeaderHash),
+    BlockNotFound(BlockHash),
 
     // ** Epoch pack assumption errors
     EpochExpectingBoundary,
@@ -73,7 +73,7 @@ impl fmt::Display for Error {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
             Error::BlockError(_) => write!(f, "Block error"),
-            Error::HashNotFound(hh) => write!(f, "Hash not found {}", hh),
+            Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
@@ -89,7 +89,7 @@ impl error::Error for Error {
             Error::StorageError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
-            Error::HashNotFound(_) => None,
+            Error::BlockNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
@@ -144,14 +144,12 @@ impl Storage {
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
         match tag::read_hash(&self, &tag) {
             None => Err(Error::NoSuchTag),
-            Some(hash) => match block_read(&self, &hash) {
-                None => {
-                    warn!("tag '{}' refers to non-existent block {}", tag, hash);
-                    Err(Error::NoSuchTag)
-                }
-                Some(block) => Ok(block.decode()?),
-            },
+            Some(hash) => Ok(block_read(&self, &hash)?.decode()?)
         }
+    }
+
+    pub fn add_lookup(&mut self, packhash: PackHash, lookup: indexfile::Lookup) {
+        self.lookups.insert(packhash, lookup);
     }
 }
 
@@ -212,7 +210,7 @@ pub enum BlockLocation {
     Loose,
 }
 
-pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocation> {
+pub fn block_location(storage: &Storage, hash: &BlockHash) -> Result<BlockLocation> {
     for (packref, lookup) in storage.lookups.iter() {
         let (start, nb) = lookup.fanout.get_indexer_by_hash(hash);
         match nb {
@@ -223,25 +221,25 @@ pub fn block_location(storage: &Storage, hash: &BlockHash) -> Option<BlockLocati
                     let mut idx_file = indexfile::Reader::init(idx_filepath).unwrap();
                     match idx_file.search(&lookup.params, hash, start, nb) {
                         None => {}
-                        Some(iloc) => return Some(BlockLocation::Packed(packref.clone(), iloc)),
+                        Some(iloc) => return Ok(BlockLocation::Packed(packref.clone(), iloc)),
                     }
                 }
             }
         }
     }
     if blob::exist(storage, hash) {
-        return Some(BlockLocation::Loose);
+        return Ok(BlockLocation::Loose);
     }
-    None
+    Err(Error::BlockNotFound(hash.clone()))
 }
 
 pub fn block_read_location(
     storage: &Storage,
     loc: &BlockLocation,
     hash: &BlockHash,
-) -> Option<RawBlock> {
+) -> Result<RawBlock> {
     match loc {
-        &BlockLocation::Loose => blob::read(storage, hash).ok(),
+        &BlockLocation::Loose => blob::read(storage, hash),
         &BlockLocation::Packed(ref packref, ref iofs) => match storage.lookups.get(packref) {
             None => {
                 unreachable!();
@@ -252,19 +250,22 @@ pub fn block_read_location(
                 let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
                 let pack_filepath = storage.config.get_pack_filepath(packref);
                 let mut pack_file = packfile::Seeker::init(pack_filepath).unwrap();
-                pack_file
-                    .get_at_offset(pack_offset)
-                    .ok()
-                    .and_then(|x| Some(RawBlock(x)))
+                Ok(RawBlock(pack_file
+                    .get_at_offset(pack_offset)?))
             }
         },
     }
 }
 
-pub fn block_read(storage: &Storage, hash: &BlockHash) -> Option<RawBlock> {
+pub fn block_read(storage: &Storage, hash: &BlockHash) -> Result<RawBlock> {
+    block_read_location(storage, &block_location(storage, hash)?, hash)
+}
+
+pub fn block_exists(storage: &Storage, hash: &BlockHash) -> Result<bool> {
     match block_location(storage, hash) {
-        None => None,
-        Some(loc) => block_read_location(storage, &loc, hash),
+        Ok(_) => Ok(true),
+        Err(Error::BlockNotFound(_)) => Ok(false),
+        Err(err) => Err(err),
     }
 }
 
@@ -306,7 +307,7 @@ where
 
 pub fn resolve_date_to_blockhash(
     storage: &Storage,
-    tip: &BlockHash,
+    tip: &HeaderHash,
     date: &BlockDate,
 ) -> Result<Option<BlockHash>> {
     let epoch = date.get_epochid();
@@ -320,10 +321,10 @@ pub fn resolve_date_to_blockhash(
             Ok(r)
         }
         Err(_) => {
-            let tip_rblk = block_read(&storage, tip);
-            match tip_rblk {
-                None => return Ok(None),
-                Some(rblk) => {
+            match block_read(&storage, tip) {
+                Err(Error::BlockNotFound(_)) => Ok(None),
+                Err(err) => Err(err),
+                Ok(rblk) => {
                     let blk = rblk.decode()?;
                     let found = block_reverse_search_from_tip(storage, &blk, |x| {
                         match x.get_header().get_blockdate().cmp(date) {

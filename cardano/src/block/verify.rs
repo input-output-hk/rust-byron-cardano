@@ -42,7 +42,7 @@ pub enum Error {
     ZeroCoin,
 
     // Used by verify_block_in_chain.
-    WrongPreviousBlock,
+    WrongPreviousBlock(HeaderHash, HeaderHash), // actual, expected
     NonExistentSlot,
     BlockDateInPast,
     BlockDateInFuture,
@@ -84,7 +84,7 @@ impl fmt::Display for Error {
             WrongTxProof => write!(f, "transaction proof is invalid"),
             WrongUpdateProof => write!(f, "update proof is invalid"),
             ZeroCoin => write!(f, "output with no credited value"),
-            WrongPreviousBlock => write!(f, "block has wrong parent"),
+            WrongPreviousBlock(actual, expected) => write!(f, "block has parent {} while {} was expected", actual, expected),
             NonExistentSlot => write!(f, "slot does not have a leader"),
             BlockDateInPast => write!(f, "block's slot or epoch is earlier than its parent"),
             BlockDateInFuture => write!(f, "block is in a future epoch"),

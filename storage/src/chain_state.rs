@@ -10,7 +10,7 @@ use storage_units::utils::{magic, error::StorageError};
 use epoch;
 
 const FILE_TYPE: magic::FileType = 0x5554584f; // = UTXO
-const VERSION: magic::Version = 2;
+const VERSION: magic::Version = 3;
 
 /// Write the chain state to disk. To reduce storage requirements (in
 /// particular of the utxo state), we actually write a delta between
@@ -19,20 +19,22 @@ const VERSION: magic::Version = 2;
 /// epoch) files. The parent of an epoch is that epoch with the least
 /// significant bit cleared. For example, for epoch 37, the patch
 /// sequence is 0 -> 32 -> 36 -> 37.
+///
+/// Note: we currently assume that chain_state.last_block is the last
+/// block of an epoch.
 pub fn write_chain_state(
     storage: &Storage,
     genesis_data: &GenesisData,
     chain_state: &ChainState,
 ) -> Result<()> {
     let last_date = chain_state.last_date.unwrap();
-    assert!(last_date.is_boundary());
     let epoch = last_date.get_epochid();
 
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Epoch);
 
     let parent_hash = match parent_for_epoch(epoch) {
         None => genesis_data.genesis_prev.clone(),
-        Some(parent_epoch) => get_first_block_of_epoch(storage, parent_epoch)?
+        Some(parent_epoch) => get_last_block_of_epoch(storage, parent_epoch)?
     };
 
     write_chain_state_delta(
@@ -51,9 +53,11 @@ pub fn write_chain_state(
     Ok(())
 }
 
-/// Write the chain state delta between two arbitrary epochs, or write
-/// a full utxo dump if parent_epoch is None.
-fn write_chain_state_delta<W: Write>(
+const NR_FIELDS: u64 = 10;
+
+/// Write the chain state delta between chain_state and the state at
+/// 'parent_block'.
+pub fn write_chain_state_delta<W: Write>(
     storage: &Storage,
     genesis_data: &GenesisData,
     chain_state: &ChainState,
@@ -64,13 +68,15 @@ fn write_chain_state_delta<W: Write>(
 
     magic::write_header(writer, FILE_TYPE, VERSION)?;
 
-    let parent_utxos = read_chain_state(storage, genesis_data, parent_block)?.utxos;
+    let parent_chain_state = read_chain_state(storage, genesis_data, parent_block)?;
+    assert_eq!(&parent_chain_state.last_block, parent_block);
 
-    let (removed_utxos, added_utxos) = diff_maps(&parent_utxos, &chain_state.utxos);
+    let (removed_utxos, added_utxos) = diff_maps(&parent_chain_state.utxos, &chain_state.utxos);
 
     debug!(
-        "writing chain state delta {} -> {} ({:?}), total {} utxos, added {} utxos, removed {} utxos\n",
-        parent_block,
+        "writing chain state delta {} ({:?}) -> {} ({:?}), total {} utxos, added {} utxos, removed {} utxos\n",
+        parent_chain_state.last_block,
+        parent_chain_state.last_date,
         chain_state.last_block,
         chain_state.last_date,
         chain_state.utxos.len(),
@@ -79,7 +85,7 @@ fn write_chain_state_delta<W: Write>(
     );
 
     let serializer = se::Serializer::new(writer)
-        .write_array(Len::Len(9))?
+        .write_array(Len::Len(NR_FIELDS))?
         .serialize(&parent_block)?
         .serialize(&chain_state.last_block)?
         .serialize(&last_date.get_epochid())?
@@ -87,6 +93,7 @@ fn write_chain_state_delta<W: Write>(
             BlockDate::Boundary(_) => 0u16,
             BlockDate::Normal(s) => s.slotid + 1,
         })?
+        .serialize(&chain_state.last_boundary_block.as_ref().unwrap())?
         .serialize(&chain_state.chain_length)?
         .serialize(&chain_state.nr_transactions)?
         .serialize(&chain_state.spent_txos)?;
@@ -94,12 +101,6 @@ fn write_chain_state_delta<W: Write>(
     se::serialize_fixed_map(added_utxos.iter(), serializer)?;
 
     Ok(())
-}
-
-pub struct UtxoState {
-    pub last_block: HeaderHash,
-    pub last_date: BlockDate,
-    pub utxos: Utxos,
 }
 
 /// Reconstruct the full utxo state as of the specified block by
@@ -111,12 +112,17 @@ pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_has
 
     let mut chain_state = do_get_chain_state(storage, genesis_data, block_hash)?;
 
-    // We don't store the slot leaders because we can easily get
-    // them from the boundary block.
-    chain_state.slot_leaders = match block_read(storage, block_hash).unwrap().decode()? {
-        Block::BoundaryBlock(blk) => blk.body.slot_leaders.clone(),
-        _ => panic!("unexpected non-boundary block")
-    };
+    // We don't store the slot leaders because we can easily get them
+    // from the boundary block.
+    if let Some(last_boundary_block) = &chain_state.last_boundary_block {
+        chain_state.slot_leaders = match block_read(storage, last_boundary_block).unwrap().decode()? {
+            Block::BoundaryBlock(blk) => {
+                assert_eq!(blk.header.consensus.epoch, chain_state.last_date.unwrap().get_epochid());
+                blk.body.slot_leaders.clone()
+            },
+            _ => panic!("unexpected non-boundary block")
+        };
+    }
 
     Ok(chain_state)
 }
@@ -129,8 +135,6 @@ fn do_get_chain_state(
     let filename = storage.config.get_chain_state_filepath(block_hash);
 
     let file = decode_chain_state_file(&mut fs::File::open(&filename)?)?;
-
-    assert!(file.last_date.is_boundary());
 
     let mut chain_state = if file.parent != genesis_data.genesis_prev {
         do_get_chain_state(storage, genesis_data, &file.parent)?
@@ -152,6 +156,7 @@ fn do_get_chain_state(
 
     chain_state.last_block = file.last_block;
     chain_state.last_date = Some(file.last_date);
+    chain_state.last_boundary_block = Some(file.last_boundary_block);
     chain_state.chain_length = file.chain_length;
     chain_state.nr_transactions = file.nr_transactions;
     chain_state.spent_txos = file.spent_txos;
@@ -160,10 +165,11 @@ fn do_get_chain_state(
 }
 
 #[derive(Debug)]
-struct ChainStateFile {
+pub struct ChainStateFile {
     pub parent: HeaderHash,
     pub last_block: HeaderHash,
     pub last_date: BlockDate,
+    pub last_boundary_block: HeaderHash,
     pub chain_length: u64,
     pub nr_transactions: u64,
     pub spent_txos: u64,
@@ -171,7 +177,7 @@ struct ChainStateFile {
     pub added_utxos: Utxos,
 }
 
-fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
+pub fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
     magic::check_header(file, FILE_TYPE, VERSION, VERSION)?;
 
     let mut data = vec![];
@@ -179,7 +185,7 @@ fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
 
     let mut raw = de::RawCbor::from(&data);
 
-    raw.tuple(9, "chain state delta file")?;
+    raw.tuple(NR_FIELDS, "chain state delta file")?;
     let parent = raw.deserialize()?;
     let last_block = raw.deserialize()?;
     let epoch = raw.deserialize()?;
@@ -190,6 +196,7 @@ fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
             slotid: n - 1,
         }),
     };
+    let last_boundary_block = raw.deserialize()?;
     let chain_length = raw.deserialize()?;
     let nr_transactions = raw.deserialize()?;
     let spent_txos = raw.deserialize()?;
@@ -200,6 +207,7 @@ fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> {
         parent,
         last_block,
         last_date,
+        last_boundary_block,
         chain_length,
         nr_transactions,
         spent_txos,
@@ -274,9 +282,14 @@ where
     (removed, added)
 }
 
-pub fn get_first_block_of_epoch(storage: &Storage, epoch: EpochId) -> Result<HeaderHash> {
+pub fn get_last_block_of_epoch(storage: &Storage, epoch: EpochId) -> Result<HeaderHash> {
     // FIXME: don't rely on epoch refpacks since they may not be stable.
-    Ok(epoch::epoch_open_packref(&storage.config, epoch)?.next()?.unwrap().into())
+    let mut it = epoch::epoch_open_packref(&storage.config, epoch)?;
+    let mut last_block = None;
+    while let Some(x) = it.next()? {
+        last_block = Some(x);
+    }
+    Ok(last_block.unwrap().into())
 }
 
 /// Return the chain state at block 'block_hash'. This seeks backwards

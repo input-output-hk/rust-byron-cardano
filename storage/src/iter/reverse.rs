@@ -6,7 +6,7 @@ use cardano::block::{Block, HeaderHash};
 
 use std::iter;
 
-use super::super::{Error, Result};
+use super::super::{Result};
 
 /// reverse iterator over the block chain
 pub struct ReverseIter<'a> {
@@ -16,9 +16,7 @@ pub struct ReverseIter<'a> {
 impl<'a> ReverseIter<'a> {
     pub fn from(storage: &'a Storage, hh: HeaderHash) -> Result<Self> {
         let hash = hh.clone().into();
-        if let None = block_location(storage, &hash) {
-            return Err(Error::HashNotFound(hh));
-        }
+        block_location(storage, &hash)?;
         let ri = ReverseIter {
             storage: storage,
             current_block: Some(hh),
@@ -37,14 +35,10 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
 
         let hash = hh.clone().into();
         let loc = block_location(&self.storage, &hash).expect("block location");
-        match block_read_location(&self.storage, &loc, &hash) {
-            None => panic!("error while reading block {}", hh),
-            Some(blk) => {
-                let block = blk.decode().unwrap();
-                let hdr = block.get_header();
-                self.current_block = Some(hdr.get_previous_header());
-                Some(block)
-            }
-        }
+        let blk = block_read_location(&self.storage, &loc, &hash).unwrap();
+        let block = blk.decode().unwrap();
+        let hdr = block.get_header();
+        self.current_block = Some(hdr.get_previous_header());
+        Some(block)
     }
 }

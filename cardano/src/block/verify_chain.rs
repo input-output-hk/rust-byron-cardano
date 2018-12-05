@@ -1,4 +1,3 @@
-use std::mem;
 use block::*;
 use address;
 use config::{ProtocolMagic, GenesisData};
@@ -19,6 +18,7 @@ pub struct ChainState {
 
     pub last_block: HeaderHash,
     pub last_date: Option<BlockDate>,
+    pub last_boundary_block: Option<HeaderHash>,
     pub slot_leaders: Vec<address::StakeholderId>,
     pub utxos: Utxos,
     pub chain_length: u64,
@@ -56,6 +56,7 @@ impl ChainState {
             fee_policy: genesis_data.fee_policy,
             last_block: genesis_data.genesis_prev.clone(),
             last_date: None,
+            last_boundary_block: None,
             slot_leaders: vec![],
             utxos,
             chain_length: 0,
@@ -76,11 +77,13 @@ impl ChainState {
 
         self.last_block = block_hash.clone();
         self.last_date = Some(blk.get_header().get_blockdate());
+        // FIXME: count boundary blocks as part of the chain length?
         self.chain_length += 1;
 
         match blk {
 
             Block::BoundaryBlock(blk) => {
+                self.last_boundary_block = Some(block_hash.clone());
                 self.slot_leaders = blk.body.slot_leaders.clone();
             },
 
@@ -103,8 +106,9 @@ impl ChainState {
         // Perform stateless checks.
         verify_block(self.protocol_magic, block_hash, blk)?;
 
-        if blk.get_header().get_previous_header() != self.last_block {
-            return Err(Error::WrongPreviousBlock)
+        let prev_block = blk.get_header().get_previous_header();
+        if prev_block != self.last_block {
+            return Err(Error::WrongPreviousBlock(prev_block, self.last_block.clone()))
         }
 
         // Check the block date.
@@ -273,6 +277,6 @@ impl ChainState {
 // return the first.
 fn add_error(res: &mut Result<(), Error>, err: Result<(), Error>) {
     if res.is_ok() && err.is_err() {
-        mem::replace(res, err);
+        *res = err;
     }
 }

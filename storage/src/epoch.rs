@@ -44,6 +44,7 @@ pub fn epoch_create(
     let mut reader = packreader_init(&storage.config, packref);
 
     let mut current_slotid = BlockDate::Boundary(epochid);
+    let mut last_block = None;
     while let Some(rblk) = packreader_block_next(&mut reader) {
         let blk = rblk.decode().unwrap();
         let hdr = blk.get_header();
@@ -56,6 +57,8 @@ pub fn epoch_create(
         }
         rp.append_hash(header_to_blockhash(&hash));
         current_slotid = current_slotid.next();
+
+        last_block = Some(hash);
     }
 
     let got = reader.finalize();
@@ -66,21 +69,25 @@ pub fn epoch_create(
     fs::create_dir_all(dir).unwrap();
 
     // write the refpack
-    let mut tmpfile = TmpFile::create(storage.config.get_epoch_dir(epochid)).unwrap();
-    rp.write(&mut tmpfile).unwrap();
-    tmpfile
-        .render_permanent(&storage.config.get_epoch_refpack_filepath(epochid))
-        .unwrap();
-
-    // write the utxos
-    if let Some((chain_state, genesis_data)) = chain_state {
-        assert_eq!(chain_state.last_date.unwrap(), BlockDate::Boundary(epochid));
-        chain_state::write_chain_state(storage, genesis_data, chain_state).unwrap();
+    {
+        let mut tmpfile = TmpFile::create(storage.config.get_epoch_dir(epochid)).unwrap();
+        rp.write(&mut tmpfile).unwrap();
+        tmpfile
+            .render_permanent(&storage.config.get_epoch_refpack_filepath(epochid))
+            .unwrap();
     }
 
     // write the pack pointer
     let pack_filepath = storage.config.get_epoch_pack_filepath(epochid);
     tmpfile::atomic_write_simple(&pack_filepath, hex::encode(packref).as_bytes()).unwrap();
+
+    // write the chain state at the end of the epoch
+    // FIXME: should check that chain_state.last_block is actually the
+    // last block in the epoch.
+    if let Some((chain_state, genesis_data)) = chain_state {
+        assert_eq!(chain_state.last_block, last_block.unwrap());
+        chain_state::write_chain_state(storage, genesis_data, chain_state).unwrap();
+    }
 }
 
 pub fn epoch_read_pack(config: &StorageConfig, epochid: EpochId) -> Result<PackHash> {
