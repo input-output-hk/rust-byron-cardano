@@ -23,7 +23,7 @@ impl Range {
         }
 
         if !finished {
-            Err(Error::HashNotFound(to.into()))
+            Err(Error::BlockNotFound(to.into()))
         } else {
             Ok(Range(rp))
         }
