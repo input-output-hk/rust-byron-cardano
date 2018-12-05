@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio_io::AsyncRead;
-
+use cardano::tx::{Tx};
 use super::{nt, ConnectionState, LightWeightConnectionState, Message, NodeId, Response, KeepAlive};
 use super::{Block, BlockHeaders, GetBlockHeaders, GetBlocks};
 
@@ -52,6 +52,8 @@ pub enum Inbound {
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     GetBlocks(nt::LightWeightConnectionId, GetBlocks),
     Block(nt::LightWeightConnectionId, Response<Block, String>),
+    SendTransaction(nt::LightWeightConnectionId, Tx),
+    TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
     Data(nt::LightWeightConnectionId, Bytes),
 }
@@ -112,6 +114,12 @@ impl<T> InboundStream<T> {
             }
             Message::BlockHeaders(lwcid, bh) => {
                 self.forward_message(lwcid, Inbound::BlockHeaders, bh)
+            }
+            Message::SendTransaction(lwcid, st) => {
+                self.forward_message(lwcid, Inbound::SendTransaction, st)
+            }
+            Message::TransactionReceived(lwcid, r) => {
+                self.forward_message(lwcid, Inbound::TransactionReceived, r)
             }
             Message::GetBlocks(lwcid, gb) => self.forward_message(lwcid, Inbound::GetBlocks, gb),
             Message::Block(lwcid, b) => self.forward_message(lwcid, Inbound::Block, b),

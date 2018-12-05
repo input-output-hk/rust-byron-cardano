@@ -1,7 +1,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use std::ops::Deref;
 
-use cardano::block::{self, HeaderHash};
+use cardano::{block::{self, HeaderHash}, tx::Tx};
 use cbor_event::{
     self,
     de::{self, RawCbor},
@@ -91,6 +91,8 @@ pub enum Message {
     BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
     GetBlocks(nt::LightWeightConnectionId, GetBlocks),
     Block(nt::LightWeightConnectionId, Response<Block, String>),
+    SendTransaction(nt::LightWeightConnectionId, Tx),
+    TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
     Bytes(nt::LightWeightConnectionId, Bytes),
 }
@@ -123,6 +125,8 @@ impl Message {
             Message::GetBlocks(lwcid, gb) =>
                 Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb)),
             Message::Block(lwcid, b) => Data(lwcid, cbor!(&b).unwrap().into()),
+            Message::SendTransaction(lwcid, tx) => Data(lwcid, cbor!(&tx).unwrap().into()),
+            Message::TransactionReceived(lwcid, rep) => Data(lwcid, cbor!(&rep).unwrap().into()),
             Message::Subscribe(lwcid, keep_alive) => {
                 let keep_alive : u64 = if keep_alive { 43 } else { 42 };
                 Data(lwcid, MessageType::MsgSubscribe1.encode_with(&keep_alive))
