@@ -202,6 +202,14 @@ impl Storage {
         Err(Error::BlockNotFound(hash.clone()))
     }
 
+    pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
+        match self.block_location(hash) {
+            Ok(_) => Ok(true),
+            Err(Error::BlockNotFound(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn read_block_at(
         &self,
         loc: &BlockLocation,
@@ -309,14 +317,6 @@ pub mod blob {
 pub enum BlockLocation {
     Packed(PackHash, indexfile::IndexOffset),
     Loose(BlockHash),
-}
-
-pub fn block_exists(storage: &Storage, hash: &BlockHash) -> Result<bool> {
-    match storage.block_location(hash) {
-        Ok(_) => Ok(true),
-        Err(Error::BlockNotFound(_)) => Ok(false),
-        Err(err) => Err(err),
-    }
 }
 
 enum ReverseSearch {
