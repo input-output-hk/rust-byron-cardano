@@ -3,7 +3,20 @@ mod range;
 mod reverse;
 
 pub use self::range::Range;
+
+/// Constructs a `Range` iterator.
+///
+/// This function is meant for internal use.
+/// It's more convenient to use the `range` method of `Storage`.
+pub use self::range::iter as range_iter;
+
 pub use self::reverse::ReverseIter;
+
+/// Constructs a `ReverseIter` iterator.
+///
+/// This function is meant for internal use.
+/// It's more convenient to use the `reverse_from` method of `Storage`.
+pub use self::reverse::iter as reverse_iter;
 
 use super::Result;
 
@@ -74,6 +87,7 @@ impl<'a> Iterator for IteratorType<'a> {
     }
 }
 
+#[deprecated]
 pub struct Iter<'a> {
     storage: &'a Storage,
 
@@ -87,7 +101,9 @@ pub struct Iter<'a> {
     iterator: IteratorType<'a>
 }
 
+#[allow(deprecated)]
 impl<'a> Iter<'a> {
+    #[deprecated]
     pub fn new<H>(
         storage: &'a Storage,
         from: H,
@@ -106,7 +122,7 @@ impl<'a> Iter<'a> {
     ) -> Result<Self> {
         let iterator = match block_location(&storage, &from)? {
             BlockLocation::Loose => {
-                let mut range = Range::new(storage, from, to)?;
+                let mut range = range_iter(storage, from, to)?;
                 IteratorType::Loose(storage, range)
             }
             location => {
@@ -135,6 +151,8 @@ impl<'a> Iter<'a> {
         Ok(iter)
     }
 }
+
+#[allow(deprecated)]
 impl<'a> Iterator for Iter<'a> {
     type Item = Result<(RawBlock, Block)>;
 
@@ -165,8 +183,8 @@ impl<'a> Iterator for Iter<'a> {
         } else {
             match self.iterator.next() {
                 None => {
-                    if ! self.iterator.is_loose() {
-                        let mut range = Range::new(
+                    if !self.iterator.is_loose() {
+                        let mut range = range_iter(
                             &self.storage,
                             self.last_known_block_hash.clone().unwrap(),
                             self.ending_at.clone()

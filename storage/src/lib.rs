@@ -136,9 +136,17 @@ impl Storage {
         Ok(storage)
     }
 
-    /// construct a range between the given hash
+    /// Returns an iterator over blocks in the given block range.
+    ///
+    /// The range is given inclusively. The blocks are iterated in order from
+    /// earlier to later.
     pub fn range(&self, from: BlockHash, to: BlockHash) -> Result<iter::Range> {
-        iter::Range::new(self, from, to)
+        iter::range_iter(self, from, to)
+    }
+
+    /// Returns an iterator over blocks in reverse from the given header hash.
+    pub fn reverse_from(&self, hh: HeaderHash) -> Result<iter::ReverseIter> {
+        iter::reverse_iter(self, hh)
     }
 
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {

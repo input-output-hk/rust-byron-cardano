@@ -6,22 +6,33 @@ use cardano::block::{Block, HeaderHash};
 
 use std::iter;
 
-use super::super::{Result};
+use super::super::Result;
 
 /// reverse iterator over the block chain
 pub struct ReverseIter<'a> {
     storage: &'a Storage,
     current_block: Option<HeaderHash>,
 }
+
+pub fn iter<'a>(
+    storage: &'a Storage,
+    hh: HeaderHash
+) -> Result<ReverseIter<'a>> {
+    let hash = hh.clone().into();
+    if let Err(e) = block_location(storage, &hash) {
+        return Err(e);
+    }
+    let ri = ReverseIter {
+        storage: storage,
+        current_block: Some(hh),
+    };
+    Ok(ri)
+}
+
 impl<'a> ReverseIter<'a> {
+    #[deprecated(note = "use Storage::reverse_from")]
     pub fn from(storage: &'a Storage, hh: HeaderHash) -> Result<Self> {
-        let hash = hh.clone().into();
-        block_location(storage, &hash)?;
-        let ri = ReverseIter {
-            storage: storage,
-            current_block: Some(hh),
-        };
-        Ok(ri)
+        iter(storage, hh)
     }
 }
 impl<'a> iter::Iterator for ReverseIter<'a> {
