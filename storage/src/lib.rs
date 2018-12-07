@@ -329,7 +329,7 @@ pub fn resolve_date_to_blockhash(
             Ok(r)
         }
         Err(_) => {
-            match block_read(&storage, tip) {
+            match block_read(&storage, tip.as_hash_bytes()) {
                 Err(Error::BlockNotFound(_)) => Ok(None),
                 Err(err) => Err(err),
                 Ok(rblk) => {

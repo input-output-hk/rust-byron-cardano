@@ -45,7 +45,10 @@ pub fn write_chain_state(
         &mut tmpfile,
     )?;
 
-    tmpfile.render_permanent(&storage.config.get_chain_state_filepath(&chain_state.last_block))?;
+    let path = storage.config.get_chain_state_filepath(
+        chain_state.last_block.as_hash_bytes()
+    );
+    tmpfile.render_permanent(&path)?;
 
     // Check that we can reconstruct the state from disk.
     debug_assert!(&read_chain_state(storage, genesis_data, &chain_state.last_block)? == chain_state);
@@ -115,7 +118,8 @@ pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_has
     // We don't store the slot leaders because we can easily get them
     // from the boundary block.
     if let Some(last_boundary_block) = &chain_state.last_boundary_block {
-        chain_state.slot_leaders = match block_read(storage, last_boundary_block).unwrap().decode()? {
+        let hash = last_boundary_block.as_hash_bytes();
+        chain_state.slot_leaders = match block_read(storage, hash).unwrap().decode()? {
             Block::BoundaryBlock(blk) => {
                 assert_eq!(blk.header.consensus.epoch, chain_state.last_date.unwrap().get_epochid());
                 blk.body.slot_leaders.clone()
@@ -132,7 +136,7 @@ fn do_get_chain_state(
     genesis_data: &GenesisData,
     block_hash: &HeaderHash,
 ) -> Result<ChainState> {
-    let filename = storage.config.get_chain_state_filepath(block_hash);
+    let filename = storage.config.get_chain_state_filepath(block_hash.as_hash_bytes());
 
     let file = decode_chain_state_file(&mut fs::File::open(&filename)?)?;
 
@@ -310,7 +314,7 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
             Err(Error::StorageError(StorageError::IoError(ref err)))
                 if err.kind() == ::std::io::ErrorKind::NotFound =>
             {
-                let rblk = block_read(storage, &cur)
+                let rblk = block_read(storage, cur.as_hash_bytes())
                     .expect(&format!("reading block {}", cur));
                 let blk = rblk.decode().unwrap();
                 // FIXME: store 'blk' in blocks_to_apply? Would
@@ -329,7 +333,7 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
         assert_eq!(chain_state.last_block, cur);
 
         for hash in blocks_to_apply.iter().rev() {
-            let rblk = block_read(storage, &hash)
+            let rblk = block_read(storage, hash.as_hash_bytes())
                 .expect(&format!("reading block {}", hash));
             let blk = rblk.decode().unwrap();
             chain_state.verify_block(hash, &blk)?;
