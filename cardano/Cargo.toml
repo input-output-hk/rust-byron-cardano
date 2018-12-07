@@ -28,7 +28,6 @@ unicode-normalization = "0.1"
 quickcheck = "0.7"
 
 [features]
-default = ["bad-deref"]
-bad-deref = []
+default = []
 with-bench = []
 generic-serialization = ["serde", "serde_derive"]

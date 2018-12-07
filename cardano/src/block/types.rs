@@ -8,9 +8,6 @@ use std::{
     str::{FromStr},
 };
 
-#[cfg(feature = "bad-deref")]
-use std::ops::Deref;
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
    major:    u32,
@@ -51,11 +48,6 @@ impl TryFromSlice for HeaderHash {
     fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
         Ok(Self::from(Blake2b256::try_from_slice(slice)?))
     }
-}
-#[cfg(feature = "bad-deref")]
-impl Deref for HeaderHash {
-    type Target = <Blake2b256 as Deref>::Target;
-    fn deref(&self) -> &Self::Target { self.0.deref() }
 }
 impl AsRef<[u8]> for HeaderHash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }

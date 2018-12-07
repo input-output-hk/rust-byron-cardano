@@ -26,9 +26,6 @@ use std::{
     str::{FromStr},
 };
 
-#[cfg(feature = "bad-deref")]
-use std::ops::Deref;
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum AddrType {
@@ -116,11 +113,6 @@ impl TryFromSlice for StakeholderId {
     fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
         Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
-}
-#[cfg(feature = "bad-deref")]
-impl Deref for StakeholderId {
-    type Target = <Blake2b224 as Deref>::Target;
-    fn deref(&self) -> &Self::Target { self.0.deref() }
 }
 impl AsRef<[u8]> for StakeholderId {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
@@ -337,11 +329,6 @@ impl TryFromSlice for HashedSpendingData {
     fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
         Ok(Self::from(Blake2b224::try_from_slice(slice)?))
     }
-}
-#[cfg(feature = "bad-deref")]
-impl Deref for HashedSpendingData {
-    type Target = <Blake2b224 as Deref>::Target;
-    fn deref(&self) -> &Self::Target { self.0.deref() }
 }
 impl AsRef<[u8]> for HashedSpendingData {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }

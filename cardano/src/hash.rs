@@ -8,10 +8,6 @@ use std::{
     str::FromStr,
 };
 
-#[cfg(feature = "bad-deref")]
-use std::ops::Deref;
-
-
 use cryptoxide::digest::Digest;
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::sha3::Sha3;
@@ -77,11 +73,6 @@ macro_rules! define_hash_object {
             pub fn as_hash_bytes(&self) -> &[u8; Self::HASH_SIZE] {
                 &self.0
             }
-        }
-        #[cfg(feature = "bad-deref")]
-        impl Deref for $hash_ty {
-            type Target = [u8; Self::HASH_SIZE];
-            fn deref(&self) -> &Self::Target { &self.0 }
         }
         impl AsRef<[u8]> for $hash_ty {
             fn as_ref(&self) -> &[u8] { self.0.as_ref() }
