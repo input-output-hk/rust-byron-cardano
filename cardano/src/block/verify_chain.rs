@@ -104,7 +104,12 @@ impl ChainState {
     fn do_verify(&self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error>
     {
         // Perform stateless checks.
-        verify_block(self.protocol_magic, block_hash, blk)?;
+        verify_block(block_hash, blk)?;
+
+        // Check the protocol magic.
+        if blk.get_protocol_magic() != self.protocol_magic {
+            return Err(Error::WrongMagic);
+        }
 
         let prev_block = blk.get_header().get_previous_header();
         if prev_block != self.last_block {
