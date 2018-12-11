@@ -171,9 +171,9 @@ impl<'a> Iterator for Iter<'a> {
                     Ok(raw_block) => {
                         let block = raw_block.decode().unwrap();
                         let hh = block.get_header().compute_hash();
-                        let end = *hh == self.starting_from;
+                        let end = hh.as_hash_bytes() == &self.starting_from;
                         next = Some(Ok((raw_block, block)));
-                        self.last_known_block_hash = Some(*hh);
+                        self.last_known_block_hash = Some(hh.as_hash_bytes().clone());
                         if end { break; }
                     }
                 }
@@ -200,7 +200,7 @@ impl<'a> Iterator for Iter<'a> {
                 Some(Ok(raw_block)) => {
                     let block = raw_block.decode().unwrap();
                     let hh = block.get_header().compute_hash();
-                    self.last_known_block_hash = Some(*hh);
+                    self.last_known_block_hash = Some(hh.as_hash_bytes().clone());
                     Some(Ok((raw_block, block)))
                 }
             }

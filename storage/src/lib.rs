@@ -152,7 +152,7 @@ impl Storage {
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
         match tag::read_hash(&self, &tag) {
             None => Err(Error::NoSuchTag),
-            Some(hash) => Ok(block_read(&self, &hash)?.decode()?)
+            Some(hash) => Ok(block_read(&self, &hash.as_hash_bytes())?.decode()?)
         }
     }
 
@@ -329,7 +329,7 @@ pub fn resolve_date_to_blockhash(
             Ok(r)
         }
         Err(_) => {
-            match block_read(&storage, tip) {
+            match block_read(&storage, tip.as_hash_bytes()) {
                 Err(Error::BlockNotFound(_)) => Ok(None),
                 Err(err) => Err(err),
                 Ok(rblk) => {

@@ -1,7 +1,12 @@
 //! module to provide some handy interfaces atop the hashes so we have
 //! the common interfaces for the project to work with.
 
-use std::{fmt, result, str::{FromStr}, ops::{Deref}, hash::{Hash, Hasher}};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    result,
+    str::FromStr,
+};
 
 use cryptoxide::digest::Digest;
 use cryptoxide::blake2b::Blake2b;
@@ -64,10 +69,10 @@ macro_rules! define_hash_object {
     ($hash_ty:ty, $constructor:expr, $hash_size:ident) => {
         impl $hash_ty {
             pub const HASH_SIZE: usize = $hash_size;
-        }
-        impl Deref for $hash_ty {
-            type Target = [u8; Self::HASH_SIZE];
-            fn deref(&self) -> &Self::Target { &self.0 }
+
+            pub fn as_hash_bytes(&self) -> &[u8; Self::HASH_SIZE] {
+                &self.0
+            }
         }
         impl AsRef<[u8]> for $hash_ty {
             fn as_ref(&self) -> &[u8] { self.0.as_ref() }
