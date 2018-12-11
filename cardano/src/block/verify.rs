@@ -119,18 +119,17 @@ pub trait Verify {
     fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error>;
 }
 
-pub fn verify_block(protocol_magic: ProtocolMagic,
-                    block_hash: &HeaderHash,
+pub fn verify_block(block_hash: &HeaderHash,
                     blk: &Block) -> Result<(), Error>
 {
     match blk {
 
         Block::BoundaryBlock(blk) => {
-            blk.verify(protocol_magic)?;
+            blk.verify()?;
         },
 
         Block::MainBlock(blk) => {
-            blk.verify(protocol_magic)?;
+            blk.verify()?;
         }
     };
 
@@ -141,13 +140,9 @@ pub fn verify_block(protocol_magic: ProtocolMagic,
     Ok(())
 }
 
-impl Verify for boundary::Block {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+impl boundary::Block {
+    fn verify(&self) -> Result<(), Error> {
         let hdr = &self.header;
-
-        if hdr.protocol_magic != protocol_magic {
-            return Err(Error::WrongMagic);
-        }
 
         // check body proof
         if hash::Blake2b256::new(&cbor!(&self.body).unwrap()) != hdr.body_proof.0 {
@@ -158,14 +153,10 @@ impl Verify for boundary::Block {
     }
 }
 
-impl Verify for normal::Block {
-    fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
+impl normal::Block {
+    fn verify(&self) -> Result<(), Error> {
         let hdr = &self.header;
         let body = &self.body;
-
-        if hdr.protocol_magic != protocol_magic {
-            return Err(Error::WrongMagic);
-        }
 
         // check extra data
 
@@ -173,16 +164,16 @@ impl Verify for normal::Block {
         // enforced by the SoftwareVersion constructor.
 
         // check tx
-        body.tx.iter().try_for_each(|txaux| txaux.verify(protocol_magic))?;
+        body.tx.iter().try_for_each(|txaux| txaux.verify(hdr.protocol_magic))?;
 
         // check ssc
-        body.ssc.get_vss_certificates().verify(protocol_magic)?;
+        body.ssc.get_vss_certificates().verify(hdr.protocol_magic)?;
 
         // check delegation
         // TODO
 
         // check update
-        body.update.verify(protocol_magic)?;
+        body.update.verify(hdr.protocol_magic)?;
 
         // compare the proofs generated from the body directly
         let proof = BodyProof::generate_from_body(&body);
@@ -220,7 +211,7 @@ impl Verify for normal::Block {
                 // verify the signature
                 let to_sign = MainToSign::from_header(&hdr);
 
-                if !to_sign.verify_proxy_sig(protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig) {
+                if !to_sign.verify_proxy_sig(hdr.protocol_magic, tags::SigningTag::MainBlockHeavy, proxy_sig) {
                     return Err(Error::BadBlockSig);
                 }
             }
@@ -399,7 +390,6 @@ mod tests {
     use std::str::FromStr;
     use block::*;
     use self::normal::DlgPayload;
-    use config::{ProtocolMagic};
     use std::mem;
     use coin;
     use merkle;
@@ -452,26 +442,22 @@ mod tests {
         let hash = HeaderHash::from_str(&HEADER_HASH1).unwrap();
         let rblk = RawBlock(BLOCK1.to_vec());
         let blk = rblk.decode().unwrap();
-        let pm = ProtocolMagic::from(PROTOCOL_MAGIC);
-        assert!(verify_block(pm, &hash, &blk).is_ok());
+        assert!(verify_block(&hash, &blk).is_ok());
 
         let hash2 = HeaderHash::from_str(&HEADER_HASH2).unwrap();
         let rblk2 = RawBlock(BLOCK2.to_vec());
         let blk2 = rblk2.decode().unwrap();
-        assert!(verify_block(pm, &hash2, &blk2).is_ok());
+        assert!(verify_block(&hash2, &blk2).is_ok());
 
         let hash3 = HeaderHash::from_str(&HEADER_HASH3).unwrap();
         let rblk3 = RawBlock(BLOCK3.to_vec());
         let blk3 = rblk3.decode().unwrap();
-        assert!(verify_block(pm, &hash3, &blk3).is_ok());
-
-        // invalidate the protocol magic
-        expect_error(&verify_block(ProtocolMagic::from(123), &hash, &blk), Error::WrongMagic);
+        assert!(verify_block(&hash3, &blk3).is_ok());
 
         // use a wrong header hash
         {
             expect_error(&verify_block(
-                pm, &HeaderHash::from_str(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
+                &HeaderHash::from_str(&"ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap(),
                 &blk), Error::WrongBlockHash);
         }
 
@@ -482,7 +468,7 @@ mod tests {
                 let input = mblk.body.tx[0].tx.inputs[0].clone();
                 mblk.body.tx[0].tx.inputs.push(input);
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::DuplicateInputs);
+            expect_error(&verify_block(&hash, &blk), Error::DuplicateInputs);
         }
 
         // invalidate a transaction witness
@@ -491,7 +477,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(123).unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadTxWitness);
+            expect_error(&verify_block(&hash, &blk), Error::BadTxWitness);
         }
 
         // create a zero output
@@ -500,7 +486,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(0).unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::ZeroCoin);
+            expect_error(&verify_block(&hash, &blk), Error::ZeroCoin);
         }
 
         // create a redeem output
@@ -509,7 +495,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs[0].address.addr_type = address::AddrType::ATRedeem;
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::RedeemOutput);
+            expect_error(&verify_block(&hash, &blk), Error::RedeemOutput);
         }
 
         // remove the transaction input witness
@@ -518,7 +504,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].witness.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::MissingWitnesses);
+            expect_error(&verify_block(&hash, &blk), Error::MissingWitnesses);
         }
 
         // add a transaction input witness
@@ -528,7 +514,7 @@ mod tests {
                 let in_witness = mblk.body.tx[0].witness[0].clone();
                 mblk.body.tx[0].witness.push(in_witness);
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::UnexpectedWitnesses);
+            expect_error(&verify_block(&hash, &blk), Error::UnexpectedWitnesses);
         }
 
         // remove all transaction inputs
@@ -537,7 +523,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.inputs.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::NoInputs);
+            expect_error(&verify_block(&hash, &blk), Error::NoInputs);
         }
 
         // remove all transaction outputs
@@ -546,7 +532,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx[0].tx.outputs.clear();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::NoOutputs);
+            expect_error(&verify_block(&hash, &blk), Error::NoOutputs);
         }
 
         // invalidate the Merkle root by deleting a transaction
@@ -555,7 +541,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.tx.pop();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongTxProof);
+            expect_error(&verify_block(&hash, &blk), Error::WrongTxProof);
         }
 
         // invalidate the tx proof
@@ -571,7 +557,7 @@ mod tests {
                 }
                 mblk.header.body_proof.tx.root = merkle::MerkleTree::new(&txs).get_root_hash();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongTxProof);
+            expect_error(&verify_block(&hash, &blk), Error::WrongTxProof);
         }
 
         // invalidate the block signature
@@ -580,7 +566,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.header.previous_header = HeaderHash::from_str(&"aaaaaaaaaaaaaaa9de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91841").unwrap();
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadBlockSig);
+            expect_error(&verify_block(&hash, &blk), Error::BadBlockSig);
         }
 
         // invalidate a VSS certificate
@@ -594,7 +580,7 @@ mod tests {
                     _ => panic!()
                 }
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::BadVssCertSig);
+            expect_error(&verify_block(&hash, &blk), Error::BadVssCertSig);
         }
 
         // duplicate a VSS certificate
@@ -609,7 +595,7 @@ mod tests {
                     _ => panic!()
                 }
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::DuplicateVSSKeys);
+            expect_error(&verify_block(&hash, &blk), Error::DuplicateVSSKeys);
         }
 
         // invalidate the MPC proof
@@ -619,7 +605,7 @@ mod tests {
                 mblk.body.ssc = normal::SscPayload::CertificatesPayload(
                     normal::VssCertificates::new(vec![]));
             }
-            expect_error(&verify_block(pm, &hash, &blk), Error::WrongMpcProof);
+            expect_error(&verify_block(&hash, &blk), Error::WrongMpcProof);
         }
 
         // invalidate the update proof
@@ -628,7 +614,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.proposal = None;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongUpdateProof);
+            expect_error(&verify_block(&hash2, &blk), Error::WrongUpdateProof);
         }
 
         // invalidate the update proposal signature
@@ -637,7 +623,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.proposal.as_mut().unwrap().block_version.major = 123;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::BadUpdateProposalSig);
+            expect_error(&verify_block(&hash2, &blk), Error::BadUpdateProposalSig);
         }
 
         // invalidate the update vote signature
@@ -646,7 +632,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.update.votes[0].decision = false;
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::BadUpdateVoteSig);
+            expect_error(&verify_block(&hash2, &blk), Error::BadUpdateVoteSig);
         }
 
         // invalidate the extra data proof
@@ -655,7 +641,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.extra = cbor_event::Value::U64(123);
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongExtraDataProof);
+            expect_error(&verify_block(&hash2, &blk), Error::WrongExtraDataProof);
         }
 
         // invalidate the delegation proof
@@ -664,7 +650,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 mblk.body.delegation = DlgPayload(cbor_event::Value::U64(123));
             }
-            expect_error(&verify_block(pm, &hash2, &blk), Error::WrongDelegationProof);
+            expect_error(&verify_block(&hash2, &blk), Error::WrongDelegationProof);
         }
 
         // add trailing data

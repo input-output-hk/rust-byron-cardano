@@ -5,7 +5,8 @@ use std::{fmt};
 use std::ops::{Deref, DerefMut};
 
 use cbor_event::{self, de::RawCbor};
-use super::types::HeaderHash;
+use super::types::{HeaderHash};
+use super::super::config::ProtocolMagic;
 use super::date::BlockDate;
 use super::boundary;
 use super::normal;
@@ -155,6 +156,13 @@ impl Block {
         match self {
             &Block::BoundaryBlock(_) => None,
             &Block::MainBlock(ref blk) => Some(blk.body.tx.clone()),
+        }
+    }
+
+    pub fn get_protocol_magic(&self) -> ProtocolMagic {
+        match self {
+            &Block::BoundaryBlock(ref blk) => blk.header.protocol_magic,
+            &Block::MainBlock(ref blk) => blk.header.protocol_magic,
         }
     }
 }
