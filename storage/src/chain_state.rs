@@ -1,4 +1,4 @@
-use super::{Result, Error, Storage, block_read};
+use super::{Result, Error, Storage};
 use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos, ChainState, Block};
 use cardano::config::{GenesisData};
 use cardano::tx::TxoPointer;
@@ -119,7 +119,7 @@ pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_has
     // from the boundary block.
     if let Some(last_boundary_block) = &chain_state.last_boundary_block {
         let hash = last_boundary_block.as_hash_bytes();
-        chain_state.slot_leaders = match block_read(storage, hash).unwrap().decode()? {
+        chain_state.slot_leaders = match storage.read_block(hash).unwrap().decode()? {
             Block::BoundaryBlock(blk) => {
                 assert_eq!(blk.header.consensus.epoch, chain_state.last_date.unwrap().get_epochid());
                 blk.body.slot_leaders.clone()
@@ -314,7 +314,7 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
             Err(Error::StorageError(StorageError::IoError(ref err)))
                 if err.kind() == ::std::io::ErrorKind::NotFound =>
             {
-                let rblk = block_read(storage, cur.as_hash_bytes())
+                let rblk = storage.read_block(cur.as_hash_bytes())
                     .expect(&format!("reading block {}", cur));
                 let blk = rblk.decode().unwrap();
                 // FIXME: store 'blk' in blocks_to_apply? Would
@@ -333,7 +333,7 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
         assert_eq!(chain_state.last_block, cur);
 
         for hash in blocks_to_apply.iter().rev() {
-            let rblk = block_read(storage, hash.as_hash_bytes())
+            let rblk = storage.read_block(hash.as_hash_bytes())
                 .expect(&format!("reading block {}", hash));
             let blk = rblk.decode().unwrap();
             chain_state.verify_block(hash, &blk)?;

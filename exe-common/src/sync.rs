@@ -1,6 +1,6 @@
 use config::net;
 use network::{Peer, api::Api, api::BlockRef, Result};
-use cardano_storage::{tag, Error, block_read, epoch::{self, epoch_exists}, blob, pack, Storage, types, chain_state};
+use cardano_storage::{tag, Error, epoch::{self, epoch_exists}, blob, pack, Storage, types, chain_state};
 use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader, Block, RawBlock, ChainState};
 use cardano::config::{GenesisData};
 use cardano::util::{hex};
@@ -118,7 +118,7 @@ fn net_sync_to<A: Api>(
         // Iterate to the last block in the previous epoch.
         let mut cur_hash = our_tip.0.hash.clone();
         loop {
-            let block_raw = block_read(&storage, &cur_hash.into()).unwrap();
+            let block_raw = storage.read_block(&cur_hash.into()).unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.get_header();
             assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
@@ -277,7 +277,7 @@ fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoc
     let mut cur_hash = last_block.clone();
     let mut blocks = vec![];
     loop {
-        let block_raw = block_read(&storage, &cur_hash.clone().into()).unwrap();
+        let block_raw = storage.read_block(&cur_hash.clone().into()).unwrap();
         blobs_to_delete.push(cur_hash.clone());
         let block = block_raw.decode().unwrap();
         let hdr = block.get_header();

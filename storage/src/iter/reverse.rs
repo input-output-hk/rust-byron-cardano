@@ -1,7 +1,7 @@
 //! objects to iterate through the blocks depending on the backend used
 //!
 
-use super::super::{block_location, block_read_location, Storage};
+use super::super::Storage;
 use cardano::block::{Block, HeaderHash};
 
 use std::iter;
@@ -19,9 +19,7 @@ pub fn iter<'a>(
     hh: HeaderHash
 ) -> Result<ReverseIter<'a>> {
     let hash = hh.clone().into();
-    if let Err(e) = block_location(storage, &hash) {
-        return Err(e);
-    }
+    storage.block_location(&hash)?;
     let ri = ReverseIter {
         storage: storage,
         current_block: Some(hh),
@@ -45,8 +43,8 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
         };
 
         let hash = hh.clone().into();
-        let loc = block_location(&self.storage, &hash).expect("block location");
-        let blk = block_read_location(&self.storage, &loc, &hash).unwrap();
+        let loc = self.storage.block_location(&hash).expect("block location");
+        let blk = self.storage.read_block_at(&loc).unwrap();
         let block = blk.decode().unwrap();
         let hdr = block.get_header();
         self.current_block = Some(hdr.get_previous_header());
