@@ -233,6 +233,21 @@ mod tests {
     }
 
     #[test]
+    fn decrypt_too_large() {
+        const TOO_LARGE_PAYLOAD : usize = 2 * MAX_PAYLOAD_SIZE;
+        let bytes = vec![42u8; TOO_LARGE_PAYLOAD];
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        let key = HDKey::new(&pk);
+        match key.decrypt(&bytes).unwrap_err() {
+            Error::PayloadIsTooLarge(len) => assert_eq!(len, TOO_LARGE_PAYLOAD - TAG_LEN),
+            err => assert!(false, "expecting Error::PayloadIsTooLarge({}) but got {:#?}", TOO_LARGE_PAYLOAD - TAG_LEN, err),
+        }
+    }
+
+    #[test]
     fn path_cbor_encoding() {
         let path = Path::new(vec![0,1,2]);
         let cbor = path.cbor();
