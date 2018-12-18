@@ -233,7 +233,7 @@ fn parent_for_epoch(epoch: EpochId) -> Option<EpochId> {
 /// Compute the diff from BTreeMap 'm1' to BTreeMap 'm2', returning
 /// the set of keys in 'm1' that are not in 'm2', and the map of
 /// keys/values that are in 'm2' but not in 'm1'.
-fn diff_maps<'a, K, V>(
+pub fn diff_maps<'a, K, V>(
     m1: &'a BTreeMap<K, V>,
     m2: &'a BTreeMap<K, V>,
 ) -> (BTreeSet<&'a K>, BTreeMap<&'a K, &'a V>)
