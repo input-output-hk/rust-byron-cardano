@@ -144,8 +144,8 @@ impl HDKey {
     }
 
     pub fn decrypt(&self, input: &[u8]) -> Result<Vec<u8>> {
+        if input.len() <= TAG_LEN { return Err(Error::NotEnoughEncryptedData); };
         let len = input.len() - TAG_LEN;
-        if len <= 0 { return Err(Error::NotEnoughEncryptedData); };
         if len >= MAX_PAYLOAD_SIZE { return Err(Error::PayloadIsTooLarge(len)) }
 
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
@@ -232,6 +232,20 @@ mod tests {
         assert_eq!(bytes, key.decrypt(&payload).unwrap())
     }
 
+    #[test]
+    fn decrypt_too_small() {
+        const TOO_SMALL_PAYLOAD : usize = TAG_LEN - 1;
+        let bytes = vec![42u8; TOO_SMALL_PAYLOAD];
+        let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
+        let sk = hdwallet::XPrv::generate_from_seed(&seed);
+        let pk = sk.public();
+
+        let key = HDKey::new(&pk);
+        match key.decrypt(&bytes).unwrap_err() {
+            Error::NotEnoughEncryptedData => {},
+            err => assert!(false, "expecting Error::NotEnoughEncryptedData but got {:#?}", err),
+        }
+    }
     #[test]
     fn decrypt_too_large() {
         const TOO_LARGE_PAYLOAD : usize = 2 * MAX_PAYLOAD_SIZE;
