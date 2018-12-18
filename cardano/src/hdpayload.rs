@@ -13,7 +13,7 @@ use cryptoxide::hmac::{Hmac};
 use cryptoxide::sha2::{Sha512};
 use cryptoxide::pbkdf2::{pbkdf2};
 
-use std::{iter::repeat, ops::{Deref}, fmt};
+use std::{ops::{Deref}, fmt};
 
 use hdwallet::{XPub};
 use cbor_event::{self, de::RawCbor, se::{self, Serializer}};
@@ -29,6 +29,10 @@ pub enum Error {
     InvalidHDKeySize(usize),
     CannotDecrypt,
     NotEnoughEncryptedData,
+    /// this relates to the issue that addresses with the payload data
+    /// can have an infinite length (as long as it fits in the max block size
+    /// and max transaction size).
+    PayloadIsTooLarge(usize),
     CborError(cbor_event::Error)
 }
 impl From<cbor_event::Error> for Error {
@@ -40,7 +44,8 @@ impl fmt::Display for Error {
             Error::InvalidHDKeySize(sz) => write!(f, "Invalid size for an HDKey, expecting {} bytes", sz),
             Error::CannotDecrypt        => write!(f, "Cannot decrypt HDPayload with given HDKey"),
             Error::NotEnoughEncryptedData => write!(f, "Invalid HDPayload, expecting at least {} bytes", TAG_LEN),
-            Error::CborError(_)         => write!(f, "HDPayload decrypted but invalid value")
+            Error::CborError(_)         => write!(f, "HDPayload decrypted but invalid value"),
+            Error::PayloadIsTooLarge(len) => write!(f, "HDPayload is too large to be valid. Its size {} is beyond the max size ({} bytes)", len, MAX_PAYLOAD_SIZE)
         }
     }
 }
@@ -52,6 +57,11 @@ impl ::std::error::Error for Error {
         }
     }
 }
+
+/// This is the max size we accept to try to decrypt a HDPayload.
+/// This is due to avoid trying to decrypt content that are way beyond
+/// reasonable size.
+pub const MAX_PAYLOAD_SIZE : usize = 48;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -125,7 +135,7 @@ impl HDKey {
 
         let len = input.len();
 
-        let mut out: Vec<u8> = repeat(0).take(len).collect();
+        let mut out: Vec<u8> = vec![0;len];
         let mut tag = [0;TAG_LEN];
 
         ctx.encrypt(&input, &mut out[0..len], &mut tag);
@@ -136,10 +146,11 @@ impl HDKey {
     pub fn decrypt(&self, input: &[u8]) -> Result<Vec<u8>> {
         let len = input.len() - TAG_LEN;
         if len <= 0 { return Err(Error::NotEnoughEncryptedData); };
+        if len >= MAX_PAYLOAD_SIZE { return Err(Error::PayloadIsTooLarge(len)) }
 
         let mut ctx = ChaCha20Poly1305::new(self.as_ref(), &NONCE[..], &[]);
 
-        let mut out: Vec<u8> = repeat(0).take(len).collect();
+        let mut out: Vec<u8> = vec![0;len];
 
         if ctx.decrypt(&input[..len], &mut out[..], &input[len..]) {
             Ok(out)
@@ -211,7 +222,7 @@ mod tests {
 
     #[test]
     fn encrypt() {
-        let bytes = vec![42u8; 256];
+        let bytes = vec![42u8; MAX_PAYLOAD_SIZE - 1];
         let seed = hdwallet::Seed::from_bytes([0;hdwallet::SEED_SIZE]);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
         let pk = sk.public();
