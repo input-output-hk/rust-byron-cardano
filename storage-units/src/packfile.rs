@@ -112,7 +112,9 @@ impl<R: Read> Reader<R> {
             None => {}
             Some(ref data) => {
                 self.hash_context.input(data);
-                self.pos += 4 + offset_align4(data.len() as u64);
+                self.pos = self.pos
+                    .checked_add(4).unwrap()
+                    .checked_add(offset_align4(data.len() as u64)).unwrap();
             }
         };
         mdata
@@ -182,7 +184,10 @@ impl Writer {
             0
         };
         self.index.append(blockhash, self.pos);
-        self.pos += 4 + len as u64 + pad_bytes as u64;
+        self.pos = self.pos
+            .checked_add(4).unwrap()
+            .checked_add(len as u64).unwrap()
+            .checked_add(pad_bytes as u64).unwrap();
         self.nb_blobs += 1;
         Ok(())
     }
