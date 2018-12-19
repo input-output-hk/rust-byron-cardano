@@ -7,10 +7,11 @@ pub const OFF_SIZE: usize = 8;
 pub const SIZE_SIZE: usize = 4;
 
 pub fn offset_align4(p: Offset) -> Offset {
-    if (p % 4) == 0 {
+    let r = p % 4;
+    if r == 0 {
         p
     } else {
-        p + (4 - (p % 4))
+        p.checked_add(4 - r).expect("offset too large")
     }
 }
 
