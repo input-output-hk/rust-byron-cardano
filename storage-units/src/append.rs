@@ -5,7 +5,7 @@ use std::{
     result,
 };
 use utils::lock::{self, Lock};
-use utils::serialize::{SIZE_SIZE, read_size, utils::write_length_prefixed};
+use utils::serialize::{SIZE_SIZE, read_size, io::write_length_prefixed};
 
 #[derive(Debug)]
 pub enum Error {

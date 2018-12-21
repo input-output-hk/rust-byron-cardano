@@ -19,7 +19,7 @@ use utils::error::Result;
 use utils::magic;
 use utils::serialize::{
     offset_align4, read_size, Offset, SIZE_SIZE,
-    utils::write_length_prefixed,
+    io::write_length_prefixed,
 };
 use utils::tmpfile::TmpFile;
 

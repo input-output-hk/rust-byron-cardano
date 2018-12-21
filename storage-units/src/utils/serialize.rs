@@ -50,7 +50,7 @@ pub fn read_offset(buf: &[u8]) -> Offset {
         | (buf[7] as u64)
 }
 
-pub mod utils {
+pub mod io {
     use super::{Size, SIZE_SIZE};
     use std::io::{Error, ErrorKind, Read, Result, Write};
 
