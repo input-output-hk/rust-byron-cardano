@@ -1,11 +1,11 @@
 use std::{
     error, fmt,
     fs::{self, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Read},
     result,
 };
 use utils::lock::{self, Lock};
-use utils::serialize::{read_size, write_size};
+use utils::serialize::{SIZE_SIZE, read_size, utils::write_length_prefixed};
 
 #[derive(Debug)]
 pub enum Error {
@@ -53,11 +53,6 @@ impl error::Error for Error {
 
 pub type Result<R> = result::Result<R, Error>;
 
-/// the first 4 bytes are the size of the entry in the append file
-const SIZE_SIZE: usize = 4;
-
-type Size = u32;
-
 /// Writer for an append only file
 ///
 /// This structure is safe in the sense it tries to prevent
@@ -104,21 +99,7 @@ impl Writer {
         if bytes.is_empty() {
             return Ok(());
         }
-
-        let len = bytes.len() as Size;
-        let mut sz_buf = [0u8; SIZE_SIZE];
-        write_size(&mut sz_buf, len);
-        self.file.write_all(&sz_buf[..])?;
-        self.file.write_all(bytes)?;
-
-        let pad = [0u8; SIZE_SIZE - 1];
-        if (len % 4 as u32) != 0 {
-            let pad_sz = 4 - len % 4;
-            self.file.write_all(&pad[0..pad_sz as usize])?;
-            pad_sz
-        } else {
-            0
-        };
+        write_length_prefixed(&mut self.file, bytes)?;
         Ok(())
     }
 }

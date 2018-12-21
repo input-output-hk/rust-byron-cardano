@@ -12,12 +12,15 @@ use std::io;
 /// DATA (SIZE bytes)
 /// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
 ///
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::iter::repeat;
 use std::path::Path;
 use utils::error::Result;
 use utils::magic;
-use utils::serialize::{offset_align4, read_size, write_size, Offset, Size, SIZE_SIZE};
+use utils::serialize::{
+    offset_align4, read_size, Offset, SIZE_SIZE,
+    utils::write_length_prefixed,
+};
 use utils::tmpfile::TmpFile;
 
 const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
@@ -168,26 +171,10 @@ impl Writer {
     }
 
     pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
-        let len = block.len() as Size;
-        let mut sz_buf = [0u8; SIZE_SIZE];
-        write_size(&mut sz_buf, len);
-        self.tmpfile.write_all(&sz_buf[..])?;
-        self.tmpfile.write_all(block)?;
+        let bytes_written = write_length_prefixed(&mut self.tmpfile, block)?;
         self.hash_context.input(block);
-
-        let pad = [0u8; SIZE_SIZE - 1];
-        let pad_bytes = if (len % 4 as u32) != 0 {
-            let pad_sz = 4 - len % 4;
-            self.tmpfile.write_all(&pad[0..pad_sz as usize])?;
-            pad_sz
-        } else {
-            0
-        };
         self.index.append(blockhash, self.pos);
-        self.pos = self.pos
-            .checked_add(4).unwrap()
-            .checked_add(len as u64).unwrap()
-            .checked_add(pad_bytes as u64).unwrap();
+        self.pos = self.pos.checked_add(bytes_written).unwrap();
         self.nb_blobs += 1;
         Ok(())
     }

@@ -51,7 +51,8 @@ pub fn read_offset(buf: &[u8]) -> Offset {
 }
 
 pub mod utils {
-    use std::io::{Read, Result, Write};
+    use super::{Size, SIZE_SIZE};
+    use std::io::{Error, ErrorKind, Read, Result, Write};
 
     #[inline]
     pub fn write_u8<W>(w: &mut W, byte: u8) -> Result<()>
@@ -124,5 +125,56 @@ pub mod utils {
         let b1 = (read_u32(r)? as u64) << 32;
         let b2 = read_u32(r)? as u64;
         Ok(b1 | b2)
+    }
+
+    /// Returns the length of the passed byte slice if its length is acceptable
+    /// for serialization as a `Size` value.
+    ///
+    /// # Errors
+    /// Returns I/O error of the kind `InvalidInput` if the length is too large
+    /// to be represented.
+    ///
+    fn validate_len(input: &[u8]) -> Result<Size> {
+        let len = input.len();
+        if len <= Size::max_value() as usize {
+            Ok(len as Size)
+        } else {
+            Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("value length {} is too large", len),
+            ))
+        }
+    }
+
+    /// Writes a `Size` value to the generic output.
+    pub fn write_size<W>(w: &mut W, data: Size) -> Result<()>
+    where
+        W: Write,
+    {
+        let mut buf = [0; SIZE_SIZE];
+        super::write_size(&mut buf, data);
+        w.write_all(&buf)
+    }
+
+    /// Writes the sequence of bytes given in the slice parameter,
+    /// prefixed by the length of the sequence and padded to the next
+    /// 32-bit aligned offset.
+    /// Returns the total size in bytes written.
+    pub fn write_length_prefixed<W>(w: &mut W, data: &[u8]) -> Result<u64>
+    where
+        W: Write,
+    {
+        let len = validate_len(data)?;
+        write_size(w, len)?;
+        w.write_all(data)?;
+        let pad = [0u8; SIZE_SIZE - 1];
+        let pad_bytes = if len % 4 != 0 {
+            let pad_sz = 4 - len % 4;
+            w.write_all(&pad[0..pad_sz as usize])?;
+            pad_sz
+        } else {
+            0
+        };
+        Ok(4 + len as u64 + pad_bytes as u64)  // Overflow can't occur here
     }
 }
