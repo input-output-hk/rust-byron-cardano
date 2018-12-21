@@ -151,7 +151,7 @@ impl Index {
             bloom_size: bloom_size,
         };
 
-        write_size(&mut hdr_buf[0..4], bloom_size as u32);
+        write_size(&mut hdr_buf[0..4], bloom_size);
         write_size(&mut hdr_buf[4..8], 0);
 
         // write fanout to hdr_buf
