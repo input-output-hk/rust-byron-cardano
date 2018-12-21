@@ -67,8 +67,7 @@ pub fn packreader_init(
 
 pub fn packreader_block_next(
     reader: &mut packfile::Reader<fs::File>,
-) -> Option<cardano::block::RawBlock> {
-    reader
-        .get_next()
-        .and_then(|x| Some(cardano::block::RawBlock(x)))
+) -> Result<Option<cardano::block::RawBlock>> {
+    let next = reader.next_block()?;
+    Ok(next.map(|x| cardano::block::RawBlock(x)))
 }

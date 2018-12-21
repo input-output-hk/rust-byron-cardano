@@ -236,7 +236,7 @@ impl Storage {
                             "pack file"
                         );
                         let rblk = pack_file
-                            .get_at_offset(pack_offset)
+                            .block_at_offset(pack_offset)
                             .and_then(|x| Ok(RawBlock(x)))?;
                         Ok(rblk)
                     }
@@ -428,7 +428,7 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
         match params.limit_size {
             None => {}
             Some(sz) => {
-                if writer.pos >= sz {
+                if writer.pos() >= sz {
                     break;
                 }
             }
@@ -465,7 +465,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
 
     let mut current_state = None;
 
-    while let Some(raw_block) = packreader_block_next(&mut pack) {
+    while let Some(raw_block) = packreader_block_next(&mut pack)? {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();
@@ -536,7 +536,7 @@ fn epoch_integrity_check(
 
     let mut current_state = None;
 
-    while let Some(raw_block) = packreader_block_next(&mut pack) {
+    while let Some(raw_block) = packreader_block_next(&mut pack)? {
         let block = raw_block.decode()?;
         let hdr = block.get_header();
         let hash = hdr.compute_hash();

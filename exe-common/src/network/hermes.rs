@@ -157,7 +157,7 @@ impl Api for HermesEndPoint {
 
                 let mut packfile = packfile::Reader::init(&tmppack[..]).unwrap();
 
-                while let Some(data) = packfile.get_next() {
+                while let Some(data) = packfile.next_block()? {
                     let block_raw = block::RawBlock(data);
                     let block = block_raw.decode()?;
                     let hdr = block.get_header();

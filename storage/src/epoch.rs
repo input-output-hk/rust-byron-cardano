@@ -45,7 +45,7 @@ pub fn epoch_create(
 
     let mut current_slotid = BlockDate::Boundary(epochid);
     let mut last_block = None;
-    while let Some(rblk) = packreader_block_next(&mut reader) {
+    while let Some(rblk) = packreader_block_next(&mut reader).unwrap() {
         let blk = rblk.decode().unwrap();
         let hdr = blk.get_header();
         let hash = hdr.compute_hash();

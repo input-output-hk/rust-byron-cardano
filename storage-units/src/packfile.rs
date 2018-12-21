@@ -29,7 +29,7 @@ const VERSION: magic::Version = 1;
 /// A Stream Reader that also computes the hash of the sum of all data read
 pub struct Reader<R> {
     reader: R,
-    pub pos: Offset,
+    pos: Offset,
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
 
@@ -44,6 +44,13 @@ impl Reader<fs::File> {
         Reader::init(file)
     }
 }
+
+impl<R> Reader<R> {
+    pub fn pos(&self) -> Offset {
+        self.pos
+    }
+}
+
 impl<R: Read> Reader<R> {
     pub fn init(mut r: R) -> Result<Self> {
         magic::check_header(&mut r, FILE_TYPE, VERSION, VERSION)?;
@@ -105,12 +112,13 @@ pub fn read_next_block_or_eof<R: Read>(file: R) -> io::Result<Option<Vec<u8>>> {
 }
 
 impl<R: Read> Reader<R> {
-    /// Return the next data block.
+    /// Reads the next data block if data are available in the source.
+    /// If the source is at EOF, `None` is returned.
     ///
-    /// note: any IO error raise runtime exception for now. will be changed soon.
-    pub fn get_next(&mut self) -> Option<Vec<u8>> {
-        // TODO: remove unwrap()
-        let mdata = read_next_block_or_eof(&mut self.reader).unwrap();
+    /// # Errors
+    /// I/O errors are returned in an `Err` value.
+    pub fn next_block(&mut self) -> io::Result<Option<Vec<u8>>> {
+        let mdata = read_next_block_or_eof(&mut self.reader)?;
         match mdata {
             None => {}
             Some(ref data) => {
@@ -120,19 +128,21 @@ impl<R: Read> Reader<R> {
                     .checked_add(offset_align4(data.len() as u64)).unwrap();
             }
         };
-        mdata
+        Ok(mdata)
     }
 }
 
 impl<S: Read + Seek> Seeker<S> {
     /// Return the next data chunk if it exists
-    /// on file EOF, None is returned
-    pub fn get_next(&mut self) -> io::Result<Option<Vec<u8>>> {
+    /// on file. On EOF, None is returned.
+    pub fn next_block(&mut self) -> io::Result<Option<Vec<u8>>> {
         read_next_block_or_eof(&mut self.handle)
     }
 
-    /// Return the data chunk at a specific offset, not that EOF is treated as a normal error here
-    pub fn get_at_offset(&mut self, ofs: Offset) -> io::Result<Vec<u8>> {
+    /// Return the data chunk at a specific offset.
+    /// An EOF encountered before the specified offset is treated as a
+    /// normal error.
+    pub fn block_at_offset(&mut self, ofs: Offset) -> io::Result<Vec<u8>> {
         self.handle.seek(SeekFrom::Start(ofs))?;
         read_next_block(&mut self.handle)
     }
@@ -151,8 +161,8 @@ impl<R> Reader<R> {
 pub struct Writer {
     tmpfile: TmpFile,
     index: indexfile::Index,
-    pub nb_blobs: u32,
-    pub pos: Offset, // offset in bytes of the current position (double as the current size of the pack)
+    nb_blobs: u32,
+    pos: Offset, // offset in bytes of the current position (double as the current size of the pack)
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
 
@@ -168,6 +178,10 @@ impl Writer {
             nb_blobs: 0,
             hash_context: ctxt,
         })
+    }
+
+    pub fn pos(&self) -> Offset {
+        self.pos
     }
 
     pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
