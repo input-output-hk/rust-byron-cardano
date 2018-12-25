@@ -2,7 +2,7 @@ language: rust
 cache: cargo
 matrix:
   include:
-    - rust: nightly
+    - rust: stable
       os: linux
       env: CHECK_RUSTFMT="true"
     - rust: stable
@@ -24,9 +24,6 @@ matrix:
     - rust: stable
       os: windows
       env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
-    - rust: nightly
-      os: linux
-      env: CHECK_RUSTFMT="true"
 
 before_script:
   - |
@@ -40,7 +37,7 @@ before_script:
 script:
   - |
     if [ "${CHECK_RUSTFMT}" = "true" ]; then
-       cargo fmt --package=protocol-tokio --package=protocol --package=storage-units --package=cardano-storage -- --check
+       cargo fmt -- --check
     fi
   - if [ "${RUN_TEST}" = "true" ]; then cargo build --verbose --all && cargo test --verbose --all; fi
   - if [ "${CARDANO_C}" = "true" ]; then ./cardano-c/test.sh; fi
