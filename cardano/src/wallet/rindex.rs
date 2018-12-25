@@ -1,22 +1,21 @@
+use address::{AddrType, Attributes, ExtendedAddr, SpendingData};
+use bip::bip39;
+use cbor_event;
+use coin::{self, Coin};
+use config::{NetworkMagic, ProtocolMagic};
+use cryptoxide;
+use cryptoxide::digest::Digest;
+use fee::{self, FeeAlgorithm};
+use hdpayload;
+use hdwallet::{self, DerivationScheme, XPrv, XPub};
+use input_selection;
 /// 2 Level of randomly chosen hard derivation indexes Wallet
 ///
-
-use std::{ops::Deref, iter, fmt, error};
-use cbor_event;
-use cryptoxide;
-use cryptoxide::digest::{Digest};
-use bip::bip39;
-use hdwallet::{self, XPrv, XPub, DerivationScheme};
-use hdpayload;
-use fee::{self, FeeAlgorithm};
-use coin::{self, Coin};
+use std::{error, fmt, iter, ops::Deref};
+use tx::{self, Tx, TxAux, TxId, TxInWitness};
 use txutils::{self, OutputPolicy};
-use tx::{self, TxAux, Tx, TxId, TxInWitness};
-use address::{ExtendedAddr, Attributes, AddrType, SpendingData};
-use config::{ProtocolMagic, NetworkMagic};
-use input_selection;
 
-use super::scheme::{self};
+use super::scheme;
 
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -41,11 +40,14 @@ impl ::std::fmt::Display for Addressing {
 pub struct Wallet {
     root_key: RootKey,
 
-    derivation_scheme: DerivationScheme
+    derivation_scheme: DerivationScheme,
 }
 impl Wallet {
     pub fn from_root_key(derivation_scheme: DerivationScheme, root_key: RootKey) -> Self {
-        Wallet { root_key, derivation_scheme }
+        Wallet {
+            root_key,
+            derivation_scheme,
+        }
     }
 
     /// Compatibility with daedalus mnemonic addresses
@@ -62,8 +64,13 @@ impl Wallet {
     /// There are many things that can go wrong when implementing this
     /// process, it is all done correctly by this function: prefer using
     /// this function.
-    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: &str) -> Result<Self>
-        where D: bip39::dictionary::Language
+    pub fn from_daedalus_mnemonics<D>(
+        derivation_scheme: DerivationScheme,
+        dic: &D,
+        mnemonics_phrase: &str,
+    ) -> Result<Self>
+    where
+        D: bip39::dictionary::Language,
     {
         let root_key = RootKey::from_daedalus_mnemonics(derivation_scheme, dic, mnemonics_phrase)?;
         Ok(Wallet::from_root_key(derivation_scheme, root_key))
@@ -77,12 +84,11 @@ impl Wallet {
     ///
     /// This function returns the addressing if the address belongs
     /// to this wallet, otherwise it returns `None`
-    pub fn check_address(&self, address: &ExtendedAddr) -> Option<Addressing>
-    {
+    pub fn check_address(&self, address: &ExtendedAddr) -> Option<Addressing> {
         let hdkey = hdpayload::HDKey::new(&self.root_key.public());
 
         // This wallet has has only one account
-        let account : &RootKey = scheme::Wallet::list_accounts(self);
+        let account: &RootKey = scheme::Wallet::list_accounts(self);
         if let &Some(ref hdpa) = &address.attributes.derivation_path {
             if let Ok(path) = hdkey.decrypt_path(hdpa) {
                 let addressing = Addressing(path.as_ref()[0], path.as_ref()[1]);
@@ -93,9 +99,15 @@ impl Wallet {
                 // payload in their own addresses to make recipient believe
                 // they have received funds. This check prevents that to happen.
                 let addresses = scheme::Account::generate_addresses(
-                    account, [addressing].iter(), address.attributes.network_magic);
+                    account,
+                    [addressing].iter(),
+                    address.attributes.network_magic,
+                );
 
-                debug_assert!(addresses.len() == 1, "we expect to generate only one address here...");
+                debug_assert!(
+                    addresses.len() == 1,
+                    "we expect to generate only one address here..."
+                );
 
                 if address == &addresses[0] {
                     return Some(addressing);
@@ -106,15 +118,19 @@ impl Wallet {
         None
     }
 
-    pub fn move_transaction(&self, protocol_magic: ProtocolMagic, inputs: &Vec<txutils::TxoPointerInfo<Addressing>>, output_policy: &txutils::OutputPolicy) -> input_selection::Result<(TxAux, fee::Fee)> {
-
+    pub fn move_transaction(
+        &self,
+        protocol_magic: ProtocolMagic,
+        inputs: &Vec<txutils::TxoPointerInfo<Addressing>>,
+        output_policy: &txutils::OutputPolicy,
+    ) -> input_selection::Result<(TxAux, fee::Fee)> {
         if inputs.len() == 0 {
             return Err(input_selection::Error::NoInputs);
         }
 
         let alg = fee::LinearFee::default();
 
-        let total_input : Coin = {
+        let total_input: Coin = {
             let mut total = Coin::zero();
             for ref i in inputs.iter() {
                 let acc = total + i.value;
@@ -123,11 +139,17 @@ impl Wallet {
             total
         };
 
-        let tx_base = Tx::new_with( inputs.iter().cloned().map(|input| input.txin).collect()
-                                      , vec![]);
-        let fake_witnesses : Vec<tx::TxInWitness> = iter::repeat(tx::TxInWitness::fake()).take(inputs.len()).collect();
+        let tx_base = Tx::new_with(
+            inputs.iter().cloned().map(|input| input.txin).collect(),
+            vec![],
+        );
+        let fake_witnesses: Vec<tx::TxInWitness> = iter::repeat(tx::TxInWitness::fake())
+            .take(inputs.len())
+            .collect();
 
-        let min_fee_for_inputs = alg.calculate_for_txaux_component(&tx_base, &fake_witnesses)?.to_coin();
+        let min_fee_for_inputs = alg
+            .calculate_for_txaux_component(&tx_base, &fake_witnesses)?
+            .to_coin();
         let mut out_total = match total_input - min_fee_for_inputs {
             Err(coin::Error::Negative) => return Err(input_selection::Error::NotEnoughInput),
             Err(err) => unreachable!("{}", err),
@@ -140,11 +162,11 @@ impl Wallet {
                 OutputPolicy::One(change_addr) => {
                     let txout = tx::TxOut::new(change_addr.clone(), out_total);
                     tx.add_output(txout);
-                },
+                }
             };
 
             let current_diff = (total_input - tx.get_output_total()?).unwrap_or(Coin::zero());
-            let txaux_fee : fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
+            let txaux_fee: fee::Fee = alg.calculate_for_txaux_component(&tx, &fake_witnesses)?;
 
             if current_diff == txaux_fee.to_coin() {
                 // let witnesses = self.sign_tx(&tx, &inputs);
@@ -158,10 +180,15 @@ impl Wallet {
                     },
                 }
                 */
-                let witnesses = scheme::Wallet::sign_tx(self, protocol_magic, &tx.id(), inputs.iter().map(|tii| tii.address_identified));
+                let witnesses = scheme::Wallet::sign_tx(
+                    self,
+                    protocol_magic,
+                    &tx.id(),
+                    inputs.iter().map(|tii| tii.address_identified),
+                );
                 assert_eq!(witnesses.len(), fake_witnesses.len());
                 let txaux = tx::TxAux::new(tx, tx::TxWitness::from(witnesses));
-                return Ok((txaux, txaux_fee))
+                return Ok((txaux, txaux_fee));
             } else {
                 // already above..
                 if current_diff > txaux_fee.to_coin() {
@@ -170,43 +197,55 @@ impl Wallet {
                 } else {
                     // not enough fee, so reduce the output_total
                     match out_total - Coin::unit() {
-                        Err(coin::Error::Negative) => return Err(input_selection::Error::NotEnoughInput),
+                        Err(coin::Error::Negative) => {
+                            return Err(input_selection::Error::NotEnoughInput);
+                        }
                         Err(err) => unreachable!("{}", err),
                         Ok(o) => out_total = o,
                     }
                 }
             }
-
         }
     }
 }
 impl Deref for Wallet {
     type Target = RootKey;
-    fn deref(&self) -> &Self::Target { &self.root_key }
+    fn deref(&self) -> &Self::Target {
+        &self.root_key
+    }
 }
 
 impl scheme::Wallet for Wallet {
     /// 2 Level of randomly chosen hard derivation indexes does not support Account model. Only one account: the root key.
-    type Account     = RootKey;
+    type Account = RootKey;
     /// 2 Level of randomly chosen hard derivation indexes does not support Account model. Only one account: the root key.
-    type Accounts    = Self::Account;
+    type Accounts = Self::Account;
     /// 2 Level of randomly chosen hard derivation indexes derivation consists of 2 level of hard derivation, this is why
     /// it is not possible to have a public key account like in the bip44 model.
-    type Addressing  = Addressing;
+    type Addressing = Addressing;
 
     fn create_account(&mut self, _: &str, _: u32) -> Self::Account {
         self.root_key.clone()
     }
-    fn list_accounts<'a>(&'a self) -> &'a Self::Accounts  { &self.root_key }
-    fn sign_tx<I>(&self, protocol_magic: ProtocolMagic, txid: &TxId, addresses: I) -> Vec<TxInWitness>
-        where I: Iterator<Item = Self::Addressing>
+    fn list_accounts<'a>(&'a self) -> &'a Self::Accounts {
+        &self.root_key
+    }
+    fn sign_tx<I>(
+        &self,
+        protocol_magic: ProtocolMagic,
+        txid: &TxId,
+        addresses: I,
+    ) -> Vec<TxInWitness>
+    where
+        I: Iterator<Item = Self::Addressing>,
     {
         let mut witnesses = vec![];
 
         for addressing in addresses {
-            let key = self.root_key
-                          .derive(self.derivation_scheme, addressing.0)
-                          .derive(self.derivation_scheme, addressing.1);
+            let key = self
+                .root_key
+                .derive(self.derivation_scheme, addressing.0)
+                .derive(self.derivation_scheme, addressing.1);
 
             let tx_witness = TxInWitness::new(protocol_magic, &key, txid);
             witnesses.push(tx_witness);
@@ -217,10 +256,17 @@ impl scheme::Wallet for Wallet {
 impl scheme::Account for RootKey {
     type Addressing = Addressing;
 
-    fn generate_addresses<'a, I>(&'a self, addresses: I, network_magic: NetworkMagic) -> Vec<ExtendedAddr>
-        where I: Iterator<Item = &'a Self::Addressing>
+    fn generate_addresses<'a, I>(
+        &'a self,
+        addresses: I,
+        network_magic: NetworkMagic,
+    ) -> Vec<ExtendedAddr>
+    where
+        I: Iterator<Item = &'a Self::Addressing>,
     {
-        self.address_generator().iter_with(addresses, network_magic).collect()
+        self.address_generator()
+            .iter_with(addresses, network_magic)
+            .collect()
     }
 }
 
@@ -243,19 +289,27 @@ pub enum Error {
     ///    put it in one of its address);
     /// 3. that the software needs to be updated.
     ///
-    CannotReconstructAddress(ExtendedAddr)
+    CannotReconstructAddress(ExtendedAddr),
 }
 impl From<bip39::Error> for Error {
-    fn from(e: bip39::Error) -> Self { Error::Bip39Error(e) }
+    fn from(e: bip39::Error) -> Self {
+        Error::Bip39Error(e)
+    }
 }
 impl From<cbor_event::Error> for Error {
-    fn from(e: cbor_event::Error) -> Self { Error::CBorEncoding(e) }
+    fn from(e: cbor_event::Error) -> Self {
+        Error::CBorEncoding(e)
+    }
 }
 impl From<hdwallet::Error> for Error {
-    fn from(e: hdwallet::Error) -> Self { Error::DerivationError(e) }
+    fn from(e: hdwallet::Error) -> Self {
+        Error::DerivationError(e)
+    }
 }
 impl From<hdpayload::Error> for Error {
-    fn from(e: hdpayload::Error) -> Self { Error::PayloadError(e) }
+    fn from(e: hdpayload::Error) -> Self {
+        Error::PayloadError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -270,7 +324,7 @@ impl fmt::Display for Error {
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::Bip39Error(ref err) => Some(err),
             Error::DerivationError(ref err) => Some(err),
@@ -287,29 +341,36 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 #[derive(Clone)]
 pub struct RootKey {
     root_key: XPrv,
-    derivation_scheme: DerivationScheme
+    derivation_scheme: DerivationScheme,
 }
 impl RootKey {
     pub fn new(root_key: XPrv, derivation_scheme: DerivationScheme) -> Self {
         RootKey {
             root_key,
-            derivation_scheme
+            derivation_scheme,
         }
     }
-    pub fn from_daedalus_mnemonics<D>(derivation_scheme: DerivationScheme, dic: &D, mnemonics_phrase: &str) -> Result<Self>
-        where D: bip39::dictionary::Language
+    pub fn from_daedalus_mnemonics<D>(
+        derivation_scheme: DerivationScheme,
+        dic: &D,
+        mnemonics_phrase: &str,
+    ) -> Result<Self>
+    where
+        D: bip39::dictionary::Language,
     {
         let mnemonics = bip39::Mnemonics::from_string(dic, mnemonics_phrase)?;
         let entropy = bip39::Entropy::from_mnemonics(&mnemonics)?;
 
         let entropy_bytes = cbor_event::Value::Bytes(Vec::from(entropy.as_ref()));
         let entropy_cbor = cbor!(&entropy_bytes)?;
-        let seed : Vec<u8> = {
+        let seed: Vec<u8> = {
             let mut blake2b = cryptoxide::blake2b::Blake2b::new(32);
             blake2b.input(&entropy_cbor);
-            let mut out = [0;32];
+            let mut out = [0; 32];
             blake2b.result(&mut out);
-            cbor_event::se::Serializer::new_vec().write_bytes(&Vec::from(&out[..]))?.finalize()
+            cbor_event::se::Serializer::new_vec()
+                .write_bytes(&Vec::from(&out[..]))?
+                .finalize()
         };
 
         let xprv = XPrv::generate_from_daedalus_seed(&seed);
@@ -321,14 +382,15 @@ impl RootKey {
         self.root_key
     }
 
-    pub fn address_generator(&self) -> AddressGenerator<XPrv>
-    {
+    pub fn address_generator(&self) -> AddressGenerator<XPrv> {
         AddressGenerator::<XPrv>::new(self.root_key.clone(), self.derivation_scheme)
     }
 }
 impl Deref for RootKey {
     type Target = XPrv;
-    fn deref(&self) -> &Self::Target { &self.root_key }
+    fn deref(&self) -> &Self::Target {
+        &self.root_key
+    }
 }
 
 /// structure to create addresses
@@ -355,7 +417,8 @@ impl<K> AddressGenerator<K> {
     ///
     /// TODO
     pub fn iter_with<'a, I>(self, iter: I, network_magic: NetworkMagic) -> AddressIterator<K, I>
-        where I: Iterator<Item = &'a Addressing>
+    where
+        I: Iterator<Item = &'a Addressing>,
     {
         AddressIterator::new(self, iter, network_magic)
     }
@@ -367,8 +430,8 @@ impl<K> AddressGenerator<K> {
                 Err(hdpayload::Error::CannotDecrypt) => {
                     // we could not decrypt it, there was no _error_.
                     return Ok(None);
-                },
-                Err(err) => return Err(Error::from(err))
+                }
+                Err(err) => return Err(Error::from(err)),
             };
             if path.len() == 2 {
                 let path = Addressing(path[0], path[1]);
@@ -377,16 +440,26 @@ impl<K> AddressGenerator<K> {
             } else {
                 Err(Error::InvalidPayloadAddressing(path.to_vec()))
             }
-        } else { Ok(None) }
+        } else {
+            Ok(None)
+        }
     }
 
-    fn compare_address_with_pubkey(&self, address: &ExtendedAddr, path: &Addressing, key: XPub) -> Result<()> {
-        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+    fn compare_address_with_pubkey(
+        &self,
+        address: &ExtendedAddr,
+        path: &Addressing,
+        key: XPub,
+    ) -> Result<()> {
+        let payload = self
+            .hdkey
+            .encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
 
         let mut attributes = address.attributes.clone();
         attributes.derivation_path = Some(payload);
 
-        let expected = ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes);
+        let expected =
+            ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes);
         if &expected == address {
             Ok(())
         } else {
@@ -406,11 +479,10 @@ impl AddressGenerator<XPub> {
     }
 
     pub fn key(&self, path: &Addressing) -> Result<XPub> {
-        Ok(
-            self.cached_key
-                .derive(self.derivation_scheme, path.0)?
-                .derive(self.derivation_scheme, path.1)?
-        )
+        Ok(self
+            .cached_key
+            .derive(self.derivation_scheme, path.0)?
+            .derive(self.derivation_scheme, path.1)?)
     }
 
     /// attempt the reconstruct the address with the same metadata
@@ -423,9 +495,15 @@ impl AddressGenerator<XPub> {
     pub fn address(&self, path: &Addressing, network_magic: NetworkMagic) -> Result<ExtendedAddr> {
         let key = self.key(path)?;
 
-        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+        let payload = self
+            .hdkey
+            .encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
         let attributes = Attributes::new_bootstrap_era(Some(payload), network_magic);
-        Ok(ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes))
+        Ok(ExtendedAddr::new(
+            AddrType::ATPubKey,
+            SpendingData::PubKeyASD(key),
+            attributes,
+        ))
     }
 }
 impl AddressGenerator<XPrv> {
@@ -457,7 +535,9 @@ impl AddressGenerator<XPrv> {
     pub fn address(&self, path: &Addressing, network_magic: NetworkMagic) -> ExtendedAddr {
         let key = self.key(path).public();
 
-        let payload = self.hdkey.encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
+        let payload = self
+            .hdkey
+            .encrypt_path(&hdpayload::Path::new(vec![path.0, path.1]));
         let attributes = Attributes::new_bootstrap_era(Some(payload), network_magic);
         ExtendedAddr::new(AddrType::ATPubKey, SpendingData::PubKeyASD(key), attributes)
     }
@@ -479,66 +559,82 @@ impl<K, I> AddressIterator<K, I> {
         AddressIterator {
             generator,
             iter,
-            network_magic
+            network_magic,
         }
     }
 }
 impl<'a, I> Iterator for AddressIterator<XPrv, I>
-    where I: Iterator<Item = &'a Addressing>
+where
+    I: Iterator<Item = &'a Addressing>,
 {
     type Item = ExtendedAddr;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|path| { self.generator.address(path, self.network_magic) })
+        self.iter
+            .next()
+            .map(|path| self.generator.address(path, self.network_magic))
     }
 }
 impl<'a, I> Iterator for AddressIterator<XPub, I>
-    where I: Iterator<Item = &'a Addressing>
+where
+    I: Iterator<Item = &'a Addressing>,
 {
     type Item = Result<ExtendedAddr>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|path| { self.generator.address(path, self.network_magic) })
+        self.iter
+            .next()
+            .map(|path| self.generator.address(path, self.network_magic))
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::wallet::scheme::{Wallet};
+    use crate::config::{NetworkMagic, ProtocolMagic};
+    use crate::tx::TxoPointer;
     use crate::wallet::rindex;
-    use crate::tx::{TxoPointer};
-    use crate::config::{ProtocolMagic, NetworkMagic};
+    use crate::wallet::scheme::Wallet;
 
-    const MNEMONICS : &'static str = "edge club wrap where juice nephew whip entry cover bullet cause jeans";
-    const ENTROPY   : [u8;16] = [ 0x46, 0x45, 0x87, 0xf8, 0x7d, 0x27, 0x8d, 0x28, 0xbe, 0x9a, 0x5d, 0x31, 0x83, 0xc4, 0x92, 0x3b];
+    const MNEMONICS: &'static str =
+        "edge club wrap where juice nephew whip entry cover bullet cause jeans";
+    const ENTROPY: [u8; 16] = [
+        0x46, 0x45, 0x87, 0xf8, 0x7d, 0x27, 0x8d, 0x28, 0xbe, 0x9a, 0x5d, 0x31, 0x83, 0xc4, 0x92,
+        0x3b,
+    ];
 
     lazy_static! {
-        static ref OUTPUT : ExtendedAddr = {
+        static ref OUTPUT: ExtendedAddr = {
             use std::str::FromStr;
-            ExtendedAddr::from_str("Ae2tdPwUPEZ81gMkWH2PgB55y18pp2hxDxM2cmzBNnQtyLhJHqUp622zVgz").unwrap()
+            ExtendedAddr::from_str("Ae2tdPwUPEZ81gMkWH2PgB55y18pp2hxDxM2cmzBNnQtyLhJHqUp622zVgz")
+                .unwrap()
         };
-        static ref PROTOCOL_MAGIC : ProtocolMagic = ProtocolMagic::default();
-        static ref ADDRESSES : Vec<ExtendedAddr> = {
+        static ref PROTOCOL_MAGIC: ProtocolMagic = ProtocolMagic::default();
+        static ref ADDRESSES: Vec<ExtendedAddr> = {
             let mut wallet = rindex::Wallet::from_daedalus_mnemonics(
                 DerivationScheme::V1,
                 &bip39::dictionary::ENGLISH,
-                MNEMONICS
-            ).unwrap();
+                MNEMONICS,
+            )
+            .unwrap();
             let generator = wallet.create_account("", 0).address_generator();
-            generator.iter_with(
-                [ Addressing::new(0, 1)
-                , Addressing::new(0, 2)
-                , Addressing::new(0, 3)
-                , Addressing::new(0, 4)
-                ].iter(),
-                PROTOCOL_MAGIC.clone().into(),
-            ).collect()
+            generator
+                .iter_with(
+                    [
+                        Addressing::new(0, 1),
+                        Addressing::new(0, 2),
+                        Addressing::new(0, 3),
+                        Addressing::new(0, 4),
+                    ]
+                    .iter(),
+                    PROTOCOL_MAGIC.clone().into(),
+                )
+                .collect()
         };
-        static ref INPUTS : Vec<txutils::TxoPointerInfo<Addressing>> = {
+        static ref INPUTS: Vec<txutils::TxoPointerInfo<Addressing>> = {
             vec![
-                random_txo_pointer_info(0,1),
-                random_txo_pointer_info(0,2),
-                random_txo_pointer_info(0,3),
-                random_txo_pointer_info(0,4),
+                random_txo_pointer_info(0, 1),
+                random_txo_pointer_info(0, 2),
+                random_txo_pointer_info(0, 3),
+                random_txo_pointer_info(0, 4),
             ]
         };
     }
@@ -546,7 +642,7 @@ mod test {
     fn random_txo_pointer_info(account: u32, index: u32) -> txutils::TxoPointerInfo<Addressing> {
         let txin = TxoPointer {
             id: TxId::new("".as_bytes()),
-            index: 0
+            index: 0,
         };
 
         txutils::TxoPointerInfo {
@@ -561,10 +657,13 @@ mod test {
         let wallet = rindex::Wallet::from_daedalus_mnemonics(
             DerivationScheme::V1,
             &bip39::dictionary::ENGLISH,
-            MNEMONICS
-        ).unwrap();
+            MNEMONICS,
+        )
+        .unwrap();
         let policy = OutputPolicy::One(OUTPUT.clone());
-        let (txaux, _) = wallet.move_transaction(*PROTOCOL_MAGIC, &INPUTS, &policy).unwrap();
+        let (txaux, _) = wallet
+            .move_transaction(*PROTOCOL_MAGIC, &INPUTS, &policy)
+            .unwrap();
 
         for (witness, address) in txaux.witness.iter().zip(ADDRESSES.iter()) {
             assert!(witness.verify_address(address));

@@ -1,5 +1,8 @@
-use cardano::{block::{Block, BlockHeader, RawBlock, HeaderHash, BlockDate}, tx::{TxAux}};
-use network::{Result};
+use cardano::{
+    block::{Block, BlockDate, BlockHeader, HeaderHash, RawBlock},
+    tx::TxAux,
+};
+use network::Result;
 
 /// Api to abstract the network interaction and do the
 /// necessary operations
@@ -19,15 +22,17 @@ pub trait Api {
     /// inclusive = false) or [from, to] (if inclusive = true). FIXME:
     /// the inclusive = true case is only needed because the native
     /// protocol doesn't support fetching from the genesis_prev hash.
-    fn get_blocks<F>( &mut self
-                    , from: &BlockRef
-                    , inclusive: bool
-                    , to: &BlockRef
-                    , got_block: &mut F
-                    ) -> Result<()>
-        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
+    fn get_blocks<F>(
+        &mut self,
+        from: &BlockRef,
+        inclusive: bool,
+        to: &BlockRef,
+        got_block: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
 
-    fn send_transaction( &mut self, txaux: TxAux) -> Result<bool>;
+    fn send_transaction(&mut self, txaux: TxAux) -> Result<bool>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

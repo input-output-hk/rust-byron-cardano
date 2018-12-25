@@ -1,13 +1,13 @@
-use super::{Result, Error, Storage};
-use cardano::block::{BlockDate, EpochId, EpochSlotId, HeaderHash, Utxos, ChainState, Block};
-use cardano::config::{GenesisData};
+use super::{Error, Result, Storage};
+use cardano::block::{Block, BlockDate, ChainState, EpochId, EpochSlotId, HeaderHash, Utxos};
+use cardano::config::GenesisData;
 use cardano::tx::TxoPointer;
 use cbor_event::{de, se, Len};
+use epoch;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{Read, Write};
-use storage_units::utils::{magic, error::StorageError};
-use epoch;
+use storage_units::utils::{error::StorageError, magic};
 
 const FILE_TYPE: magic::FileType = 0x5554584f; // = UTXO
 const VERSION: magic::Version = 3;
@@ -34,7 +34,7 @@ pub fn write_chain_state(
 
     let parent_hash = match parent_for_epoch(epoch) {
         None => genesis_data.genesis_prev.clone(),
-        Some(parent_epoch) => get_last_block_of_epoch(storage, parent_epoch)?
+        Some(parent_epoch) => get_last_block_of_epoch(storage, parent_epoch)?,
     };
 
     write_chain_state_delta(
@@ -45,13 +45,15 @@ pub fn write_chain_state(
         &mut tmpfile,
     )?;
 
-    let path = storage.config.get_chain_state_filepath(
-        chain_state.last_block.as_hash_bytes()
-    );
+    let path = storage
+        .config
+        .get_chain_state_filepath(chain_state.last_block.as_hash_bytes());
     tmpfile.render_permanent(&path)?;
 
     // Check that we can reconstruct the state from disk.
-    debug_assert!(&read_chain_state(storage, genesis_data, &chain_state.last_block)? == chain_state);
+    debug_assert!(
+        &read_chain_state(storage, genesis_data, &chain_state.last_block)? == chain_state
+    );
 
     Ok(())
 }
@@ -108,7 +110,11 @@ pub fn write_chain_state_delta<W: Write>(
 
 /// Reconstruct the full utxo state as of the specified block by
 /// reading and applying the blocks's ancestor delta chain.
-pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_hash: &HeaderHash) -> Result<ChainState> {
+pub fn read_chain_state(
+    storage: &Storage,
+    genesis_data: &GenesisData,
+    block_hash: &HeaderHash,
+) -> Result<ChainState> {
     if block_hash == &genesis_data.genesis_prev {
         return Ok(ChainState::new(genesis_data));
     }
@@ -121,10 +127,13 @@ pub fn read_chain_state(storage: &Storage, genesis_data: &GenesisData, block_has
         let hash = last_boundary_block.as_hash_bytes();
         chain_state.slot_leaders = match storage.read_block(hash).unwrap().decode()? {
             Block::BoundaryBlock(blk) => {
-                assert_eq!(blk.header.consensus.epoch, chain_state.last_date.unwrap().get_epochid());
+                assert_eq!(
+                    blk.header.consensus.epoch,
+                    chain_state.last_date.unwrap().get_epochid()
+                );
                 blk.body.slot_leaders.clone()
-            },
-            _ => panic!("unexpected non-boundary block")
+            }
+            _ => panic!("unexpected non-boundary block"),
         };
     }
 
@@ -136,7 +145,9 @@ fn do_get_chain_state(
     genesis_data: &GenesisData,
     block_hash: &HeaderHash,
 ) -> Result<ChainState> {
-    let filename = storage.config.get_chain_state_filepath(block_hash.as_hash_bytes());
+    let filename = storage
+        .config
+        .get_chain_state_filepath(block_hash.as_hash_bytes());
 
     let file = decode_chain_state_file(&mut fs::File::open(&filename)?)?;
 
@@ -300,21 +311,24 @@ pub fn get_last_block_of_epoch(storage: &Storage, epoch: EpochId) -> Result<Head
 /// in the chain, starting at 'block_hash' until it reaches a block
 /// that has a chain state on disk. It then iterates forwards to
 /// 'block_hash', verifying blocks and updating the chain state.
-pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_hash: &HeaderHash) -> Result<ChainState> {
-
+pub fn restore_chain_state(
+    storage: &Storage,
+    genesis_data: &GenesisData,
+    block_hash: &HeaderHash,
+) -> Result<ChainState> {
     debug!("restoring chain state at block {}", block_hash);
 
     let mut cur = block_hash.clone();
     let mut blocks_to_apply = vec![];
 
     loop {
-
         let mut chain_state = match read_chain_state(storage, genesis_data, &cur) {
             Ok(chain) => chain,
             Err(Error::StorageError(StorageError::IoError(ref err)))
                 if err.kind() == ::std::io::ErrorKind::NotFound =>
             {
-                let rblk = storage.read_block(cur.as_hash_bytes())
+                let rblk = storage
+                    .read_block(cur.as_hash_bytes())
                     .expect(&format!("reading block {}", cur));
                 let blk = rblk.decode().unwrap();
                 // FIXME: store 'blk' in blocks_to_apply? Would
@@ -323,17 +337,21 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
                 blocks_to_apply.push(cur);
                 cur = blk.get_header().get_previous_header();
                 continue;
-            },
+            }
             Err(err) => return Err(err),
         };
 
-        debug!("loaded chain state at block {}, have to apply {} blocks",
-               cur, blocks_to_apply.len());
+        debug!(
+            "loaded chain state at block {}, have to apply {} blocks",
+            cur,
+            blocks_to_apply.len()
+        );
 
         assert_eq!(chain_state.last_block, cur);
 
         for hash in blocks_to_apply.iter().rev() {
-            let rblk = storage.read_block(hash.as_hash_bytes())
+            let rblk = storage
+                .read_block(hash.as_hash_bytes())
                 .expect(&format!("reading block {}", hash));
             let blk = rblk.decode().unwrap();
             chain_state.verify_block(hash, &blk)?;
@@ -342,5 +360,5 @@ pub fn restore_chain_state(storage: &Storage, genesis_data: &GenesisData, block_
         assert_eq!(&chain_state.last_block, block_hash);
 
         return Ok(chain_state);
-    };
+    }
 }

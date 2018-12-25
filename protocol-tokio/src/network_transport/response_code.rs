@@ -56,7 +56,7 @@ impl ::quickcheck::Arbitrary for ResponseCode {
 mod test {
     use super::*;
 
-    quickcheck!{
+    quickcheck! {
         fn encode_decode(rc: ResponseCode) -> bool {
             let encoded : u32 = rc.into();
             let decoded : ResponseCode = encoded.into();

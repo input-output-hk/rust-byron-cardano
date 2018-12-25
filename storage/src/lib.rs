@@ -5,6 +5,7 @@ extern crate cbor_event;
 extern crate rand;
 extern crate storage_units;
 
+pub mod chain_state;
 pub mod config;
 pub mod epoch;
 pub mod iter;
@@ -12,7 +13,6 @@ pub mod pack;
 pub mod refpack;
 pub mod tag;
 pub mod types;
-pub mod chain_state;
 use std::{fs, io, result};
 
 pub use config::StorageConfig;
@@ -108,21 +108,21 @@ pub struct Storage {
 }
 
 macro_rules! try_open {
-    ($open_fn:path, $path:expr, $what:expr) => {
-        {
-            let filepath = $path;
-            match $open_fn(filepath) {
-                Ok(file) => file,
-                Err(e) => {
-                    warn!(
-                        "cannot read {} `{}': {}",
-                        $what, filepath.to_string_lossy(), e
-                    );
-                    return Err(e.into());
-                }
+    ($open_fn:path, $path:expr, $what:expr) => {{
+        let filepath = $path;
+        match $open_fn(filepath) {
+            Ok(file) => file,
+            Err(e) => {
+                warn!(
+                    "cannot read {} `{}': {}",
+                    $what,
+                    filepath.to_string_lossy(),
+                    e
+                );
+                return Err(e.into());
             }
         }
-    };
+    }};
 }
 
 impl Storage {
@@ -175,22 +175,11 @@ impl Storage {
                 _ => {
                     if lookup.bloom.search(hash) {
                         let idx_filepath = self.config.get_index_filepath(packref);
-                        let mut idx_file = try_open!(
-                            indexfile::Reader::init,
-                            &idx_filepath,
-                            "index file"
-                        );
-                        let sr = idx_file.search(
-                            &lookup.params,
-                            hash,
-                            start,
-                            nb
-                        );
+                        let mut idx_file =
+                            try_open!(indexfile::Reader::init, &idx_filepath, "index file");
+                        let sr = idx_file.search(&lookup.params, hash, start, nb);
                         if let Some(iloc) = sr {
-                            return Ok(BlockLocation::Packed(
-                                packref.clone(),
-                                iloc
-                            ));
+                            return Ok(BlockLocation::Packed(packref.clone(), iloc));
                         }
                     }
                 }
@@ -210,38 +199,27 @@ impl Storage {
         }
     }
 
-    pub fn read_block_at(
-        &self,
-        loc: &BlockLocation,
-    ) -> Result<RawBlock> {
+    pub fn read_block_at(&self, loc: &BlockLocation) -> Result<RawBlock> {
         match loc {
             BlockLocation::Loose(hash) => blob::read(self, hash),
-            BlockLocation::Packed(ref packref, ref iofs) => {
-                match self.lookups.get(packref) {
-                    None => {
-                        unreachable!();
-                    }
-                    Some(lookup) => {
-                        let idx_filepath = self.config.get_index_filepath(packref);
-                        let mut idx_file = try_open!(
-                            indexfile::ReaderNoLookup::init,
-                            &idx_filepath,
-                            "index file"
-                        );
-                        let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
-                        let pack_filepath = self.config.get_pack_filepath(packref);
-                        let mut pack_file = try_open!(
-                            packfile::Seeker::init,
-                            &pack_filepath,
-                            "pack file"
-                        );
-                        let rblk = pack_file
-                            .block_at_offset(pack_offset)
-                            .and_then(|x| Ok(RawBlock(x)))?;
-                        Ok(rblk)
-                    }
+            BlockLocation::Packed(ref packref, ref iofs) => match self.lookups.get(packref) {
+                None => {
+                    unreachable!();
                 }
-            }
+                Some(lookup) => {
+                    let idx_filepath = self.config.get_index_filepath(packref);
+                    let mut idx_file =
+                        try_open!(indexfile::ReaderNoLookup::init, &idx_filepath, "index file");
+                    let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
+                    let pack_filepath = self.config.get_pack_filepath(packref);
+                    let mut pack_file =
+                        try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
+                    let rblk = pack_file
+                        .block_at_offset(pack_offset)
+                        .and_then(|x| Ok(RawBlock(x)))?;
+                    Ok(rblk)
+                }
+            },
         }
     }
 
@@ -253,7 +231,7 @@ impl Storage {
     pub fn get_block_from_tag(&self, tag: &str) -> Result<Block> {
         match tag::read_hash(&self, &tag) {
             None => Err(Error::NoSuchTag),
-            Some(hash) => Ok(self.read_block(&hash.as_hash_bytes())?.decode()?)
+            Some(hash) => Ok(self.read_block(&hash.as_hash_bytes())?.decode()?),
         }
     }
 
@@ -370,23 +348,21 @@ pub fn resolve_date_to_blockhash(
             let r = handle.getref_at_index(slotid as u32)?;
             Ok(r)
         }
-        Err(_) => {
-            match storage.read_block(tip.as_hash_bytes()) {
-                Err(Error::BlockNotFound(_)) => Ok(None),
-                Err(err) => Err(err),
-                Ok(rblk) => {
-                    let blk = rblk.decode()?;
-                    let found = block_reverse_search_from_tip(storage, &blk, |x| {
-                        match x.get_header().get_blockdate().cmp(date) {
-                            Ordering::Equal => Ok(ReverseSearch::Found),
-                            Ordering::Greater => Ok(ReverseSearch::Continue),
-                            Ordering::Less => Ok(ReverseSearch::Abort),
-                        }
-                    })?;
-                    Ok(found.map(|x| header_to_blockhash(&x.get_header().compute_hash())))
-                }
+        Err(_) => match storage.read_block(tip.as_hash_bytes()) {
+            Err(Error::BlockNotFound(_)) => Ok(None),
+            Err(err) => Err(err),
+            Ok(rblk) => {
+                let blk = rblk.decode()?;
+                let found = block_reverse_search_from_tip(storage, &blk, |x| {
+                    match x.get_header().get_blockdate().cmp(date) {
+                        Ordering::Equal => Ok(ReverseSearch::Found),
+                        Ordering::Greater => Ok(ReverseSearch::Continue),
+                        Ordering::Less => Ok(ReverseSearch::Abort),
+                    }
+                })?;
+                Ok(found.map(|x| header_to_blockhash(&x.get_header().compute_hash())))
             }
-        }
+        },
     }
 }
 

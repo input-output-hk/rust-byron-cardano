@@ -1,11 +1,11 @@
-use block::*;
 use address;
-use config::{ProtocolMagic, GenesisData};
+use block::*;
 use coin;
-use tx::{self, TxAux, TxoPointer, TxOut, TxInWitness};
-use std::collections::BTreeMap;
+use config::{GenesisData, ProtocolMagic};
 use fee::{self, FeeAlgorithm};
 use hash;
+use std::collections::BTreeMap;
+use tx::{self, TxAux, TxInWitness, TxOut, TxoPointer};
 
 pub type Utxos = BTreeMap<TxoPointer, TxOut>;
 
@@ -29,10 +29,8 @@ pub struct ChainState {
 }
 
 impl ChainState {
-
     /// Initialize the initial chain state from the genesis data.
     pub fn new(genesis_data: &GenesisData) -> Self {
-
         let mut utxos = BTreeMap::new();
 
         // Create utxos from AVVM distributions.
@@ -40,7 +38,11 @@ impl ChainState {
             let (id, address) = tx::redeem_pubkey_to_txid(&pubkey, genesis_data.protocol_magic);
             utxos.insert(
                 TxoPointer { id, index: 0 },
-                TxOut { address, value: value.clone() });
+                TxOut {
+                    address,
+                    value: value.clone(),
+                },
+            );
         }
 
         // Create utxos from non-AVVM balances.
@@ -48,7 +50,11 @@ impl ChainState {
             let id = hash::Blake2b256::new(&cbor!(&address).unwrap());
             utxos.insert(
                 TxoPointer { id, index: 0 },
-                TxOut { address: address.deconstruct(), value: value.clone() });
+                TxOut {
+                    address: address.deconstruct(),
+                    value: value.clone(),
+                },
+            );
         }
 
         ChainState {
@@ -70,7 +76,6 @@ impl ChainState {
     /// introduced by this block.
     /// FIXME: we may want to return all errors rather than just the first.
     pub fn verify_block(&mut self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error> {
-
         let mut res = Ok(());
 
         add_error(&mut res, self.do_verify(block_hash, blk));
@@ -81,14 +86,12 @@ impl ChainState {
         self.chain_length += 1;
 
         match blk {
-
             Block::BoundaryBlock(blk) => {
                 self.last_boundary_block = Some(block_hash.clone());
                 self.slot_leaders = blk.body.slot_leaders.clone();
-            },
-
-            Block::MainBlock(_) => {
             }
+
+            Block::MainBlock(_) => {}
         };
 
         // Update the utxos from the transactions.
@@ -101,8 +104,7 @@ impl ChainState {
         res
     }
 
-    fn do_verify(&self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error>
-    {
+    fn do_verify(&self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error> {
         // Perform stateless checks.
         verify_block(block_hash, blk)?;
 
@@ -113,7 +115,10 @@ impl ChainState {
 
         let prev_block = blk.get_header().get_previous_header();
         if prev_block != self.last_block {
-            return Err(Error::WrongPreviousBlock(prev_block, self.last_block.clone()))
+            return Err(Error::WrongPreviousBlock(
+                prev_block,
+                self.last_block.clone(),
+            ));
         }
 
         // Check the block date.
@@ -122,33 +127,35 @@ impl ChainState {
         match self.last_date {
             Some(last_date) => {
                 if date <= last_date {
-                    return Err(Error::BlockDateInPast)
+                    return Err(Error::BlockDateInPast);
                 }
 
                 // If this is a genesis block, it should be the next
                 // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid() != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 }) {
-                    return Err(Error::BlockDateInFuture)
+                if date.get_epochid()
+                    != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 })
+                {
+                    return Err(Error::BlockDateInFuture);
                 }
             }
 
             None => {
-                if date != BlockDate::Boundary(0) { // FIXME: use epoch_start
-                    return Err(Error::BlockDateInFuture)
+                if date != BlockDate::Boundary(0) {
+                    // FIXME: use epoch_start
+                    return Err(Error::BlockDateInFuture);
                 }
             }
         }
 
         // Check that the block was signed by the appointed slot leader.
         match blk {
-
-            Block::BoundaryBlock(_) => { },
+            Block::BoundaryBlock(_) => {}
 
             Block::MainBlock(blk) => {
                 let slot_id = blk.header.consensus.slot_id.slotid as usize;
 
                 if slot_id >= self.slot_leaders.len() {
-                    return Err(Error::NonExistentSlot)
+                    return Err(Error::NonExistentSlot);
                 }
 
                 let slot_leader = &self.slot_leaders[slot_id];
@@ -157,7 +164,7 @@ impl ChainState {
                 // verify_block, so here we only check the leader key
                 // against the genesis block.
                 if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
-                    return Err(Error::WrongSlotLeader)
+                    return Err(Error::WrongSlotLeader);
                 }
             }
         };
@@ -168,7 +175,6 @@ impl ChainState {
     /// Verify that a transaction only spends unspent transaction
     /// outputs (utxos), and update the utxo state.
     fn verify_tx(&mut self, txaux: &TxAux) -> Result<(), Error> {
-
         self.nr_transactions += 1;
 
         let mut res = Ok(());
@@ -190,17 +196,14 @@ impl ChainState {
                     add_error(&mut res, Err(Error::MissingUtxo));
                 }
                 Some(txout) => {
-
                     self.spent_txos += 1;
 
                     let witness_address = match in_witness {
-
-                        TxInWitness::PkWitness(pubkey, _) => {
-                            address::ExtendedAddr::new(
-                                address::AddrType::ATPubKey,
-                                address::SpendingData::PubKeyASD(*pubkey),
-                                txout.address.attributes.clone())
-                        }
+                        TxInWitness::PkWitness(pubkey, _) => address::ExtendedAddr::new(
+                            address::AddrType::ATPubKey,
+                            address::SpendingData::PubKeyASD(*pubkey),
+                            txout.address.attributes.clone(),
+                        ),
 
                         TxInWitness::ScriptWitness(_, _) => {
                             panic!("script witnesses are not implemented")
@@ -212,7 +215,8 @@ impl ChainState {
                             address::ExtendedAddr::new(
                                 address::AddrType::ATRedeem,
                                 address::SpendingData::RedeemASD(*pubkey),
-                                txout.address.attributes.clone())
+                                txout.address.attributes.clone(),
+                            )
                         }
                     };
 
@@ -221,9 +225,13 @@ impl ChainState {
                     }
 
                     match input_amount + txout.value {
-                        Ok(x) => { input_amount = x; }
-                        Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::InputsTooBig)),
-                        Err(err) => unreachable!("{}", err)
+                        Ok(x) => {
+                            input_amount = x;
+                        }
+                        Err(coin::Error::OutOfBound(_)) => {
+                            add_error(&mut res, Err(Error::InputsTooBig))
+                        }
+                        Err(err) => unreachable!("{}", err),
                     }
                 }
             }
@@ -233,25 +241,27 @@ impl ChainState {
         let mut output_amount = coin::Coin::zero();
         for output in &tx.outputs {
             match output_amount + output.value {
-                Ok(x) => { output_amount = x; }
+                Ok(x) => {
+                    output_amount = x;
+                }
                 Err(coin::Error::OutOfBound(_)) => add_error(&mut res, Err(Error::OutputsTooBig)),
-                Err(err) => unreachable!("{}", err)
+                Err(err) => unreachable!("{}", err),
             }
         }
 
         // Calculate the minimum fee. The fee is 0 if all inputs are
         // from redeem addresses.
-        let min_fee =
-            if nr_redeems == tx.inputs.len() { coin::Coin::zero() }
-            else {
-                match self.fee_policy.calculate_for_txaux(&txaux) {
-                    Ok(fee) => fee.to_coin(),
-                    Err(err) => {
-                        add_error(&mut res, Err(Error::FeeError(err)));
-                        coin::Coin::zero()
-                    }
+        let min_fee = if nr_redeems == tx.inputs.len() {
+            coin::Coin::zero()
+        } else {
+            match self.fee_policy.calculate_for_txaux(&txaux) {
+                Ok(fee) => fee.to_coin(),
+                Err(err) => {
+                    add_error(&mut res, Err(Error::FeeError(err)));
+                    coin::Coin::zero()
                 }
-            };
+            }
+        };
 
         let output_plus_fee = match output_amount + min_fee {
             Ok(x) => x,
@@ -259,7 +269,7 @@ impl ChainState {
                 add_error(&mut res, Err(Error::OutputsTooBig));
                 output_amount
             }
-            Err(err) => unreachable!("{}", err)
+            Err(err) => unreachable!("{}", err),
         };
 
         // Check that total outputs + minimal fee <= total inputs.
@@ -269,7 +279,17 @@ impl ChainState {
 
         // Add the outputs to the utxo state.
         for (index, output) in tx.outputs.iter().enumerate() {
-            if self.utxos.insert(TxoPointer { id, index: index as u32 }, output.clone()).is_some() {
+            if self
+                .utxos
+                .insert(
+                    TxoPointer {
+                        id,
+                        index: index as u32,
+                    },
+                    output.clone(),
+                )
+                .is_some()
+            {
                 add_error(&mut res, Err(Error::DuplicateTxo));
             }
         }

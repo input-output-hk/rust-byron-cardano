@@ -1,15 +1,15 @@
 use cardano::address;
 use cardano::bip;
+use cardano::config::ProtocolMagic;
 use cardano::hdwallet;
 use cardano::wallet::bip44;
 use cardano::wallet::scheme::Wallet;
-use cardano::config::{ProtocolMagic};
 
 use std::os::raw::c_char;
 use std::{ffi, ptr, slice};
 
-use types::{AccountPtr, WalletPtr};
 use address::ffi_address_to_base58;
+use types::{AccountPtr, WalletPtr};
 
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
@@ -29,10 +29,10 @@ use address::ffi_address_to_base58;
 ///
 #[no_mangle]
 pub extern "C" fn cardano_wallet_new(
-    entropy_ptr: *const u8, /* expecting entropy ptr ... */
-    entropy_size: usize,    /* entropy size */
+    entropy_ptr: *const u8,  /* expecting entropy ptr ... */
+    entropy_size: usize,     /* entropy size */
     password_ptr: *const u8, /* password ptr */
-    password_size: usize,   /* password size */
+    password_size: usize,    /* password size */
 ) -> WalletPtr {
     let entropy_slice = unsafe { slice::from_raw_parts(entropy_ptr, entropy_size) };
     let password = unsafe { slice::from_raw_parts(password_ptr, password_size) };

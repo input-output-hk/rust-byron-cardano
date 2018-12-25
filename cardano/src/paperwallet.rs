@@ -1,15 +1,14 @@
-use cryptoxide::sha2::Sha512;
 use cryptoxide::hmac::Hmac;
-use cryptoxide::pbkdf2::{pbkdf2};
+use cryptoxide::pbkdf2::pbkdf2;
+use cryptoxide::sha2::Sha512;
 
-const ITERS : u32 = 10000;
+const ITERS: u32 = 10000;
 pub const IV_SIZE: usize = 8;
 const SALT_SIZE: usize = IV_SIZE;
 
-
 fn gen(iv: &[u8], password: &[u8], buf: &mut [u8]) {
     assert!(iv.len() == IV_SIZE);
-    let mut salt = [0u8;SALT_SIZE];
+    let mut salt = [0u8; SALT_SIZE];
     salt[0..IV_SIZE].clone_from_slice(iv);
     let mut mac = Hmac::new(Sha512::new(), password);
     pbkdf2(&mut mac, &salt[..], ITERS, buf);
@@ -30,14 +29,14 @@ pub fn scramble(iv: &[u8], password: &[u8], input: &[u8]) -> Vec<u8> {
     gen(iv, password, &mut out[IV_SIZE..sz]);
 
     for i in IV_SIZE..sz {
-        out[i] = out[i] ^ input[i-IV_SIZE];
+        out[i] = out[i] ^ input[i - IV_SIZE];
     }
     out
 }
 
 /// Try to reverse the scramble operation, using
 /// the first `IV_SIZE` bytes as IV, and the rest as the shielded input.
-pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8>{
+pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8> {
     assert!(input.len() > IV_SIZE);
 
     let out_sz = input.len() - IV_SIZE;
@@ -49,42 +48,41 @@ pub fn unscramble(password: &[u8], input: &[u8]) -> Vec<u8>{
 
     gen(&input[0..IV_SIZE], password, &mut out[0..out_sz]);
     for i in 0..out_sz {
-        out[i] = out[i] ^ input[IV_SIZE+i];
+        out[i] = out[i] ^ input[IV_SIZE + i];
     }
     out
 }
-
 
 #[cfg(test)]
 mod tests {
     //use paperwallet::{scramble,unscramble};
     use paperwallet;
 
-/// # GOLDEN_TEST: cardano/crypto/scramble128
-///
-///
-///
-/// ## Input(s)
-///
-/// ```
-/// iv ([u8,4]) = "hexadecimal encoded bytes"
-/// input (&'static str) = "UTF8 BIP39 passphrase (english)"
-/// passphrase (&'static str) = "Bouble quoted, encoded string."
-/// ```
-///
-/// ## Output(s)
-///
-/// ```
-/// shielded_input (&'static str) = "UTF8 BIP39 passphrase (english)"
-/// ```
-struct TestVector {
-  iv : [u8;8],
-  input : [u8;16],
-  passphrase : &'static str,
-  shielded_input : [u8;24]
-}
+    /// # GOLDEN_TEST: cardano/crypto/scramble128
+    ///
+    ///
+    ///
+    /// ## Input(s)
+    ///
+    /// ```
+    /// iv ([u8,4]) = "hexadecimal encoded bytes"
+    /// input (&'static str) = "UTF8 BIP39 passphrase (english)"
+    /// passphrase (&'static str) = "Bouble quoted, encoded string."
+    /// ```
+    ///
+    /// ## Output(s)
+    ///
+    /// ```
+    /// shielded_input (&'static str) = "UTF8 BIP39 passphrase (english)"
+    /// ```
+    struct TestVector {
+        iv: [u8; 8],
+        input: [u8; 16],
+        passphrase: &'static str,
+        shielded_input: [u8; 24],
+    }
 
-const GOLDEN_TESTS : [TestVector;3] =
+    const GOLDEN_TESTS : [TestVector;3] =
   [ TestVector
     { iv : [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
     , input : [0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f]
@@ -104,7 +102,6 @@ const GOLDEN_TESTS : [TestVector;3] =
     , shielded_input : [42, 42, 42, 42, 42, 42, 42, 42, 199, 113, 24, 116, 236, 196, 179, 147, 0, 136, 72, 43, 59, 108, 139, 133]
     }
   ];
-
 
     #[test]
     fn paper_scramble() {

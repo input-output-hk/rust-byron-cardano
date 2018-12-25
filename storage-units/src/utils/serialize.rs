@@ -175,6 +175,6 @@ pub mod io {
         } else {
             0
         };
-        Ok(4 + len as u64 + pad_bytes as u64)  // Overflow can't occur here
+        Ok(4 + len as u64 + pad_bytes as u64) // Overflow can't occur here
     }
 }

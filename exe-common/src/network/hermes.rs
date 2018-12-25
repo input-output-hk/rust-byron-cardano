@@ -1,16 +1,19 @@
-use cardano::{block::{block, Block, BlockHeader, BlockDate, RawBlock, HeaderHash}, tx::{TxAux}};
-use cardano::hash::{HASH_SIZE_256};
-use storage_units::packfile;
+use cardano::hash::HASH_SIZE_256;
+use cardano::{
+    block::{block, Block, BlockDate, BlockHeader, HeaderHash, RawBlock},
+    tx::TxAux,
+};
 use std::io::Write;
-use std::time::{SystemTime, Duration};
 use std::thread;
+use std::time::{Duration, SystemTime};
+use storage_units::packfile;
 
 use futures::{Future, Stream};
 use hyper::Client;
 use tokio_core::reactor::Core;
 
-use network::{Result, Error};
 use network::api::{Api, BlockRef};
+use network::{Error, Result};
 
 // Time between get_tip calls. FIXME: make configurable?
 static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
@@ -19,15 +22,19 @@ static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
 pub struct HermesEndPoint {
     pub url: String,
     pub blockchain: String,
-    core: Core
+    core: Core,
 }
 
 impl HermesEndPoint {
     pub fn new(url: String, blockchain: String) -> Self {
-        HermesEndPoint { url, blockchain, core: Core::new().unwrap() }
+        HermesEndPoint {
+            url,
+            blockchain,
+            core: Core::new().unwrap(),
+        }
     }
 
-    pub fn uri(& mut self, path: &str) -> String {
+    pub fn uri(&mut self, path: &str) -> String {
         format!("{}/{}", self.url, path)
     }
 }
@@ -42,22 +49,26 @@ impl Api for HermesEndPoint {
         let mut bh_bytes = Vec::with_capacity(4096);
         {
             let client = Client::new(&self.core.handle());
-            let work = client.get(uri.parse().unwrap()).from_err::<Error>()
+            let work = client
+                .get(uri.parse().unwrap())
+                .from_err::<Error>()
                 .and_then(|res| {
-                if !res.status().is_success() {
-                    err = Some(Error::HttpError(uri, res.status().clone()));
-                };
-                res.body().from_err::<Error>().for_each(|chunk| {
-                    bh_bytes.write_all(&chunk).map_err(From::from)
-                })
-            });
+                    if !res.status().is_success() {
+                        err = Some(Error::HttpError(uri, res.status().clone()));
+                    };
+                    res.body()
+                        .from_err::<Error>()
+                        .for_each(|chunk| bh_bytes.write_all(&chunk).map_err(From::from))
+                });
             let now = SystemTime::now();
             self.core.run(work)?;
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded TIP in {}sec", time_elapsed.as_secs());
         }
 
-        if let Some(err) = err { return Err(err) };
+        if let Some(err) = err {
+            return Err(err);
+        };
 
         let bh_raw = block::RawBlockHeader::from_dat(bh_bytes);
         Ok(bh_raw.decode()?)
@@ -66,7 +77,9 @@ impl Api for HermesEndPoint {
     fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
         loop {
             let new_tip = self.get_tip()?;
-            if new_tip.compute_hash() != *prev_tip { return Ok(new_tip) }
+            if new_tip.compute_hash() != *prev_tip {
+                return Ok(new_tip);
+            }
 
             info!("Sleeping for {:?}", NETWORK_REFRESH_FREQUENCY);
             thread::sleep(NETWORK_REFRESH_FREQUENCY);
@@ -77,7 +90,7 @@ impl Api for HermesEndPoint {
         let uri = self.uri(&format!("block/{}", hash));
         info!("querying uri: {}", uri);
         let client = Client::new(&self.core.handle());
-        let mut block_raw = vec!();
+        let mut block_raw = vec![];
         let mut err = None;
         {
             let work = client.get(uri.parse().unwrap()).and_then(|res| {
@@ -94,30 +107,33 @@ impl Api for HermesEndPoint {
             let time_elapsed = now.elapsed().unwrap();
             info!("Downloaded block in {}sec", time_elapsed.as_secs());
         }
-        if let Some(err) = err { return Err(err) };
+        if let Some(err) = err {
+            return Err(err);
+        };
         Ok(RawBlock::from_dat(block_raw))
     }
 
-    fn get_blocks<F>( &mut self
-                    , from: &BlockRef
-                    , inclusive: bool
-                    , to: &BlockRef
-                    , got_block: &mut F
-                    ) -> Result<()>
-        where F: FnMut(&HeaderHash, &Block, &RawBlock) -> ()
+    fn get_blocks<F>(
+        &mut self,
+        from: &BlockRef,
+        inclusive: bool,
+        to: &BlockRef,
+        got_block: &mut F,
+    ) -> Result<()>
+    where
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
     {
         let mut inclusive = inclusive;
         let mut from = from.clone();
 
         loop {
-
             // FIXME: hack
             if let BlockDate::Normal(d) = from.date {
                 if d.slotid == 21599 && !inclusive {
                     from = BlockRef {
-                        hash: HeaderHash::from([0;HASH_SIZE_256]), // FIXME: use None?
+                        hash: HeaderHash::from([0; HASH_SIZE_256]), // FIXME: use None?
                         parent: from.hash.clone(),
-                        date: BlockDate::Boundary(d.epoch + 1)
+                        date: BlockDate::Boundary(d.epoch + 1),
                     };
                     inclusive = true;
                 };
@@ -125,13 +141,14 @@ impl Api for HermesEndPoint {
 
             let epoch = from.date.get_epochid();
 
-            if !inclusive && to.hash == from.hash { break }
+            if !inclusive && to.hash == from.hash {
+                break;
+            }
 
             if inclusive && from.date.is_boundary() && epoch < to.date.get_epochid() {
-
                 // Fetch a complete epoch.
 
-                let mut tmppack = vec!();
+                let mut tmppack = vec![];
                 let mut err = None;
 
                 {
@@ -153,7 +170,9 @@ impl Api for HermesEndPoint {
                     info!("Downloaded EPOCH in {}sec", time_elapsed.as_secs());
                 }
 
-                if let Some(err) = err { return Err(err) };
+                if let Some(err) = err {
+                    return Err(err);
+                };
 
                 let mut packfile = packfile::Reader::init(&tmppack[..]).unwrap();
 
@@ -172,14 +191,11 @@ impl Api for HermesEndPoint {
                     from = BlockRef {
                         hash: hdr.compute_hash(),
                         parent: hdr.get_previous_header(),
-                        date: hdr.get_blockdate()
+                        date: hdr.get_blockdate(),
                     };
                     inclusive = false;
                 }
-            }
-
-            else {
-
+            } else {
                 //assert!(from.date.get_epochid() == to.date.get_epochid());
 
                 let mut blocks = vec![];
@@ -192,10 +208,8 @@ impl Api for HermesEndPoint {
                     assert!(hdr.get_blockdate() >= from.date);
                     let prev = hdr.get_previous_header();
                     blocks.push((hdr.compute_hash(), block, block_raw));
-                    if (inclusive && prev == from.parent)
-                        || (!inclusive && prev == from.hash)
-                    {
-                        break
+                    if (inclusive && prev == from.parent) || (!inclusive && prev == from.hash) {
+                        break;
                     }
                     to = prev;
                 }
@@ -211,7 +225,7 @@ impl Api for HermesEndPoint {
         Ok(())
     }
 
-    fn send_transaction( &mut self, _txaux: TxAux) -> Result<bool> {
+    fn send_transaction(&mut self, _txaux: TxAux) -> Result<bool> {
         Ok(false)
     }
 }

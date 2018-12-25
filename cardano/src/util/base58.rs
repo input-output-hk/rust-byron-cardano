@@ -12,21 +12,19 @@
 //! assert_eq!(encoded, base58::encode(decoded));
 //! ```
 
-pub const ALPHABET : &'static str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+pub const ALPHABET: &'static str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Error {
     /// error when a given character is not part of the supported
     /// base58 `ALPHABET`. Contains the index of the faulty byte.
-    UnknownSymbol(usize)
+    UnknownSymbol(usize),
 }
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match self {
-            &Error::UnknownSymbol(idx) => {
-                write!(f, "Unknown symbol at byte index {}", idx)
-            }
+            &Error::UnknownSymbol(idx) => write!(f, "Unknown symbol at byte index {}", idx),
         }
     }
 }
@@ -49,9 +47,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 pub fn encode(input: &[u8]) -> String {
     // unsafe to unwrap the result of `String::from_utf8` as the given
     // returned bytes are valid within the base58 alphabet (they are all ASCII7)
-    String::from_utf8(
-        base_encode(ALPHABET, input)
-    ).unwrap()
+    String::from_utf8(base_encode(ALPHABET, input)).unwrap()
 }
 
 /// decode from base58 the given input
@@ -141,11 +137,16 @@ mod tests {
 
     #[test]
     fn test_vector_8() {
-        encode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
-        decode(b"abcdefghijklmnopqrstuvwxyz", "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f");
+        encode(
+            b"abcdefghijklmnopqrstuvwxyz",
+            "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f",
+        );
+        decode(
+            b"abcdefghijklmnopqrstuvwxyz",
+            "3yxU3u1igY8WkgtjK92fbJQCd4BZiiT1v25f",
+        );
     }
 }
-
 
 fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     let alphabet = alphabet_s.as_bytes();
@@ -180,19 +181,18 @@ fn base_encode(alphabet_s: &str, input: &[u8]) -> Vec<u8> {
     string
 }
 
-
 fn base_decode(alphabet_s: &str, input: &[u8]) -> Result<Vec<u8>> {
     let alphabet = alphabet_s.as_bytes();
     let base = alphabet.len() as u32;
 
-    let mut bytes : Vec<u8> = vec![0];
+    let mut bytes: Vec<u8> = vec![0];
     let zcount = input.iter().take_while(|x| **x == alphabet[0]).count();
 
     for i in zcount..input.len() {
         let value = match alphabet.iter().position(|&x| x == input[i]) {
-                    Some(idx) => idx,
-                    None      => return Err(Error::UnknownSymbol(i))
-                    };
+            Some(idx) => idx,
+            None => return Err(Error::UnknownSymbol(i)),
+        };
         let mut carry = value as u32;
         for j in 0..bytes.len() {
             carry = carry + (bytes[j] as u32 * base);
@@ -208,9 +208,13 @@ fn base_decode(alphabet_s: &str, input: &[u8]) -> Result<Vec<u8>> {
     let leading_zeros = bytes.iter().rev().take_while(|x| **x == 0).count();
     if zcount > leading_zeros {
         if leading_zeros > 0 {
-            for _ in 0..(zcount - leading_zeros - 1) { bytes.push(0); }
+            for _ in 0..(zcount - leading_zeros - 1) {
+                bytes.push(0);
+            }
         } else {
-            for _ in 0..zcount { bytes.push(0); }
+            for _ in 0..zcount {
+                bytes.push(0);
+            }
         }
     }
     bytes.reverse();

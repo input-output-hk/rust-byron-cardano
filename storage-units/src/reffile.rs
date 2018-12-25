@@ -38,9 +38,12 @@ impl Reader {
         loop {
             // FIXME: buffer I/O.
             match self.handle.read_exact(&mut buf) {
-                Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof
-                    => { return Ok(None); },
-                Err(err) => { return Err(err); },
+                Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {
+                    return Ok(None);
+                }
+                Err(err) => {
+                    return Err(err);
+                }
                 Ok(()) => {
                     // if all 0, then it's a empty slot otherwise return
                     for v in buf.iter() {

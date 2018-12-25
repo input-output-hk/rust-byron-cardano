@@ -1,12 +1,16 @@
+use cardano::block::{Block, BlockDate, BlockHeader, ChainState, EpochId, HeaderHash, RawBlock};
+use cardano::config::GenesisData;
+use cardano::util::hex;
+use cardano_storage::{
+    blob, chain_state,
+    epoch::{self, epoch_exists},
+    pack, tag, types, Error, Storage,
+};
 use config::net;
-use network::{Peer, api::Api, api::BlockRef, Result};
-use cardano_storage::{tag, Error, epoch::{self, epoch_exists}, blob, pack, Storage, types, chain_state};
-use cardano::block::{BlockDate, EpochId, HeaderHash, BlockHeader, Block, RawBlock, ChainState};
-use cardano::config::{GenesisData};
-use cardano::util::{hex};
-use storage_units::packfile;
-use std::time::{SystemTime, Duration};
+use network::{api::Api, api::BlockRef, Peer, Result};
 use std::mem;
+use std::time::{Duration, SystemTime};
+use storage_units::packfile;
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
@@ -24,37 +28,47 @@ fn net_sync_to<A: Api>(
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
     storage: &mut Storage,
-    tip_header: &BlockHeader)
-    -> Result<()>
-{
+    tip_header: &BlockHeader,
+) -> Result<()> {
     let tip = BlockRef {
         hash: tip_header.compute_hash(),
         parent: tip_header.get_previous_header(),
-        date: tip_header.get_blockdate()
+        date: tip_header.get_blockdate(),
     };
 
     debug!("Configured genesis   : {}", net_cfg.genesis);
     debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
-    info!( "Network TIP is       : {} ({}) <- {}", tip.hash, tip.date, tip_header.get_previous_header());
+    info!(
+        "Network TIP is       : {} ({}) <- {}",
+        tip.hash,
+        tip.date,
+        tip_header.get_previous_header()
+    );
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let genesis_ref = (BlockRef {
-        hash: net_cfg.genesis.clone(),
-        parent: net_cfg.genesis_prev.clone(),
-        date: BlockDate::Boundary(net_cfg.epoch_start)
-    }, true);
+    let genesis_ref = (
+        BlockRef {
+            hash: net_cfg.genesis.clone(),
+            parent: net_cfg.genesis_prev.clone(),
+            date: BlockDate::Boundary(net_cfg.epoch_start),
+        },
+        true,
+    );
 
     let our_tip = match storage.get_block_from_tag(&tag::HEAD) {
         Err(Error::NoSuchTag) => genesis_ref.clone(),
         Err(err) => panic!(err),
         Ok(block) => {
             let header = block.get_header();
-            (BlockRef {
-                hash: header.compute_hash().clone(),
-                parent: header.get_previous_header(),
-                date: header.get_blockdate()
-            }, false)
+            (
+                BlockRef {
+                    hash: header.compute_hash().clone(),
+                    parent: header.get_previous_header(),
+                    date: header.get_blockdate(),
+                },
+                false,
+            )
         }
     };
 
@@ -62,36 +76,52 @@ fn net_sync_to<A: Api>(
     // ancestor of tip. In that case we should start from the last
     // stable epoch before our_tip.
 
-    info!("Fetching from        : {} ({})", our_tip.0.hash, our_tip.0.date);
+    info!(
+        "Fetching from        : {} ({})",
+        our_tip.0.hash, our_tip.0.date
+    );
 
     // Determine whether the previous epoch is stable yet. Note: This
     // assumes that k is smaller than the number of blocks in an
     // epoch.
-    let first_unstable_epoch = tip.date.get_epochid() -
-        match tip.date {
+    let first_unstable_epoch = tip.date.get_epochid()
+        - match tip.date {
             BlockDate::Boundary(_) => 1,
-            BlockDate::Normal(d) => if d.slotid as usize <= net_cfg.epoch_stability_depth { 1 } else { 0 }
+            BlockDate::Normal(d) => {
+                if d.slotid as usize <= net_cfg.epoch_stability_depth {
+                    1
+                } else {
+                    0
+                }
+            }
         };
     info!("First unstable epoch : {}", first_unstable_epoch);
 
-    let mut epoch_writer_state : Option<EpochWriterState> = None;
+    let mut epoch_writer_state: Option<EpochWriterState> = None;
 
     // If our tip is in an epoch that has become stable, we now need
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
-    if our_tip.0.date.get_epochid() < first_unstable_epoch && our_tip != genesis_ref
+    if our_tip.0.date.get_epochid() < first_unstable_epoch
+        && our_tip != genesis_ref
         && !epoch_exists(&storage.config, our_tip.0.date.get_epochid()).unwrap()
     {
         let epoch_id = our_tip.0.date.get_epochid();
 
         // Read the blocks in the current epoch.
         let mut blobs_to_delete = vec![];
-        let (last_block_in_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(storage, &our_tip.0.hash, epoch_id, &mut blobs_to_delete);
+        let (last_block_in_prev_epoch, blocks) =
+            get_unpacked_blocks_in_epoch(storage, &our_tip.0.hash, epoch_id, &mut blobs_to_delete);
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
         if epoch_id > net_cfg.epoch_start {
-            maybe_create_epoch(storage, genesis_data, epoch_id - 1, &last_block_in_prev_epoch)?;
+            maybe_create_epoch(
+                storage,
+                genesis_data,
+                epoch_id - 1,
+                &last_block_in_prev_epoch,
+            )?;
         }
 
         // Initialize the epoch writer and add the blocks in the current epoch.
@@ -102,13 +132,15 @@ fn net_sync_to<A: Api>(
             blobs_to_delete,
         });
 
-        let mut chain_state = chain_state::restore_chain_state(
-            storage, genesis_data, &last_block_in_prev_epoch)?;
+        let mut chain_state =
+            chain_state::restore_chain_state(storage, genesis_data, &last_block_in_prev_epoch)?;
 
         append_blocks_to_epoch_reverse(
-            epoch_writer_state.as_mut().unwrap(), &mut chain_state, blocks)?;
+            epoch_writer_state.as_mut().unwrap(),
+            &mut chain_state,
+            blocks,
+        )?;
     }
-
     // If the previous epoch has become stable, then we may need to
     // pack it.
     else if our_tip.0.date.get_epochid() == first_unstable_epoch
@@ -123,66 +155,82 @@ fn net_sync_to<A: Api>(
             let hdr = block.get_header();
             assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
             cur_hash = hdr.get_previous_header();
-            if hdr.get_blockdate().is_boundary() { break }
+            if hdr.get_blockdate().is_boundary() {
+                break;
+            }
         }
 
         maybe_create_epoch(storage, genesis_data, first_unstable_epoch - 1, &cur_hash)?;
     }
 
     let mut chain_state = chain_state::restore_chain_state(
-        storage, genesis_data,
-        if our_tip.1 { &our_tip.0.parent } else { &our_tip.0.hash })?;
-
-    net.get_blocks(&our_tip.0, our_tip.1, &tip, &mut |block_hash, block, block_raw| {
-        let date = block.get_header().get_blockdate();
-
-        // Flush the previous epoch (if any). FIXME: shouldn't rely on
-        // 'date' here since the block hasn't been verified yet.
-        if date.is_boundary() {
-            let mut writer_state = None;
-            mem::swap(&mut writer_state, &mut epoch_writer_state);
-
-            if let Some(epoch_writer_state) = writer_state {
-                finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state).unwrap();
-
-                // Checkpoint the tip so we don't have to refetch
-                // everything if we get interrupted.
-                tag::write(storage, &tag::HEAD, &chain_state.last_block.as_ref());
-            }
-        }
-
-        // FIXME: propagate errors
-        chain_state.verify_block(block_hash, block)
-            .expect(&format!("Block {} ({}) failed to verify",
-                             block_hash, block.get_header().get_blockdate()));
-
-        if date.get_epochid() >= first_unstable_epoch {
-            // This block is not part of a stable epoch yet and could
-            // be rolled back. Therefore we can't pack this epoch
-            // yet. Instead we write this block to disk separately.
-            let block_hash = types::header_to_blockhash(&block_hash);
-            blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
+        storage,
+        genesis_data,
+        if our_tip.1 {
+            &our_tip.0.parent
         } else {
+            &our_tip.0.hash
+        },
+    )?;
 
-            // If this is the epoch genesis block, start writing a new epoch pack.
+    net.get_blocks(
+        &our_tip.0,
+        our_tip.1,
+        &tip,
+        &mut |block_hash, block, block_raw| {
+            let date = block.get_header().get_blockdate();
+
+            // Flush the previous epoch (if any). FIXME: shouldn't rely on
+            // 'date' here since the block hasn't been verified yet.
             if date.is_boundary() {
-                epoch_writer_state = Some(EpochWriterState {
-                    epoch_id: date.get_epochid(),
-                    writer: pack::packwriter_init(&storage.config).unwrap(),
-                    write_start_time: SystemTime::now(),
-                    blobs_to_delete: vec![],
-                });
+                let mut writer_state = None;
+                mem::swap(&mut writer_state, &mut epoch_writer_state);
+
+                if let Some(epoch_writer_state) = writer_state {
+                    finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state).unwrap();
+
+                    // Checkpoint the tip so we don't have to refetch
+                    // everything if we get interrupted.
+                    tag::write(storage, &tag::HEAD, &chain_state.last_block.as_ref());
+                }
             }
 
-            // And append the block to the epoch pack.
-            if let Some(epoch_writer_state) = epoch_writer_state.as_mut() {
-                epoch_writer_state.writer.append(
-                    &types::header_to_blockhash(&block_hash), block_raw.as_ref()).unwrap();
+            // FIXME: propagate errors
+            chain_state.verify_block(block_hash, block).expect(&format!(
+                "Block {} ({}) failed to verify",
+                block_hash,
+                block.get_header().get_blockdate()
+            ));
+
+            if date.get_epochid() >= first_unstable_epoch {
+                // This block is not part of a stable epoch yet and could
+                // be rolled back. Therefore we can't pack this epoch
+                // yet. Instead we write this block to disk separately.
+                let block_hash = types::header_to_blockhash(&block_hash);
+                blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
             } else {
-                unreachable!();
+                // If this is the epoch genesis block, start writing a new epoch pack.
+                if date.is_boundary() {
+                    epoch_writer_state = Some(EpochWriterState {
+                        epoch_id: date.get_epochid(),
+                        writer: pack::packwriter_init(&storage.config).unwrap(),
+                        write_start_time: SystemTime::now(),
+                        blobs_to_delete: vec![],
+                    });
+                }
+
+                // And append the block to the epoch pack.
+                if let Some(epoch_writer_state) = epoch_writer_state.as_mut() {
+                    epoch_writer_state
+                        .writer
+                        .append(&types::header_to_blockhash(&block_hash), block_raw.as_ref())
+                        .unwrap();
+                } else {
+                    unreachable!();
+                }
             }
-        }
-    })?;
+        },
+    )?;
 
     // Update the tip tag to point to the most recent block.
     tag::write(&storage, &tag::HEAD, chain_state.last_block.as_ref());
@@ -208,17 +256,17 @@ pub fn net_sync<A: Api>(
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
     storage: &mut Storage,
-    sync_once: bool)
-    -> Result<()>
-{
+    sync_once: bool,
+) -> Result<()> {
     // recover and print the TIP of the network
     let mut tip_header = net.get_tip()?;
 
     loop {
-
         net_sync_to(net, net_cfg, genesis_data, storage, &tip_header)?;
 
-        if sync_once { break }
+        if sync_once {
+            break;
+        }
 
         tip_header = net.wait_for_new_tip(&tip_header.compute_hash())?;
     }
@@ -228,12 +276,15 @@ pub fn net_sync<A: Api>(
 
 // Create an epoch from a complete set of previously fetched blocks on
 // disk.
-fn maybe_create_epoch(storage: &mut Storage,
-                      genesis_data: &GenesisData,
-                      epoch_id: EpochId, last_block: &HeaderHash)
-    -> Result<()>
-{
-    if epoch_exists(&storage.config, epoch_id).unwrap() { return Ok(()); }
+fn maybe_create_epoch(
+    storage: &mut Storage,
+    genesis_data: &GenesisData,
+    epoch_id: EpochId,
+    last_block: &HeaderHash,
+) -> Result<()> {
+    if epoch_exists(&storage.config, epoch_id).unwrap() {
+        return Ok(());
+    }
 
     info!("Packing epoch {}", epoch_id);
 
@@ -244,9 +295,15 @@ fn maybe_create_epoch(storage: &mut Storage,
         blobs_to_delete: vec![],
     };
 
-    let (end_of_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(storage, last_block, epoch_writer_state.epoch_id, &mut epoch_writer_state.blobs_to_delete);
+    let (end_of_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(
+        storage,
+        last_block,
+        epoch_writer_state.epoch_id,
+        &mut epoch_writer_state.blobs_to_delete,
+    );
 
-    let mut chain_state = chain_state::restore_chain_state(storage, genesis_data, &end_of_prev_epoch)?;
+    let mut chain_state =
+        chain_state::restore_chain_state(storage, genesis_data, &end_of_prev_epoch)?;
 
     append_blocks_to_epoch_reverse(&mut epoch_writer_state, &mut chain_state, blocks)?;
 
@@ -258,22 +315,25 @@ fn maybe_create_epoch(storage: &mut Storage,
 fn append_blocks_to_epoch_reverse(
     epoch_writer_state: &mut EpochWriterState,
     chain_state: &mut ChainState,
-    mut blocks: Vec<(HeaderHash, RawBlock, Block)>)
-    -> Result<()>
-{
+    mut blocks: Vec<(HeaderHash, RawBlock, Block)>,
+) -> Result<()> {
     while let Some((hash, block_raw, block)) = blocks.pop() {
         chain_state.verify_block(&hash, &block)?;
-        epoch_writer_state.writer.append(&types::header_to_blockhash(&hash),
-                                         block_raw.as_ref()).unwrap();
+        epoch_writer_state
+            .writer
+            .append(&types::header_to_blockhash(&hash), block_raw.as_ref())
+            .unwrap();
     }
 
     Ok(())
 }
 
-fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoch_id: EpochId,
-                                blobs_to_delete: &mut Vec<HeaderHash>)
-                                -> (HeaderHash, Vec<(HeaderHash, RawBlock, Block)>)
-{
+fn get_unpacked_blocks_in_epoch(
+    storage: &Storage,
+    last_block: &HeaderHash,
+    epoch_id: EpochId,
+    blobs_to_delete: &mut Vec<HeaderHash>,
+) -> (HeaderHash, Vec<(HeaderHash, RawBlock, Block)>) {
     let mut cur_hash = last_block.clone();
     let mut blocks = vec![];
     loop {
@@ -284,7 +344,9 @@ fn get_unpacked_blocks_in_epoch(storage: &Storage, last_block: &HeaderHash, epoc
         assert!(hdr.get_blockdate().get_epochid() == epoch_id);
         blocks.push((cur_hash, block_raw, block));
         cur_hash = hdr.get_previous_header();
-        if hdr.get_blockdate().is_boundary() { break }
+        if hdr.get_blockdate().is_boundary() {
+            break;
+        }
     }
     (cur_hash, blocks)
 }
@@ -293,9 +355,8 @@ fn finish_epoch(
     storage: &mut Storage,
     genesis_data: &GenesisData,
     epoch_writer_state: EpochWriterState,
-    chain_state: &ChainState)
-    -> Result<()>
-{
+    chain_state: &ChainState,
+) -> Result<()> {
     let epoch_id = epoch_writer_state.epoch_id;
     let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
     let (lookup, tmpfile) = pack::create_index(&storage, &index);
@@ -314,13 +375,19 @@ fn finish_epoch(
 
     assert_eq!(chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
-    epoch::epoch_create(&storage,
-                        &packhash,
-                        epoch_id,
-                        Some((chain_state, genesis_data)));
+    epoch::epoch_create(
+        &storage,
+        &packhash,
+        epoch_id,
+        Some((chain_state, genesis_data)),
+    );
 
-    info!("=> pack {} written for epoch {} in {}", hex::encode(&packhash[..]),
-          epoch_id, duration_print(epoch_time_elapsed));
+    info!(
+        "=> pack {} written for epoch {} in {}",
+        hex::encode(&packhash[..]),
+        epoch_id,
+        duration_print(epoch_time_elapsed)
+    );
 
     for hash in &epoch_writer_state.blobs_to_delete {
         debug!("removing blob {}", hash);
@@ -338,7 +405,8 @@ pub fn get_peer(blockchain: &str, cfg: &net::Config, native: bool) -> Peer {
                 peer.name().to_owned(),
                 peer.peer().clone(),
                 cfg.protocol_magic,
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -348,10 +416,11 @@ pub fn get_peer(blockchain: &str, cfg: &net::Config, native: bool) -> Peer {
 pub fn get_chain_state_at_end_of(
     storage: &Storage,
     epoch_id: EpochId,
-    genesis_data: &GenesisData)
-    -> Result<ChainState>
-{
+    genesis_data: &GenesisData,
+) -> Result<ChainState> {
     Ok(chain_state::read_chain_state(
-        storage, genesis_data,
-        &chain_state::get_last_block_of_epoch(storage, epoch_id)?)?)
+        storage,
+        genesis_data,
+        &chain_state::get_last_block_of_epoch(storage, epoch_id)?,
+    )?)
 }

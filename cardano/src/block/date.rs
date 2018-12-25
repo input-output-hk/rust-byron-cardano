@@ -11,10 +11,7 @@ use std::{
 /// Block date, which is either an epoch id for a boundary block
 /// or a slot id for a normal block.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "generic-serialization",
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum BlockDate {
     Boundary(EpochId),
     Normal(EpochSlotId),
@@ -100,16 +97,15 @@ impl str::FromStr for BlockDate {
             None => (s, None),
             Some(pos) => (&s[..pos], Some(&s[(pos + 1)..])),
         };
-        let epoch = str::parse::<EpochId>(ep)
-            .map_err(|e| BlockDateParseError(BadEpochId(e)))?;
+        let epoch = str::parse::<EpochId>(ep).map_err(|e| BlockDateParseError(BadEpochId(e)))?;
         match opt_sp {
             None => Ok(BlockDate::Boundary(epoch)),
             Some(sp) => {
                 if sp == "GENESIS" {
                     return Ok(BlockDate::Boundary(epoch));
                 }
-                let slotid = str::parse::<SlotId>(sp)
-                    .map_err(|e| BlockDateParseError(BadSlotId(e)))?;
+                let slotid =
+                    str::parse::<SlotId>(sp).map_err(|e| BlockDateParseError(BadSlotId(e)))?;
                 Ok(BlockDate::Normal(EpochSlotId { epoch, slotid }))
             }
         }
@@ -149,7 +145,7 @@ impl Error for BlockDateParseError {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlockDate};
+    use super::BlockDate;
     use block::EpochSlotId;
     use std::error::Error;
 

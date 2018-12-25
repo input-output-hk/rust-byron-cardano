@@ -1,4 +1,4 @@
-use cbor_event::{self, de::RawCbor, se::{Serializer}};
+use cbor_event::{self, de::RawCbor, se::Serializer};
 use std::{fmt, result};
 use util::hex;
 
@@ -28,7 +28,10 @@ impl ::std::error::Error for Error {}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublicKey(pub Vec<u8>);
 impl cbor_event::se::Serialize for PublicKey {
-    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: Serializer<W>,
+    ) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(&self.0)
     }
 }
@@ -43,7 +46,7 @@ impl cbor_event::de::Deserialize for PublicKey {
 pub struct Signature([u8; SIGNATURE_SIZE]);
 impl Clone for Signature {
     fn clone(&self) -> Self {
-        let mut bytes = [0;SIGNATURE_SIZE];
+        let mut bytes = [0; SIGNATURE_SIZE];
         bytes.copy_from_slice(&self.0);
         Signature(bytes)
     }
@@ -62,7 +65,9 @@ impl Signature {
         Ok(Self::from_bytes(buf))
     }
 
-    pub fn to_bytes<'a>(&'a self) -> &'a [u8;SIGNATURE_SIZE] { &self.0 }
+    pub fn to_bytes<'a>(&'a self) -> &'a [u8; SIGNATURE_SIZE] {
+        &self.0
+    }
 }
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -80,7 +85,10 @@ impl AsRef<[u8]> for Signature {
     }
 }
 impl cbor_event::se::Serialize for Signature {
-    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: Serializer<W>,
+    ) -> cbor_event::Result<Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
@@ -90,7 +98,7 @@ impl cbor_event::de::Deserialize for Signature {
             Ok(sig) => Ok(sig),
             Err(Error::InvalidSignatureSize(sz)) => {
                 Err(cbor_event::Error::NotEnough(SIGNATURE_SIZE, sz))
-            },
+            }
             // Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {}", err))),
         }
     }

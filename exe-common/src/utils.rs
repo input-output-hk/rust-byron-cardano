@@ -1,6 +1,6 @@
 use cardano::block;
-use cardano_storage::{tag, config, epoch, pack, Storage};
 use cardano_storage::types::PackHash;
+use cardano_storage::{config, epoch, pack, tag, Storage};
 
 // Return the chain of block headers starting at from's next block
 // and terminating at to, unless this range represent a number

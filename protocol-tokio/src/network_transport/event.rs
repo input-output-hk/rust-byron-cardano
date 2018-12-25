@@ -271,7 +271,7 @@ mod test {
 
     use tokio_codec::{Decoder, Encoder};
 
-    quickcheck!{
+    quickcheck! {
         fn event_encode_decode(event: Event) -> bool {
             let mut codec = EventCodec;
             let mut stream = BytesMut::with_capacity(4_096);

@@ -17,10 +17,7 @@ use std::iter::repeat;
 use std::path::Path;
 use utils::error::Result;
 use utils::magic;
-use utils::serialize::{
-    offset_align4, read_size, Offset, SIZE_SIZE,
-    io::write_length_prefixed,
-};
+use utils::serialize::{io::write_length_prefixed, offset_align4, read_size, Offset, SIZE_SIZE};
 use utils::tmpfile::TmpFile;
 
 const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
@@ -123,9 +120,12 @@ impl<R: Read> Reader<R> {
             None => {}
             Some(ref data) => {
                 self.hash_context.input(data);
-                self.pos = self.pos
-                    .checked_add(4).unwrap()
-                    .checked_add(offset_align4(data.len() as u64)).unwrap();
+                self.pos = self
+                    .pos
+                    .checked_add(4)
+                    .unwrap()
+                    .checked_add(offset_align4(data.len() as u64))
+                    .unwrap();
             }
         };
         Ok(mdata)
