@@ -5,9 +5,9 @@ matrix:
     - rust: stable
       os: linux
       env: CHECK_RUSTFMT="true"
-    - rust: stable
-      os: windows
-      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
+#    - rust: stable
+#      os: windows
+#      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
     - rust: stable
       os: osx
       env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
@@ -21,9 +21,9 @@ matrix:
       env:  TARGET="wasm32-unknown-unknown" CARDANO_C="false" CARDANO_WASM="true" RUN_TEST="false"
       os: linux
   allow_failures:
-    - rust: stable
-      os: windows
-      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
+#    - rust: stable
+#      os: windows
+#      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
 
 before_script:
   - |
