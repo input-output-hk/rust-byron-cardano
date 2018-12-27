@@ -12,12 +12,15 @@ use std::io;
 /// DATA (SIZE bytes)
 /// OPTIONAL ALIGNMENT? (of 0 to 3 bytes depending on SIZE)
 ///
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::iter::repeat;
 use std::path::Path;
 use utils::error::Result;
 use utils::magic;
-use utils::serialize::{offset_align4, read_size, write_size, Offset, Size, SIZE_SIZE};
+use utils::serialize::{
+    offset_align4, read_size, Offset, SIZE_SIZE,
+    io::write_length_prefixed,
+};
 use utils::tmpfile::TmpFile;
 
 const FILE_TYPE: magic::FileType = 0x5041434b; // = PACK
@@ -26,7 +29,7 @@ const VERSION: magic::Version = 1;
 /// A Stream Reader that also computes the hash of the sum of all data read
 pub struct Reader<R> {
     reader: R,
-    pub pos: Offset,
+    pos: Offset,
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
 
@@ -41,6 +44,13 @@ impl Reader<fs::File> {
         Reader::init(file)
     }
 }
+
+impl<R> Reader<R> {
+    pub fn pos(&self) -> Offset {
+        self.pos
+    }
+}
+
 impl<R: Read> Reader<R> {
     pub fn init(mut r: R) -> Result<Self> {
         magic::check_header(&mut r, FILE_TYPE, VERSION, VERSION)?;
@@ -102,32 +112,37 @@ pub fn read_next_block_or_eof<R: Read>(file: R) -> io::Result<Option<Vec<u8>>> {
 }
 
 impl<R: Read> Reader<R> {
-    /// Return the next data block.
+    /// Reads the next data block if data are available in the source.
+    /// If the source is at EOF, `None` is returned.
     ///
-    /// note: any IO error raise runtime exception for now. will be changed soon.
-    pub fn get_next(&mut self) -> Option<Vec<u8>> {
-        // TODO: remove unwrap()
-        let mdata = read_next_block_or_eof(&mut self.reader).unwrap();
+    /// # Errors
+    /// I/O errors are returned in an `Err` value.
+    pub fn next_block(&mut self) -> io::Result<Option<Vec<u8>>> {
+        let mdata = read_next_block_or_eof(&mut self.reader)?;
         match mdata {
             None => {}
             Some(ref data) => {
                 self.hash_context.input(data);
-                self.pos += 4 + offset_align4(data.len() as u64);
+                self.pos = self.pos
+                    .checked_add(4).unwrap()
+                    .checked_add(offset_align4(data.len() as u64)).unwrap();
             }
         };
-        mdata
+        Ok(mdata)
     }
 }
 
 impl<S: Read + Seek> Seeker<S> {
     /// Return the next data chunk if it exists
-    /// on file EOF, None is returned
-    pub fn get_next(&mut self) -> io::Result<Option<Vec<u8>>> {
+    /// on file. On EOF, None is returned.
+    pub fn next_block(&mut self) -> io::Result<Option<Vec<u8>>> {
         read_next_block_or_eof(&mut self.handle)
     }
 
-    /// Return the data chunk at a specific offset, not that EOF is treated as a normal error here
-    pub fn get_at_offset(&mut self, ofs: Offset) -> io::Result<Vec<u8>> {
+    /// Return the data chunk at a specific offset.
+    /// An EOF encountered before the specified offset is treated as a
+    /// normal error.
+    pub fn block_at_offset(&mut self, ofs: Offset) -> io::Result<Vec<u8>> {
         self.handle.seek(SeekFrom::Start(ofs))?;
         read_next_block(&mut self.handle)
     }
@@ -146,8 +161,8 @@ impl<R> Reader<R> {
 pub struct Writer {
     tmpfile: TmpFile,
     index: indexfile::Index,
-    pub nb_blobs: u32,
-    pub pos: Offset, // offset in bytes of the current position (double as the current size of the pack)
+    nb_blobs: u32,
+    pos: Offset, // offset in bytes of the current position (double as the current size of the pack)
     hash_context: blake2b::Blake2b, // hash of all the content of blocks without length or padding
 }
 
@@ -165,24 +180,15 @@ impl Writer {
         })
     }
 
-    pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
-        let len = block.len() as Size;
-        let mut sz_buf = [0u8; SIZE_SIZE];
-        write_size(&mut sz_buf, len);
-        self.tmpfile.write_all(&sz_buf[..])?;
-        self.tmpfile.write_all(block)?;
-        self.hash_context.input(block);
+    pub fn pos(&self) -> Offset {
+        self.pos
+    }
 
-        let pad = [0u8; SIZE_SIZE - 1];
-        let pad_bytes = if (len % 4 as u32) != 0 {
-            let pad_sz = 4 - len % 4;
-            self.tmpfile.write_all(&pad[0..pad_sz as usize])?;
-            pad_sz
-        } else {
-            0
-        };
+    pub fn append(&mut self, blockhash: &BlockHash, block: &[u8]) -> io::Result<()> {
+        let bytes_written = write_length_prefixed(&mut self.tmpfile, block)?;
+        self.hash_context.input(block);
         self.index.append(blockhash, self.pos);
-        self.pos += 4 + len as u64 + pad_bytes as u64;
+        self.pos = self.pos.checked_add(bytes_written).unwrap();
         self.nb_blobs += 1;
         Ok(())
     }

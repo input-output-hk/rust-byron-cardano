@@ -40,7 +40,7 @@ pub fn get_last_blockid(
     let mut reader = pack::packreader_init(&storage_config, packref);
     let mut last_blk_raw = None;
 
-    while let Some(blk_raw) = reader.get_next() {
+    while let Some(blk_raw) = reader.next_block().unwrap() {
         last_blk_raw = Some(blk_raw);
     }
     if let Some(blk_raw) = last_blk_raw {

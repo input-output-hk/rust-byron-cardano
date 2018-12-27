@@ -30,10 +30,11 @@ impl Iter {
 impl Iterator for Iter {
     type Item = Result<RawBlock>;
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO, this is dodgy, there should be a Result to get from it
-        //       should have at least `::io::Error` as we are using
-        //       PackReader<**fs::File**>;
-        self.0.get_next().map(|raw_block| Ok(RawBlock(raw_block)))
+        match self.0.next_block() {
+            Ok(None) => None,
+            Ok(Some(v)) => Some(Ok(RawBlock(v))),
+            Err(e) => Some(Err(e.into())),
+        }
     }
 }
 
