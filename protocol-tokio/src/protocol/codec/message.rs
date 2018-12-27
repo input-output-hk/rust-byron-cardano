@@ -1,7 +1,10 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use std::ops::Deref;
 
-use cardano::{block::{self, HeaderHash}, tx::TxAux};
+use cardano::{
+    block::{self, HeaderHash},
+    tx::TxAux,
+};
 use cbor_event::{
     self,
     de::{self, RawCbor},
@@ -68,7 +71,7 @@ impl de::Deserialize for MessageType {
                 return Err(cbor_event::Error::CustomError(format!(
                     "Unsupported message type: {:20x}",
                     v
-                )))
+                )));
             }
         }
     }
@@ -118,17 +121,18 @@ impl Message {
                 bytes.put_u64_be(*node_id);
                 Data(lwcid, bytes.freeze())
             }
-            Message::GetBlockHeaders(lwcid, gbh) =>
-                Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh)),
-            Message::BlockHeaders(lwcid, bh) =>
-                Data(lwcid, cbor!(&bh).unwrap().into()),
-            Message::GetBlocks(lwcid, gb) =>
-                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb)),
+            Message::GetBlockHeaders(lwcid, gbh) => {
+                Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh))
+            }
+            Message::BlockHeaders(lwcid, bh) => Data(lwcid, cbor!(&bh).unwrap().into()),
+            Message::GetBlocks(lwcid, gb) => {
+                Data(lwcid, MessageType::MsgGetBlocks.encode_with(&gb))
+            }
             Message::Block(lwcid, b) => Data(lwcid, cbor!(&b).unwrap().into()),
             Message::SendTransaction(lwcid, tx) => Data(lwcid, cbor!(&tx).unwrap().into()),
             Message::TransactionReceived(lwcid, rep) => Data(lwcid, cbor!(&rep).unwrap().into()),
             Message::Subscribe(lwcid, keep_alive) => {
-                let keep_alive : u64 = if keep_alive { 43 } else { 42 };
+                let keep_alive: u64 = if keep_alive { 43 } else { 42 };
                 Data(lwcid, MessageType::MsgSubscribe1.encode_with(&keep_alive))
             }
             Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
@@ -180,7 +184,7 @@ impl Message {
                 Ok(Message::Block(lwcid, cbor.deserialize_complete().unwrap()))
             }
             MessageType::MsgSubscribe1 => {
-                let v : u64 = cbor.deserialize_complete().unwrap();
+                let v: u64 = cbor.deserialize_complete().unwrap();
                 let keep_alive = v == 43;
                 Ok(Message::Subscribe(lwcid, keep_alive))
             }
@@ -191,7 +195,9 @@ impl Message {
 
 fn decode_node_ack_or_syn(lwcid: nt::LightWeightConnectionId, bytes: &Bytes) -> Option<Message> {
     use bytes::{Buf, IntoBuf};
-    if bytes.len() != 9 { return None }
+    if bytes.len() != 9 {
+        return None;
+    }
     let mut buf = bytes.into_buf();
     let key = buf.get_u8();
     let v = buf.get_u64_be();
@@ -287,7 +293,7 @@ impl de::Deserialize for GetBlockHeaders {
                     return Err(cbor_event::Error::CustomError(format!(
                         "Len {:?} not supported for the `GetBlockHeader.to`",
                         len
-                    )))
+                    )));
                 }
             }
         };
@@ -298,7 +304,9 @@ impl de::Deserialize for GetBlockHeaders {
 #[derive(Clone, Debug)]
 pub struct BlockHeaders(pub Vec<block::BlockHeader>);
 impl From<Vec<block::BlockHeader>> for BlockHeaders {
-    fn from(v: Vec<block::BlockHeader>) -> Self { BlockHeaders(v) }
+    fn from(v: Vec<block::BlockHeader>) -> Self {
+        BlockHeaders(v)
+    }
 }
 impl se::Serialize for BlockHeaders {
     fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
@@ -388,7 +396,7 @@ impl ::quickcheck::Arbitrary for GetBlocks {
 mod test {
     use super::*;
 
-    quickcheck!{
+    quickcheck! {
         fn get_block_headers_encode_decode(command: GetBlockHeaders) -> bool {
             let encoded = cbor!(command).unwrap();
             let decoded : GetBlockHeaders = de::RawCbor::from(&encoded).deserialize_complete().unwrap();

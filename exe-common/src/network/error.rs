@@ -1,9 +1,9 @@
-use std::{io, fmt, error};
-use protocol::{self, ntt};
-use hyper;
-use cbor_event;
 use cardano::block::HeaderHash;
 use cardano_storage as storage;
+use cbor_event;
+use hyper;
+use protocol::{self, ntt};
+use std::{error, fmt, io};
 
 #[derive(Debug)]
 pub enum Error {
@@ -19,25 +19,39 @@ pub enum Error {
     BlockError(cardano::block::Error),
 }
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self { Error::IoError(e) }
+    fn from(e: io::Error) -> Self {
+        Error::IoError(e)
+    }
 }
 impl From<protocol::Error> for Error {
-    fn from(e: protocol::Error) -> Self { Error::ProtocolError(e) }
+    fn from(e: protocol::Error) -> Self {
+        Error::ProtocolError(e)
+    }
 }
 impl From<hyper::Error> for Error {
-    fn from(e: hyper::Error) -> Self { Error::HyperError(e) }
+    fn from(e: hyper::Error) -> Self {
+        Error::HyperError(e)
+    }
 }
 impl From<ntt::Error> for Error {
-    fn from(e: ntt::Error) -> Self { Error::NttError(e) }
+    fn from(e: ntt::Error) -> Self {
+        Error::NttError(e)
+    }
 }
 impl From<cbor_event::Error> for Error {
-    fn from(e: cbor_event::Error) -> Self { Error::CborError(e) }
+    fn from(e: cbor_event::Error) -> Self {
+        Error::CborError(e)
+    }
 }
 impl From<storage::Error> for Error {
-    fn from(e: storage::Error) -> Self { Error::StorageError(e) }
+    fn from(e: storage::Error) -> Self {
+        Error::StorageError(e)
+    }
 }
 impl From<cardano::block::Error> for Error {
-    fn from(e: cardano::block::Error) -> Self { Error::BlockError(e) }
+    fn from(e: cardano::block::Error) -> Self {
+        Error::BlockError(e)
+    }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -56,7 +70,7 @@ impl fmt::Display for Error {
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::IoError(ref err) => Some(err),
             Error::NttError(ref err) => Some(err),

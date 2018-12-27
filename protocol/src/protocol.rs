@@ -699,7 +699,7 @@ pub mod command {
                 Ok(cardano::block::RawBlock::from_dat(v))
             }
             Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
-            Some((_n, _dat)) => Err(Error::UnexpectedResponse)
+            Some((_n, _dat)) => Err(Error::UnexpectedResponse),
         }
     }
 

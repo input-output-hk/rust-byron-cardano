@@ -1,6 +1,6 @@
-use tx::*;
+use address::ExtendedAddr;
 use coin::{self, Coin};
-use address::{ExtendedAddr};
+use tx::*;
 
 /// This is a TxoPointer with extra data associated:
 ///
@@ -35,15 +35,22 @@ pub enum OutputPolicy {
 #[derive(PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Input<Addressing> {
-    pub ptr:   TxoPointer,
+    pub ptr: TxoPointer,
     pub value: TxOut,
     pub addressing: Addressing,
 }
 impl<Addressing> Input<Addressing> {
-    pub fn new(ptr: TxoPointer, value: TxOut, addressing: Addressing) -> Self
-    { Input { ptr: ptr, value: value, addressing: addressing } }
+    pub fn new(ptr: TxoPointer, value: TxOut, addressing: Addressing) -> Self {
+        Input {
+            ptr: ptr,
+            value: value,
+            addressing: addressing,
+        }
+    }
 
-    pub fn value(&self) -> Coin { self.value.value }
+    pub fn value(&self) -> Coin {
+        self.value.value
+    }
 }
 
 pub fn output_sum<'a, O: 'a + Iterator<Item = &'a TxOut>>(o: O) -> coin::Result<Coin> {

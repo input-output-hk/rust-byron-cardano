@@ -1,4 +1,3 @@
-
 /// type conversion to work along side objects that implements `AsRef<[u8]>`
 ///
 /// The idea is to facilitate serialization/deserialization implementation for
@@ -8,7 +7,7 @@
 ///
 /// [`TryFrom`]: https://doc.rust-lang.org/std/convert/trait.TryFrom.html
 ///
-pub trait TryFromSlice : Sized {
+pub trait TryFromSlice: Sized {
     /// the error kind. We expect Display for now so we don't have to
     /// implement all instances yet to all the Error kinds but this
     /// will soon be extended to require the `Error` trait

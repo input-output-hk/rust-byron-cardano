@@ -4,15 +4,15 @@
 //! operability with the appropriate network or different option.
 //!
 
-use cbor_event::{self, de::RawCbor, se::{Serializer}};
-use std::fmt;
-use block;
-use fee;
-use coin;
-use redeem;
 use address;
+use block;
+use cbor_event::{self, de::RawCbor, se::Serializer};
+use coin;
+use fee;
+use redeem;
 use std::collections::BTreeMap;
-use std::time::{SystemTime, Duration};
+use std::fmt;
+use std::time::{Duration, SystemTime};
 
 /// this is the protocol magic number
 ///
@@ -35,7 +35,9 @@ use std::time::{SystemTime, Duration};
 pub struct ProtocolMagic(u32); // FIXME: should be i32
 impl ProtocolMagic {
     #[deprecated]
-    pub fn new(val: u32) -> Self { ProtocolMagic(val) }
+    pub fn new(val: u32) -> Self {
+        ProtocolMagic(val)
+    }
 }
 impl fmt::Display for ProtocolMagic {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -44,16 +46,25 @@ impl fmt::Display for ProtocolMagic {
 }
 impl ::std::ops::Deref for ProtocolMagic {
     type Target = u32;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 impl From<u32> for ProtocolMagic {
-    fn from(v: u32) -> Self { ProtocolMagic(v) }
+    fn from(v: u32) -> Self {
+        ProtocolMagic(v)
+    }
 }
 impl Default for ProtocolMagic {
-    fn default() -> Self { ProtocolMagic::from(764824073) }
+    fn default() -> Self {
+        ProtocolMagic::from(764824073)
+    }
 }
 impl cbor_event::se::Serialize for ProtocolMagic {
-    fn serialize<W: ::std::io::Write>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>> {
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: Serializer<W>,
+    ) -> cbor_event::Result<Serializer<W>> {
         serializer.write_unsigned_integer(self.0 as u64)
     }
 }
@@ -94,12 +105,12 @@ impl From<u32> for NetworkMagic {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Config {
-    pub protocol_magic: ProtocolMagic
+    pub protocol_magic: ProtocolMagic,
 }
 impl Config {
     pub fn new(protocol_magic: ProtocolMagic) -> Self {
         Config {
-            protocol_magic: protocol_magic
+            protocol_magic: protocol_magic,
         }
     }
 }

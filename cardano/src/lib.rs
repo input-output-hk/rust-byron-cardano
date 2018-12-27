@@ -41,27 +41,27 @@ extern crate cryptoxide;
 #[macro_use]
 extern crate cbor_event;
 
-mod crc32;
-pub mod util;
-pub mod config;
-pub mod hdwallet;
-pub mod paperwallet;
 pub mod address;
-pub mod hdpayload;
-pub mod tx;
-pub mod txutils;
-pub mod txbuild;
-pub mod fee;
-pub mod input_selection;
 pub mod coin;
-pub mod redeem;
+pub mod config;
+mod crc32;
+pub mod fee;
 pub mod hash;
+pub mod hdpayload;
+pub mod hdwallet;
+pub mod input_selection;
+pub mod paperwallet;
+pub mod redeem;
+pub mod tx;
+pub mod txbuild;
+pub mod txutils;
+pub mod util;
 
-pub mod cbor;
 pub mod bip;
-pub mod wallet;
 pub mod block;
+pub mod cbor;
+pub mod wallet;
 
-pub mod vss;
 pub mod merkle;
 pub mod tags;
+pub mod vss;

@@ -48,10 +48,10 @@
 //! ```
 //!
 
-use cryptoxide::hmac::{Hmac};
-use cryptoxide::sha2::{Sha512};
-use cryptoxide::pbkdf2::{pbkdf2};
-use std::{fmt, result, str, ops::Deref, error};
+use cryptoxide::hmac::Hmac;
+use cryptoxide::pbkdf2::pbkdf2;
+use cryptoxide::sha2::Sha512;
+use std::{error, fmt, ops::Deref, result, str};
 use util::{hex, securemem};
 
 /// Error regarding BIP39 operations
@@ -82,40 +82,42 @@ pub enum Error {
     /// the second id the computed checksum. This error means that the given
     /// mnemonics are invalid to retrieve the original entropy. The user might
     /// have given an invalid mnemonic phrase.
-    InvalidChecksum(u8, u8)
+    InvalidChecksum(u8, u8),
 }
 impl fmt::Display for Error {
-    fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::InvalidSeedSize(sz) => {
-               write!(f, "Invalid Seed Size, expected {} bytes, but received {} bytes.", SEED_SIZE, sz)
-            },
+            &Error::InvalidSeedSize(sz) => write!(
+                f,
+                "Invalid Seed Size, expected {} bytes, but received {} bytes.",
+                SEED_SIZE, sz
+            ),
             &Error::WrongNumberOfWords(sz) => {
                 write!(f, "Unsupported number of mnemonic words: {}", sz)
-            },
-            &Error::WrongKeySize(sz) => {
-                write!(f, "Unsupported mnemonic entropy size: {}", sz)
-            },
+            }
+            &Error::WrongKeySize(sz) => write!(f, "Unsupported mnemonic entropy size: {}", sz),
             &Error::MnemonicOutOfBound(val) => {
                 write!(f, "The given mnemonic is out of bound, {}", val)
-            },
-            &Error::LanguageError(_) => {
-                write!(f, "Unknown mnemonic word")
-            },
-            &Error::InvalidChecksum(cs1, cs2) => {
-                write!(f, "Invalid Entropy's Checksum, expected {:08b} but found {:08b}", cs1, cs2)
-            },
+            }
+            &Error::LanguageError(_) => write!(f, "Unknown mnemonic word"),
+            &Error::InvalidChecksum(cs1, cs2) => write!(
+                f,
+                "Invalid Entropy's Checksum, expected {:08b} but found {:08b}",
+                cs1, cs2
+            ),
         }
     }
 }
 impl From<dictionary::Error> for Error {
-    fn from(e: dictionary::Error) -> Self { Error::LanguageError(e) }
+    fn from(e: dictionary::Error) -> Self {
+        Error::LanguageError(e)
+    }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::LanguageError(ref error) => Some(error),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -131,11 +133,11 @@ pub type Result<T> = result::Result<T, Error>;
 /// `Entropy`.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Entropy {
-    Entropy12([u8;16]),
-    Entropy15([u8;20]),
-    Entropy18([u8;24]),
-    Entropy21([u8;28]),
-    Entropy24([u8;32]),
+    Entropy12([u8; 16]),
+    Entropy15([u8; 20]),
+    Entropy18([u8; 24]),
+    Entropy21([u8; 28]),
+    Entropy24([u8; 32]),
 }
 impl Entropy {
     /// Retrieve an `Entropy` from the given slice.
@@ -164,25 +166,28 @@ impl Entropy {
     /// ```
     ///
     pub fn generate<G>(t: Type, gen: G) -> Self
-        where G: Fn() -> u8
+    where
+        G: Fn() -> u8,
     {
-        let bytes = [0u8;32];
+        let bytes = [0u8; 32];
         let mut entropy = Self::new(t, &bytes[..]);
-        for e in entropy.as_mut().iter_mut() { *e = gen(); }
+        for e in entropy.as_mut().iter_mut() {
+            *e = gen();
+        }
         entropy
     }
 
     fn new(t: Type, bytes: &[u8]) -> Self {
         let mut e = match t {
-            Type::Type12Words => Entropy::Entropy12([0u8;16]),
-            Type::Type15Words => Entropy::Entropy15([0u8;20]),
-            Type::Type18Words => Entropy::Entropy18([0u8;24]),
-            Type::Type21Words => Entropy::Entropy21([0u8;28]),
-            Type::Type24Words => Entropy::Entropy24([0u8;32]),
+            Type::Type12Words => Entropy::Entropy12([0u8; 16]),
+            Type::Type15Words => Entropy::Entropy15([0u8; 20]),
+            Type::Type18Words => Entropy::Entropy18([0u8; 24]),
+            Type::Type21Words => Entropy::Entropy21([0u8; 28]),
+            Type::Type24Words => Entropy::Entropy24([0u8; 32]),
         };
         for i in 0..e.as_ref().len() {
             e.as_mut()[i] = bytes[i]
-        };
+        }
         e
     }
 
@@ -197,7 +202,6 @@ impl Entropy {
             &Entropy::Entropy21(_) => Type::Type21Words,
             &Entropy::Entropy24(_) => Type::Type24Words,
         }
-
     }
 
     fn as_mut(&mut self) -> &mut [u8] {
@@ -210,11 +214,11 @@ impl Entropy {
         }
     }
 
-    fn hash(&self) -> [u8;32] {
+    fn hash(&self) -> [u8; 32] {
         use cryptoxide::digest::Digest;
         use cryptoxide::sha2::Sha256;
         let mut hasher = Sha256::new();
-        let mut res = [0u8;32];
+        let mut res = [0u8; 32];
         hasher.input(self.as_ref());
         hasher.result(&mut res);
         res
@@ -251,7 +255,7 @@ impl Entropy {
             Type::Type15Words => (hash >> 3) & 0b0001_1111,
             Type::Type18Words => (hash >> 2) & 0b0011_1111,
             Type::Type21Words => (hash >> 1) & 0b0111_1111,
-            Type::Type24Words =>  hash,
+            Type::Type24Words => hash,
         }
     }
 
@@ -287,7 +291,7 @@ impl Entropy {
 
         let mut r = to_validate.to_bytes();
 
-        let entropy_bytes = Vec::from(&r[..t.to_key_size()/8]);
+        let entropy_bytes = Vec::from(&r[..t.to_key_size() / 8]);
         let entropy = Self::new(t, &entropy_bytes[..]);
         if let Some(h) = r.pop() {
             let h2 = h >> (8 - t.checksum_size_bits());
@@ -365,7 +369,9 @@ impl AsRef<[u8]> for Entropy {
 }
 impl Deref for Entropy {
     type Target = [u8];
-    fn deref(&self) -> &Self::Target { self.as_ref() }
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
 }
 impl Drop for Entropy {
     fn drop(&mut self) {
@@ -380,14 +386,14 @@ impl Drop for Entropy {
 }
 
 /// the expected size of a seed, in bytes.
-pub const SEED_SIZE : usize = 64;
+pub const SEED_SIZE: usize = 64;
 
 /// A BIP39 `Seed` object, will be used to generate a given HDWallet
 /// root key.
 ///
 /// See the module documentation for more details about how to use it
 /// within the `cardano` library.
-pub struct Seed([u8;SEED_SIZE]);
+pub struct Seed([u8; SEED_SIZE]);
 impl Seed {
     /// create a Seed by taking ownership of the given array
     ///
@@ -401,7 +407,9 @@ impl Seed {
     ///
     /// assert!(seed.as_ref().len() == SEED_SIZE);
     /// ```
-    pub fn from_bytes(buf: [u8;SEED_SIZE]) -> Self { Seed(buf) }
+    pub fn from_bytes(buf: [u8; SEED_SIZE]) -> Self {
+        Seed(buf)
+    }
 
     /// create a Seed by copying the given slice into a new array
     ///
@@ -426,7 +434,7 @@ impl Seed {
         if buf.len() != SEED_SIZE {
             return Err(Error::InvalidSeedSize(buf.len()));
         }
-        let mut v = [0u8;SEED_SIZE];
+        let mut v = [0u8; SEED_SIZE];
         v[..].clone_from_slice(buf);
         Ok(Seed::from_bytes(v))
     }
@@ -459,7 +467,7 @@ impl Seed {
         let mut salt = Vec::from("mnemonic".as_bytes());
         salt.extend_from_slice(password);
         let mut mac = Hmac::new(Sha512::new(), mnemonics.0.as_bytes());
-        let mut result = [0;SEED_SIZE];
+        let mut result = [0; SEED_SIZE];
         pbkdf2(&mut mac, &salt, 2048, &mut result);
         Self::from_bytes(result)
     }
@@ -480,15 +488,19 @@ impl fmt::Display for Seed {
     }
 }
 impl AsRef<[u8]> for Seed {
-    fn as_ref(&self) -> &[u8] { &self.0 }
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 impl Deref for Seed {
     type Target = [u8];
-    fn deref(&self) -> &Self::Target { self.as_ref() }
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
 }
 impl Drop for Seed {
     fn drop(&mut self) {
-        self.0.copy_from_slice(&[0;SEED_SIZE][..]);
+        self.0.copy_from_slice(&[0; SEED_SIZE][..]);
     }
 }
 
@@ -522,7 +534,8 @@ impl MnemonicString {
     /// in the given [`Language`].
     ///
     pub fn new<D>(dic: &D, s: String) -> Result<Self>
-        where D: dictionary::Language
+    where
+        D: dictionary::Language,
     {
         let _ = Mnemonics::from_string(dic, &s)?;
 
@@ -531,7 +544,9 @@ impl MnemonicString {
 }
 impl Deref for MnemonicString {
     type Target = str;
-    fn deref(&self) -> &Self::Target { self.0.deref() }
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
 }
 impl fmt::Display for MnemonicString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -569,7 +584,7 @@ impl Type {
             18 => Ok(Type::Type18Words),
             21 => Ok(Type::Type21Words),
             24 => Ok(Type::Type24Words),
-            _  => Err(Error::WrongNumberOfWords(len))
+            _ => Err(Error::WrongNumberOfWords(len)),
         }
     }
 
@@ -580,7 +595,7 @@ impl Type {
             192 => Ok(Type::Type18Words),
             224 => Ok(Type::Type21Words),
             256 => Ok(Type::Type24Words),
-            _  => Err(Error::WrongKeySize(len))
+            _ => Err(Error::WrongKeySize(len)),
         }
     }
 
@@ -612,11 +627,12 @@ impl Type {
             &Type::Type21Words => 21,
             &Type::Type24Words => 24,
         }
-
     }
 }
 impl Default for Type {
-    fn default() -> Type { Type::Type18Words }
+    fn default() -> Type {
+        Type::Type18Words
+    }
 }
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -638,13 +654,13 @@ impl str::FromStr for Type {
             "18" => Ok(Type::Type18Words),
             "21" => Ok(Type::Type21Words),
             "24" => Ok(Type::Type24Words),
-            _          => Err("Unknown bip39 mnemonic size")
+            _ => Err("Unknown bip39 mnemonic size"),
         }
     }
 }
 
 /// the maximum authorized value for a mnemonic. i.e. 2047
-pub const MAX_MNEMONIC_VALUE : u16 = 2047;
+pub const MAX_MNEMONIC_VALUE: u16 = 2047;
 
 /// Safe representation of a valid mnemonic index (see
 /// [`MAX_MNEMONIC_VALUE`](./constant.MAX_MNEMONIC_VALUE.html)).
@@ -693,7 +709,8 @@ impl MnemonicIndex {
     /// returns an error. Which should not happen.
     ///
     pub fn to_word<D>(self, dic: &D) -> String
-        where D: dictionary::Language
+    where
+        D: dictionary::Language,
     {
         dic.lookup_word(self).unwrap()
     }
@@ -708,7 +725,8 @@ impl MnemonicIndex {
     /// given word is not within its dictionary.
     ///
     pub fn from_word<D>(dic: &D, word: &str) -> Result<Self>
-        where D: dictionary::Language
+    where
+        D: dictionary::Language,
     {
         let v = dic.lookup_mnemonic(word)?;
         Ok(v)
@@ -745,18 +763,25 @@ impl Mnemonics {
     /// been badly constructed (i.e. not from one of the given smart
     /// constructor).
     ///
-    pub fn get_type(&self) -> Type { Type::from_word_count(self.0.len()).unwrap() }
+    pub fn get_type(&self) -> Type {
+        Type::from_word_count(self.0.len()).unwrap()
+    }
 
     /// get the mnemonic string representation in the given
     /// [`Language`](./dictionary/trait.Language.html).
     ///
     pub fn to_string<D>(&self, dic: &D) -> MnemonicString
-        where D: dictionary::Language
+    where
+        D: dictionary::Language,
     {
         let mut vec = String::new();
         let mut first = true;
         for m in self.0.iter() {
-            if first { first = false; } else { vec.push_str(dic.separator()); }
+            if first {
+                first = false;
+            } else {
+                vec.push_str(dic.separator());
+            }
             vec.push_str(&m.to_word(dic))
         }
         MnemonicString(vec)
@@ -772,7 +797,8 @@ impl Mnemonics {
     /// given word is not within its dictionary.
     ///
     pub fn from_string<D>(dic: &D, mnemonics: &str) -> Result<Self>
-        where D: dictionary::Language
+    where
+        D: dictionary::Language,
     {
         let mut vec = vec![];
         for word in mnemonics.split(dic.separator()) {
@@ -806,16 +832,16 @@ pub mod dictionary {
     //! our output (or input) UTF8 strings.
     //!
 
-    use std::{fmt, result, error};
+    use std::{error, fmt, result};
 
-    use super::{MnemonicIndex};
+    use super::MnemonicIndex;
 
     /// Errors associated to a given language/dictionary
     #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
     #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
     pub enum Error {
         /// this means the given word is not in the Dictionary of the Language.
-        MnemonicWordNotFoundInDictionary(String)
+        MnemonicWordNotFoundInDictionary(String),
     }
     impl fmt::Display for Error {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -854,92 +880,93 @@ pub mod dictionary {
         pub name: &'static str,
     }
     impl Language for DefaultDictionary {
-        fn name(&self) -> &'static str { self.name }
-        fn separator(&self) -> &'static str { " " }
+        fn name(&self) -> &'static str {
+            self.name
+        }
+        fn separator(&self) -> &'static str {
+            " "
+        }
         fn lookup_mnemonic(&self, word: &str) -> Result<MnemonicIndex> {
             match self.words.iter().position(|x| x == &word) {
-                None => {
-                    Err(Error::MnemonicWordNotFoundInDictionary(word.to_string()))
-                },
-                Some(v)  => {
+                None => Err(Error::MnemonicWordNotFoundInDictionary(word.to_string())),
+                Some(v) => {
                     Ok(
                         // it is safe to call unwrap as we guarantee that the
                         // returned index `v` won't be out of bound for a
                         // `MnemonicIndex` (DefaultDictionary.words is an array of 2048 elements)
-                        MnemonicIndex::new(v as u16).unwrap()
+                        MnemonicIndex::new(v as u16).unwrap(),
                     )
                 }
             }
         }
         fn lookup_word(&self, mnemonic: MnemonicIndex) -> Result<String> {
-            Ok( unsafe { self.words.get_unchecked(mnemonic.0 as usize) }).map(|s| String::from(*s))
+            Ok(unsafe { self.words.get_unchecked(mnemonic.0 as usize) }).map(|s| String::from(*s))
         }
     }
 
     /// default English dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#wordlists)
     ///
-    pub const ENGLISH : DefaultDictionary = DefaultDictionary {
+    pub const ENGLISH: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_english.txt"),
-        name: "english"
+        name: "english",
     };
 
     /// default French dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#french)
     ///
-    pub const FRENCH : DefaultDictionary = DefaultDictionary {
+    pub const FRENCH: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_french.txt"),
-        name: "french"
+        name: "french",
     };
 
     /// default Japanese dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#japanese)
     ///
-    pub const JAPANESE : DefaultDictionary = DefaultDictionary {
+    pub const JAPANESE: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_japanese.txt"),
-        name: "japanese"
+        name: "japanese",
     };
 
     /// default Korean dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#japanese)
     ///
-    pub const KOREAN : DefaultDictionary = DefaultDictionary {
+    pub const KOREAN: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_korean.txt"),
-        name: "korean"
+        name: "korean",
     };
 
     /// default chinese simplified dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#chinese)
     ///
-    pub const CHINESE_SIMPLIFIED : DefaultDictionary = DefaultDictionary {
+    pub const CHINESE_SIMPLIFIED: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_chinese_simplified.txt"),
-        name: "chinese-simplified"
+        name: "chinese-simplified",
     };
     /// default chinese traditional dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#chinese)
     ///
-    pub const CHINESE_TRADITIONAL : DefaultDictionary = DefaultDictionary {
+    pub const CHINESE_TRADITIONAL: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_chinese_traditional.txt"),
-        name: "chinese-traditional"
+        name: "chinese-traditional",
     };
 
     /// default italian dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#italian)
     ///
-    pub const ITALIAN : DefaultDictionary = DefaultDictionary {
+    pub const ITALIAN: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_italian.txt"),
-        name: "italian"
+        name: "italian",
     };
 
     /// default spanish dictionary as provided by the
     /// [BIP39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md#spanish)
     ///
-    pub const SPANISH : DefaultDictionary = DefaultDictionary {
+    pub const SPANISH: DefaultDictionary = DefaultDictionary {
         words: include!("bip39_spanish.txt"),
-        name: "spanish"
+        name: "spanish",
     };
 }
-
 
 #[cfg(test)]
 mod test {
@@ -956,19 +983,22 @@ mod test {
         let dic = &dictionary::ENGLISH;
 
         assert_eq!(dic.lookup_mnemonic("abandon"), Ok(MnemonicIndex(0)));
-        assert_eq!(dic.lookup_mnemonic("crack"),   Ok(MnemonicIndex(398)));
-        assert_eq!(dic.lookup_mnemonic("shell"),   Ok(MnemonicIndex(1579)));
-        assert_eq!(dic.lookup_mnemonic("zoo"),     Ok(MnemonicIndex(2047)));
+        assert_eq!(dic.lookup_mnemonic("crack"), Ok(MnemonicIndex(398)));
+        assert_eq!(dic.lookup_mnemonic("shell"), Ok(MnemonicIndex(1579)));
+        assert_eq!(dic.lookup_mnemonic("zoo"), Ok(MnemonicIndex(2047)));
 
-        assert_eq!(dic.lookup_word(MnemonicIndex(0)),    Ok("abandon".to_string()));
-        assert_eq!(dic.lookup_word(MnemonicIndex(398)),  Ok("crack".to_string()));
-        assert_eq!(dic.lookup_word(MnemonicIndex(1579)), Ok("shell".to_string()));
+        assert_eq!(dic.lookup_word(MnemonicIndex(0)), Ok("abandon".to_string()));
+        assert_eq!(dic.lookup_word(MnemonicIndex(398)), Ok("crack".to_string()));
+        assert_eq!(
+            dic.lookup_word(MnemonicIndex(1579)),
+            Ok("shell".to_string())
+        );
         assert_eq!(dic.lookup_word(MnemonicIndex(2047)), Ok("zoo".to_string()));
     }
 
     #[test]
     fn mnemonic_zero() {
-        let entropy = Entropy::Entropy12([0;16]);
+        let entropy = Entropy::Entropy12([0; 16]);
         let mnemonics = entropy.to_mnemonics();
         let entropy2 = Entropy::from_mnemonics(&mnemonics).unwrap();
         assert_eq!(entropy, entropy2);
@@ -976,7 +1006,7 @@ mod test {
 
     #[test]
     fn mnemonic_7f() {
-        let entropy = Entropy::Entropy12([0x7f;16]);
+        let entropy = Entropy::Entropy12([0x7f; 16]);
         let mnemonics = entropy.to_mnemonics();
         let entropy2 = Entropy::from_mnemonics(&mnemonics).unwrap();
         assert_eq!(entropy, entropy2);
@@ -995,40 +1025,52 @@ mod test {
         entropy: &'static str,
         mnemonics: &'static str,
         seed: &'static str,
-        passphrase: &'static str
+        passphrase: &'static str,
     }
 
     fn mk_test<D: dictionary::Language>(test: &TestVector, dic: &D) {
         // decompose the UTF8 inputs before processing:
-        let mnemonics  : String = test.mnemonics.nfkd().collect();
-        let passphrase : String = test.passphrase.nfkd().collect();
+        let mnemonics: String = test.mnemonics.nfkd().collect();
+        let passphrase: String = test.passphrase.nfkd().collect();
 
-        let mnemonics_ref = Mnemonics::from_string(dic, &mnemonics)
-                            .expect("valid mnemonics");
-        let mnemonics_str = MnemonicString::new(dic, mnemonics)
-                            .expect("valid mnemonics string");
+        let mnemonics_ref = Mnemonics::from_string(dic, &mnemonics).expect("valid mnemonics");
+        let mnemonics_str = MnemonicString::new(dic, mnemonics).expect("valid mnemonics string");
         let entropy_ref = Entropy::from_slice(&hex::decode(test.entropy).unwrap())
-                            .expect("decode entropy from hex");
-        let seed_ref = Seed::from_slice(&hex::decode(test.seed).unwrap())
-                            .expect("decode seed from hex");
+            .expect("decode entropy from hex");
+        let seed_ref =
+            Seed::from_slice(&hex::decode(test.seed).unwrap()).expect("decode seed from hex");
 
         assert!(mnemonics_ref.get_type() == entropy_ref.get_type());
 
         assert!(entropy_ref.to_mnemonics() == mnemonics_ref);
-        assert!(entropy_ref == Entropy::from_mnemonics(&mnemonics_ref).expect("retrieve entropy from mnemonics"));
+        assert!(
+            entropy_ref
+                == Entropy::from_mnemonics(&mnemonics_ref)
+                    .expect("retrieve entropy from mnemonics")
+        );
 
-        assert_eq!(seed_ref, Seed::from_mnemonic_string(&mnemonics_str, passphrase.as_bytes()));
+        assert_eq!(
+            seed_ref,
+            Seed::from_mnemonic_string(&mnemonics_str, passphrase.as_bytes())
+        );
     }
 
     fn mk_tests<D: dictionary::Language>(tests: &[TestVector], dic: &D) {
-        for test in tests { mk_test(test, dic); }
+        for test in tests {
+            mk_test(test, dic);
+        }
     }
 
     #[test]
-    fn test_vectors_english() { mk_tests(TEST_VECTORS_ENGLISH, &dictionary::ENGLISH) }
+    fn test_vectors_english() {
+        mk_tests(TEST_VECTORS_ENGLISH, &dictionary::ENGLISH)
+    }
     #[test]
-    fn test_vectors_japanese() { mk_tests(TEST_VECTORS_JAPANESE, &dictionary::JAPANESE) }
+    fn test_vectors_japanese() {
+        mk_tests(TEST_VECTORS_JAPANESE, &dictionary::JAPANESE)
+    }
 
-    const TEST_VECTORS_ENGLISH  : &'static [TestVector] = &include!("test_vectors/bip39_english.txt");
-    const TEST_VECTORS_JAPANESE : &'static [TestVector] = &include!("test_vectors/bip39_japanese.txt");
+    const TEST_VECTORS_ENGLISH: &'static [TestVector] = &include!("test_vectors/bip39_english.txt");
+    const TEST_VECTORS_JAPANESE: &'static [TestVector] =
+        &include!("test_vectors/bip39_japanese.txt");
 }

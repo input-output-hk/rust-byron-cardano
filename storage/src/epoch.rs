@@ -1,9 +1,9 @@
-use cardano::block::{BlockDate, EpochId, ChainState};
-use cardano::config::{GenesisData};
+use cardano::block::{BlockDate, ChainState, EpochId};
+use cardano::config::GenesisData;
 use cardano::util::hex;
+use chain_state;
 use std::fs;
 use std::io::Read;
-use chain_state;
 
 use super::{
     header_to_blockhash, packreader_block_next, packreader_init, Error, PackHash, Result, Storage,

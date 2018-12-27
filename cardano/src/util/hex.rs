@@ -10,9 +10,9 @@
 //! assert!(example.as_ref() == decode(&encode(example)).unwrap().as_slice());
 //! ```
 //!
-use std::{result, fmt};
+use std::{fmt, result};
 
-const ALPHABET : &'static [u8] = b"0123456789abcdef";
+const ALPHABET: &'static [u8] = b"0123456789abcdef";
 
 /// hexadecimal encoding/decoding potential errors
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -25,9 +25,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::UnknownSymbol(idx) => {
-                write!(f, "Unknown symbol at byte index {}", idx)
-            }
+            &Error::UnknownSymbol(idx) => write!(f, "Unknown symbol at byte index {}", idx),
         }
     }
 }
@@ -53,9 +51,7 @@ pub fn encode(input: &[u8]) -> String {
         v.push(ALPHABET[(byte & 0xf) as usize]);
     }
 
-    unsafe {
-        String::from_utf8_unchecked(v)
-    }
+    unsafe { String::from_utf8_unchecked(v) }
 }
 
 /// decode the given hexadecimal string
@@ -81,9 +77,9 @@ pub fn decode(input: &str) -> Result<Vec<u8>> {
             b'A'...b'F' => buf |= byte - b'A' + 10,
             b'a'...b'f' => buf |= byte - b'a' + 10,
             b'0'...b'9' => buf |= byte - b'0',
-            b' '|b'\r'|b'\n'|b'\t' => {
+            b' ' | b'\r' | b'\n' | b'\t' => {
                 buf >>= 4;
-                continue
+                continue;
             }
             _ => {
                 return Err(Error::UnknownSymbol(idx));
@@ -113,13 +109,13 @@ mod tests {
 
     #[test]
     fn test_vector_1() {
-        encode(&[1,2,3,4], "01020304");
-        decode(&[1,2,3,4], "01020304");
+        encode(&[1, 2, 3, 4], "01020304");
+        decode(&[1, 2, 3, 4], "01020304");
     }
 
     #[test]
     fn test_vector_2() {
-        encode(&[0xff,0x0f,0xff,0xff], "ff0fffff");
-        decode(&[0xff,0x0f,0xff,0xff], "ff0fffff");
+        encode(&[0xff, 0x0f, 0xff, 0xff], "ff0fffff");
+        decode(&[0xff, 0x0f, 0xff, 0xff], "ff0fffff");
     }
 }

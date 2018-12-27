@@ -16,20 +16,20 @@
 //! assert!(scheme_value == 0);
 //! ```
 
-use hdpayload::{Path};
-use std::{fmt, result, error};
+use hdpayload::Path;
 #[cfg(feature = "generic-serialization")]
 use serde;
+use std::{error, fmt, result};
 
 /// the BIP44 derivation path has a specific length
-pub const BIP44_PATH_LENGTH : usize = 5;
+pub const BIP44_PATH_LENGTH: usize = 5;
 /// the BIP44 derivation path has a specific purpose
-pub const BIP44_PURPOSE   : u32 = 0x8000002C;
+pub const BIP44_PURPOSE: u32 = 0x8000002C;
 /// the BIP44 coin type is set, by default, to cardano ada.
-pub const BIP44_COIN_TYPE : u32 = 0x80000717;
+pub const BIP44_COIN_TYPE: u32 = 0x80000717;
 
 /// the soft derivation is upper bounded
-pub const BIP44_SOFT_UPPER_BOUND : u32 = 0x80000000;
+pub const BIP44_SOFT_UPPER_BOUND: u32 = 0x80000000;
 
 /// Error relating to `bip44`'s `Addressing` operations
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -65,12 +65,36 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::InvalidLength(given)     => write!(f, "Invalid length, expecting {} but received {}", BIP44_PATH_LENGTH, given),
-            &Error::InvalidPurpose(given)   => write!(f, "Invalid purpose, expecting 0x{:x} but received 0x{:x}", BIP44_PURPOSE, given),
-            &Error::InvalidType(given)       => write!(f, "Invalid type, expecting 0x{:x} but received 0x{:x}", BIP44_COIN_TYPE, given),
-            &Error::AccountOutOfBound(given) => write!(f, "Account out of bound, should have a hard derivation but received 0x{:x}", given),
-            &Error::ChangeOutOfBound(given) => write!(f, "Change out of bound, should have a soft derivation but received 0x{:x}", given),
-            &Error::IndexOutOfBound(given) => write!(f, "Index out of bound, should have a soft derivation but received 0x{:x}", given),
+            &Error::InvalidLength(given) => write!(
+                f,
+                "Invalid length, expecting {} but received {}",
+                BIP44_PATH_LENGTH, given
+            ),
+            &Error::InvalidPurpose(given) => write!(
+                f,
+                "Invalid purpose, expecting 0x{:x} but received 0x{:x}",
+                BIP44_PURPOSE, given
+            ),
+            &Error::InvalidType(given) => write!(
+                f,
+                "Invalid type, expecting 0x{:x} but received 0x{:x}",
+                BIP44_COIN_TYPE, given
+            ),
+            &Error::AccountOutOfBound(given) => write!(
+                f,
+                "Account out of bound, should have a hard derivation but received 0x{:x}",
+                given
+            ),
+            &Error::ChangeOutOfBound(given) => write!(
+                f,
+                "Change out of bound, should have a soft derivation but received 0x{:x}",
+                given
+            ),
+            &Error::IndexOutOfBound(given) => write!(
+                f,
+                "Index out of bound, should have a soft derivation but received 0x{:x}",
+                given
+            ),
         }
     }
 }
@@ -82,12 +106,18 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Account(u32);
 impl Account {
     pub fn new(account: u32) -> Result<Self> {
-        if account >= 0x80000000 { return Err(Error::AccountOutOfBound(account)); }
+        if account >= 0x80000000 {
+            return Err(Error::AccountOutOfBound(account));
+        }
         Ok(Account(account))
     }
 
-    pub fn get_account_number(&self) -> u32 { self.0 }
-    pub fn get_scheme_value(&self) -> u32 { self.0 | 0x80000000 }
+    pub fn get_account_number(&self) -> u32 {
+        self.0
+    }
+    pub fn get_scheme_value(&self) -> u32 {
+        self.0 | 0x80000000
+    }
 
     pub fn change(&self, typ: AddrType) -> Result<Change> {
         match typ {
@@ -109,20 +139,20 @@ impl fmt::Display for Account {
     }
 }
 #[cfg(feature = "generic-serialization")]
-impl serde::Serialize for Account
-{
+impl serde::Serialize for Account {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-        where S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         serializer.serialize_u32(self.0)
     }
 }
 #[cfg(feature = "generic-serialization")]
-impl<'de> serde::Deserialize<'de> for Account
-{
+impl<'de> serde::Deserialize<'de> for Account {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
-        where D: serde::Deserializer<'de>
+    where
+        D: serde::Deserializer<'de>,
     {
         struct AccountVisitor;
         impl<'de> serde::de::Visitor<'de> for AccountVisitor {
@@ -133,25 +163,34 @@ impl<'de> serde::Deserialize<'de> for Account
             }
 
             fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 self.visit_u32(v as u32)
             }
             fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 match Account::new(v) {
-                    Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
+                    Err(Error::AccountOutOfBound(_)) => Err(E::invalid_value(
+                        serde::de::Unexpected::Unsigned(v as u64),
+                        &"from 0 to 0x7fffffff",
+                    )),
                     Err(err) => panic!("unexpected error: {}", err),
-                    Ok(h) => Ok(h)
+                    Ok(h) => Ok(h),
                 }
             }
 
             fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 if v > 0xFFFFFFFF {
-                    return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+                    return Err(E::invalid_value(
+                        serde::de::Unexpected::Unsigned(v),
+                        &"value should fit in 32bit integer",
+                    ));
                 }
                 self.visit_u32(v as u32)
             }
@@ -164,39 +203,49 @@ impl<'de> serde::Deserialize<'de> for Account
 pub struct Index(u32);
 impl Index {
     pub fn new(index: u32) -> Result<Self> {
-        if index >= 0x80000000 { return Err(Error::IndexOutOfBound(index)); }
+        if index >= 0x80000000 {
+            return Err(Error::IndexOutOfBound(index));
+        }
         Ok(Index(index))
     }
-    pub fn get_scheme_value(&self) -> u32 { self.0 }
+    pub fn get_scheme_value(&self) -> u32 {
+        self.0
+    }
     pub fn incr(&self, i: u32) -> Result<Self> {
-        if i >= 0x80000000 { return Err(Error::IndexOutOfBound(i)); }
+        if i >= 0x80000000 {
+            return Err(Error::IndexOutOfBound(i));
+        }
         let r = self.0 + i;
-        if r >= 0x80000000 { return Err(Error::IndexOutOfBound(r)); }
+        if r >= 0x80000000 {
+            return Err(Error::IndexOutOfBound(r));
+        }
         Ok(Index(r))
     }
 
     pub fn decr(&self, i: u32) -> Result<Self> {
-        if self.0 < i { return Err(Error::IndexOutOfBound(0)); }
+        if self.0 < i {
+            return Err(Error::IndexOutOfBound(0));
+        }
         let r = self.0 - i;
         Ok(Index(r))
     }
 }
 
 #[cfg(feature = "generic-serialization")]
-impl serde::Serialize for Index
-{
+impl serde::Serialize for Index {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-        where S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         serializer.serialize_u32(self.0)
     }
 }
 #[cfg(feature = "generic-serialization")]
-impl<'de> serde::Deserialize<'de> for Index
-{
+impl<'de> serde::Deserialize<'de> for Index {
     fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
-        where D: serde::Deserializer<'de>
+    where
+        D: serde::Deserializer<'de>,
     {
         struct IndexVisitor;
         impl<'de> serde::de::Visitor<'de> for IndexVisitor {
@@ -207,25 +256,34 @@ impl<'de> serde::Deserialize<'de> for Index
             }
 
             fn visit_u16<E>(self, v: u16) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 self.visit_u32(v as u32)
             }
             fn visit_u32<E>(self, v: u32) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 match Index::new(v) {
-                    Err(Error::IndexOutOfBound(_)) => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v as u64), &"from 0 to 0x7fffffff")),
+                    Err(Error::IndexOutOfBound(_)) => Err(E::invalid_value(
+                        serde::de::Unexpected::Unsigned(v as u64),
+                        &"from 0 to 0x7fffffff",
+                    )),
                     Err(err) => panic!("unexpected error: {}", err),
-                    Ok(h) => Ok(h)
+                    Ok(h) => Ok(h),
                 }
             }
 
             fn visit_u64<E>(self, v: u64) -> result::Result<Self::Value, E>
-                where E: serde::de::Error
+            where
+                E: serde::de::Error,
             {
                 if v > 0xFFFFFFFF {
-                    return Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &"value should fit in 32bit integer"));
+                    return Err(E::invalid_value(
+                        serde::de::Unexpected::Unsigned(v),
+                        &"value should fit in 32bit integer",
+                    ));
                 }
                 self.visit_u32(v as u32)
             }
@@ -237,14 +295,21 @@ impl<'de> serde::Deserialize<'de> for Index
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Change {
     account: Account,
-    change:  u32
+    change: u32,
 }
 impl Change {
     pub fn new(account: Account, change: u32) -> Result<Self> {
-        if change  >= 0x80000000 { return Err(Error::ChangeOutOfBound(change)); }
-        Ok(Change{ account: account, change: change })
+        if change >= 0x80000000 {
+            return Err(Error::ChangeOutOfBound(change));
+        }
+        Ok(Change {
+            account: account,
+            change: change,
+        })
     }
-    pub fn get_scheme_value(&self) -> u32 { self.change }
+    pub fn get_scheme_value(&self) -> u32 {
+        self.change
+    }
 
     pub fn index(&self, index: u32) -> Result<Addressing> {
         Addressing::new_from_change(*self, index)
@@ -288,19 +353,33 @@ impl Addressing {
     /// ```
     pub fn new(account: u32, typ: AddrType, index: u32) -> Result<Self> {
         let change = match typ {
-                        AddrType::Internal => 1,
-                        AddrType::External => 0,
-                    };
-        Ok(Addressing { account: Account::new(account)?, change: change, index: Index::new(index)? })
+            AddrType::Internal => 1,
+            AddrType::External => 0,
+        };
+        Ok(Addressing {
+            account: Account::new(account)?,
+            change: change,
+            index: Index::new(index)?,
+        })
     }
 
     fn new_from_change(change: Change, index: u32) -> Result<Self> {
-        Ok(Addressing{account: change.account, change: change.change, index: Index::new(index)? })
+        Ok(Addressing {
+            account: change.account,
+            change: change.change,
+            index: Index::new(index)?,
+        })
     }
 
     /// return a path ready for derivation
     pub fn to_path(&self) -> Path {
-        Path::new(vec![BIP44_PURPOSE, BIP44_COIN_TYPE, self.account.get_scheme_value(), self.change, self.index.get_scheme_value() ])
+        Path::new(vec![
+            BIP44_PURPOSE,
+            BIP44_COIN_TYPE,
+            self.account.get_scheme_value(),
+            self.change,
+            self.index.get_scheme_value(),
+        ])
     }
 
     pub fn address_type(&self) -> AddrType {
@@ -313,22 +392,25 @@ impl Addressing {
 
     pub fn from_path(path: Path) -> Result<Self> {
         let len = path.as_ref().len();
-        if path.as_ref().len() != BIP44_PATH_LENGTH { return Err(Error::InvalidLength(len)); }
+        if path.as_ref().len() != BIP44_PATH_LENGTH {
+            return Err(Error::InvalidLength(len));
+        }
 
         let p = path.as_ref()[0];
-        if p != BIP44_PURPOSE   { return Err(Error::InvalidPurpose(p)); }
+        if p != BIP44_PURPOSE {
+            return Err(Error::InvalidPurpose(p));
+        }
         let t = path.as_ref()[1];
-        if t != BIP44_COIN_TYPE { return Err(Error::InvalidType(t)); }
+        if t != BIP44_COIN_TYPE {
+            return Err(Error::InvalidType(t));
+        }
         let a = path.as_ref()[2];
         let c = path.as_ref()[3];
         let i = path.as_ref()[4];
 
         Account::new(a)
-        .and_then(|account| {
-            Change::new(account, c)
-        }).and_then(|change| {
-            Addressing::new_from_change(change, i)
-        })
+            .and_then(|account| Change::new(account, c))
+            .and_then(|change| Addressing::new_from_change(change, i))
     }
 
     /// try to generate a new `Addressing` starting from the given
@@ -364,7 +446,7 @@ impl Addressing {
             match self.incr(i as u32) {
                 Err(Error::IndexOutOfBound(_)) => break,
                 Err(err) => return Err(err),
-                Ok(r) => v.push(r)
+                Ok(r) => v.push(r),
             }
         }
         Ok(v)

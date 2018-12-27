@@ -4,6 +4,7 @@ mod node_id;
 
 pub use self::handshake::{HandlerSpec, HandlerSpecs, Handshake};
 pub use self::message::{
-    Block, BlockHeaders, GetBlockHeaders, GetBlocks, Message, MessageCode, MessageType, Response, KeepAlive
+    Block, BlockHeaders, GetBlockHeaders, GetBlocks, KeepAlive, Message, MessageCode, MessageType,
+    Response,
 };
 pub use self::node_id::NodeId;

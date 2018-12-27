@@ -8,13 +8,13 @@
 //! total flexibility and abstraction/helpers.
 //!
 
-use tx::{TxoPointer, TxOut, Tx, TxAux, TxWitness, TxInWitness, txaux_serialize_size};
-use txutils::OutputPolicy;
-use {coin,fee};
 use coin::{Coin, CoinDiff};
-use fee::{FeeAlgorithm, Fee};
+use fee::{Fee, FeeAlgorithm};
 use std::iter::Iterator;
-use std::{result, iter, fmt, error};
+use std::{error, fmt, iter, result};
+use tx::{txaux_serialize_size, Tx, TxAux, TxInWitness, TxOut, TxWitness, TxoPointer};
+use txutils::OutputPolicy;
+use {coin, fee};
 
 /// Transaction Builder composed of inputs, outputs
 #[derive(Clone)]
@@ -42,46 +42,68 @@ impl fmt::Display for Error {
         match self {
             Error::TxInvalidNoInput => write!(f, "Transaction is invalid, no input."),
             Error::TxInvalidNoOutput => write!(f, "Transaction is invalid, no output."),
-            Error::TxNotEnoughTotalInput => write!(f, "Transaction is invalid, already not enough input coins."),
-            Error::TxOutputPolicyNotEnoughCoins(coins) => write!(f, "Output policy cannot be added, only {} currently leftover", coins),
-            Error::TxOverLimit(sz) => write!(f, "Transaction too big, current size is {} bytes but limit size is {}.", sz, TX_SIZE_LIMIT),
+            Error::TxNotEnoughTotalInput => {
+                write!(f, "Transaction is invalid, already not enough input coins.")
+            }
+            Error::TxOutputPolicyNotEnoughCoins(coins) => write!(
+                f,
+                "Output policy cannot be added, only {} currently leftover",
+                coins
+            ),
+            Error::TxOverLimit(sz) => write!(
+                f,
+                "Transaction too big, current size is {} bytes but limit size is {}.",
+                sz, TX_SIZE_LIMIT
+            ),
             Error::TxSignaturesExceeded => write!(f, "Transaction has already enough signatures"),
-            Error::TxSignaturesMismatch => write!(f, "Number of signatures does not match the number of witnesses"),
+            Error::TxSignaturesMismatch => write!(
+                f,
+                "Number of signatures does not match the number of witnesses"
+            ),
             Error::CoinError(_) => write!(f, "Error while performing value operation"),
-            Error::FeeError(_)  => write!(f, "Error while performing fee operation")
+            Error::FeeError(_) => write!(f, "Error while performing fee operation"),
         }
     }
 }
 impl error::Error for Error {
-    fn cause(&self) -> Option<& error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         match self {
             Error::CoinError(ref err) => Some(err),
-            Error::FeeError(ref err)  => Some(err),
-            _ => None
+            Error::FeeError(ref err) => Some(err),
+            _ => None,
         }
     }
 }
 
 // TODO might be a network configurable value..
-const TX_SIZE_LIMIT : usize = 65536;
+const TX_SIZE_LIMIT: usize = 65536;
 
 pub type Result<T> = result::Result<T, Error>;
 
 impl From<coin::Error> for Error {
-    fn from(e: coin::Error) -> Error { Error::CoinError(e) }
+    fn from(e: coin::Error) -> Error {
+        Error::CoinError(e)
+    }
 }
 impl From<fee::Error> for Error {
-    fn from(e: fee::Error) -> Error { Error::FeeError(e) }
+    fn from(e: fee::Error) -> Error {
+        Error::FeeError(e)
+    }
 }
 
 impl TxBuilder {
     /// Create a new empty transaction builder
     pub fn new() -> Self {
-        TxBuilder { inputs: Vec::new(), outputs: Vec::new() }
+        TxBuilder {
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+        }
     }
 
     /// Return the number of inputs in this builder
-    pub fn number_inputs(&self) -> usize { self.inputs.len() }
+    pub fn number_inputs(&self) -> usize {
+        self.inputs.len()
+    }
 
     /// Add an input in a form of a txo pointer to the current state.
     ///
@@ -91,7 +113,6 @@ impl TxBuilder {
     pub fn add_input(&mut self, iptr: &TxoPointer, ivalue: Coin) {
         self.inputs.push((iptr.clone(), ivalue))
     }
-
 
     /// Add an output (address + coin value) to the current state
     pub fn add_output_value(&mut self, o: &TxOut) {
@@ -104,7 +125,7 @@ impl TxBuilder {
                 let txout = TxOut::new(change_addr.clone(), leftover);
                 self.add_output_value(&txout);
                 vec![txout]
-            },
+            }
         }
     }
 
@@ -122,10 +143,14 @@ impl TxBuilder {
     ///
     /// Note: that the calculation is not done again if more inputs and outputs are added after this call,
     /// and in most typical cases this should be the last addition to the transaction.
-    pub fn add_output_policy<'a, F: FeeAlgorithm>(&mut self, f: &'a F, o: &OutputPolicy) -> Result<Vec<TxOut>> {
+    pub fn add_output_policy<'a, F: FeeAlgorithm>(
+        &mut self,
+        f: &'a F,
+        o: &OutputPolicy,
+    ) -> Result<Vec<TxOut>> {
         // first check if there's any output, or not enough coins to cover
         match self.balance(f)? {
-            CoinDiff::Zero        => return Ok(Vec::new()),
+            CoinDiff::Zero => return Ok(Vec::new()),
             CoinDiff::Negative(_) => return Err(Error::TxNotEnoughTotalInput),
             CoinDiff::Positive(max) => {
                 // One possible situation is that the amount of extra coins is less
@@ -137,8 +162,10 @@ impl TxBuilder {
                     let _ = temp.apply_policy_with(o, Coin::unit()); // 0 and 1 has roughly the same overhead
                     match temp.balance(f)? {
                         CoinDiff::Positive(v) => v,
-                        CoinDiff::Negative(_) => { return Err(Error::TxOutputPolicyNotEnoughCoins(max)) },
-                        CoinDiff::Zero        => Coin::unit(),
+                        CoinDiff::Negative(_) => {
+                            return Err(Error::TxOutputPolicyNotEnoughCoins(max));
+                        }
+                        CoinDiff::Zero => Coin::unit(),
                     }
                 };
 
@@ -155,20 +182,20 @@ impl TxBuilder {
                     // check the balance of output with the above output policy in place
                     match temp.balance(f)? {
                         // Found a perfect match zero, then update policy and finish.
-                        CoinDiff::Zero        => {
+                        CoinDiff::Zero => {
                             self.apply_policy_with(o, out_total);
-                            return Ok(outs)
-                        },
+                            return Ok(outs);
+                        }
                         // Input > Output+Fees. Effectively paying too much into fees
                         // need to assign more to out_total
                         CoinDiff::Positive(_x) => {
                             let out_total_min = out_total;
                             if (out_total_min + Coin::unit())? == out_total_max {
                                 self.apply_policy_with(o, out_total);
-                                return Ok(outs)
+                                return Ok(outs);
                             }
                             out_total = (out_total + Coin::unit())?;
-                        },
+                        }
                         // Input < Output+Fees.
                         // need to assign less to out_total
                         CoinDiff::Negative(x) => {
@@ -178,10 +205,10 @@ impl TxBuilder {
                             } else {
                                 out_total = (out_total - Coin::unit())?
                             }
-                        },
+                        }
                     }
                 }
-            },
+            }
         }
     }
 
@@ -191,20 +218,28 @@ impl TxBuilder {
     /// txaux serialize to, but different algorithms can evaluate different criterions.
     pub fn calculate_fee<'a, F: FeeAlgorithm>(&self, f: &'a F) -> Result<Fee> {
         let tx = self.clone().make_tx_nocheck();
-        let fake_witnesses = iter::repeat(TxInWitness::fake()).take(self.inputs.len()).collect();
+        let fake_witnesses = iter::repeat(TxInWitness::fake())
+            .take(self.inputs.len())
+            .collect();
         let fee = f.calculate_for_txaux_component(&tx, &fake_witnesses)?;
         Ok(fee)
     }
 
     /// get the total of input coins
     pub fn get_input_total(&self) -> Result<Coin> {
-        let total = self.inputs.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.1))?;
+        let total = self
+            .inputs
+            .iter()
+            .fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.1))?;
         Ok(total)
     }
 
     /// get the total of output coins
     pub fn get_output_total(&self) -> Result<Coin> {
-        let total = self.outputs.iter().fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))?;
+        let total = self
+            .outputs
+            .iter()
+            .fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + c.value))?;
         Ok(total)
     }
 
@@ -234,10 +269,10 @@ impl TxBuilder {
 
     pub fn make_tx(self) -> Result<Tx> {
         if self.inputs.len() == 0 {
-            return Err(Error::TxInvalidNoInput)
+            return Err(Error::TxInvalidNoInput);
         }
         if self.outputs.len() == 0 {
-            return Err(Error::TxInvalidNoOutput)
+            return Err(Error::TxInvalidNoOutput);
         }
         Ok(self.make_tx_nocheck())
     }
@@ -253,7 +288,10 @@ pub struct TxFinalized {
 impl TxFinalized {
     /// Take a transaction and create a working area for adding witnesses
     pub fn new(tx: Tx) -> Self {
-        TxFinalized { tx: tx, witnesses: TxWitness::new() }
+        TxFinalized {
+            tx: tx,
+            witnesses: TxWitness::new(),
+        }
     }
 
     /// Add a witness associated with the next input.
@@ -275,7 +313,7 @@ impl TxFinalized {
         }
         let sz = txaux_serialize_size(&self.tx, &(*self.witnesses));
         if sz > TX_SIZE_LIMIT {
-            return Err(Error::TxOverLimit(sz))
+            return Err(Error::TxOverLimit(sz));
         }
         let txaux = TxAux::new(self.tx, self.witnesses);
         Ok(txaux)
@@ -286,10 +324,10 @@ impl TxFinalized {
 mod tests {
     use super::*;
     use address::ExtendedAddr;
-    use tx::{TxOut, TxId};
     use fee::LinearFee;
     use hash::Blake2b256;
-    use util::{base58, try_from_slice::{TryFromSlice}};
+    use tx::{TxId, TxOut};
+    use util::{base58, try_from_slice::TryFromSlice};
 
     const RADDRS : [&str;3] =
         [ "DdzFFzCqrhsyhumccfGyEj3WZzztSPr92ntRWB6UVVwzcMTpwoafVQ5vD9mdZ5Xind8ycugbmA8esxmo7NycjQFGSbDeKrxabTz8MVzf"
@@ -332,10 +370,8 @@ mod tests {
 
     fn fee_is_minimal(coindiff: CoinDiff) {
         match coindiff {
-            CoinDiff::Zero => {},
-            CoinDiff::Positive(c) => {
-                assert_eq!(c, 1u32.into(), "fee is positive {}", c)
-            },
+            CoinDiff::Zero => {}
+            CoinDiff::Positive(c) => assert_eq!(c, 1u32.into(), "fee is positive {}", c),
             CoinDiff::Negative(c) => {
                 assert!(false, "fee is negative {}, expecting zero or positive", c)
             }
@@ -344,37 +380,44 @@ mod tests {
 
     fn fee_is_acceptable(coindiff: CoinDiff) {
         match coindiff {
-            CoinDiff::Zero => {},
+            CoinDiff::Zero => {}
             CoinDiff::Positive(c) => {
                 let max_fee_overhead = 5_000u32.into();
-                assert!(c < max_fee_overhead, "fee is much greater than expected {}, expected less than {}", c, max_fee_overhead);
-            },
+                assert!(
+                    c < max_fee_overhead,
+                    "fee is much greater than expected {}, expected less than {}",
+                    c,
+                    max_fee_overhead
+                );
+            }
             CoinDiff::Negative(c) => {
                 assert!(false, "fee is negative {}, expecting zero or positive", c)
             }
         }
     }
 
-    fn fake_id() -> TxId { Blake2b256::new(&[1,2]) }
+    fn fake_id() -> TxId {
+        Blake2b256::new(&[1, 2])
+    }
     fn fake_txopointer_val(coin: Coin) -> (TxoPointer, Coin) {
         (TxoPointer::new(fake_id(), 1), coin)
     }
 
     #[test]
     fn txbuild_simple() {
-        let inputs = vec![ fake_txopointer_val(100000u32.into()) ];
-        let outputs = vec![ TxOut::new(decode_addr(RADDRS[1]), 8000u32.into()) ];
+        let inputs = vec![fake_txopointer_val(100000u32.into())];
+        let outputs = vec![TxOut::new(decode_addr(RADDRS[1]), 8000u32.into())];
         let res = test_build(&inputs[..], &outputs[..]);
         assert!(res.is_ok())
     }
 
     #[test]
     fn txbuild_auto() {
-        let inputs = vec![ fake_txopointer_val(300000u32.into()) ];
+        let inputs = vec![fake_txopointer_val(300000u32.into())];
         let alg = LinearFee::default();
         let out_policy = OutputPolicy::One(decode_addr(RADDRS[2]));
         for out_value in [8000u32.into(), 12004u32.into(), 51235u32.into()].iter() {
-            let outputs = vec![ TxOut::new(decode_addr(RADDRS[1]), *out_value) ];
+            let outputs = vec![TxOut::new(decode_addr(RADDRS[1]), *out_value)];
             let mut builder = build_input_outputs(&inputs[..], &outputs[..]);
             builder.add_output_policy(&alg, &out_policy).unwrap();
 
@@ -385,22 +428,22 @@ mod tests {
 
     #[test]
     fn txbuild_auto_2() {
-        let inputs = vec![ fake_txopointer_val(1_000_000u32.into()) ];
+        let inputs = vec![fake_txopointer_val(1_000_000u32.into())];
         let alg = LinearFee::default();
         let out_policy = OutputPolicy::One(decode_addr(RADDRS[2]));
-        let out_policy_length_expected = |x : Vec<TxOut>| x.len() == 1;
+        let out_policy_length_expected = |x: Vec<TxOut>| x.len() == 1;
         for out_value in [831_999u32.into()].iter() {
-            let outputs = vec![ TxOut::new(decode_addr(RADDRS[1]), *out_value) ];
+            let outputs = vec![TxOut::new(decode_addr(RADDRS[1]), *out_value)];
             let mut builder = build_input_outputs(&inputs[..], &outputs[..]);
             match builder.add_output_policy(&alg, &out_policy) {
                 Ok(x) => {
                     assert!(out_policy_length_expected(x));
                     fee_is_minimal(builder.balance(&alg).unwrap())
-                },
+                }
                 Err(Error::TxOutputPolicyNotEnoughCoins(c)) => {
                     // here we don't check that the fee is minimal, since we need to burn extra coins
                     fee_is_acceptable(builder.balance(&alg).unwrap())
-                },
+                }
                 Err(e) => panic!("{}", e),
             }
 

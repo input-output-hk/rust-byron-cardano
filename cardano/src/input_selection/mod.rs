@@ -1,14 +1,14 @@
-use std::{fmt, result};
-use coin::{self, Coin};
-use tx::{TxOut};
-use txutils::{Input, OutputPolicy, output_sum};
-use txbuild::{self, TxBuilder};
 use cbor_event;
+use coin::{self, Coin};
 use fee::{self, Fee, FeeAlgorithm};
+use std::{fmt, result};
+use tx::TxOut;
+use txbuild::{self, TxBuilder};
+use txutils::{output_sum, Input, OutputPolicy};
 
 mod simple_selections;
 
-pub use self::simple_selections::{HeadFirst, LargestFirst, Blackjack};
+pub use self::simple_selections::{Blackjack, HeadFirst, LargestFirst};
 
 #[derive(Debug)]
 pub enum Error {
@@ -38,25 +38,31 @@ impl fmt::Display for Error {
 }
 
 impl From<coin::Error> for Error {
-    fn from(e: coin::Error) -> Error { Error::CoinError(e) }
+    fn from(e: coin::Error) -> Error {
+        Error::CoinError(e)
+    }
 }
 
 impl From<fee::Error> for Error {
-    fn from(e: fee::Error) -> Error { Error::FeeError(e) }
+    fn from(e: fee::Error) -> Error {
+        Error::FeeError(e)
+    }
 }
 
 impl From<cbor_event::Error> for Error {
-    fn from(e: cbor_event::Error) -> Error { Error::CborError(e) }
+    fn from(e: cbor_event::Error) -> Error {
+        Error::CborError(e)
+    }
 }
 
 impl ::std::error::Error for Error {
-    fn cause(&self) -> Option<& ::std::error::Error> {
+    fn cause(&self) -> Option<&::std::error::Error> {
         match self {
             Error::CoinError(ref err) => Some(err),
             Error::CborError(ref err) => Some(err),
-            Error::FeeError(ref err)  => Some(err),
+            Error::FeeError(ref err) => Some(err),
             Error::TxBuildError(ref err) => Some(err),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -81,7 +87,7 @@ pub struct InputSelectionResult<Addressing> {
     pub estimated_change: Option<Coin>,
 
     /// the selected input
-    pub selected_inputs: Vec<Input<Addressing>>
+    pub selected_inputs: Vec<Input<Addressing>>,
 }
 impl<A: ::std::fmt::Debug> ::std::fmt::Debug for InputSelectionResult<A> {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
@@ -91,7 +97,11 @@ impl<A: ::std::fmt::Debug> ::std::fmt::Debug for InputSelectionResult<A> {
         writeln!(f, "  selected_inputs ({})", self.selected_inputs.len())?;
         for input in self.selected_inputs.iter() {
             writeln!(f, "    ptr:   {:?}", input.ptr)?;
-            writeln!(f, "    value: {} {}", input.value.address, input.value.value)?;
+            writeln!(
+                f,
+                "    value: {} {}",
+                input.value.address, input.value.value
+            )?;
             writeln!(f, "    addressing: {:?}", input.addressing)?;
         }
         Ok(())
@@ -114,30 +124,37 @@ impl<A: ::std::fmt::Debug> ::std::fmt::Debug for InputSelectionResult<A> {
 /// cases.
 ///
 pub trait InputSelectionAlgorithm<Addressing> {
-    fn select_input<F>( &mut self
-                      , fee_algorithm: &F
-                      , estimated_needed_output: Coin
-                      )
-        -> Result<Option<Input<Addressing>>>
-      where F: FeeAlgorithm;
+    fn select_input<F>(
+        &mut self,
+        fee_algorithm: &F,
+        estimated_needed_output: Coin,
+    ) -> Result<Option<Input<Addressing>>>
+    where
+        F: FeeAlgorithm;
 
-    fn compute<F>( &mut self
-                 , fee_algorithm: &F
-                 , outputs: Vec<TxOut>
-                 , output_policy: &OutputPolicy
-                 )
-        -> Result<InputSelectionResult<Addressing>>
-      where F: FeeAlgorithm
+    fn compute<F>(
+        &mut self,
+        fee_algorithm: &F,
+        outputs: Vec<TxOut>,
+        output_policy: &OutputPolicy,
+    ) -> Result<InputSelectionResult<Addressing>>
+    where
+        F: FeeAlgorithm,
     {
         let mut selected = Vec::new();
         let mut builder = TxBuilder::new();
 
-        if outputs.is_empty() { return Err(Error::NoOutputs); }
+        if outputs.is_empty() {
+            return Err(Error::NoOutputs);
+        }
 
-        for output in outputs { builder.add_output_value(&output); }
+        for output in outputs {
+            builder.add_output_value(&output);
+        }
 
         let total_output = builder.get_output_total().unwrap();
-        let mut estimated_needed_output = (total_output + builder.calculate_fee(fee_algorithm).unwrap().to_coin()).unwrap();
+        let mut estimated_needed_output =
+            (total_output + builder.calculate_fee(fee_algorithm).unwrap().to_coin()).unwrap();
 
         while let Some(input) = self.select_input(fee_algorithm, estimated_needed_output)? {
             builder.add_input(&input.ptr, input.value.value);
@@ -146,49 +163,58 @@ pub trait InputSelectionAlgorithm<Addressing> {
             // update the estimated needed output every time we add an input
             // this is because every time we add an input, we add more to the transaction
             // and the fee increase
-            estimated_needed_output = ( total_output
-                                      + builder.calculate_fee(fee_algorithm).unwrap().to_coin()
-                                      ).unwrap();
+            estimated_needed_output =
+                (total_output + builder.calculate_fee(fee_algorithm).unwrap().to_coin()).unwrap();
 
-            match builder.clone().add_output_policy(fee_algorithm, output_policy) {
+            match builder
+                .clone()
+                .add_output_policy(fee_algorithm, output_policy)
+            {
                 Err(txbuild::Error::TxNotEnoughTotalInput) => {
                     // here we don't have enough inputs, continue the loop
                     continue;
-                },
+                }
                 Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(_)) => {
                     // we accept we might lose some dust here...
                     break;
-                },
-                Err(txbuild_err) => { return Err(Error::TxBuildError(txbuild_err)); },
-                Ok(_) => { break; }
+                }
+                Err(txbuild_err) => {
+                    return Err(Error::TxBuildError(txbuild_err));
+                }
+                Ok(_) => {
+                    break;
+                }
             }
         }
 
         let (change, loss) = match builder.add_output_policy(fee_algorithm, output_policy) {
             Err(txbuild::Error::TxNotEnoughTotalInput) => {
                 return Err(Error::NotEnoughInput);
-            },
-            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(loss)) => {
-                (None, Some(loss))
-            },
+            }
+            Err(txbuild::Error::TxOutputPolicyNotEnoughCoins(loss)) => (None, Some(loss)),
             Err(txbuild_err) => {
                 return Err(Error::TxBuildError(txbuild_err));
-            },
-            Ok(change_outputs) => {
-                ( if change_outputs.is_empty() { None } else { Some(output_sum(change_outputs.iter())?) }
-                , None
-                )
             }
+            Ok(change_outputs) => (
+                if change_outputs.is_empty() {
+                    None
+                } else {
+                    Some(output_sum(change_outputs.iter())?)
+                },
+                None,
+            ),
         };
 
         let fees = builder.calculate_fee(fee_algorithm).unwrap();
         let fees = if let Some(loss) = loss {
             Fee::new((fees.to_coin() + loss)?)
-        } else { fees };
+        } else {
+            fees
+        };
         let result = InputSelectionResult {
             estimated_fees: fees,
             estimated_change: change,
-            selected_inputs: selected
+            selected_inputs: selected,
         };
         Ok(result)
     }

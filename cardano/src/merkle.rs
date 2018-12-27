@@ -1,22 +1,22 @@
-use hash::{Blake2b256};
 use cbor_event::se;
+use hash::Blake2b256;
 
 pub type Hash = Blake2b256;
 
 pub enum MerkleTree {
     Empty,
-    Tree(usize, MerkleNode)
+    Tree(usize, MerkleNode),
 }
 
 pub enum MerkleNode {
     Branch(Hash, Box<MerkleNode>, Box<MerkleNode>),
-    Leaf(Hash)
+    Leaf(Hash),
 }
 
 impl MerkleTree {
-
     pub fn new<T>(xs: &[T]) -> Self
-        where T: se::Serialize
+    where
+        T: se::Serialize,
     {
         if xs.is_empty() {
             return MerkleTree::Empty;
@@ -31,13 +31,12 @@ impl MerkleTree {
             MerkleTree::Tree(_, node) => node.get_root_hash().clone(),
         }
     }
-
 }
 
 impl MerkleNode {
-
     fn make_tree<T>(xs: &[T]) -> Self
-        where T: se::Serialize
+    where
+        T: se::Serialize,
     {
         if xs.is_empty() {
             panic!("make_tree applied to empty list")
@@ -59,7 +58,7 @@ impl MerkleNode {
     fn get_root_hash(&self) -> &Hash {
         match self {
             MerkleNode::Branch(hash, _, _) => hash,
-            MerkleNode::Leaf(hash) => hash
+            MerkleNode::Leaf(hash) => hash,
         }
     }
 }

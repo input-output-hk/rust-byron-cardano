@@ -1,14 +1,15 @@
-use std::collections::{BTreeMap};
-use std::io::Read;
-use serde_json;
-use cardano::{config, fee, block, coin, redeem, address};
 use base64;
-use std::time::{Duration, SystemTime};
+use cardano::{address, block, coin, config, fee, redeem};
+use serde_json;
+use std::collections::BTreeMap;
+use std::io::Read;
 use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 
 use genesisdata::raw;
 
-pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: use Result
+pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData {
+    // FIXME: use Result
 
     let data_value: serde_json::Value = serde_json::from_reader(json).unwrap();
     let genesis_prev = block::HeaderHash::new(data_value.to_string().as_bytes());
@@ -23,9 +24,10 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
     let mut avvm_distr = BTreeMap::new();
     for (avvm, balance) in &data.avvmDistr {
         avvm_distr.insert(
-            redeem::PublicKey::from_slice(
-                &base64::decode_config(avvm, base64::URL_SAFE).unwrap()).unwrap(),
-            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
+            redeem::PublicKey::from_slice(&base64::decode_config(avvm, base64::URL_SAFE).unwrap())
+                .unwrap(),
+            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap(),
+        );
     }
 
     let slot_duration = {
@@ -42,7 +44,8 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
     for (address, balance) in &data.nonAvvmBalances {
         non_avvm_balances.insert(
             address::ExtendedAddr::from_str(address).unwrap().into(),
-            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap());
+            coin::Coin::new(balance.parse::<u64>().unwrap()).unwrap(),
+        );
     }
 
     config::GenesisData {
@@ -51,7 +54,8 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
         protocol_magic: config::ProtocolMagic::from(data.protocolConsts.protocolMagic),
         fee_policy: fee::LinearFee::new(
             parse_fee_constant(&data.blockVersionData.txFeePolicy.summand),
-            parse_fee_constant(&data.blockVersionData.txFeePolicy.multiplier)),
+            parse_fee_constant(&data.blockVersionData.txFeePolicy.multiplier),
+        ),
         avvm_distr,
         non_avvm_balances,
         start_time,
@@ -59,8 +63,7 @@ pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData { // FIXME: u
     }
 }
 
-pub fn canonicalize_json<R: Read>(json: R) -> String
-{
+pub fn canonicalize_json<R: Read>(json: R) -> String {
     let data: serde_json::Value = serde_json::from_reader(json).unwrap();
     data.to_string()
 }

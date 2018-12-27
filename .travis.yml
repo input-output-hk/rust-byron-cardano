@@ -2,12 +2,12 @@ language: rust
 cache: cargo
 matrix:
   include:
-    - rust: nightly
+    - rust: stable
       os: linux
       env: CHECK_RUSTFMT="true"
-    - rust: stable
-      os: windows
-      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
+#    - rust: stable
+#      os: windows
+#      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
     - rust: stable
       os: osx
       env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
@@ -21,12 +21,9 @@ matrix:
       env:  TARGET="wasm32-unknown-unknown" CARDANO_C="false" CARDANO_WASM="true" RUN_TEST="false"
       os: linux
   allow_failures:
-    - rust: stable
-      os: windows
-      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
-    - rust: nightly
-      os: linux
-      env: CHECK_RUSTFMT="true"
+#    - rust: stable
+#      os: windows
+#      env: CARDANO_C="false" CARDANO_WASM="false" RUN_TEST="true"
 
 before_script:
   - |
@@ -40,7 +37,7 @@ before_script:
 script:
   - |
     if [ "${CHECK_RUSTFMT}" = "true" ]; then
-       cargo fmt --package=protocol-tokio --package=protocol --package=storage-units --package=cardano-storage -- --check
+       cargo fmt -- --check
     fi
   - if [ "${RUN_TEST}" = "true" ]; then cargo build --verbose --all && cargo test --verbose --all; fi
   - if [ "${CARDANO_C}" = "true" ]; then ./cardano-c/test.sh; fi

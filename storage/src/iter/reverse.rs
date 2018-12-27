@@ -14,10 +14,7 @@ pub struct ReverseIter<'a> {
     current_block: Option<HeaderHash>,
 }
 
-pub fn iter<'a>(
-    storage: &'a Storage,
-    hh: HeaderHash
-) -> Result<ReverseIter<'a>> {
+pub fn iter<'a>(storage: &'a Storage, hh: HeaderHash) -> Result<ReverseIter<'a>> {
     let hash = hh.clone().into();
     storage.block_location(&hash)?;
     let ri = ReverseIter {

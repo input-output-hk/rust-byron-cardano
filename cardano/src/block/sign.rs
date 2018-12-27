@@ -1,13 +1,12 @@
+use self::normal::BodyProof;
 use block::*;
-use self::normal::{BodyProof};
-use config::{ProtocolMagic};
-use cbor_event::{self, se, de::RawCbor};
-use tags;
+use cbor_event::{self, de::RawCbor, se};
+use config::ProtocolMagic;
 use hdwallet;
+use tags;
 
 #[derive(Debug, Clone)]
-pub struct MainToSign<'a>
-{
+pub struct MainToSign<'a> {
     previous_header: &'a HeaderHash,
     body_proof: &'a BodyProof,
     slot: &'a EpochSlotId,
@@ -16,8 +15,12 @@ pub struct MainToSign<'a>
 }
 
 impl<'a> cbor_event::se::Serialize for MainToSign<'a> {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(5))?
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: cbor_event::se::Serializer<W>,
+    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer
+            .write_array(cbor_event::Len::Len(5))?
             .serialize(&self.previous_header)?
             .serialize(&self.body_proof)?
             .serialize(&self.slot)?
@@ -37,7 +40,12 @@ impl<'a> MainToSign<'a> {
         }
     }
 
-    pub fn verify_proxy_sig(&self, protocol_magic: ProtocolMagic, tag: tags::SigningTag, proxy_sig: &ProxySignature) -> bool {
+    pub fn verify_proxy_sig(
+        &self,
+        protocol_magic: ProtocolMagic,
+        tag: tags::SigningTag,
+        proxy_sig: &ProxySignature,
+    ) -> bool {
         verify_signature_with(protocol_magic, tag, proxy_sig, self)
     }
 }
@@ -46,23 +54,28 @@ fn verify_signature_with<T>(
     protocol_magic: ProtocolMagic,
     tag: tags::SigningTag,
     proxy_sig: &ProxySignature,
-    data: &T)
-    -> bool
-    where T: se::Serialize
+    data: &T,
+) -> bool
+where
+    T: se::Serialize,
 {
     let mut buf = vec!['0' as u8, '1' as u8];
 
     buf.extend(proxy_sig.psk.issuer_pk.as_ref());
 
     se::Serializer::new(&mut buf)
-        .serialize(&(tag as u8)).unwrap()
-        .serialize(&protocol_magic).unwrap()
-        .serialize(data).unwrap();
+        .serialize(&(tag as u8))
+        .unwrap()
+        .serialize(&protocol_magic)
+        .unwrap()
+        .serialize(data)
+        .unwrap();
 
     proxy_sig.psk.delegate_pk.verify(
-        &buf, &hdwallet::Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()))
+        &buf,
+        &hdwallet::Signature::<()>::from_bytes(*proxy_sig.sig.to_bytes()),
+    )
 }
-
 
 type SignData = ();
 
@@ -77,8 +90,12 @@ pub struct ProxySecretKey {
 }
 
 impl cbor_event::se::Serialize for ProxySecretKey {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(4))?
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: cbor_event::se::Serializer<W>,
+    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer
+            .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.omega)?
             .serialize(&self.issuer_pk)?
             .serialize(&self.delegate_pk)?
@@ -95,7 +112,12 @@ impl cbor_event::de::Deserialize for ProxySecretKey {
         let delegate_pk = cbor_event::de::Deserialize::deserialize(raw)?;
         let cert = cbor_event::de::Deserialize::deserialize(raw)?;
 
-        Ok(ProxySecretKey { omega, issuer_pk, delegate_pk, cert })
+        Ok(ProxySecretKey {
+            omega,
+            issuer_pk,
+            delegate_pk,
+            cert,
+        })
     }
 }
 
@@ -106,8 +128,12 @@ pub struct ProxySignature {
 }
 
 impl cbor_event::se::Serialize for ProxySignature {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        serializer.write_array(cbor_event::Len::Len(2))?
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: cbor_event::se::Serializer<W>,
+    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer
+            .write_array(cbor_event::Len::Len(2))?
             .serialize(&self.psk)?
             .serialize(&self.sig)
     }
@@ -131,7 +157,7 @@ pub enum BlockSignature {
     ProxyHeavy(ProxySignature),
 }
 impl BlockSignature {
-    pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8;hdwallet::SIGNATURE_SIZE]> {
+    pub fn to_bytes<'a>(&'a self) -> Option<&'a [u8; hdwallet::SIGNATURE_SIZE]> {
         match self {
             BlockSignature::Signature(s) => Some(s.to_bytes()),
             _ => None,
@@ -139,22 +165,25 @@ impl BlockSignature {
     }
 }
 impl cbor_event::se::Serialize for BlockSignature {
-    fn serialize<W: ::std::io::Write>(&self, serializer: cbor_event::se::Serializer<W>) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+    fn serialize<W: ::std::io::Write>(
+        &self,
+        serializer: cbor_event::se::Serializer<W>,
+    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
         match self {
-            &BlockSignature::Signature(ref sig) => {
-                serializer.write_array(cbor_event::Len::Len(2))?
-                    .write_unsigned_integer(0)?.serialize(sig)
-            },
+            &BlockSignature::Signature(ref sig) => serializer
+                .write_array(cbor_event::Len::Len(2))?
+                .write_unsigned_integer(0)?
+                .serialize(sig),
             &BlockSignature::ProxyLight(ref v) => {
-                let serializer = serializer.write_array(cbor_event::Len::Len(2))?
+                let serializer = serializer
+                    .write_array(cbor_event::Len::Len(2))?
                     .write_unsigned_integer(1)?;
                 cbor_event::se::serialize_fixed_array(v.iter(), serializer)
-            },
-            &BlockSignature::ProxyHeavy(ref v) => {
-                serializer.write_array(cbor_event::Len::Len(2))?
-                    .write_unsigned_integer(2)?
-                    .serialize(v)
-            },
+            }
+            &BlockSignature::ProxyHeavy(ref v) => serializer
+                .write_array(cbor_event::Len::Len(2))?
+                .write_unsigned_integer(2)?
+                .serialize(v),
         }
     }
 }
@@ -163,19 +192,15 @@ impl cbor_event::de::Deserialize for BlockSignature {
         raw.tuple(2, "BlockSignature")?;
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
-            0 => {
-                Ok(BlockSignature::Signature(raw.deserialize()?))
-            },
-            1 => {
-                Ok(BlockSignature::ProxyLight(raw.deserialize()?))
-            },
-            2 => {
-                Ok(BlockSignature::ProxyHeavy(
-                    cbor_event::de::Deserialize::deserialize(raw)?))
-            },
-            _ => {
-                Err(cbor_event::Error::CustomError(format!("Unsupported BlockSignature: {}", sum_type_idx)))
-            }
+            0 => Ok(BlockSignature::Signature(raw.deserialize()?)),
+            1 => Ok(BlockSignature::ProxyLight(raw.deserialize()?)),
+            2 => Ok(BlockSignature::ProxyHeavy(
+                cbor_event::de::Deserialize::deserialize(raw)?,
+            )),
+            _ => Err(cbor_event::Error::CustomError(format!(
+                "Unsupported BlockSignature: {}",
+                sum_type_idx
+            ))),
         }
     }
 }
