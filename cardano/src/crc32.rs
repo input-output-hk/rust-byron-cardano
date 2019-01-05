@@ -257,10 +257,60 @@ const CRC_TABLE: [u32; 256] = [
     0x2d02ef8du32,
 ];
 
+/// structure to compute the CRC32 of chunks of bytes.
+///
+/// This structure allows implements the `Write` trait making it easier
+/// to compute the crc32 of a stream.
+///
+pub struct Crc32(u32);
+impl Crc32 {
+    /// initialise a new CRC32 state
+    #[inline]
+    pub fn new() -> Self {
+        Crc32(0xFFFF_FFFF)
+    }
+
+    /// update the CRC32 with the given bytes.
+    ///
+    /// beware that the order in which you update the Crc32
+    /// matter.
+    #[inline]
+    pub fn update<'a, I>(&'a mut self, bytes: I) -> &mut Self
+    where
+        I: IntoIterator<Item = &'a u8>,
+    {
+        for byte in bytes {
+            let index = (self.0 ^ (*byte as u32)) & 0xFF;
+            self.0 = (self.0 >> 8) ^ CRC_TABLE[index as usize];
+        }
+        self
+    }
+
+    /// finalize the CRC32, recovering the computed value
+    #[inline]
+    pub fn finalize(self) -> u32 {
+        self.0 ^ 0xFFFF_FFFF
+    }
+}
+impl ::std::io::Write for Crc32 {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) -> Result<usize, std::io::Error> {
+        self.update(bytes.iter());
+        Ok(bytes.len())
+    }
+    #[inline]
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+
+/// function is kept for compatibility. however prefer the
+/// `Crc32` structure.
+///
 pub fn crc32(input: &[u8]) -> u32 {
-    !input.iter().fold(0xFFFFFFFFu32, |acc, &byte| {
-        CRC_TABLE[((acc & 0xFF) ^ byte as u32) as usize] ^ (acc >> 8)
-    })
+    let mut crc32 = Crc32::new();
+    crc32.update(input.iter());
+    crc32.finalize()
 }
 
 #[cfg(test)]
