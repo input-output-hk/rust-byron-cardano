@@ -6,13 +6,16 @@
 
 use address;
 use block;
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use coin;
 use fee;
 use redeem;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    io::{BufRead, Write},
+    time::{Duration, SystemTime},
+};
 
 /// this is the protocol magic number
 ///
@@ -61,16 +64,16 @@ impl Default for ProtocolMagic {
     }
 }
 impl cbor_event::se::Serialize for ProtocolMagic {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_unsigned_integer(self.0 as u64)
     }
 }
 impl cbor_event::Deserialize for ProtocolMagic {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let v = raw.unsigned_integer()? as u32;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let v = reader.unsigned_integer()? as u32;
         Ok(ProtocolMagic::from(v))
     }
 }

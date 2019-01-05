@@ -14,14 +14,18 @@ use serde;
 use hash::{Blake2b224, Sha3_256};
 
 use cbor;
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use config::NetworkMagic;
 use hdpayload::HDAddressPayload;
 use hdwallet::XPub;
 use redeem;
 use util::{base58, try_from_slice::TryFromSlice};
 
-use std::{fmt, str::FromStr};
+use std::{
+    fmt,
+    io::{BufRead, Write},
+    str::FromStr,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -58,16 +62,16 @@ impl AddrType {
     }
 }
 impl cbor_event::se::Serialize for AddrType {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_unsigned_integer(self.to_byte() as u64)
     }
 }
 impl cbor_event::de::Deserialize for AddrType {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        match AddrType::from_u64(raw.unsigned_integer()?) {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        match AddrType::from_u64(reader.unsigned_integer()?) {
             Some(addr_type) => Ok(addr_type),
             None => Err(cbor_event::Error::CustomError(format!("Invalid AddrType"))),
         }
@@ -94,17 +98,17 @@ impl StakeholderId {
     }
 }
 impl cbor_event::se::Serialize for StakeholderId {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::Serialize::serialize(&self.0, serializer)
     }
 }
 impl cbor_event::de::Deserialize for StakeholderId {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(StakeholderId(cbor_event::de::Deserialize::deserialize(
-            raw,
+            reader,
         )?))
     }
 }
@@ -168,26 +172,32 @@ impl StakeDistribution {
     }
 }
 impl cbor_event::se::Serialize for StakeDistribution {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
-        let inner_serializer = match self {
-            &StakeDistribution::BootstrapEraDistr => Serializer::new_vec()
-                .write_array(cbor_event::Len::Len(1))?
-                .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)?,
-            &StakeDistribution::SingleKeyDistr(ref si) => Serializer::new_vec()
-                .write_array(cbor_event::Len::Len(2))?
-                .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_SINGLEKEY)?
-                .serialize(si)?,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        let inner_cbor = match self {
+            &StakeDistribution::BootstrapEraDistr => {
+                let mut se = Serializer::new_vec();
+                se.write_array(cbor_event::Len::Len(1))?
+                    .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_BOOTSTRAP)?;
+                se.finalize()
+            }
+            &StakeDistribution::SingleKeyDistr(ref si) => {
+                let mut se = Serializer::new_vec();
+                se.write_array(cbor_event::Len::Len(2))?
+                    .write_unsigned_integer(STAKE_DISTRIBUTION_TAG_SINGLEKEY)?
+                    .serialize(si)?;
+                se.finalize()
+            }
         };
-        serializer.write_bytes(&inner_serializer.finalize())
+        serializer.write_bytes(&inner_cbor)
     }
 }
 impl cbor_event::de::Deserialize for StakeDistribution {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         // stake distribution is an encoded cbor in bytes of a sum_type...
-        let mut raw = RawCbor::from(&raw.bytes()?);
+        let mut raw = Deserializer::from(std::io::Cursor::new(reader.bytes()?));
         let len = raw.array()?;
         if len != cbor_event::Len::Len(1) && len != cbor_event::Len::Len(2) {
             return Err(cbor_event::Error::CustomError(format!(
@@ -245,10 +255,10 @@ const ATTRIBUTE_NAME_TAG_DERIVATION: u64 = 1;
 const ATTRIBUTE_NAME_TAG_NETWORK_MAGIC: u64 = 2;
 
 impl cbor_event::se::Serialize for Attributes {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let mut len = 0;
         match &self.stake_distribution {
             &StakeDistribution::BootstrapEraDistr => {}
@@ -283,8 +293,8 @@ impl cbor_event::se::Serialize for Attributes {
     }
 }
 impl cbor_event::de::Deserialize for Attributes {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let len = raw.map()?;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let len = reader.map()?;
         let mut len = match len {
             cbor_event::Len::Indefinite => {
                 return Err(cbor_event::Error::CustomError(format!(
@@ -298,14 +308,14 @@ impl cbor_event::de::Deserialize for Attributes {
         let mut derivation_path = None;
         let mut network_magic = NetworkMagic::NoMagic;
         while len > 0 {
-            let key = raw.unsigned_integer()?;
+            let key = reader.unsigned_integer()?;
             match key {
-                ATTRIBUTE_NAME_TAG_STAKE => stake_distribution = raw.deserialize()?,
-                ATTRIBUTE_NAME_TAG_DERIVATION => derivation_path = Some(raw.deserialize()?),
+                ATTRIBUTE_NAME_TAG_STAKE => stake_distribution = reader.deserialize()?,
+                ATTRIBUTE_NAME_TAG_DERIVATION => derivation_path = Some(reader.deserialize()?),
                 ATTRIBUTE_NAME_TAG_NETWORK_MAGIC => {
                     // Yes, this is an integer encoded as CBOR encoded as Bytes in CBOR.
-                    let bytes = raw.bytes()?;
-                    let n = RawCbor::from(bytes.bytes()).deserialize::<u32>()?;
+                    let bytes = reader.bytes()?;
+                    let n = Deserializer::from(std::io::Cursor::new(bytes)).deserialize::<u32>()?;
                     network_magic = NetworkMagic::Magic(n);
                 }
                 _ => {
@@ -350,16 +360,16 @@ impl fmt::Display for HashedSpendingData {
     }
 }
 impl cbor_event::se::Serialize for HashedSpendingData {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for HashedSpendingData {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        cbor_event::de::Deserialize::deserialize(raw).map(|digest| HashedSpendingData(digest))
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        cbor_event::de::Deserialize::deserialize(reader).map(|digest| HashedSpendingData(digest))
     }
 }
 impl TryFromSlice for HashedSpendingData {
@@ -401,7 +411,7 @@ pub struct Addr(Vec<u8>);
 
 impl Addr {
     pub fn deconstruct(&self) -> ExtendedAddr {
-        let mut raw = RawCbor::from(&self.0);
+        let mut raw = Deserializer::from(std::io::Cursor::new(&self.0));
         cbor_event::de::Deserialize::deserialize(&mut raw).unwrap() // unwrap should never fail from addr to extended addr
     }
 }
@@ -418,7 +428,7 @@ impl TryFromSlice for Addr {
         let mut v = Vec::new();
         // TODO we only want validation of slice here, but we don't have api to do that yet.
         {
-            let mut raw = RawCbor::from(slice);
+            let mut raw = Deserializer::from(std::io::Cursor::new(&slice));
             let _: ExtendedAddr = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         }
         v.extend_from_slice(slice);
@@ -439,17 +449,17 @@ impl fmt::Display for Addr {
 }
 
 impl cbor_event::se::Serialize for Addr {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
-        let raw_cbor = RawCbor::from(&self.0);
-        serializer.append_raw_cbor(&raw_cbor)
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        // Addr is already serialized
+        serializer.write_raw_bytes(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for Addr {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let ea: ExtendedAddr = cbor_event::de::Deserialize::deserialize(raw)?;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let ea: ExtendedAddr = cbor_event::de::Deserialize::deserialize(reader)?;
         Ok(ea.to_address())
     }
 }
@@ -563,25 +573,26 @@ impl ::std::str::FromStr for ExtendedAddr {
 impl TryFromSlice for ExtendedAddr {
     type Error = cbor_event::Error;
     fn try_from_slice(slice: &[u8]) -> ::std::result::Result<Self, Self::Error> {
-        let mut raw = RawCbor::from(slice);
+        let mut raw = Deserializer::from(std::io::Cursor::new(slice));
         cbor_event::de::Deserialize::deserialize(&mut raw)
     }
 }
 impl cbor_event::se::Serialize for ExtendedAddr {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor::hs::util::encode_with_crc32_(
             &(&self.addr, &self.attributes, &self.addr_type),
             serializer,
-        )
+        )?;
+        Ok(serializer)
     }
 }
 impl cbor_event::de::Deserialize for ExtendedAddr {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = cbor::hs::util::raw_with_crc32(raw)?;
-        let mut raw = RawCbor::from(&bytes);
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let bytes = cbor::hs::util::raw_with_crc32(reader)?;
+        let mut raw = Deserializer::from(std::io::Cursor::new(bytes));
         raw.tuple(3, "ExtendedAddr")?;
         let addr = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let attributes = cbor_event::de::Deserialize::deserialize(&mut raw)?;
@@ -683,10 +694,10 @@ pub enum SpendingData {
     RedeemASD(redeem::PublicKey), // UnknownASD... whatever...
 }
 impl cbor_event::se::Serialize for SpendingData {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         match self {
             &SpendingData::PubKeyASD(ref pk) => serializer
                 .write_array(cbor_event::Len::Len(2))?

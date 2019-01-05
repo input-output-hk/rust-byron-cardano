@@ -7,13 +7,17 @@
 //! On the **mainnet** you can use the redeem keys to claim redeem addresses.
 //!
 
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use cryptoxide::ed25519;
 #[cfg(feature = "generic-serialization")]
 use serde;
 use util::hex;
 
-use std::{cmp, fmt, result};
+use std::{
+    cmp, fmt,
+    io::{BufRead, Write},
+    result,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
@@ -221,16 +225,16 @@ impl Ord for Signature {
 // ---------------------------------------------------------------------------
 
 impl cbor_event::se::Serialize for PublicKey {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
 impl cbor_event::de::Deserialize for PublicKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        match PublicKey::from_slice(&raw.bytes()?) {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        match PublicKey::from_slice(&reader.bytes()?) {
             Ok(digest) => Ok(digest),
             Err(Error::InvalidPublicKeySize(sz)) => {
                 Err(cbor_event::Error::NotEnough(sz, PUBLICKEY_SIZE))
@@ -244,16 +248,16 @@ impl cbor_event::de::Deserialize for PublicKey {
 }
 
 impl cbor_event::se::Serialize for PrivateKey {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
 impl cbor_event::de::Deserialize for PrivateKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        match PrivateKey::from_slice(&raw.bytes()?) {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        match PrivateKey::from_slice(&reader.bytes()?) {
             Ok(digest) => Ok(digest),
             Err(Error::InvalidPrivateKeySize(sz)) => {
                 Err(cbor_event::Error::NotEnough(sz, PRIVATEKEY_SIZE))
@@ -267,16 +271,16 @@ impl cbor_event::de::Deserialize for PrivateKey {
 }
 
 impl cbor_event::se::Serialize for Signature {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.0.as_ref())
     }
 }
 impl cbor_event::de::Deserialize for Signature {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        match Signature::from_slice(&raw.bytes()?) {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        match Signature::from_slice(&reader.bytes()?) {
             Ok(digest) => Ok(digest),
             Err(Error::InvalidSignatureSize(sz)) => {
                 Err(cbor_event::Error::NotEnough(sz, SIGNATURE_SIZE))

@@ -440,7 +440,7 @@ mod tests {
                     assert!(out_policy_length_expected(x));
                     fee_is_minimal(builder.balance(&alg).unwrap())
                 }
-                Err(Error::TxOutputPolicyNotEnoughCoins(c)) => {
+                Err(Error::TxOutputPolicyNotEnoughCoins(_c)) => {
                     // here we don't check that the fee is minimal, since we need to burn extra coins
                     fee_is_acceptable(builder.balance(&alg).unwrap())
                 }

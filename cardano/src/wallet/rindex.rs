@@ -368,9 +368,9 @@ impl RootKey {
             blake2b.input(&entropy_cbor);
             let mut out = [0; 32];
             blake2b.result(&mut out);
-            cbor_event::se::Serializer::new_vec()
-                .write_bytes(&Vec::from(&out[..]))?
-                .finalize()
+            let mut se = cbor_event::se::Serializer::new_vec();
+            se.write_bytes(&Vec::from(&out[..]))?;
+            se.finalize()
         };
 
         let xprv = XPrv::generate_from_daedalus_seed(&seed);
@@ -589,17 +589,13 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::config::{NetworkMagic, ProtocolMagic};
+    use crate::config::ProtocolMagic;
     use crate::tx::TxoPointer;
     use crate::wallet::rindex;
     use crate::wallet::scheme::Wallet;
 
     const MNEMONICS: &'static str =
         "edge club wrap where juice nephew whip entry cover bullet cause jeans";
-    const ENTROPY: [u8; 16] = [
-        0x46, 0x45, 0x87, 0xf8, 0x7d, 0x27, 0x8d, 0x28, 0xbe, 0x9a, 0x5d, 0x31, 0x83, 0xc4, 0x92,
-        0x3b,
-    ];
 
     lazy_static! {
         static ref OUTPUT: ExtendedAddr = {

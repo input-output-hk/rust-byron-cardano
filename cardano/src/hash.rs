@@ -4,6 +4,7 @@
 use std::{
     fmt,
     hash::{Hash, Hasher},
+    io::{BufRead, Write},
     result,
     str::FromStr,
 };
@@ -12,7 +13,7 @@ use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 use cryptoxide::sha3::Sha3;
 
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use util::{hex, try_from_slice::TryFromSlice};
 
 #[cfg(feature = "generic-serialization")]
@@ -127,8 +128,8 @@ macro_rules! define_hash_object {
             }
         }
         impl cbor_event::de::Deserialize for $hash_ty {
-            fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-                let bytes = raw.bytes()?;
+            fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+                let bytes = reader.bytes()?;
                 match Self::try_from_slice(&bytes) {
                     Ok(digest) => Ok(digest),
                     Err(Error::InvalidHashSize(sz, expected)) => {
@@ -142,10 +143,10 @@ macro_rules! define_hash_object {
             }
         }
         impl cbor_event::se::Serialize for $hash_ty {
-            fn serialize<W: ::std::io::Write>(
+            fn serialize<'se, W: Write>(
                 &self,
-                serializer: cbor_event::se::Serializer<W>,
-            ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+                serializer: &'se mut Serializer<W>,
+            ) -> cbor_event::Result<&'se mut Serializer<W>> {
                 serializer.write_bytes(self.as_ref())
             }
         }

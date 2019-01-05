@@ -4,9 +4,9 @@
 //! such as a min bound of 0 and a max bound of `MAX_COIN`.
 //!
 
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use std::cmp::Ordering;
-use std::{fmt, ops, result};
+use std::{fmt, io::BufRead, ops, result};
 
 /// maximum value of a Lovelace.
 pub const MAX_COIN: u64 = 45_000_000_000__000_000;
@@ -135,16 +135,16 @@ impl ::std::str::FromStr for Coin {
     }
 }
 impl cbor_event::se::Serialize for Coin {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: ::std::io::Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_unsigned_integer(self.0)
     }
 }
 impl cbor_event::de::Deserialize for Coin {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        Coin::new(raw.unsigned_integer()?)
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        Coin::new(reader.unsigned_integer()?)
             .map_err(|err| cbor_event::Error::CustomError(format!("{}", err)))
     }
 }
@@ -226,9 +226,9 @@ mod test {
 
         // test the cbor serialization/deserialization
         fn coin_cbor_serialization(coin: Wrapper<Coin>) -> bool {
-            use cbor_event::de::RawCbor;
             let bytes = cbor!(*coin).unwrap();
-            let coin2 = RawCbor::from(&bytes).deserialize_complete().unwrap();
+            let cursor = std::io::Cursor::new(bytes);
+            let coin2 = Deserializer::from(cursor).deserialize_complete().unwrap();
 
             *coin == coin2
         }

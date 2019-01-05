@@ -1,9 +1,13 @@
 use super::normal::SscPayload;
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use hash::Blake2b256;
 use util::try_from_slice::TryFromSlice;
 
-use std::{fmt, str::FromStr};
+use std::{
+    fmt,
+    io::{BufRead, Write},
+    str::FromStr,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
@@ -251,10 +255,10 @@ impl ::std::ops::Sub<EpochSlotId> for EpochSlotId {
 // CBOR implementations
 // **************************************************************************
 impl cbor_event::se::Serialize for Version {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(3))?
             .write_unsigned_integer(self.major as u64)?
@@ -263,7 +267,7 @@ impl cbor_event::se::Serialize for Version {
     }
 }
 impl cbor_event::de::Deserialize for Version {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "Version")?;
         let major = raw.unsigned_integer()? as u32;
         let minor = raw.unsigned_integer()? as u32;
@@ -274,10 +278,10 @@ impl cbor_event::de::Deserialize for Version {
 }
 
 impl cbor_event::se::Serialize for BlockVersion {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(3))?
             .write_unsigned_integer(self.0 as u64)?
@@ -286,7 +290,7 @@ impl cbor_event::se::Serialize for BlockVersion {
     }
 }
 impl cbor_event::de::Deserialize for BlockVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "BlockVersion")?;
         let major = raw.unsigned_integer()? as u16;
         let minor = raw.unsigned_integer()? as u16;
@@ -297,10 +301,10 @@ impl cbor_event::de::Deserialize for BlockVersion {
 }
 
 impl cbor_event::se::Serialize for SoftwareVersion {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .write_text(&self.application_name)?
@@ -308,7 +312,7 @@ impl cbor_event::se::Serialize for SoftwareVersion {
     }
 }
 impl cbor_event::de::Deserialize for SoftwareVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "SoftwareVersion")?;
         let name = raw.text()?;
         let version = raw.unsigned_integer()? as u32;
@@ -318,38 +322,38 @@ impl cbor_event::de::Deserialize for SoftwareVersion {
 }
 
 impl cbor_event::se::Serialize for HeaderHash {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for HeaderHash {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         cbor_event::de::Deserialize::deserialize(raw).map(|h| HeaderHash(h))
     }
 }
 
 impl cbor_event::se::Serialize for BlockHeaderAttributes {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for BlockHeaderAttributes {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(BlockHeaderAttributes(raw.deserialize()?))
     }
 }
 
 impl cbor_event::se::Serialize for HeaderExtraData {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.block_version)?
@@ -359,7 +363,7 @@ impl cbor_event::se::Serialize for HeaderExtraData {
     }
 }
 impl cbor_event::de::Deserialize for HeaderExtraData {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "HeaderExtraData")?;
         let block_version = cbor_event::de::Deserialize::deserialize(raw)?;
         let software_version = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -376,10 +380,10 @@ impl cbor_event::de::Deserialize for HeaderExtraData {
 }
 
 impl cbor_event::se::Serialize for SscProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         match self {
             &SscProof::Commitments(ref commhash, ref vss) => serializer
                 .write_array(cbor_event::Len::Len(3))?
@@ -404,7 +408,7 @@ impl cbor_event::se::Serialize for SscProof {
     }
 }
 impl cbor_event::de::Deserialize for SscProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
         if len != cbor_event::Len::Len(2) && len != cbor_event::Len::Len(3) {
             return Err(cbor_event::Error::CustomError(format!(
@@ -442,32 +446,32 @@ impl cbor_event::de::Deserialize for SscProof {
 }
 
 impl cbor_event::se::Serialize for ChainDifficulty {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(1))?
             .write_unsigned_integer(self.0)
     }
 }
 impl cbor_event::de::Deserialize for ChainDifficulty {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(1, "ChainDifficulty")?;
         Ok(ChainDifficulty(raw.unsigned_integer()?))
     }
 }
 
 impl cbor_event::se::Serialize for EpochSlotId {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&(&self.epoch, &self.slotid))
     }
 }
 impl cbor_event::de::Deserialize for EpochSlotId {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "SlotId")?;
         let epoch = raw.deserialize()?;
         let slotid = raw.deserialize()?;
@@ -498,16 +502,16 @@ impl CoinPortion {
 }
 
 impl cbor_event::se::Serialize for CoinPortion {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 
 impl cbor_event::de::Deserialize for CoinPortion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(CoinPortion::new(raw.deserialize()?)?)
     }
 }
@@ -536,16 +540,16 @@ impl SystemTag {
 }
 
 impl cbor_event::se::Serialize for SystemTag {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 
 impl cbor_event::de::Deserialize for SystemTag {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(SystemTag::new(raw.deserialize()?)?)
     }
 }
