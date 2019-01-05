@@ -1,4 +1,4 @@
-use std::vec;
+use std::{io::Cursor, vec};
 
 use bytes::{Buf, IntoBuf};
 use futures::{
@@ -8,7 +8,7 @@ use futures::{
 };
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
@@ -84,7 +84,8 @@ impl<T: AsyncRead + AsyncWrite> Future for Connecting<T> {
                         Some(e) => {
                             if let Ok((lwcid, bytes)) = e.expect_data() {
                                 let bytes: Vec<_> = bytes.into_iter().collect();
-                                let peer_handshake: Handshake = RawCbor::from(&bytes)
+                                let mut de = Deserializer::from(Cursor::new(&bytes));
+                                let peer_handshake: Handshake = de
                                     .deserialize()
                                     .map_err(ConnectingError::InvalidHandshake)?;
                                 (lwcid, peer_handshake)
