@@ -14,7 +14,7 @@ Helpers and tools for the Cardano protocol. This includes keeping the blockchain
 cardano-storage = { path = "../storage" }
 storage-units = { path = "../storage-units" }
 protocol = { path = "../protocol" }
-cbor_event = "1.0"
+cbor_event = "2.1.2"
 log = "*"
 rand = "0.5"
 serde = "1.0"
