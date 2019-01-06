@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::{error, fmt, io, result};
 
 use ntt::{self, LightweightConnectionId};
@@ -8,7 +8,7 @@ use packet::{Handshake, Message};
 
 use cardano;
 
-use cbor_event::{self, de::RawCbor, se, Deserialize};
+use cbor_event::{self, de::Deserializer, se, Deserialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -238,7 +238,8 @@ impl<T: Write + Read> Connection<T> {
 
         info!("creating initial light connection {}", lcid);
         let server_bytes_hs = data_recv_on(self, siv)?;
-        let _server_handshake: Handshake = RawCbor::from(&server_bytes_hs).deserialize()?;
+        let mut de = Deserializer::from(Cursor::new(&server_bytes_hs));
+        let _server_handshake: Handshake = de.deserialize()?;
 
         let server_bytes_nodeid = data_recv_on(self, siv)?;
         let server_nodeid = match ntt::protocol::NodeId::from_slice(&server_bytes_nodeid[..]) {
@@ -324,8 +325,9 @@ impl<T: Write + Read> Connection<T> {
     }
 
     pub fn send_message(&mut self, id: LightId, msg: &Message) -> Result<()> {
-        let mut v = vec![];
-        v.extend(&se::Serializer::new_vec().serialize(&msg.0)?.finalize());
+        let mut se = se::Serializer::new_vec();
+        se.serialize(&msg.0)?;
+        let mut v = se.finalize();
         v.extend(&msg.1[..]);
         self.send_bytes(id, &v[..])?;
         Ok(())
@@ -520,7 +522,8 @@ impl<T: Write + Read> Connection<T> {
 
     // Process a 'Headers' message.
     pub fn process_async_headers(&mut self, msg: &[u8]) -> Result<()> {
-        let mut headers = cardano::block::BlockHeaders::deserialize(&mut RawCbor::from(msg))?;
+        let mut de = Deserializer::from(Cursor::new(msg));
+        let mut headers = cardano::block::BlockHeaders::deserialize(&mut de)?;
 
         info!("received {} asynchronous headers", headers.len());
 
@@ -539,9 +542,9 @@ impl<T: Write + Read> Connection<T> {
 pub mod command {
     use super::{Connection, Error, LightId, Result};
     use cardano::{self, tx};
-    use cbor_event::{self, de::RawCbor, se};
+    use cbor_event::{self, de::Deserializer, se};
     use packet;
-    use std::io::{Read, Write};
+    use std::io::{Cursor, Read, Write};
 
     pub trait Command<W: Read + Write> {
         type Output;
@@ -591,12 +594,14 @@ pub mod command {
         loop {
             let msg = connection.wait_msg(id)?;
 
-            let mut msg = RawCbor::from(&msg);
+            let mut msg = Deserializer::from(Cursor::new(&msg));
             match cardano::cbor::hs::util::decode_sum_type(&mut msg)? {
                 0 => {
                     // FIXME: we should at least check that we
                     // received valid CBOR.
-                    let rblk = cardano::block::RawBlock::from_dat(msg.as_ref().to_vec());
+                    let position = msg.as_ref().position() as usize;
+                    let raw_block = msg.as_ref().get_ref()[position..].to_vec();
+                    let rblk = cardano::block::RawBlock::from_dat(raw_block);
                     got_block(rblk)?;
                 }
                 1 => {
@@ -666,7 +671,10 @@ pub mod command {
                     v.extend_from_slice(dat);
                     Ok(cardano::block::RawBlockHeaderMultiple::from_dat(v))
                 }
-                Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+                Some((1, dat)) => {
+                    let mut msg = Deserializer::from(Cursor::new(&dat));
+                    Err(Error::ServerError(msg.text()?))
+                }
                 Some((_n, _dat)) => Err(Error::UnexpectedResponse),
             }
         }
@@ -698,7 +706,10 @@ pub mod command {
                 v.extend_from_slice(dat);
                 Ok(cardano::block::RawBlock::from_dat(v))
             }
-            Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+            Some((1, dat)) => {
+                let mut msg = Deserializer::from(Cursor::new(&dat));
+                Err(Error::ServerError(msg.text()?))
+            }
             Some((_n, _dat)) => Err(Error::UnexpectedResponse),
         }
     }
@@ -757,7 +768,7 @@ pub mod command {
             match decode_sum_type(&dat) {
                 None => Err(Error::UnexpectedResponse),
                 Some((0, dat)) => {
-                    let mut raw = RawCbor::from(dat);
+                    let mut raw = Deserializer::from(Cursor::new(&dat));
                     if raw.array()? != cbor_event::Len::Len(1) {
                         return Err(Error::TransactionRejected);
                     }
@@ -765,16 +776,16 @@ pub mod command {
                     assert_eq!(txid, self.0.tx.id());
 
                     // We now have to send the TxAux on the same connection.
-                    let msg = se::Serializer::new_vec()
-                        .write_array(cbor_event::Len::Len(2))?
+                    let mut se = se::Serializer::new_vec();
+                    se.write_array(cbor_event::Len::Len(2))?
                         .serialize(&1u8)? // == Right constructor of InvOrData (i.e. DataMsg)
-                        .serialize(&self.0)?
-                        .finalize();
+                        .serialize(&self.0)?;
+                    let msg = se.finalize();
                     connection.send_bytes(id, &msg[..])?;
 
                     // Receive the ResMsg data type.
                     let dat = connection.wait_msg(id)?;
-                    let mut raw = RawCbor::from(&dat);
+                    let mut raw = Deserializer::from(Cursor::new(&dat));
                     if raw.array()? != cbor_event::Len::Len(2) {
                         return Err(Error::UnexpectedResponse);
                     }
@@ -794,7 +805,10 @@ pub mod command {
 
                     Ok(())
                 }
-                Some((1, dat)) => Err(Error::ServerError(RawCbor::from(dat).text()?)),
+                Some((1, dat)) => {
+                    let mut msg = Deserializer::from(Cursor::new(&dat));
+                    Err(Error::ServerError(msg.text()?))
+                }
                 Some((_n, _dat)) => Err(Error::UnexpectedResponse),
             }
         }

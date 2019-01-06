@@ -3,12 +3,15 @@ use cardano::block::HeaderHash;
 use cardano::config::ProtocolMagic;
 use cardano::tx;
 use std::collections::BTreeMap;
-use std::fmt;
+use std::{
+    fmt,
+    io::{BufRead, Cursor, Write},
+};
 
 use cbor_event::{
     self,
-    de::{self, RawCbor},
-    se,
+    de::{self, Deserializer},
+    se::{self, Serializer},
 };
 
 type MessageCode = u32;
@@ -26,23 +29,23 @@ impl fmt::Display for HandlerSpec {
     }
 }
 impl se::Serialize for HandlerSpec {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?
             .write_tag(24)?
-            .write_bytes(
-                se::Serializer::new_vec()
-                    .write_unsigned_integer(self.0 as u64)?
-                    .finalize(),
-            )
+            .write_bytes({
+                let mut se = se::Serializer::new_vec();
+                se.write_unsigned_integer(self.0 as u64)?;
+                se.finalize()
+            })
     }
 }
 impl de::Deserialize for HandlerSpec {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "HandlerSpec")?;
         let t = raw.unsigned_integer()?;
         if t != 0 {
@@ -58,7 +61,8 @@ impl de::Deserialize for HandlerSpec {
                 tag
             )));
         }
-        let v = RawCbor::from(&raw.bytes()?).unsigned_integer()? as u16;
+        let mut de = Deserializer::from(Cursor::new(raw.bytes()?));
+        let v = de.unsigned_integer()? as u16;
         Ok(HandlerSpec(v))
     }
 }
@@ -129,15 +133,15 @@ impl HandlerSpecs {
     }
 }
 impl se::Serialize for HandlerSpecs {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         se::serialize_fixed_map(self.0.iter(), serializer)
     }
 }
 impl de::Deserialize for HandlerSpecs {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(HandlerSpecs(raw.deserialize()?))
     }
 }
@@ -191,10 +195,10 @@ impl Default for Handshake {
     }
 }
 impl se::Serialize for Handshake {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.protocol_magic)?
@@ -204,7 +208,7 @@ impl se::Serialize for Handshake {
     }
 }
 impl cbor_event::de::Deserialize for Handshake {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "Handshake")?;
         let pm = raw.deserialize()?;
         let v = raw.deserialize()?;
@@ -236,10 +240,9 @@ pub enum MsgType {
 
 pub fn send_msg_subscribe(keep_alive: bool) -> Message {
     let value = if keep_alive { 43 } else { 42 };
-    let dat = se::Serializer::new_vec()
-        .write_unsigned_integer(value)
-        .unwrap()
-        .finalize();
+    let mut se = se::Serializer::new_vec();
+    se.write_unsigned_integer(value).unwrap();
+    let dat = se.finalize();
     (MsgType::MsgSubscribe1 as u8, dat)
 }
 
@@ -248,43 +251,43 @@ pub fn send_msg_stream_start(
     to: &block::HeaderHash,
     window: u32,
 ) -> Message {
-    let serializer = se::Serializer::new_vec()
+    let mut serializer = se::Serializer::new_vec();
+    serializer
         .write_array(cbor_event::Len::Len(2))
         .unwrap()
         .serialize(&0u8)
         .unwrap() // == MsgStart
         .write_array(cbor_event::Len::Len(3))
         .unwrap();
-    let dat = se::serialize_indefinite_array(froms.iter(), serializer)
+    se::serialize_indefinite_array(froms.iter(), &mut serializer)
         .unwrap()
         .serialize(to)
         .unwrap()
         .serialize(&window)
-        .unwrap()
-        .finalize();
+        .unwrap();
+    let dat = serializer.finalize();
     (MsgType::MsgStream as u8, dat)
 }
 
 pub fn send_msg_stream_update(window: u32) -> Message {
-    let dat = se::Serializer::new_vec()
-        .write_array(cbor_event::Len::Len(2))
+    let mut se = se::Serializer::new_vec();
+    se.write_array(cbor_event::Len::Len(2))
         .unwrap()
         .serialize(&1u8)
         .unwrap() // == MsgUpdate
         .write_array(cbor_event::Len::Len(1))
         .unwrap()
         .serialize(&window)
-        .unwrap()
-        .finalize();
+        .unwrap();
+    let dat = se.finalize();
     (MsgType::MsgStream as u8, dat)
 }
 
 pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::HeaderHash>) -> Message {
-    let serializer = se::Serializer::new_vec()
-        .write_array(cbor_event::Len::Len(2))
-        .unwrap();
-    let serializer = se::serialize_indefinite_array(froms.iter(), serializer).unwrap();
-    let serializer = match to {
+    let mut serializer = se::Serializer::new_vec();
+    serializer.write_array(cbor_event::Len::Len(2)).unwrap();
+    se::serialize_indefinite_array(froms.iter(), &mut serializer).unwrap();
+    match to {
         &None => serializer.write_array(cbor_event::Len::Len(0)).unwrap(),
         &Some(ref h) => serializer
             .write_array(cbor_event::Len::Len(1))
@@ -296,26 +299,26 @@ pub fn send_msg_getheaders(froms: &[block::HeaderHash], to: &Option<block::Heade
 }
 
 pub fn send_msg_getblocks(from: &HeaderHash, to: &HeaderHash) -> Message {
-    let dat = se::Serializer::new_vec()
-        .write_array(cbor_event::Len::Len(2))
+    let mut se = se::Serializer::new_vec();
+    se.write_array(cbor_event::Len::Len(2))
         .unwrap()
         .serialize(from)
         .unwrap()
         .serialize(to)
-        .unwrap()
-        .finalize();
+        .unwrap();
+    let dat = se.finalize();
     (MsgType::MsgGetBlocks as u8, dat)
 }
 
 pub fn send_msg_announcetx(txid: &tx::TxId) -> Message {
-    let dat = se::Serializer::new_vec()
-        .write_array(cbor_event::Len::Len(2))
+    let mut se = se::Serializer::new_vec();
+    se.write_array(cbor_event::Len::Len(2))
         .unwrap()
         .serialize(&0u8)
         .unwrap() // == Left constructor of InvOrData (i.e. InvMsg)
         .serialize(txid)
-        .unwrap()
-        .finalize();
+        .unwrap();
+    let dat = se.finalize();
     (MsgType::MsgAnnounceTx as u8, dat)
 }
 
@@ -340,7 +343,7 @@ impl fmt::Display for BlockHeaderResponse {
     }
 }
 impl de::Deserialize for BlockHeaderResponse {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "BlockHeaderResponse")?;
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
@@ -361,7 +364,7 @@ pub enum BlockResponse {
     Ok(block::Block),
 }
 impl de::Deserialize for BlockResponse {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "BlockResponse")?;
         let sum_type = raw.unsigned_integer()?;
         match sum_type {
@@ -379,7 +382,8 @@ impl de::Deserialize for BlockResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cbor_event::de::RawCbor;
+    use cbor_event::de::Deserializer;
+    use std::io::Cursor;
 
     const GET_BLOCK_HEADER_BYTES: &'static [u8] = &[
         0x82, 0x00, 0x9f, 0x82, 0x01, 0x85, 0x1a, 0x2d, 0x96, 0x4a, 0x09, 0x58, 0x20, 0x9d, 0x63,
@@ -428,7 +432,8 @@ mod tests {
 
     #[test]
     fn parse_get_block_headers_response() {
-        let b = RawCbor::from(GET_BLOCK_HEADER_BYTES).deserialize().unwrap();
+        let mut de = Deserializer::from(Cursor::new(GET_BLOCK_HEADER_BYTES));
+        let b = de.deserialize().unwrap();
         match b {
             BlockHeaderResponse::Ok(ll) => assert!(ll.len() == 1),
             BlockHeaderResponse::Err(error) => panic!("test failed: {}", error),
@@ -459,7 +464,8 @@ mod tests {
 
     #[test]
     fn handshake_decoding() {
-        let hs: Handshake = RawCbor::from(HANDSHAKE_BYTES).deserialize().unwrap();
+        let mut de = Deserializer::from(Cursor::new(HANDSHAKE_BYTES));
+        let hs: Handshake = de.deserialize().unwrap();
         println!("{}", hs.in_handlers);
 
         assert_eq!(hs.protocol_magic, ProtocolMagic::default());
@@ -475,7 +481,8 @@ mod tests {
 
         let vec = cbor!(&hs).unwrap();
 
-        let hs_: Handshake = RawCbor::from(&vec).deserialize().unwrap();
+        let mut de = Deserializer::from(Cursor::new(&vec));
+        let hs_: Handshake = de.deserialize().unwrap();
         assert_eq!(hs, hs_);
     }
 }
