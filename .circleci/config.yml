@@ -22,6 +22,7 @@ jobs:
           paths:
             - /usr/local/cargo/registry
             - /usr/local/cargo/git
+            - /usr/local/cargo/bin/cargo-junit
   test:
     docker:
       - image: rust:latest
