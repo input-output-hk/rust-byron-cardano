@@ -1,9 +1,13 @@
 use super::types;
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use hash::{self, Blake2b256};
 use hdwallet;
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    io::{BufRead, Write},
+};
 
 #[derive(Debug, Clone)]
 pub struct UpdatePayload {
@@ -12,10 +16,10 @@ pub struct UpdatePayload {
 }
 
 impl cbor_event::se::Serialize for UpdatePayload {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer
             .write_array(cbor_event::Len::Len(2))?
             .serialize(&self.proposal)?;
@@ -24,7 +28,7 @@ impl cbor_event::se::Serialize for UpdatePayload {
 }
 
 impl cbor_event::de::Deserialize for UpdatePayload {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "UpdatePayload")?;
         Ok(Self {
             proposal: raw.deserialize()?,
@@ -51,16 +55,16 @@ impl fmt::Display for UpdateProof {
 }
 
 impl cbor_event::se::Serialize for UpdateProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 
 impl cbor_event::de::Deserialize for UpdateProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let hash = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(UpdateProof(hash))
     }
@@ -81,10 +85,10 @@ pub type UpAttributes = types::Attributes;
 pub type SystemTag = String;
 
 impl cbor_event::se::Serialize for UpdateProposal {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer
             .write_array(cbor_event::Len::Len(7))?
             .serialize(&self.block_version)?
@@ -98,7 +102,7 @@ impl cbor_event::se::Serialize for UpdateProposal {
 }
 
 impl cbor_event::de::Deserialize for UpdateProposal {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(7, "UpdateProposal")?;
         Ok(Self {
             block_version: raw.deserialize()?,
@@ -120,16 +124,16 @@ pub struct BlockVersion {
 }
 
 impl cbor_event::se::Serialize for BlockVersion {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&(&self.major, &self.minor, &self.alt))
     }
 }
 
 impl cbor_event::de::Deserialize for BlockVersion {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "BlockVersion")?;
         Ok(Self {
             major: raw.deserialize()?,
@@ -158,10 +162,10 @@ pub struct BlockVersionModifier {
 }
 
 impl cbor_event::se::Serialize for BlockVersionModifier {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         assert!(self.tx_fee_policy.is_none()); // not tested yet
         serializer
             .write_array(cbor_event::Len::Len(14))?
@@ -183,7 +187,7 @@ impl cbor_event::se::Serialize for BlockVersionModifier {
 }
 
 impl cbor_event::de::Deserialize for BlockVersionModifier {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(14, "BlockVersionModifier")?;
         Ok(Self {
             script_version: raw.deserialize()?,
@@ -218,10 +222,10 @@ pub struct UpdateData {
 }
 
 impl cbor_event::se::Serialize for UpdateData {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.app_diff_hash)?
@@ -232,7 +236,7 @@ impl cbor_event::se::Serialize for UpdateData {
 }
 
 impl cbor_event::de::Deserialize for UpdateData {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "UpdateData")?;
         Ok(Self {
             app_diff_hash: raw.deserialize()?,
@@ -251,16 +255,16 @@ pub struct SoftforkRule {
 }
 
 impl cbor_event::se::Serialize for SoftforkRule {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&(&self.init_thd, &self.min_thd, &self.thd_decrement))
     }
 }
 
 impl cbor_event::de::Deserialize for SoftforkRule {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "SoftforkRule")?;
         Ok(Self {
             init_thd: raw.deserialize()?,
@@ -281,10 +285,10 @@ pub struct UpdateVote {
 pub type UpId = hash::Blake2b256; // UpdateProposal
 
 impl cbor_event::se::Serialize for UpdateVote {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.key)?
@@ -295,7 +299,7 @@ impl cbor_event::se::Serialize for UpdateVote {
 }
 
 impl cbor_event::de::Deserialize for UpdateVote {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "UpdateVote")?;
         Ok(Self {
             key: raw.deserialize()?,
@@ -316,10 +320,10 @@ pub struct UpdateProposalToSign<'a> {
 }
 
 impl<'a> cbor_event::se::Serialize for UpdateProposalToSign<'a> {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer
             .write_array(cbor_event::Len::Len(5))?
             .serialize(&self.block_version)?

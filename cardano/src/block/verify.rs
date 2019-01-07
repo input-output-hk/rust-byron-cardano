@@ -335,20 +335,21 @@ impl Verify for VssCertificates {
 
         // verify every certificate's signature
         for vss_cert in self.iter() {
-            let mut buf = vec![];
-            {
-                let serializer = se::Serializer::new(&mut buf)
+            let mut buf = {
+                let mut serializer = se::Serializer::new_vec();
+                serializer
                     .serialize(&(tags::SigningTag::VssCert as u8))
                     .unwrap()
                     .serialize(&protocol_magic)
                     .unwrap();
-                let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+                serializer.write_array(cbor_event::Len::Len(2))?;
                 serializer
                     .serialize(&vss_cert.vss_key)
                     .unwrap()
                     .serialize(&vss_cert.expiry_epoch)
                     .unwrap();
-            }
+                serializer.finalize()
+            };
 
             if !vss_cert.signing_key.verify(
                 &buf,
@@ -719,8 +720,6 @@ mod tests {
 
         // TODO: SelfSignedPSK, WrongBoundaryProof
     }
-
-    const PROTOCOL_MAGIC: u32 = 633343913;
 
     // a block with 6 transactions
     const HEADER_HASH1: &str = "ae443ffffe52cc29de83312d2819b3955fc306ce65ae6aa5b26f1d3c76e91842";

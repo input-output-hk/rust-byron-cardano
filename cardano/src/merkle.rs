@@ -41,9 +41,10 @@ impl MerkleNode {
         if xs.is_empty() {
             panic!("make_tree applied to empty list")
         } else if xs.len() == 1 {
-            let mut bs = vec![0u8];
-            xs[0].serialize(se::Serializer::new(&mut bs)).unwrap();
-            MerkleNode::Leaf(Hash::new(&bs))
+            let bs = vec![0u8];
+            let mut se = se::Serializer::new(bs);
+            xs[0].serialize(&mut se).unwrap();
+            MerkleNode::Leaf(Hash::new(&se.finalize()))
         } else {
             let i = xs.len().checked_next_power_of_two().unwrap() >> 1;
             let a = MerkleNode::make_tree(&xs[0..i]);

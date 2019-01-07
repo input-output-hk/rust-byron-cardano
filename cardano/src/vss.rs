@@ -1,5 +1,9 @@
-use cbor_event::{self, de::RawCbor, se::Serializer};
-use std::{fmt, result};
+use cbor_event::{self, de::Deserializer, se::Serializer};
+use std::{
+    fmt,
+    io::{BufRead, Write},
+    result,
+};
 use util::hex;
 
 const SIGNATURE_SIZE: usize = 64;
@@ -28,17 +32,17 @@ impl ::std::error::Error for Error {}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublicKey(pub Vec<u8>);
 impl cbor_event::se::Serialize for PublicKey {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for PublicKey {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = raw.bytes()?;
-        Ok(PublicKey(Vec::from(bytes.as_ref())))
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let bytes = reader.bytes()?;
+        Ok(PublicKey(bytes))
     }
 }
 
@@ -85,16 +89,16 @@ impl AsRef<[u8]> for Signature {
     }
 }
 impl cbor_event::se::Serialize for Signature {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
 impl cbor_event::de::Deserialize for Signature {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        match Self::from_slice(raw.bytes()?.as_ref()) {
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        match Self::from_slice(reader.bytes()?.as_ref()) {
             Ok(sig) => Ok(sig),
             Err(Error::InvalidSignatureSize(sz)) => {
                 Err(cbor_event::Error::NotEnough(SIGNATURE_SIZE, sz))

@@ -6,11 +6,14 @@
 //! `TxInWitness`: Witness providing for TxoPointer (e.g. cryptographic signature)
 //! `TxAux` : Signed Tx (Tx + Witness)
 //!
-use std::fmt;
+use std::{
+    fmt,
+    io::{BufRead, Write},
+};
 
 use hash::Blake2b256;
 
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 use config::ProtocolMagic;
 use merkle;
 use redeem;
@@ -58,18 +61,18 @@ impl TxOut {
     }
 }
 impl cbor_event::de::Deserialize for TxOut {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        raw.tuple(2, "TxOut")?;
-        let addr = cbor_event::de::Deserialize::deserialize(raw)?;
-        let val = cbor_event::de::Deserialize::deserialize(raw)?;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        reader.tuple(2, "TxOut")?;
+        let addr = cbor_event::de::Deserialize::deserialize(reader)?;
+        let val = cbor_event::de::Deserialize::deserialize(reader)?;
         Ok(TxOut::new(addr, val))
     }
 }
 impl cbor_event::se::Serialize for TxOut {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .serialize(&self.address)?
@@ -114,14 +117,14 @@ impl TxInWitness {
 
     /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
     pub fn new(protocol_magic: ProtocolMagic, key: &XPrv, txid: &TxId) -> Self {
-        let vec = Serializer::new_vec()
-            .write_unsigned_integer(1)
+        let mut se = Serializer::new_vec();
+        se.write_unsigned_integer(1)
             .expect("write byte 0x01")
             .serialize(&protocol_magic)
             .expect("serialize protocol magic")
             .serialize(&txid)
-            .expect("serialize Tx's Id")
-            .finalize();
+            .expect("serialize Tx's Id");
+        let vec = se.finalize();
         TxInWitness::PkWitness(key.public(), key.sign(&vec))
     }
 
@@ -148,14 +151,14 @@ impl TxInWitness {
     /// verify the signature against the given transation `Tx`
     ///
     pub fn verify_tx(&self, protocol_magic: ProtocolMagic, tx: &Tx) -> bool {
-        let vec = Serializer::new_vec()
-            .write_unsigned_integer(self.get_sign_tag() as u64)
+        let mut se = Serializer::new_vec();
+        se.write_unsigned_integer(self.get_sign_tag() as u64)
             .expect("write sign tag")
             .serialize(&protocol_magic)
             .expect("serialize protocol magic")
             .serialize(&tx.id())
-            .expect("serialize Tx's Id")
-            .finalize();
+            .expect("serialize Tx's Id");
+        let vec = se.finalize();
         match self {
             &TxInWitness::PkWitness(ref pk, ref sig) => pk.verify(&vec, sig),
             &TxInWitness::ScriptWitness(_, _) => unimplemented!(),
@@ -177,26 +180,28 @@ impl TxInWitness {
     }
 }
 impl cbor_event::se::Serialize for TxInWitness {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
-        let mut serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(2))?;
         let inner_serializer = match self {
             &TxInWitness::PkWitness(ref xpub, ref signature) => {
-                serializer = serializer.write_unsigned_integer(0)?;
-                Serializer::new_vec()
-                    .write_array(cbor_event::Len::Len(2))?
+                serializer.write_unsigned_integer(0)?;
+                let mut se = Serializer::new_vec();
+                se.write_array(cbor_event::Len::Len(2))?
                     .serialize(xpub)?
-                    .serialize(signature)?
+                    .serialize(signature)?;
+                se
             }
             &TxInWitness::ScriptWitness(_, _) => unimplemented!(),
             &TxInWitness::RedeemWitness(ref pk, ref signature) => {
-                serializer = serializer.write_unsigned_integer(2)?;
-                Serializer::new_vec()
-                    .write_array(cbor_event::Len::Len(2))?
+                serializer.write_unsigned_integer(2)?;
+                let mut se = Serializer::new_vec();
+                se.write_array(cbor_event::Len::Len(2))?
                     .serialize(pk)?
-                    .serialize(signature)?
+                    .serialize(signature)?;
+                se
             }
         };
         serializer
@@ -205,7 +210,7 @@ impl cbor_event::se::Serialize for TxInWitness {
     }
 }
 impl cbor_event::de::Deserialize for TxInWitness {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "TxInWitness")?;
         let sum_type_idx = raw.unsigned_integer()?;
         match sum_type_idx {
@@ -218,7 +223,7 @@ impl cbor_event::de::Deserialize for TxInWitness {
                     )));
                 }
                 let bytes = raw.bytes()?;
-                let mut raw = RawCbor::from(&bytes);
+                let mut raw = Deserializer::from(std::io::Cursor::new(bytes));
                 raw.tuple(2, "TxInWitness::PkWitness")?;
                 let pk = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 let sig = cbor_event::de::Deserialize::deserialize(&mut raw)?;
@@ -233,7 +238,7 @@ impl cbor_event::de::Deserialize for TxInWitness {
                     )));
                 }
                 let bytes = raw.bytes()?;
-                let mut raw = RawCbor::from(&bytes);
+                let mut raw = Deserializer::from(std::io::Cursor::new(bytes));
                 raw.tuple(2, "TxInWitness::PkRedeemWitness")?;
                 let pk = cbor_event::de::Deserialize::deserialize(&mut raw)?;
                 let sig = cbor_event::de::Deserialize::deserialize(&mut raw)?;
@@ -275,10 +280,10 @@ impl TxoPointer {
     }
 }
 impl cbor_event::se::Serialize for TxoPointer {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?
@@ -287,7 +292,7 @@ impl cbor_event::se::Serialize for TxoPointer {
     }
 }
 impl cbor_event::de::Deserialize for TxoPointer {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "TxoPointer")?;
         let sum_type_idx = raw.unsigned_integer()?;
         if sum_type_idx != 0 {
@@ -304,7 +309,7 @@ impl cbor_event::de::Deserialize for TxoPointer {
             )));
         }
         let bytes = raw.bytes()?;
-        let mut raw = RawCbor::from(&bytes);
+        let mut raw = Deserializer::from(std::io::Cursor::new(bytes));
         raw.tuple(2, "TxoPointer")?;
         let id = cbor_event::de::Deserialize::deserialize(&mut raw)?;
         let idx = raw.unsigned_integer()?;
@@ -362,20 +367,18 @@ impl Tx {
     }
 }
 impl cbor_event::se::Serialize for Tx {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
-        let serializer = serializer.write_array(cbor_event::Len::Len(3))?;
-        let serializer =
-            cbor_event::se::serialize_indefinite_array(self.inputs.iter(), serializer)?;
-        let serializer =
-            cbor_event::se::serialize_indefinite_array(self.outputs.iter(), serializer)?;
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        serializer.write_array(cbor_event::Len::Len(3))?;
+        cbor_event::se::serialize_indefinite_array(self.inputs.iter(), serializer)?;
+        cbor_event::se::serialize_indefinite_array(self.outputs.iter(), serializer)?;
         serializer.write_map(cbor_event::Len::Len(0))
     }
 }
 impl cbor_event::de::Deserialize for Tx {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "Tx")?;
 
         // Note: these must be indefinite-size arrays.
@@ -430,26 +433,26 @@ impl ::std::ops::DerefMut for TxWitness {
 }
 
 impl cbor_event::de::Deserialize for TxWitness {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(TxWitness(cbor_event::de::Deserialize::deserialize(raw)?))
     }
 }
 
 impl cbor_event::se::Serialize for TxWitness {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         txwitness_serialize(&self.0, serializer)
     }
 }
 
-pub fn txwitness_serialize<W>(
+pub fn txwitness_serialize<'se, W>(
     in_witnesses: &Vec<TxInWitness>,
-    serializer: Serializer<W>,
-) -> cbor_event::Result<Serializer<W>>
+    serializer: &'se mut Serializer<W>,
+) -> cbor_event::Result<&'se mut Serializer<W>>
 where
-    W: ::std::io::Write,
+    W: Write,
 {
     cbor_event::se::serialize_fixed_array(in_witnesses.iter(), serializer)
 }
@@ -477,10 +480,10 @@ impl ::std::ops::Deref for TxWitnesses {
 }
 
 impl cbor_event::se::Serialize for TxWitnesses {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::serialize_indefinite_array(self.iter(), serializer)
     }
 }
@@ -507,7 +510,7 @@ impl TxAux {
     }
 }
 impl cbor_event::de::Deserialize for TxAux {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "TxAux")?;
         let tx = cbor_event::de::Deserialize::deserialize(raw)?;
         let witness = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -515,23 +518,23 @@ impl cbor_event::de::Deserialize for TxAux {
     }
 }
 impl cbor_event::se::Serialize for TxAux {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         txaux_serialize(&self.tx, &self.witness, serializer)
     }
 }
 
-pub fn txaux_serialize<W>(
+pub fn txaux_serialize<'se, W>(
     tx: &Tx,
     in_witnesses: &Vec<TxInWitness>,
-    serializer: Serializer<W>,
-) -> cbor_event::Result<Serializer<W>>
+    serializer: &'se mut Serializer<W>,
+) -> cbor_event::Result<&'se mut Serializer<W>>
 where
-    W: ::std::io::Write,
+    W: Write,
 {
-    let serializer = serializer
+    serializer
         .write_array(cbor_event::Len::Len(2))?
         .serialize(tx)?;
     txwitness_serialize(in_witnesses, serializer)
@@ -551,8 +554,9 @@ pub fn txaux_serialize_size(tx: &Tx, in_witnesses: &Vec<TxInWitness>) -> usize {
         }
     }
 
-    let ser = cbor_event::se::Serializer::new(Cborsize(0));
-    let cborsize = txaux_serialize(tx, in_witnesses, ser).unwrap().finalize();
+    let mut ser = cbor_event::se::Serializer::new(Cborsize(0));
+    txaux_serialize(tx, in_witnesses, &mut ser).unwrap();
+    let cborsize = ser.finalize();
     cborsize.0
 }
 
@@ -577,10 +581,9 @@ impl TxProof {
     pub fn generate(txaux: &[TxAux]) -> Self {
         let txs: Vec<&Tx> = txaux.iter().map(|w| &w.tx).collect();
         let witnesses: Vec<&TxWitness> = txaux.iter().map(|w| &w.witness).collect();
-        let ser = cbor_event::se::Serializer::new(Vec::new());
-        let out = cbor_event::se::serialize_indefinite_array(witnesses.iter(), ser)
-            .unwrap()
-            .finalize();
+        let mut ser = cbor_event::se::Serializer::new_vec();
+        cbor_event::se::serialize_indefinite_array(witnesses.iter(), &mut ser).unwrap();
+        let out = ser.finalize();
         TxProof {
             number: txs.len() as u32,
             root: merkle::MerkleTree::new(&txs[..]).get_root_hash(),
@@ -598,10 +601,10 @@ impl fmt::Display for TxProof {
     }
 }
 impl cbor_event::se::Serialize for TxProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(3))?
             .write_unsigned_integer(self.number as u64)?
@@ -610,7 +613,7 @@ impl cbor_event::se::Serialize for TxProof {
     }
 }
 impl cbor_event::de::Deserialize for TxProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "TxProof")?;
         let number = raw.unsigned_integer()?;
         let root = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -623,7 +626,7 @@ impl cbor_event::de::Deserialize for TxProof {
 mod tests {
     use super::*;
     use address;
-    use cbor_event::{self, de::RawCbor};
+    use cbor_event::{self, de::Deserializer};
     use config::NetworkMagic;
     use hdpayload;
     use hdwallet;
@@ -694,7 +697,7 @@ mod tests {
     #[test]
     fn txout_decode() {
         // let txout : TxOut = cbor::decode_from_cbor(TX_OUT).unwrap();
-        let mut raw = RawCbor::from(TX_OUT);
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_OUT));
         let txout: TxOut = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
 
         let hdap = hdpayload::HDAddressPayload::from_bytes(HDPAYLOAD);
@@ -726,7 +729,7 @@ mod tests {
 
     #[test]
     fn txin_decode() {
-        let mut raw = RawCbor::from(TX_IN);
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_IN));
         let txo: TxoPointer = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
 
         assert!(txo.index == 666);
@@ -740,9 +743,12 @@ mod tests {
 
     #[test]
     fn tx_decode() {
-        let txo: TxoPointer = RawCbor::from(TX_IN).deserialize().unwrap();
-        let txout: TxOut = RawCbor::from(TX_OUT).deserialize().unwrap();
-        let mut tx: Tx = RawCbor::from(TX).deserialize().unwrap();
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_IN));
+        let txo: TxoPointer = raw.deserialize().unwrap();
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_OUT));
+        let txout: TxOut = raw.deserialize().unwrap();
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX));
+        let mut tx: Tx = raw.deserialize().unwrap();
 
         assert!(tx.inputs.len() == 1);
         assert_eq!(Some(txo), tx.inputs.pop());
@@ -776,10 +782,10 @@ mod tests {
     #[test]
     fn txinwitness_decode() {
         let protocol_magic = ProtocolMagic::default();
-        let tx: Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
-        let txinwitness: TxInWitness = RawCbor::from(TX_IN_WITNESS)
-            .deserialize()
-            .expect("TxInWitness");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX));
+        let tx: Tx = raw.deserialize().expect("to decode a `Tx`");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_IN_WITNESS));
+        let txinwitness: TxInWitness = raw.deserialize().expect("TxInWitness");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -790,7 +796,8 @@ mod tests {
     #[test]
     fn txinwitness_encode_decode() {
         let protocol_magic = ProtocolMagic::default();
-        let tx: Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX));
+        let tx: Tx = raw.deserialize().expect("to decode a `Tx`");
 
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
@@ -839,19 +846,18 @@ mod tests {
 
     #[test]
     fn txaux_decode() {
-        let _txaux: TxAux = RawCbor::from(TX_AUX)
-            .deserialize()
-            .expect("to decode a TxAux");
-        let mut raw = RawCbor::from(TX_AUX);
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_AUX));
+        let _txaux: TxAux = raw.deserialize().expect("to decode a TxAux");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_AUX));
         let _txaux: TxAux = cbor_event::de::Deserialize::deserialize(&mut raw).unwrap();
     }
 
     #[test]
     fn txaux_encode_decode() {
-        let tx: Tx = RawCbor::from(TX).deserialize().expect("to decode a `Tx`");
-        let txinwitness: TxInWitness = RawCbor::from(TX_IN_WITNESS)
-            .deserialize()
-            .expect("to decode a `TxInWitness`");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX));
+        let tx: Tx = raw.deserialize().expect("to decode a `Tx`");
+        let mut raw = Deserializer::from(std::io::Cursor::new(TX_IN_WITNESS));
+        let txinwitness: TxInWitness = raw.deserialize().expect("to decode a `TxInWitness`");
 
         let txaux = TxAux::new(tx, TxWitness::from(vec![txinwitness]));
 

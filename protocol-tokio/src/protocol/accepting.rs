@@ -6,8 +6,8 @@ use futures::{
 };
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use cbor_event::{self, de::RawCbor};
-use std::{self, vec};
+use cbor_event::de::Deserializer;
+use std::{self, io::Cursor, vec};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
@@ -78,9 +78,9 @@ impl<T: AsyncRead + AsyncWrite> Future for Accepting<T> {
                         Some(e) => {
                             if let Ok((lwcid, bytes)) = e.expect_data() {
                                 let bytes: Vec<_> = bytes.into_iter().collect();
-                                let peer_handshake: Handshake = RawCbor::from(&bytes)
-                                    .deserialize()
-                                    .map_err(AcceptingError::InvalidHandshake)?;
+                                let mut de = Deserializer::from(Cursor::new(&bytes));
+                                let peer_handshake: Handshake =
+                                    de.deserialize().map_err(AcceptingError::InvalidHandshake)?;
                                 (lwcid, peer_handshake)
                             } else {
                                 return Err(AcceptingError::ExpectedHandshake);

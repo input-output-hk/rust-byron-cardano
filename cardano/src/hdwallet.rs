@@ -21,10 +21,14 @@ use bip::bip39;
 
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use std::{fmt, result};
+use std::{
+    fmt,
+    io::{BufRead, Write},
+    result,
+};
 use util::{hex, securemem};
 
-use cbor_event::{self, de::RawCbor, se::Serializer};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 
 #[cfg(feature = "generic-serialization")]
 use serde;
@@ -532,16 +536,16 @@ impl ::std::str::FromStr for XPub {
     }
 }
 impl cbor_event::se::Serialize for XPub {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
 impl cbor_event::de::Deserialize for XPub {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = raw.bytes()?;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let bytes = reader.bytes()?;
         match XPub::from_slice(&bytes) {
             Ok(pk) => Ok(pk),
             Err(Error::InvalidXPubSize(sz)) => Err(cbor_event::Error::NotEnough(sz, XPUB_SIZE)),
@@ -674,16 +678,16 @@ impl<T> AsRef<[u8]> for Signature<T> {
     }
 }
 impl<T> cbor_event::se::Serialize for Signature<T> {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.write_bytes(self.as_ref())
     }
 }
 impl<T> cbor_event::de::Deserialize for Signature<T> {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let bytes = raw.bytes()?;
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let bytes = reader.bytes()?;
         match Signature::from_slice(&bytes) {
             Ok(signature) => Ok(signature),
             Err(Error::InvalidSignatureSize(sz)) => {

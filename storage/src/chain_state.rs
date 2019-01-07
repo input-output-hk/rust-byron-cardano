@@ -89,7 +89,8 @@ pub fn write_chain_state_delta<W: Write>(
         removed_utxos.len()
     );
 
-    let serializer = se::Serializer::new(writer)
+    let mut serializer = se::Serializer::new(writer);
+    serializer
         .write_array(Len::Len(NR_FIELDS))?
         .serialize(&parent_block)?
         .serialize(&chain_state.last_block)?
@@ -102,8 +103,8 @@ pub fn write_chain_state_delta<W: Write>(
         .serialize(&chain_state.chain_length)?
         .serialize(&chain_state.nr_transactions)?
         .serialize(&chain_state.spent_txos)?;
-    let serializer = se::serialize_fixed_array(removed_utxos.iter(), serializer)?;
-    se::serialize_fixed_map(added_utxos.iter(), serializer)?;
+    se::serialize_fixed_array(removed_utxos.iter(), &mut serializer)?;
+    se::serialize_fixed_map(added_utxos.iter(), &mut serializer)?;
 
     Ok(())
 }
@@ -198,7 +199,7 @@ pub fn decode_chain_state_file<R: Read>(file: &mut R) -> Result<ChainStateFile> 
     let mut data = vec![];
     file.read_to_end(&mut data)?;
 
-    let mut raw = de::RawCbor::from(&data);
+    let mut raw = de::Deserializer::from(::std::io::Cursor::new(&data));
 
     raw.tuple(NR_FIELDS, "chain state delta file")?;
     let parent = raw.deserialize()?;

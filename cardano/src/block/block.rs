@@ -1,8 +1,11 @@
 //! Abstraction of either boundary or normal blocks
 //!
 //! The main types are `Header` and `Block`
-use std::fmt;
 use std::ops::{Deref, DerefMut};
+use std::{
+    fmt,
+    io::{BufRead, Cursor, Write},
+};
 
 use super::super::cbor::hs::util::decode_sum_type;
 use super::super::config::ProtocolMagic;
@@ -10,7 +13,7 @@ use super::boundary;
 use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -26,7 +29,8 @@ impl RawBlockHeaderMultiple {
         RawBlockHeaderMultiple(dat)
     }
     pub fn decode(&self) -> cbor_event::Result<Vec<BlockHeader>> {
-        RawCbor::from(&self.0).deserialize_complete()
+        let mut de = Deserializer::from(Cursor::new(&self.0));
+        de.deserialize_complete()
     }
 }
 impl RawBlockHeader {
@@ -34,7 +38,8 @@ impl RawBlockHeader {
         RawBlockHeader(dat)
     }
     pub fn decode(&self) -> cbor_event::Result<BlockHeader> {
-        RawCbor::from(&self.0).deserialize_complete()
+        let mut de = Deserializer::from(Cursor::new(&self.0));
+        de.deserialize_complete()
     }
     pub fn compute_hash(&self) -> HeaderHash {
         HeaderHash::new(&self.0)
@@ -45,7 +50,8 @@ impl RawBlock {
         RawBlock(dat)
     }
     pub fn decode(&self) -> cbor_event::Result<Block> {
-        RawCbor::from(&self.0).deserialize_complete()
+        let mut de = Deserializer::from(Cursor::new(&self.0));
+        de.deserialize_complete()
     }
     pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
@@ -199,10 +205,10 @@ impl fmt::Display for Block {
 // **************************************************************************
 
 impl cbor_event::se::Serialize for Block {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
             &Block::BoundaryBlock(ref gbh) => serializer.write_unsigned_integer(0)?.serialize(gbh),
@@ -211,7 +217,7 @@ impl cbor_event::se::Serialize for Block {
     }
 }
 impl cbor_event::de::Deserialize for Block {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -230,10 +236,10 @@ impl cbor_event::de::Deserialize for Block {
 }
 
 impl cbor_event::se::Serialize for BlockHeader {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
             &BlockHeader::BoundaryBlockHeader(ref gbh) => {
@@ -247,7 +253,7 @@ impl cbor_event::se::Serialize for BlockHeader {
 }
 
 impl cbor_event::de::Deserialize for BlockHeader {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         match decode_sum_type(raw)? {
             0 => {
                 let blk = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -266,10 +272,10 @@ impl cbor_event::de::Deserialize for BlockHeader {
 }
 
 impl cbor_event::se::Serialize for BlockHeaders {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer
             .write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?;
@@ -277,7 +283,7 @@ impl cbor_event::se::Serialize for BlockHeaders {
     }
 }
 impl cbor_event::de::Deserialize for BlockHeaders {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         match decode_sum_type(raw)? {
             0 => Ok(BlockHeaders(Vec::<BlockHeader>::deserialize(raw)?)),
             1 => Err(cbor_event::Error::CustomError(format!(
@@ -294,7 +300,8 @@ impl cbor_event::de::Deserialize for BlockHeaders {
 
 #[cfg(test)]
 mod test {
-    use cbor_event::de::RawCbor;
+    use cbor_event::de::Deserializer;
+    use std::io::Cursor;
     use util::hex;
     const MAINBLOCK_HEX: [u8; 408] = [
         0x82, 0x01, 0x85, 0x00, 0x58, 0x20, 0xc4, 0xe0, 0xfc, 0x3a, 0x4f, 0xfb, 0x31, 0x91, 0xf8,
@@ -339,7 +346,8 @@ mod test {
     const GENESIS_HASH: &str = "0027f90a735237e2555b418ac4e02d35daf75945aad6253c7ac0bc7b121f974b";
 
     fn check_blockheader_serialization(header_raw: &[u8], hash: &str) {
-        let header: super::BlockHeader = RawCbor::from(header_raw).deserialize().unwrap();
+        let mut de = Deserializer::from(Cursor::new(header_raw));
+        let header: super::BlockHeader = de.deserialize().unwrap();
         let got_raw = cbor!(&header).unwrap();
         assert_eq!(hex::encode(header_raw), hex::encode(&got_raw[..]));
         let got_hash = header.compute_hash();

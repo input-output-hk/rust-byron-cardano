@@ -15,7 +15,7 @@ intertwined with the Cardano blockchain itself.
 
 [dependencies]
 cardano = { path = "../cardano" }
-cbor_event = "1.0"
+cbor_event = "^2.1.1"
 storage-units = { path = "../storage-units" }
 log = "*"
 rand = "0.5"

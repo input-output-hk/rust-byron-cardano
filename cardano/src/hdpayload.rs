@@ -13,11 +13,15 @@ use cryptoxide::hmac::Hmac;
 use cryptoxide::pbkdf2::pbkdf2;
 use cryptoxide::sha2::Sha512;
 
-use std::{fmt, ops::Deref};
+use std::{
+    fmt,
+    io::{BufRead, Write},
+    ops::Deref,
+};
 
 use cbor_event::{
     self,
-    de::RawCbor,
+    de::Deserializer,
     se::{self, Serializer},
 };
 use hdwallet::XPub;
@@ -99,7 +103,8 @@ impl Path {
         Path(v)
     }
     fn from_cbor(bytes: &[u8]) -> Result<Self> {
-        let mut raw = RawCbor::from(bytes);
+        let cursor = std::io::Cursor::new(bytes);
+        let mut raw = Deserializer::from(cursor);
         Ok(cbor_event::de::Deserialize::deserialize(&mut raw)?)
     }
     fn cbor(&self) -> Vec<u8> {
@@ -107,16 +112,16 @@ impl Path {
     }
 }
 impl cbor_event::se::Serialize for Path {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         se::serialize_indefinite_array(self.0.iter(), serializer)
     }
 }
 impl cbor_event::Deserialize for Path {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        Ok(Path(raw.deserialize()?))
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        Ok(Path(reader.deserialize()?))
     }
 }
 
@@ -231,17 +236,19 @@ impl HDAddressPayload {
     }
 }
 impl cbor_event::se::Serialize for HDAddressPayload {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: Serializer<W>,
-    ) -> cbor_event::Result<Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         se::serialize_cbor_in_cbor(self.0.as_slice(), serializer)
     }
 }
 impl cbor_event::de::Deserialize for HDAddressPayload {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
-        let mut raw_encoded = RawCbor::from(&raw.bytes()?);
-        Ok(HDAddressPayload::from_bytes(&mut raw_encoded.bytes()?))
+    fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
+        let inner_cbor = reader.bytes()?;
+        let inner_cbor = std::io::Cursor::new(inner_cbor);
+        let mut inner_cbor = Deserializer::from(inner_cbor);
+        Ok(HDAddressPayload::from_bytes(&mut inner_cbor.bytes()?))
     }
 }
 impl Deref for HDAddressPayload {

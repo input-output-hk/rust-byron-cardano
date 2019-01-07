@@ -1,13 +1,16 @@
 use config::ProtocolMagic;
 use std::collections::{btree_map, BTreeMap};
-use std::fmt;
+use std::{
+    fmt,
+    io::{BufRead, Write},
+};
 use {address, hash::Blake2b256, hdwallet, tx, vss};
 
 use super::sign::BlockSignature;
 use super::types;
 use super::types::{ChainDifficulty, EpochSlotId, HeaderExtraData, HeaderHash, SscProof};
 use super::update;
-use cbor_event::{self, de::RawCbor};
+use cbor_event::{self, de::Deserializer, se::Serializer};
 
 #[derive(Debug, Clone)]
 pub struct BodyProof {
@@ -42,10 +45,10 @@ impl BodyProof {
 }
 
 impl cbor_event::se::Serialize for BodyProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.tx)?
@@ -55,7 +58,7 @@ impl cbor_event::se::Serialize for BodyProof {
     }
 }
 impl cbor_event::de::Deserialize for BodyProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "BodyProof")?;
         let tx = cbor_event::de::Deserialize::deserialize(raw)?;
         let mpc = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -84,16 +87,16 @@ impl fmt::Display for DlgProof {
 }
 
 impl cbor_event::se::Serialize for DlgProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 
 impl cbor_event::de::Deserialize for DlgProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let hash = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(DlgProof(hash))
     }
@@ -141,15 +144,15 @@ impl ::std::ops::DerefMut for TxPayload {
     }
 }
 impl cbor_event::se::Serialize for TxPayload {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::serialize_indefinite_array(self.txaux.iter(), serializer)
     }
 }
 impl cbor_event::de::Deserialize for TxPayload {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let num_inputs = raw.array()?;
         assert_eq!(num_inputs, cbor_event::Len::Indefinite);
         let mut l = Vec::new();
@@ -197,10 +200,10 @@ impl fmt::Display for Body {
     }
 }
 impl cbor_event::se::Serialize for Body {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.tx)?
@@ -210,7 +213,7 @@ impl cbor_event::se::Serialize for Body {
     }
 }
 impl cbor_event::de::Deserialize for Body {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "Body")?;
         let tx = raw.deserialize()?;
         let scc = raw.deserialize()?;
@@ -247,10 +250,10 @@ impl SscPayload {
 }
 
 impl cbor_event::se::Serialize for SscPayload {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         match self {
             SscPayload::CommitmentsPayload(ref comms, ref cert) => serializer
                 .write_array(cbor_event::Len::Len(3))?
@@ -275,7 +278,7 @@ impl cbor_event::se::Serialize for SscPayload {
     }
 }
 impl cbor_event::de::Deserialize for SscPayload {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let len = raw.array()?;
         if len != cbor_event::Len::Len(2) && len != cbor_event::Len::Len(3) {
             return Err(cbor_event::Error::CustomError(format!(
@@ -316,16 +319,16 @@ impl cbor_event::de::Deserialize for SscPayload {
 pub struct DlgPayload(pub cbor_event::Value);
 
 impl cbor_event::de::Deserialize for DlgPayload {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let payload = raw.deserialize()?;
         Ok(DlgPayload(payload))
     }
 }
 impl cbor_event::se::Serialize for DlgPayload {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
@@ -338,15 +341,15 @@ impl Commitments {
     }
 }
 impl cbor_event::se::Serialize for Commitments {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for Commitments {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.set_tag()?;
         Ok(Commitments(raw.deserialize()?))
     }
@@ -359,10 +362,10 @@ pub struct SignedCommitment {
     pub signature: vss::Signature,
 }
 impl cbor_event::se::Serialize for SignedCommitment {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(3))?
             .serialize(&self.public_key)?
@@ -371,7 +374,7 @@ impl cbor_event::se::Serialize for SignedCommitment {
     }
 }
 impl cbor_event::de::Deserialize for SignedCommitment {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "SignedCommitment")?;
         let public_key = raw.deserialize()?;
         let commitment = raw.deserialize()?;
@@ -391,17 +394,17 @@ pub struct Commitment {
     pub shares: BTreeMap<vss::PublicKey, EncShare>,
 }
 impl cbor_event::se::Serialize for Commitment {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         let serializer = cbor_event::se::serialize_fixed_map(self.shares.iter(), serializer)?;
         serializer.serialize(&self.proof)
     }
 }
 impl cbor_event::de::Deserialize for Commitment {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "Commitment")?;
         let shares = raw.deserialize()?;
         let proof = raw.deserialize()?;
@@ -418,10 +421,10 @@ pub struct SecretProof {
     pub commitments: Vec<cbor_event::Value>, // TODO decode a http://hackage.haskell.org/package/pvss-0.2.0/docs/Crypto-SCRAPE.html#t:Commitment
 }
 impl cbor_event::se::Serialize for SecretProof {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.extra_gen)?
@@ -431,7 +434,7 @@ impl cbor_event::se::Serialize for SecretProof {
     }
 }
 impl cbor_event::de::Deserialize for SecretProof {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "SecretProof")?;
         let extra_gen = raw.deserialize()?;
         let proof = raw.deserialize()?;
@@ -452,15 +455,15 @@ impl cbor_event::de::Deserialize for SecretProof {
 #[derive(Debug, Clone)]
 pub struct EncShare(cbor_event::Value);
 impl cbor_event::se::Serialize for EncShare {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for EncShare {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(EncShare(raw.deserialize()?))
     }
 }
@@ -475,15 +478,15 @@ impl OpeningsMap {
     }
 }
 impl cbor_event::se::Serialize for OpeningsMap {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::serialize_fixed_map(self.0.iter(), serializer)
     }
 }
 impl cbor_event::de::Deserialize for OpeningsMap {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(OpeningsMap(raw.deserialize()?))
     }
 }
@@ -497,20 +500,20 @@ impl SharesMap {
     }
 }
 impl cbor_event::se::Serialize for SharesMap {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
-        let mut serializer = serializer.write_map(cbor_event::Len::Len(self.0.len() as u64))?;
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        serializer.write_map(cbor_event::Len::Len(self.0.len() as u64))?;
         for element in self.iter() {
-            serializer = serializer.serialize(element.0)?;
-            serializer = cbor_event::se::serialize_fixed_map(element.1.iter(), serializer)?;
+            serializer.serialize(element.0)?;
+            cbor_event::se::serialize_fixed_map(element.1.iter(), serializer)?;
         }
         Ok(serializer)
     }
 }
 impl cbor_event::de::Deserialize for SharesMap {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(SharesMap(raw.deserialize()?))
     }
 }
@@ -520,15 +523,15 @@ impl cbor_event::de::Deserialize for SharesMap {
 #[derive(Debug, Clone)]
 pub struct DecShare(cbor_event::Value);
 impl cbor_event::se::Serialize for DecShare {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&self.0)
     }
 }
 impl cbor_event::de::Deserialize for DecShare {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(DecShare(raw.deserialize()?))
     }
 }
@@ -548,10 +551,10 @@ impl VssCertificates {
     // (where StakeholderId is computed from each VssCertificate's
     // signing key), rather than the serialization of a set of
     // VssCertificates that's actually stored in the block.
-    pub fn serialize_for_proof<W: ::std::io::Write>(
+    pub fn serialize_for_proof<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let mut hash = BTreeMap::<address::StakeholderId, &VssCertificate>::new();
         for vss_cert in self.0.iter() {
             hash.insert(address::StakeholderId::new(&vss_cert.signing_key), vss_cert);
@@ -560,10 +563,9 @@ impl VssCertificates {
     }
 
     pub fn hash_for_proof(&self) -> Blake2b256 {
-        let mut buf = vec![];
-        self.serialize_for_proof(cbor_event::se::Serializer::new(&mut buf))
-            .unwrap();
-        Blake2b256::new(&buf)
+        let mut buf = Serializer::new_vec();
+        self.serialize_for_proof(&mut buf).unwrap();
+        Blake2b256::new(&buf.finalize())
     }
 }
 
@@ -581,15 +583,15 @@ impl ::std::ops::DerefMut for VssCertificates {
 }
 
 impl cbor_event::se::Serialize for VssCertificates {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for VssCertificates {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.set_tag()?;
         Ok(VssCertificates(raw.deserialize()?))
     }
@@ -603,10 +605,10 @@ pub struct VssCertificate {
     pub signing_key: hdwallet::XPub,
 }
 impl cbor_event::se::Serialize for VssCertificate {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.vss_key)?
@@ -616,7 +618,7 @@ impl cbor_event::se::Serialize for VssCertificate {
     }
 }
 impl cbor_event::de::Deserialize for VssCertificate {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "VssCertificate")?;
         let vss_key = raw.deserialize()?;
         let expiry_epoch = raw.deserialize()?;
@@ -667,10 +669,10 @@ impl BlockHeader {
     }
 }
 impl cbor_event::se::Serialize for BlockHeader {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(5))?
             .serialize(&self.protocol_magic)?
@@ -681,7 +683,7 @@ impl cbor_event::se::Serialize for BlockHeader {
     }
 }
 impl cbor_event::de::Deserialize for BlockHeader {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(5, "BlockHeader")?;
 
         let p_magic = cbor_event::de::Deserialize::deserialize(raw)?;
@@ -718,10 +720,10 @@ impl fmt::Display for Block {
     }
 }
 impl cbor_event::se::Serialize for Block {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(3))?
             .serialize(&self.header)?
@@ -730,7 +732,7 @@ impl cbor_event::se::Serialize for Block {
     }
 }
 impl cbor_event::de::Deserialize for Block {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(3, "Block")?;
         let header = raw.deserialize()?;
         let body = raw.deserialize()?;
@@ -747,10 +749,10 @@ pub struct Consensus {
     pub block_signature: BlockSignature,
 }
 impl cbor_event::se::Serialize for Consensus {
-    fn serialize<W: ::std::io::Write>(
+    fn serialize<'se, W: Write>(
         &self,
-        serializer: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>> {
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.slot_id)?
@@ -760,7 +762,7 @@ impl cbor_event::se::Serialize for Consensus {
     }
 }
 impl cbor_event::de::Deserialize for Consensus {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "Consensus")?;
         let slot_id = cbor_event::de::Deserialize::deserialize(raw)?;
         let leader_key = cbor_event::de::Deserialize::deserialize(raw)?;

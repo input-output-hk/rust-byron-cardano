@@ -1,10 +1,14 @@
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    io::{BufRead, Cursor, Write},
+};
 
 use cardano::{block, config::ProtocolMagic};
 use cbor_event::{
     self,
-    de::{self, RawCbor},
-    se,
+    de::{self, Deserializer},
+    se::{self, Serializer},
 };
 
 use super::{MessageCode, MessageType};
@@ -22,23 +26,23 @@ impl fmt::Display for HandlerSpec {
     }
 }
 impl se::Serialize for HandlerSpec {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .write_unsigned_integer(0)?
             .write_tag(24)?
-            .write_bytes(
-                se::Serializer::new_vec()
-                    .write_unsigned_integer(self.0 as u64)?
-                    .finalize(),
-            )
+            .write_bytes({
+                let mut se = se::Serializer::new_vec();
+                se.write_unsigned_integer(self.0 as u64)?;
+                se.finalize()
+            })
     }
 }
 impl de::Deserialize for HandlerSpec {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "HandlerSpec")?;
         let t = raw.unsigned_integer()?;
         if t != 0 {
@@ -54,7 +58,8 @@ impl de::Deserialize for HandlerSpec {
                 tag
             )));
         }
-        let v = RawCbor::from(&raw.bytes()?).unsigned_integer()? as u16;
+        let mut inner = Deserializer::from(Cursor::new(raw.bytes()?));
+        let v = inner.unsigned_integer()? as u16;
         Ok(HandlerSpec(v))
     }
 }
@@ -93,15 +98,15 @@ impl HandlerSpecs {
     }
 }
 impl se::Serialize for HandlerSpecs {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         se::serialize_fixed_map(self.0.iter(), serializer)
     }
 }
 impl de::Deserialize for HandlerSpecs {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(HandlerSpecs(raw.deserialize()?))
     }
 }
@@ -141,10 +146,10 @@ impl Default for Handshake {
     }
 }
 impl se::Serialize for Handshake {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(4))?
             .serialize(&self.protocol_magic)?
@@ -154,7 +159,7 @@ impl se::Serialize for Handshake {
     }
 }
 impl cbor_event::de::Deserialize for Handshake {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(4, "Handshake")?;
         let pm = raw.deserialize()?;
         let v = raw.deserialize()?;

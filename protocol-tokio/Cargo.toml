@@ -14,7 +14,7 @@ keywords = [ "Cardano", "Protocol" ]
 
 [dependencies]
 cardano    = { path = "../cardano" }
-cbor_event = "^1.0.1"
+cbor_event = "^2.1.1"
 futures = "^0.1.25"
 tokio-io = "^0.1.9"
 tokio-codec = "^0.1.1"

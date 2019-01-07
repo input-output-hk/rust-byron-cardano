@@ -1,5 +1,8 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use std::ops::Deref;
+use std::{
+    io::{BufRead, Cursor, Write},
+    ops::Deref,
+};
 
 use cardano::{
     block::{self, HeaderHash},
@@ -7,8 +10,8 @@ use cardano::{
 };
 use cbor_event::{
     self,
-    de::{self, RawCbor},
-    se,
+    de::{self, Deserializer},
+    se::{self, Serializer},
 };
 
 use super::super::nt;
@@ -35,26 +38,22 @@ impl MessageType {
     where
         T: se::Serialize,
     {
-        let bytes = se::Serializer::new_vec();
-        let bytes = bytes
-            .serialize(self)
-            .unwrap()
-            .serialize(cbor)
-            .unwrap()
-            .finalize();
+        let mut bytes = se::Serializer::new_vec();
+        bytes.serialize(self).unwrap().serialize(cbor).unwrap();
+        let bytes = bytes.finalize();
         bytes.into()
     }
 }
 impl se::Serialize for MessageType {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer.serialize(&(*self as u32))
     }
 }
 impl de::Deserialize for MessageType {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let v = raw.unsigned_integer()? as u32;
         match v {
             4 => Ok(MessageType::MsgGetHeaders),
@@ -165,7 +164,7 @@ impl Message {
             return Ok(msg);
         }
 
-        let mut cbor = de::RawCbor::from(bytes.deref());
+        let mut cbor = Deserializer::from(Cursor::new(bytes.deref()));
         let msg_type: MessageType = cbor.deserialize().unwrap();
         match msg_type {
             MessageType::MsgGetHeaders => Ok(Message::GetBlockHeaders(
@@ -214,10 +213,10 @@ pub enum Response<T, E> {
     Err(E),
 }
 impl<T: se::Serialize, E: se::Serialize> se::Serialize for Response<T, E> {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         match self {
             &Response::Ok(ref t) => serializer.serialize(&0u64)?.serialize(t),
@@ -226,7 +225,7 @@ impl<T: se::Serialize, E: se::Serialize> se::Serialize for Response<T, E> {
     }
 }
 impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "protocol::Response")?;
         let id = raw.deserialize()?;
         match id {
@@ -263,10 +262,10 @@ impl GetBlockHeaders {
     }
 }
 impl se::Serialize for GetBlockHeaders {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
         let serializer = se::serialize_indefinite_array(self.from.iter(), serializer)?;
         match &self.to {
@@ -278,7 +277,7 @@ impl se::Serialize for GetBlockHeaders {
     }
 }
 impl de::Deserialize for GetBlockHeaders {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
         let to = {
@@ -309,15 +308,15 @@ impl From<Vec<block::BlockHeader>> for BlockHeaders {
     }
 }
 impl se::Serialize for BlockHeaders {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         se::serialize_fixed_array(self.0.iter(), serializer)
     }
 }
 impl de::Deserialize for BlockHeaders {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.deserialize().map(BlockHeaders)
     }
 }
@@ -333,10 +332,10 @@ impl GetBlocks {
     }
 }
 impl se::Serialize for GetBlocks {
-    fn serialize<W>(&self, serializer: se::Serializer<W>) -> cbor_event::Result<se::Serializer<W>>
-    where
-        W: ::std::io::Write,
-    {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
         serializer
             .write_array(cbor_event::Len::Len(2))?
             .serialize(&self.from)?
@@ -344,7 +343,7 @@ impl se::Serialize for GetBlocks {
     }
 }
 impl de::Deserialize for GetBlocks {
-    fn deserialize<'a>(raw: &mut RawCbor<'a>) -> cbor_event::Result<Self> {
+    fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
         let to = raw.deserialize()?;
@@ -399,14 +398,16 @@ mod test {
     quickcheck! {
         fn get_block_headers_encode_decode(command: GetBlockHeaders) -> bool {
             let encoded = cbor!(command).unwrap();
-            let decoded : GetBlockHeaders = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
+            let mut de = Deserializer::from(Cursor::new(&encoded));
+            let decoded : GetBlockHeaders = de.deserialize_complete().unwrap();
 
             decoded == command
         }
 
         fn get_blocks_encode_decode(command: GetBlocks) -> bool {
             let encoded = cbor!(command).unwrap();
-            let decoded : GetBlocks = de::RawCbor::from(&encoded).deserialize_complete().unwrap();
+            let mut de = Deserializer::from(Cursor::new(&encoded));
+            let decoded : GetBlocks = de.deserialize_complete().unwrap();
 
             decoded == command
         }

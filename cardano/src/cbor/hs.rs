@@ -3,27 +3,25 @@
 pub mod util {
     //! CBor util and other stuff
 
-    use cbor_event::{self, de::RawCbor, Bytes, Len};
+    use cbor_event::{self, de::Deserializer, se::Serializer, Len};
     use crc32::crc32;
 
-    pub fn encode_with_crc32_<T, W>(
-        t: &T,
-        s: cbor_event::se::Serializer<W>,
-    ) -> cbor_event::Result<cbor_event::se::Serializer<W>>
+    pub fn encode_with_crc32_<T, W>(t: &T, s: &mut Serializer<W>) -> cbor_event::Result<()>
     where
         T: cbor_event::Serialize,
         W: ::std::io::Write + Sized,
     {
-        let bytes = t
-            .serialize(cbor_event::se::Serializer::new_vec())?
-            .finalize();
+        let bytes = cbor!(t)?;
         let crc32 = crc32(&bytes);
         s.write_array(Len::Len(2))?
             .write_tag(24)?
             .write_bytes(&bytes)?
-            .write_unsigned_integer(crc32 as u64)
+            .write_unsigned_integer(crc32 as u64)?;
+        Ok(())
     }
-    pub fn raw_with_crc32<'a, 'b>(raw: &'b mut RawCbor<'a>) -> cbor_event::Result<Bytes<'a>> {
+    pub fn raw_with_crc32<R: std::io::BufRead>(
+        raw: &mut Deserializer<R>,
+    ) -> cbor_event::Result<Vec<u8>> {
         let len = raw.array()?;
         assert!(len == Len::Len(2));
 
@@ -50,7 +48,9 @@ pub mod util {
         Ok(bytes)
     }
 
-    pub fn decode_sum_type(raw: &mut RawCbor) -> cbor_event::Result<u64> {
+    pub fn decode_sum_type<R: std::io::BufRead>(
+        raw: &mut Deserializer<R>,
+    ) -> cbor_event::Result<u64> {
         raw.tuple(2, "SumType")?;
         Ok(raw.unsigned_integer()?)
     }
@@ -92,7 +92,10 @@ pub mod util {
 
         struct Test(&'static [u8]);
         impl Serialize for Test {
-            fn serialize<W>(&self, serializer: Serializer<W>) -> cbor_event::Result<Serializer<W>>
+            fn serialize<'se, W>(
+                &self,
+                serializer: &'se mut Serializer<W>,
+            ) -> cbor_event::Result<&'se mut Serializer<W>>
             where
                 W: ::std::io::Write,
             {
