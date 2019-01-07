@@ -12,6 +12,7 @@ jobs:
             - cargo-v1-
       - run: cargo update
       - run: cargo fetch
+      - run: cargo install cargo-test-junit
       - persist_to_workspace:
           root: "."
           paths:
@@ -37,7 +38,7 @@ jobs:
           command: rustc --version; cargo --version
       - run:
           name: Build and test
-          command: cargo test --verbose --frozen
+          command: cargo test-junit --verbose --frozen --name test_output_release.xml
           environment:
             # Need this for the coverage run
             RUSTFLAGS: "-C link-dead-code"
@@ -67,7 +68,7 @@ jobs:
           command: rustc --version; cargo --version
       - run:
           name: Build and test in release profile
-          command: cargo test --verbose --frozen --release
+          command: cargo test-junit --verbose --frozen --release --name test_output_nightly.xml
   test_nightly:
     docker:
       - image: rustlang/rust:nightly
