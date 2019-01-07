@@ -38,7 +38,7 @@ jobs:
           command: rustc --version; cargo --version
       - run:
           name: Build and test
-          command: cargo junit --verbose --frozen --name test_output_release.xml
+          command: /usr/local/cargo/bin/cargo-junit --verbose --frozen --name test_output_release.xml
           environment:
             # Need this for the coverage run
             RUSTFLAGS: "-C link-dead-code"
@@ -70,7 +70,7 @@ jobs:
           command: rustc --version; cargo --version
       - run:
           name: Build and test in release profile
-          command: cargo junit --verbose --frozen --release --name test_output_release.xml
+          command: /usr/local/cargo/bin/cargo-junit --verbose --frozen --release --name test_output_release.xml
       - store_test_results:
           path: test_output_release.xml
   test_nightly:
@@ -89,7 +89,7 @@ jobs:
           command: rustc --version; cargo --version
       - run:
           name: Build and test with nightly Rust
-          command: cargo junit --verbose --frozen --name test_output_nightly.xml
+          command: /usr/local/cargo/bin/cargo-junit --verbose --frozen --name test_output_nightly.xml
       - store_test_results:
           path: test_output_nightly.xml    
   coverage:
