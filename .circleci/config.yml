@@ -48,6 +48,8 @@ jobs:
             for file in target/debug/* target/debug/.??*; do
               [ -d $file -o ! -x $file ] && rm -r $file
             done
+      - store_test_results:
+          path: test_output*.xml
       - persist_to_workspace:
           root: "."
           paths:
@@ -69,6 +71,8 @@ jobs:
       - run:
           name: Build and test in release profile
           command: cargo junit --verbose --frozen --release --name test_output_nightly.xml
+      - store_test_results:
+          path: test_output*.xml
   test_nightly:
     docker:
       - image: rustlang/rust:nightly
@@ -86,6 +90,8 @@ jobs:
       - run:
           name: Build and test with nightly Rust
           command: cargo test --verbose --frozen
+      - store_test_results:
+          path: test_output*.xml    
   coverage:
     docker:
       - image: ragnaroek/kcov:v33
