@@ -144,7 +144,6 @@ impl chain_core::property::ChainState for ChainState {
     }
 }
 
-// FIXME: move to cardano-deps/cardano?
 pub struct ClassicChainStateDelta {
     base: HeaderHash,
     last_block: HeaderHash,
