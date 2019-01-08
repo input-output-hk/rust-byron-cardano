@@ -13,7 +13,9 @@ use super::boundary;
 use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
+use crate::tx::TxAux;
 use cbor_event::{self, de::Deserializer, se::Serializer};
+use core;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -197,6 +199,51 @@ impl fmt::Display for Block {
             &Block::BoundaryBlock(ref blk) => write!(f, "{}", blk),
             &Block::MainBlock(ref blk) => write!(f, "{}", blk),
         }
+    }
+}
+
+impl core::property::Block for Block {
+    type Id = HeaderHash;
+    type Date = BlockDate;
+
+    fn id(&self) -> Self::Id {
+        self.get_header().compute_hash()
+    }
+
+    fn parent_id(&self) -> &Self::Id {
+        match self {
+            Block::MainBlock(ref block) => &block.header.previous_header,
+            Block::BoundaryBlock(ref block) => &block.header.previous_header,
+        }
+    }
+    fn date(&self) -> Self::Date {
+        match self {
+            Block::MainBlock(ref block) => block.header.consensus.slot_id.into(),
+            Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
+        }
+    }
+}
+impl core::property::HasTransaction<TxAux> for Block {
+    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
+        match self {
+            &Block::BoundaryBlock(_) => [].iter(),
+            &Block::MainBlock(ref blk) => blk.body.tx.iter(),
+        }
+    }
+}
+impl core::property::Serializable for Block {
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        let mut serializer = cbor_event::se::Serializer::new(writer);
+        serializer.serialize(self)?;
+        serializer.finalize();
+        Ok(())
+    }
+
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        let mut deserializer = cbor_event::de::Deserializer::from(reader);
+        deserializer.deserialize::<Self>()
     }
 }
 
