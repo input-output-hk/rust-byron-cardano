@@ -626,7 +626,7 @@ impl cbor_event::de::Deserialize for TxProof {
     }
 }
 
-impl core::property::Serializable for Tx {
+impl core::property::Serialize for Tx {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -635,13 +635,18 @@ impl core::property::Serializable for Tx {
         serializer.finalize();
         Ok(())
     }
+}
+
+impl core::property::Deserialize for Tx {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         let mut deserializer = cbor_event::de::Deserializer::from(reader);
         deserializer.deserialize::<Self>()
     }
 }
-impl core::property::Serializable for TxAux {
+
+impl core::property::Serialize for TxAux {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -650,6 +655,10 @@ impl core::property::Serializable for TxAux {
         serializer.finalize();
         Ok(())
     }
+}
+
+impl core::property::Deserialize for TxAux {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         let mut deserializer = cbor_event::de::Deserializer::from(reader);
