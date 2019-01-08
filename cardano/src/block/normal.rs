@@ -124,6 +124,9 @@ impl TxPayload {
     pub fn empty() -> Self {
         TxPayload::new(Vec::new())
     }
+    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, tx::TxAux> {
+        self.txaux.iter()
+    }
 }
 impl IntoIterator for TxPayload {
     type Item = <Vec<tx::TxAux> as IntoIterator>::Item;
