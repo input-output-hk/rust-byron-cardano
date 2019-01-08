@@ -86,6 +86,16 @@ impl fmt::Display for BlockDate {
         }
     }
 }
+impl From<EpochSlotId> for BlockDate {
+    fn from(esi: EpochSlotId) -> Self {
+        BlockDate::Normal(esi)
+    }
+}
+impl From<EpochId> for BlockDate {
+    fn from(ei: EpochId) -> Self {
+        BlockDate::Boundary(ei)
+    }
+}
 
 impl str::FromStr for BlockDate {
     type Err = BlockDateParseError;
