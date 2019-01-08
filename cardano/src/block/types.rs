@@ -35,7 +35,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct HeaderHash(Blake2b256);
 impl HeaderHash {
@@ -82,6 +82,15 @@ impl FromStr for HeaderHash {
     type Err = <Blake2b256 as FromStr>::Err;
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         Ok(Self::from(Blake2b256::from_str(s)?))
+    }
+}
+
+impl chain_core::property::BlockId for HeaderHash {
+    fn try_from_slice(slice: &[u8]) -> Option<Self> {
+        match TryFromSlice::try_from_slice(slice) {
+            Ok(x) => Some(x),
+            Err(_) => None
+        }
     }
 }
 

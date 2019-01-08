@@ -200,6 +200,33 @@ impl fmt::Display for Block {
     }
 }
 
+impl chain_core::property::Block for Block {
+
+    type Id = HeaderHash;
+
+    fn id(&self) -> Self::Id {
+        self.get_header().compute_hash()
+    }
+
+    fn parent_id(&self) -> Self::Id {
+        self.get_header().get_previous_header()
+    }
+
+    type Date = BlockDate;
+
+    fn date(&self) -> Self::Date {
+        self.get_header().get_blockdate()
+    }
+
+    fn serialize(&self) -> Vec<u8> {
+        cbor!(self).unwrap()
+    }
+
+    fn deserialize(bytes: &[u8]) -> Self {
+        Deserializer::from(bytes).deserialize_complete().unwrap()
+    }
+}
+
 // **************************************************************************
 // CBOR implementations
 // **************************************************************************
