@@ -11,23 +11,25 @@ use std::{
     io::{BufRead, Write},
 };
 
-use hash::Blake2b256;
+use crate::{
+    address::{AddrType, Attributes, ExtendedAddr, SpendingData},
+    coin::{self, Coin},
+    config::ProtocolMagic,
+    hash::Blake2b256,
+    hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE},
+    merkle, redeem,
+    tags::SigningTag,
+};
 
 use cbor_event::{self, de::Deserializer, se::Serializer};
-use config::ProtocolMagic;
-use merkle;
-use redeem;
-use tags::SigningTag;
-
-use address::{AddrType, Attributes, ExtendedAddr, SpendingData};
-use coin::{self, Coin};
-use hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE};
-
-use core;
+use chain_core::property;
 
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
+
+// FIXME: This is dodgy because TxId is not currently a dedicated type.
+impl property::TransactionId for TxId {}
 
 pub fn redeem_pubkey_to_txid(
     pubkey: &redeem::PublicKey,
