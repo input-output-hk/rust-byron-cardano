@@ -160,42 +160,48 @@ pub struct ClassicChainStateDelta {
 const NR_FIELDS: u64 = 10;
 
 impl chain_core::property::ChainStateDelta for ClassicChainStateDelta {
-    fn serialize(&self) -> Vec<u8> {
+}
+
+impl chain_core::property::Serializable for ClassicChainStateDelta {
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         let mut data = vec![];
         {
             let mut serializer = se::Serializer::new(&mut data);
             serializer
-                .write_array(Len::Len(NR_FIELDS)).unwrap()
-                .serialize(&self.base).unwrap()
-                .serialize(&self.last_block).unwrap()
-                .serialize(&self.last_date.serialize()).unwrap()
-                .serialize(&self.last_boundary_block).unwrap()
-                .serialize(&self.chain_length).unwrap()
-                .serialize(&self.nr_transactions).unwrap()
-                .serialize(&self.spent_txos).unwrap();
-            se::serialize_fixed_array(self.slot_leaders.iter(), &mut serializer).unwrap();
-            se::serialize_fixed_array(self.removed_utxos.iter(), &mut serializer).unwrap();
-            se::serialize_fixed_map(self.added_utxos.iter(), &mut serializer).unwrap();
+                .write_array(Len::Len(NR_FIELDS))?
+                .serialize(&self.base)?
+                .serialize(&self.last_block)?
+                .serialize(&self.last_date.serialize())?
+                .serialize(&self.last_boundary_block)?
+                .serialize(&self.chain_length)?
+                .serialize(&self.nr_transactions)?
+                .serialize(&self.spent_txos)?;
+            se::serialize_fixed_array(self.slot_leaders.iter(), &mut serializer)?;
+            se::serialize_fixed_array(self.removed_utxos.iter(), &mut serializer)?;
+            se::serialize_fixed_map(self.added_utxos.iter(), &mut serializer)?;
         }
-        data
+        writer.write(&data)?;
+        Ok(())
     }
 
-    fn deserialize(bytes: &[u8]) -> Self {
-        let mut raw = cbor_event::de::Deserializer::from(bytes);
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        let mut raw = cbor_event::de::Deserializer::from(reader);
 
-        raw.tuple(NR_FIELDS, "chain state delta").unwrap();
-        let base = raw.deserialize().unwrap();
-        let last_block = raw.deserialize().unwrap();
-        let last_date = BlockDate::deserialize(raw.deserialize().unwrap());
-        let last_boundary_block = raw.deserialize().unwrap();
-        let chain_length = raw.deserialize().unwrap();
-        let nr_transactions = raw.deserialize().unwrap();
-        let spent_txos = raw.deserialize().unwrap();
-        let slot_leaders = raw.deserialize().unwrap();
-        let removed_utxos = raw.deserialize().unwrap();
-        let added_utxos = raw.deserialize().unwrap();
+        raw.tuple(NR_FIELDS, "chain state delta")?;
+        let base = raw.deserialize()?;
+        let last_block = raw.deserialize()?;
+        let last_date = BlockDate::deserialize(raw.deserialize()?);
+        let last_boundary_block = raw.deserialize()?;
+        let chain_length = raw.deserialize()?;
+        let nr_transactions = raw.deserialize()?;
+        let spent_txos = raw.deserialize()?;
+        let slot_leaders = raw.deserialize()?;
+        let removed_utxos = raw.deserialize()?;
+        let added_utxos = raw.deserialize()?;
 
-        Self {
+        Ok(Self {
             base,
             last_block,
             last_date,
@@ -206,6 +212,6 @@ impl chain_core::property::ChainStateDelta for ClassicChainStateDelta {
             spent_txos,
             removed_utxos,
             added_utxos
-        }
+        })
     }
 }
