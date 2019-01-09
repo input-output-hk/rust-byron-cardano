@@ -90,9 +90,10 @@ branches:
 
 notifications:
   - provider: Email
-    to:nobody@iohk.io
+    to:
+      - nobody@iohk.io
     on_build_success: false
-    on_build_failre: false
+    on_build_failure: false
     on_build_status_changed: false
 
 # Building is done in the test phase, so we disable Appveyor's build phase.
