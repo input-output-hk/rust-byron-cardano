@@ -1,6 +1,6 @@
 [package]
 name = "cardano"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>", "Nicolas Di Prima <nicolas.diprima@iohk.io>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -16,6 +16,7 @@ keywords = [ "Cardano", "Wallet", "Crypto" ]
 [dependencies]
 cryptoxide = "0.1"
 cbor_event = "^2.1.1"
+chain-core = { path = "../chain-core" }
 
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }

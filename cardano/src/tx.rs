@@ -23,6 +23,8 @@ use address::{AddrType, Attributes, ExtendedAddr, SpendingData};
 use coin::{self, Coin};
 use hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE};
 
+use core;
+
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
@@ -619,6 +621,68 @@ impl cbor_event::de::Deserialize for TxProof {
         let root = cbor_event::de::Deserialize::deserialize(raw)?;
         let witnesses = cbor_event::de::Deserialize::deserialize(raw)?;
         Ok(TxProof::new(number as u32, root, witnesses))
+    }
+}
+
+impl core::property::Serializable for Tx {
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        let mut serializer = cbor_event::se::Serializer::new(writer);
+        serializer.serialize(self)?;
+        serializer.finalize();
+        Ok(())
+    }
+
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        let mut deserializer = cbor_event::de::Deserializer::from(reader);
+        deserializer.deserialize::<Self>()
+    }
+}
+impl core::property::Serializable for TxAux {
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        let mut serializer = cbor_event::se::Serializer::new(writer);
+        serializer.serialize(self)?;
+        serializer.finalize();
+        Ok(())
+    }
+
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        let mut deserializer = cbor_event::de::Deserializer::from(reader);
+        deserializer.deserialize::<Self>()
+    }
+}
+
+impl core::property::Transaction for Tx {
+    type Id = TxId;
+    type Input = TxoPointer;
+    type Output = TxOut;
+
+    fn inputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Input> {
+        self.inputs.iter()
+    }
+    fn outputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Output> {
+        self.outputs.iter()
+    }
+    fn id(&self) -> Self::Id {
+        Tx::id(self)
+    }
+}
+impl core::property::Transaction for TxAux {
+    type Id = TxId;
+    type Input = TxoPointer;
+    type Output = TxOut;
+
+    fn inputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Input> {
+        self.tx.inputs.iter()
+    }
+    fn outputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Output> {
+        self.tx.outputs.iter()
+    }
+    fn id(&self) -> Self::Id {
+        self.tx.id()
     }
 }
 

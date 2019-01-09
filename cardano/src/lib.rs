@@ -41,6 +41,8 @@ extern crate cryptoxide;
 #[macro_use]
 extern crate cbor_event;
 
+extern crate chain_core as core;
+
 pub mod address;
 pub mod coin;
 pub mod config;
