@@ -13,7 +13,7 @@ use super::boundary;
 use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
-use cbor_event::{self, de::Deserializer, se::Serializer};
+use cbor_event::{self, de::Deserializer, de::Deserialize, se::Serializer};
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -217,14 +217,22 @@ impl chain_core::property::Block for Block {
     fn date(&self) -> Self::Date {
         self.get_header().get_blockdate()
     }
+}
 
-    fn serialize(&self) -> Vec<u8> {
-        cbor!(self).unwrap()
+impl chain_core::property::Serializable for Block {
+
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+        let bytes = cbor!(self)?;
+        writer.write(&bytes)?;
+        Ok(())
     }
 
-    fn deserialize(bytes: &[u8]) -> Self {
-        Deserializer::from(bytes).deserialize_complete().unwrap()
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        Deserialize::deserialize(&mut Deserializer::from(reader))
     }
+
 }
 
 // **************************************************************************
