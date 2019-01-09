@@ -14,6 +14,9 @@ use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
 use cbor_event::{self, de::Deserializer, de::Deserialize, se::Serializer};
+use crate::tx::TxAux;
+use cbor_event::{self, de::Deserializer, se::Serializer};
+use chain_core;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -232,7 +235,15 @@ impl chain_core::property::Serializable for Block {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         Deserialize::deserialize(&mut Deserializer::from(reader))
     }
+}
 
+impl core::property::HasTransaction<TxAux> for Block {
+    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
+        match self {
+            &Block::BoundaryBlock(_) => [].iter(),
+            &Block::MainBlock(ref blk) => blk.body.tx.iter(),
+        }
+    }
 }
 
 // **************************************************************************
