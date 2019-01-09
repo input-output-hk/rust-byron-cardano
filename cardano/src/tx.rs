@@ -23,7 +23,7 @@ use address::{AddrType, Attributes, ExtendedAddr, SpendingData};
 use coin::{self, Coin};
 use hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE};
 
-use core;
+use chain_core;
 
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.
@@ -624,7 +624,7 @@ impl cbor_event::de::Deserialize for TxProof {
     }
 }
 
-impl core::property::Serializable for Tx {
+impl chain_core::property::Serializable for Tx {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -639,7 +639,7 @@ impl core::property::Serializable for Tx {
         deserializer.deserialize::<Self>()
     }
 }
-impl core::property::Serializable for TxAux {
+impl chain_core::property::Serializable for TxAux {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -655,7 +655,7 @@ impl core::property::Serializable for TxAux {
     }
 }
 
-impl core::property::Transaction for Tx {
+impl chain_core::property::Transaction for Tx {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
@@ -670,7 +670,7 @@ impl core::property::Transaction for Tx {
         Tx::id(self)
     }
 }
-impl core::property::Transaction for TxAux {
+impl chain_core::property::Transaction for TxAux {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
