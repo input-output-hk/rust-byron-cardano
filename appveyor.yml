@@ -88,9 +88,12 @@ branches:
     - /^v\d+\.\d+\.\d+.*$/
     - master
 
-#notifications:
-#  - provider: Email
-#    on_build_success: false
+notifications:
+  - provider: Email
+    to:nobody@iohk.io
+    on_build_success: false
+    on_build_failre: false
+    on_build_status_changed: false
 
 # Building is done in the test phase, so we disable Appveyor's build phase.
 build: false
