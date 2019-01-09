@@ -80,6 +80,8 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+impl core::property::Header for BlockHeader {}
+
 /// BlockHeaders is a vector of block headers, as produced by
 /// MsgBlocks.
 #[derive(Debug, Clone)]
@@ -205,6 +207,7 @@ impl fmt::Display for Block {
 impl core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
+    type Header = BlockHeader;
 
     fn id(&self) -> Self::Id {
         self.get_header().compute_hash()
@@ -222,7 +225,12 @@ impl core::property::Block for Block {
             Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
         }
     }
+
+    fn header(&self) -> BlockHeader {
+        self.get_header()
+    }
 }
+
 impl core::property::HasTransaction<TxAux> for Block {
     fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
         match self {

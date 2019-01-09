@@ -1,5 +1,7 @@
 use super::types::{EpochId, EpochSlotId, SlotId};
 
+use chain_core::property;
+
 use std::{
     cmp::{Ord, Ordering},
     error::Error,
@@ -16,6 +18,9 @@ pub enum BlockDate {
     Boundary(EpochId),
     Normal(EpochSlotId),
 }
+
+impl property::BlockDate for BlockDate {}
+
 impl ::std::ops::Sub<BlockDate> for BlockDate {
     type Output = usize;
     fn sub(self, rhs: Self) -> Self::Output {
