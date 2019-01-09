@@ -210,10 +210,10 @@ impl core::property::Block for Block {
         self.get_header().compute_hash()
     }
 
-    fn parent_id(&self) -> &Self::Id {
+    fn parent_id(&self) -> Self::Id {
         match self {
-            Block::MainBlock(ref block) => &block.header.previous_header,
-            Block::BoundaryBlock(ref block) => &block.header.previous_header,
+            Block::MainBlock(ref block) => block.header.previous_header.clone(),
+            Block::BoundaryBlock(ref block) => block.header.previous_header.clone(),
         }
     }
     fn date(&self) -> Self::Date {
