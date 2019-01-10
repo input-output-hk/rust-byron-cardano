@@ -89,7 +89,7 @@ impl chain_core::property::BlockId for HeaderHash {
     fn try_from_slice(slice: &[u8]) -> Option<Self> {
         match TryFromSlice::try_from_slice(slice) {
             Ok(x) => Some(x),
-            Err(_) => None
+            Err(_) => None,
         }
     }
 }

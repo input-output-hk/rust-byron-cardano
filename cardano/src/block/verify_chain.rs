@@ -5,7 +5,6 @@ use fee::FeeAlgorithm;
 use tx::{TxAux, TxInWitness, TxoPointer};
 
 impl ChainState {
-
     /// Verify a block in the context of the chain. Regardless of
     /// errors, the chain state is updated to reflect the changes
     /// introduced by this block.

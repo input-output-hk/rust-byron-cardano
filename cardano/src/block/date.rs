@@ -126,7 +126,10 @@ impl chain_core::property::BlockDate for BlockDate {
     fn serialize(&self) -> u64 {
         match self {
             BlockDate::Boundary(epoch) => epoch << 16,
-            BlockDate::Normal(s) => { assert!(s.slotid < 65535); ((s.epoch as u64) << 16) | ((s.slotid + 1) as u64) }
+            BlockDate::Normal(s) => {
+                assert!(s.slotid < 65535);
+                ((s.epoch as u64) << 16) | ((s.slotid + 1) as u64)
+            }
         }
     }
 
@@ -136,7 +139,10 @@ impl chain_core::property::BlockDate for BlockDate {
         if slot == 0 {
             BlockDate::Boundary(epoch)
         } else {
-            BlockDate::Normal(EpochSlotId { epoch, slotid: (slot - 1) as u16 })
+            BlockDate::Normal(EpochSlotId {
+                epoch,
+                slotid: (slot - 1) as u16,
+            })
         }
     }
 }

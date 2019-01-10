@@ -114,7 +114,8 @@ impl chain_core::property::ChainState for ChainState {
             spent_txos: to.spent_txos,
             removed_utxos: removed_utxos.into_iter().map(|x| x.clone()).collect(),
             added_utxos: Utxos::from_iter(
-                added_utxos.into_iter().map(|(n, v)| (n.clone(), v.clone())))
+                added_utxos.into_iter().map(|(n, v)| (n.clone(), v.clone())),
+            ),
         })
     }
 
@@ -159,8 +160,7 @@ pub struct ClassicChainStateDelta {
 
 const NR_FIELDS: u64 = 10;
 
-impl chain_core::property::ChainStateDelta for ClassicChainStateDelta {
-}
+impl chain_core::property::ChainStateDelta for ClassicChainStateDelta {}
 
 impl chain_core::property::Serializable for ClassicChainStateDelta {
     type Error = cbor_event::Error;
@@ -211,7 +211,7 @@ impl chain_core::property::Serializable for ClassicChainStateDelta {
             nr_transactions,
             spent_txos,
             removed_utxos,
-            added_utxos
+            added_utxos,
         })
     }
 }

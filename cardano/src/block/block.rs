@@ -13,8 +13,8 @@ use super::boundary;
 use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
-use cbor_event::{self, de::Deserializer, de::Deserialize, se::Serializer};
 use crate::tx::TxAux;
+use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
 
 #[derive(Debug, Clone)]
@@ -203,7 +203,6 @@ impl fmt::Display for Block {
 }
 
 impl chain_core::property::Block for Block {
-
     type Id = HeaderHash;
 
     fn id(&self) -> Self::Id {
@@ -222,7 +221,6 @@ impl chain_core::property::Block for Block {
 }
 
 impl chain_core::property::Serializable for Block {
-
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {

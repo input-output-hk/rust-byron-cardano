@@ -75,8 +75,8 @@ pub fn write_chain_state_delta<W: Write>(
     let parent_chain_state = read_chain_state(storage, genesis_data, parent_block)?;
     assert_eq!(&parent_chain_state.last_block, parent_block);
 
-    let (removed_utxos, added_utxos) = cardano::util::diff_maps::diff_maps(
-        &parent_chain_state.utxos, &chain_state.utxos);
+    let (removed_utxos, added_utxos) =
+        cardano::util::diff_maps::diff_maps(&parent_chain_state.utxos, &chain_state.utxos);
 
     debug!(
         "writing chain state delta {} ({:?}) -> {} ({:?}), total {} utxos, added {} utxos, removed {} utxos\n",
