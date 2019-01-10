@@ -43,8 +43,7 @@ impl<'a> iter::Iterator for ReverseIter<'a> {
         let loc = self.storage.block_location(&hash).expect("block location");
         let blk = self.storage.read_block_at(&loc).unwrap();
         let block = blk.decode().unwrap();
-        let hdr = block.get_header();
-        self.current_block = Some(hdr.get_previous_header());
+        self.current_block = Some(block.header().previous_header());
         Some(block)
     }
 }

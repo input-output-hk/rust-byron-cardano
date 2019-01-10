@@ -60,12 +60,12 @@ fn net_sync_to<A: Api>(
         Err(Error::NoSuchTag) => genesis_ref.clone(),
         Err(err) => panic!(err),
         Ok(block) => {
-            let header = block.get_header();
+            let header = block.header();
             (
                 BlockRef {
-                    hash: header.compute_hash().clone(),
-                    parent: header.get_previous_header(),
-                    date: header.get_blockdate(),
+                    hash: header.compute_hash(),
+                    parent: header.previous_header(),
+                    date: header.blockdate(),
                 },
                 false,
             )
@@ -152,10 +152,11 @@ fn net_sync_to<A: Api>(
         loop {
             let block_raw = storage.read_block(&cur_hash.into()).unwrap();
             let block = block_raw.decode().unwrap();
-            let hdr = block.get_header();
-            assert!(hdr.get_blockdate().get_epochid() == first_unstable_epoch);
-            cur_hash = hdr.get_previous_header();
-            if hdr.get_blockdate().is_boundary() {
+            let hdr = block.header();
+            let blockdate = hdr.blockdate();
+            assert!(blockdate.get_epochid() == first_unstable_epoch);
+            cur_hash = hdr.previous_header();
+            if blockdate.is_boundary() {
                 break;
             }
         }
@@ -178,7 +179,7 @@ fn net_sync_to<A: Api>(
         our_tip.1,
         &tip,
         &mut |block_hash, block, block_raw| {
-            let date = block.get_header().get_blockdate();
+            let date = block.header().blockdate();
 
             // Flush the previous epoch (if any). FIXME: shouldn't rely on
             // 'date' here since the block hasn't been verified yet.
@@ -196,11 +197,9 @@ fn net_sync_to<A: Api>(
             }
 
             // FIXME: propagate errors
-            chain_state.verify_block(block_hash, block).expect(&format!(
-                "Block {} ({}) failed to verify",
-                block_hash,
-                block.get_header().get_blockdate()
-            ));
+            chain_state
+                .verify_block(block_hash, block)
+                .expect(&format!("Block {} ({}) failed to verify", block_hash, date));
 
             if date.get_epochid() >= first_unstable_epoch {
                 // This block is not part of a stable epoch yet and could
@@ -340,11 +339,14 @@ fn get_unpacked_blocks_in_epoch(
         let block_raw = storage.read_block(&cur_hash.clone().into()).unwrap();
         blobs_to_delete.push(cur_hash.clone());
         let block = block_raw.decode().unwrap();
-        let hdr = block.get_header();
-        assert!(hdr.get_blockdate().get_epochid() == epoch_id);
+        let (blockdate, prev_hash) = {
+            let hdr = block.header();
+            (hdr.blockdate(), hdr.previous_header())
+        };
+        assert!(blockdate.get_epochid() == epoch_id);
         blocks.push((cur_hash, block_raw, block));
-        cur_hash = hdr.get_previous_header();
-        if hdr.get_blockdate().is_boundary() {
+        cur_hash = prev_hash;
+        if blockdate.is_boundary() {
             break;
         }
     }

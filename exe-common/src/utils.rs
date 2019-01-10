@@ -45,9 +45,10 @@ pub fn get_last_blockid(
     }
     if let Some(blk_raw) = last_blk_raw {
         let blk = block::RawBlock(blk_raw).decode().unwrap();
-        let hdr = blk.get_header();
-        info!("last_blockid: {} {}", hdr.compute_hash(), hdr.get_slotid());
-        Some(hdr.compute_hash())
+        let hdr = blk.header();
+        let hash = hdr.compute_hash();
+        info!("last_blockid: {} {}", &hash, hdr.blockdate());
+        Some(hash)
     } else {
         None
     }

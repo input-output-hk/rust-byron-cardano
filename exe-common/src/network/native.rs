@@ -217,7 +217,7 @@ impl Api for OpenPeer {
             to.hash.clone(),
             &mut |rblk| {
                 let blk = rblk.decode()?;
-                got_block(&blk.get_header().compute_hash(), &blk, &rblk);
+                got_block(&blk.header().compute_hash(), &blk, &rblk);
                 Ok(())
             },
         )?;

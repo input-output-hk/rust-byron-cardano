@@ -58,7 +58,7 @@ impl RawBlock {
     pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode()?;
-        Ok(blk.get_header().to_raw())
+        Ok(blk.header().to_raw())
     }
 }
 
@@ -238,6 +238,7 @@ impl Block {
         }
     }
 
+    #[deprecated(note = "use header() instead")]
     pub fn get_header(&self) -> BlockHeader {
         match self {
             &Block::BoundaryBlock(ref blk) => BlockHeader::BoundaryBlockHeader(blk.header.clone()),
@@ -282,7 +283,7 @@ impl core::property::Block for Block {
     type Header = BlockHeader;
 
     fn id(&self) -> Self::Id {
-        self.get_header().compute_hash()
+        self.header().compute_hash()
     }
 
     fn parent_id(&self) -> Self::Id {
@@ -299,7 +300,7 @@ impl core::property::Block for Block {
     }
 
     fn header(&self) -> BlockHeader {
-        self.get_header()
+        self.header().into()
     }
 }
 
