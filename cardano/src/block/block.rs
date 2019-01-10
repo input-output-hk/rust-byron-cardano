@@ -239,7 +239,8 @@ impl core::property::HasTransaction<TxAux> for Block {
         }
     }
 }
-impl core::property::Serializable for Block {
+
+impl core::property::Serialize for Block {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -248,6 +249,10 @@ impl core::property::Serializable for Block {
         serializer.finalize();
         Ok(())
     }
+}
+
+impl core::property::Deserialize for Block {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         let mut deserializer = cbor_event::de::Deserializer::from(reader);
