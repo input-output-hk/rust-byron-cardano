@@ -22,16 +22,8 @@ use crate::{
 };
 
 use cbor_event::{self, de::Deserializer, se::Serializer};
-use config::ProtocolMagic;
-use merkle;
-use redeem;
-use tags::SigningTag;
 
-use address::{AddrType, Attributes, ExtendedAddr, SpendingData};
-use coin::{self, Coin};
-use hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE};
-
-use chain_core;
+use chain_core::property;
 
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.

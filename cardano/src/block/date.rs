@@ -19,8 +19,6 @@ pub enum BlockDate {
     Normal(EpochSlotId),
 }
 
-impl property::BlockDate for BlockDate {}
-
 impl ::std::ops::Sub<BlockDate> for BlockDate {
     type Output = usize;
     fn sub(self, rhs: Self) -> Self::Output {
@@ -127,7 +125,7 @@ impl str::FromStr for BlockDate {
     }
 }
 
-impl chain_core::property::BlockDate for BlockDate {
+impl property::BlockDate for BlockDate {
     fn serialize(&self) -> u64 {
         match self {
             BlockDate::Boundary(epoch) => epoch << 16,

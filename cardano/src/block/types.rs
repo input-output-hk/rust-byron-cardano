@@ -1,6 +1,5 @@
 use super::normal::SscPayload;
 use cbor_event::{self, de::Deserializer, se::Serializer};
-use chain_core::property;
 use hash::Blake2b256;
 use util::try_from_slice::TryFromSlice;
 
@@ -48,8 +47,6 @@ impl HeaderHash {
         self.0.as_hash_bytes()
     }
 }
-
-impl property::BlockId for HeaderHash {}
 
 impl fmt::Display for HeaderHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

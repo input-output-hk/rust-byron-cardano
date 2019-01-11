@@ -15,8 +15,6 @@
 //!
 #![cfg_attr(feature = "with-bench", feature(test))]
 
-extern crate chain_core;
-
 #[cfg(feature = "generic-serialization")]
 #[macro_use]
 extern crate serde_derive;
