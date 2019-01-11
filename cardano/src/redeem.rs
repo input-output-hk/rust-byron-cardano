@@ -108,7 +108,7 @@ impl fmt::Display for PublicKey {
     }
 }
 
-pub const PRIVATEKEY_SIZE: usize = 64;
+pub const PRIVATEKEY_SIZE: usize = 32;
 
 pub struct PrivateKey([u8; PRIVATEKEY_SIZE]);
 impl fmt::Debug for PrivateKey {
@@ -145,17 +145,18 @@ impl PrivateKey {
         Self::from_slice(&bytes)
     }
 
-    pub fn generate(seed: &[u8]) -> Self {
-        let (sk, _) = ed25519::keypair(seed);
-        Self::from_bytes(sk)
+    pub fn generate(seed: &[u8]) -> Result<Self> {
+        Self::from_slice(seed)
     }
 
     pub fn public(&self) -> PublicKey {
-        PublicKey::from_bytes(ed25519::to_public(&self.0))
+        let (_, pk) = ed25519::keypair(&self.0);
+        PublicKey::from_bytes(pk)
     }
 
     pub fn sign(&self, bytes: &[u8]) -> Signature {
-        Signature::from_bytes(ed25519::signature(bytes, &self.0))
+        let (sk, _) = ed25519::keypair(&self.0);
+        Signature::from_bytes(ed25519::signature(bytes, &sk))
     }
 }
 
