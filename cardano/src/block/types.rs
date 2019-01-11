@@ -103,7 +103,7 @@ impl chain_core::property::Deserialize for HeaderHash {
     }
 }
 
-impl chain_core::property::BlockId for HeaderHash { }
+impl chain_core::property::BlockId for HeaderHash {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct BlockVersion(u16, u16, u8);
