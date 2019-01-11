@@ -86,14 +86,24 @@ impl FromStr for HeaderHash {
     }
 }
 
-impl chain_core::property::BlockId for HeaderHash {
-    fn try_from_slice(slice: &[u8]) -> Option<Self> {
-        match TryFromSlice::try_from_slice(slice) {
-            Ok(x) => Some(x),
-            Err(_) => None,
-        }
+impl chain_core::property::Serialize for HeaderHash {
+    type Error = std::io::Error;
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+        writer.write(self.0.as_hash_bytes())?;
+        Ok(())
     }
 }
+
+impl chain_core::property::Deserialize for HeaderHash {
+    type Error = std::io::Error;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, Self::Error> {
+        let mut buffer = [0; Blake2b256::HASH_SIZE];
+        reader.read_exact(&mut buffer)?;
+        Ok(HeaderHash(Blake2b256::from(buffer)))
+    }
+}
+
+impl chain_core::property::BlockId for HeaderHash { }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct BlockVersion(u16, u16, u8);
