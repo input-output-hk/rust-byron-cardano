@@ -80,6 +80,8 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+impl core::property::Header for BlockHeader {}
+
 /// BlockHeaders is a vector of block headers, as produced by
 /// MsgBlocks.
 #[derive(Debug, Clone)]
@@ -204,6 +206,8 @@ impl fmt::Display for Block {
 
 impl chain_core::property::Block for Block {
     type Id = HeaderHash;
+    type Date = BlockDate;
+    type Header = BlockHeader;
 
     fn id(&self) -> Self::Id {
         self.get_header().compute_hash()
@@ -213,14 +217,28 @@ impl chain_core::property::Block for Block {
         self.get_header().get_previous_header()
     }
 
-    type Date = BlockDate;
-
     fn date(&self) -> Self::Date {
-        self.get_header().get_blockdate()
+        match self {
+            Block::MainBlock(ref block) => block.header.consensus.slot_id.into(),
+            Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
+        }
+    }
+
+    fn header(&self) -> BlockHeader {
+        self.get_header()
     }
 }
 
-impl chain_core::property::Serializable for Block {
+impl core::property::HasTransaction<TxAux> for Block {
+    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
+        match self {
+            &Block::BoundaryBlock(_) => [].iter(),
+            &Block::MainBlock(ref blk) => blk.body.tx.iter(),
+        }
+    }
+}
+
+impl core::property::Serialize for Block {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
@@ -228,6 +246,10 @@ impl chain_core::property::Serializable for Block {
         writer.write(&bytes)?;
         Ok(())
     }
+}
+
+impl core::property::Deserialize for Block {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         Deserialize::deserialize(&mut Deserializer::from(reader))

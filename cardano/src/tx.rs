@@ -11,7 +11,15 @@ use std::{
     io::{BufRead, Write},
 };
 
-use hash::Blake2b256;
+use crate::{
+    address::{AddrType, Attributes, ExtendedAddr, SpendingData},
+    coin::{self, Coin},
+    config::ProtocolMagic,
+    hash::Blake2b256,
+    hdwallet::{Signature, XPrv, XPub, SIGNATURE_SIZE, XPUB_SIZE},
+    merkle, redeem,
+    tags::SigningTag,
+};
 
 use cbor_event::{self, de::Deserializer, se::Serializer};
 use config::ProtocolMagic;
@@ -28,6 +36,9 @@ use chain_core;
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
+
+// FIXME: This is dodgy because TxId is not currently a dedicated type.
+impl property::TransactionId for TxId {}
 
 pub fn redeem_pubkey_to_txid(
     pubkey: &redeem::PublicKey,
@@ -624,7 +635,7 @@ impl cbor_event::de::Deserialize for TxProof {
     }
 }
 
-impl chain_core::property::Serializable for Tx {
+impl chain_core::property::Serialize for Tx {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -633,13 +644,18 @@ impl chain_core::property::Serializable for Tx {
         serializer.finalize();
         Ok(())
     }
+}
+
+impl chain_core::property::Deserialize for Tx {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         let mut deserializer = cbor_event::de::Deserializer::from(reader);
         deserializer.deserialize::<Self>()
     }
 }
-impl chain_core::property::Serializable for TxAux {
+
+impl chain_core::property::Serialize for TxAux {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -648,6 +664,10 @@ impl chain_core::property::Serializable for TxAux {
         serializer.finalize();
         Ok(())
     }
+}
+
+impl chain_core::property::Deserialize for TxAux {
+    type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         let mut deserializer = cbor_event::de::Deserializer::from(reader);
