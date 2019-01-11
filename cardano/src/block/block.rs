@@ -235,9 +235,10 @@ impl chain_core::property::Block for Block {
 impl chain_core::property::Serialize for Block {
     type Error = cbor_event::Error;
 
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
-        let bytes = cbor!(self)?;
-        writer.write(&bytes)?;
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        let mut serializer = cbor_event::se::Serializer::new(writer);
+        serializer.serialize(self)?;
+        serializer.finalize();
         Ok(())
     }
 }
