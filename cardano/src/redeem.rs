@@ -110,6 +110,7 @@ impl fmt::Display for PublicKey {
 
 pub const PRIVATEKEY_SIZE: usize = 32;
 
+#[derive(Clone)]
 pub struct PrivateKey([u8; PRIVATEKEY_SIZE]);
 impl fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -495,6 +496,31 @@ impl<'de> serde::Deserialize<'de> for Signature {
             deserializer.deserialize_str(SignatureVisitor::new())
         } else {
             deserializer.deserialize_bytes(SignatureVisitor::new())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck::{Arbitrary, Gen};
+
+    impl Arbitrary for PrivateKey {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let mut seed = [0u8; PRIVATEKEY_SIZE];
+            for byte in seed.iter_mut() {
+                *byte = u8::arbitrary(g);
+            }
+            PrivateKey::from_bytes(seed)
+        }
+    }
+
+    quickcheck! {
+        fn redeem_signature(stuff: (PrivateKey, Vec<u8>)) -> bool {
+            let (private_key, data) = stuff;
+            let public_key = private_key.public();
+            let signature = private_key.sign(&data);
+            public_key.verify(&signature, &data)
         }
     }
 }
