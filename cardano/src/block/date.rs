@@ -1,5 +1,4 @@
 use super::types::{EpochId, EpochSlotId, SlotId};
-
 use chain_core::property;
 
 use std::{
@@ -18,6 +17,8 @@ pub enum BlockDate {
     Boundary(EpochId),
     Normal(EpochSlotId),
 }
+
+impl property::BlockDate for BlockDate {}
 
 impl ::std::ops::Sub<BlockDate> for BlockDate {
     type Output = usize;
@@ -121,31 +122,6 @@ impl str::FromStr for BlockDate {
                     str::parse::<SlotId>(sp).map_err(|e| BlockDateParseError(BadSlotId(e)))?;
                 Ok(BlockDate::Normal(EpochSlotId { epoch, slotid }))
             }
-        }
-    }
-}
-
-impl property::BlockDate for BlockDate {
-    fn serialize(&self) -> u64 {
-        match self {
-            BlockDate::Boundary(epoch) => epoch << 16,
-            BlockDate::Normal(s) => {
-                assert!(s.slotid < 65535);
-                ((s.epoch as u64) << 16) | ((s.slotid + 1) as u64)
-            }
-        }
-    }
-
-    fn deserialize(n: u64) -> Self {
-        let epoch = n >> 16;
-        let slot = n & 65535;
-        if slot == 0 {
-            BlockDate::Boundary(epoch)
-        } else {
-            BlockDate::Normal(EpochSlotId {
-                epoch,
-                slotid: (slot - 1) as u16,
-            })
         }
     }
 }
