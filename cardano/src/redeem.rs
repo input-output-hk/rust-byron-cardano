@@ -108,8 +108,9 @@ impl fmt::Display for PublicKey {
     }
 }
 
-pub const PRIVATEKEY_SIZE: usize = 64;
+pub const PRIVATEKEY_SIZE: usize = 32;
 
+#[derive(Clone)]
 pub struct PrivateKey([u8; PRIVATEKEY_SIZE]);
 impl fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -145,17 +146,18 @@ impl PrivateKey {
         Self::from_slice(&bytes)
     }
 
-    pub fn generate(seed: &[u8]) -> Self {
-        let (sk, _) = ed25519::keypair(seed);
-        Self::from_bytes(sk)
+    pub fn generate(seed: &[u8]) -> Result<Self> {
+        Self::from_slice(seed)
     }
 
     pub fn public(&self) -> PublicKey {
-        PublicKey::from_bytes(ed25519::to_public(&self.0))
+        let (_, pk) = ed25519::keypair(&self.0);
+        PublicKey::from_bytes(pk)
     }
 
     pub fn sign(&self, bytes: &[u8]) -> Signature {
-        Signature::from_bytes(ed25519::signature(bytes, &self.0))
+        let (sk, _) = ed25519::keypair(&self.0);
+        Signature::from_bytes(ed25519::signature(bytes, &sk))
     }
 }
 
@@ -494,6 +496,31 @@ impl<'de> serde::Deserialize<'de> for Signature {
             deserializer.deserialize_str(SignatureVisitor::new())
         } else {
             deserializer.deserialize_bytes(SignatureVisitor::new())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck::{Arbitrary, Gen};
+
+    impl Arbitrary for PrivateKey {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let mut seed = [0u8; PRIVATEKEY_SIZE];
+            for byte in seed.iter_mut() {
+                *byte = u8::arbitrary(g);
+            }
+            PrivateKey::from_bytes(seed)
+        }
+    }
+
+    quickcheck! {
+        fn redeem_signature(stuff: (PrivateKey, Vec<u8>)) -> bool {
+            let (private_key, data) = stuff;
+            let public_key = private_key.public();
+            let signature = private_key.sign(&data);
+            public_key.verify(&signature, &data)
         }
     }
 }
