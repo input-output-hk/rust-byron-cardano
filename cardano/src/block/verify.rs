@@ -145,7 +145,7 @@ pub fn verify_block(block_hash: &HeaderHash, blk: &Block) -> Result<(), Error> {
         }
     };
 
-    if block_hash != &blk.get_header().compute_hash() {
+    if block_hash != &blk.header().compute_hash() {
         return Err(Error::WrongBlockHash);
     }
 

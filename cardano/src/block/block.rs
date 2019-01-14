@@ -58,7 +58,7 @@ impl RawBlock {
     pub fn to_header(&self) -> cbor_event::Result<RawBlockHeader> {
         // TODO optimise if possible with the CBOR structure by skipping some prefix and some suffix ...
         let blk = self.decode()?;
-        Ok(blk.get_header().to_raw())
+        Ok(blk.header().to_raw())
     }
 }
 
@@ -82,6 +82,26 @@ pub enum BlockHeader {
 
 impl chain_core::property::Header for BlockHeader {}
 
+/// Accessor to the header block data.
+///
+/// `BlockHeaderView` is like `BlockHeader`, but it refers to data
+/// inside a `Block` rather than owning them. It is a lightweight
+/// accessor to block header data.
+#[derive(Debug, Clone)]
+pub enum BlockHeaderView<'a> {
+    Boundary(&'a boundary::BlockHeader),
+    Normal(&'a normal::BlockHeader),
+}
+
+impl<'a> From<BlockHeaderView<'a>> for BlockHeader {
+    fn from(view: BlockHeaderView<'a>) -> BlockHeader {
+        match view {
+            BlockHeaderView::Boundary(hdr) => BlockHeader::BoundaryBlockHeader(hdr.clone()),
+            BlockHeaderView::Normal(hdr) => BlockHeader::MainBlockHeader(hdr.clone()),
+        }
+    }
+}
+
 /// BlockHeaders is a vector of block headers, as produced by
 /// MsgBlocks.
 #[derive(Debug, Clone)]
@@ -97,6 +117,50 @@ impl Deref for BlockHeaders {
 impl DerefMut for BlockHeaders {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<'a> BlockHeaderView<'a> {
+    /// Returns the hash of the previous block.
+    pub fn previous_header(&self) -> HeaderHash {
+        match self {
+            BlockHeaderView::Boundary(hdr) => hdr.previous_header.clone(),
+            BlockHeaderView::Normal(hdr) => hdr.previous_header.clone(),
+        }
+    }
+
+    /// Returns the block date.
+    pub fn blockdate(&self) -> BlockDate {
+        match self {
+            BlockHeaderView::Boundary(hdr) => BlockDate::Boundary(hdr.consensus.epoch),
+            BlockHeaderView::Normal(hdr) => BlockDate::Normal(hdr.consensus.slot_id.clone()),
+        }
+    }
+
+    /// Returns true if the block is the epoch's boundary block,
+    /// otherwise returns false.
+    pub fn is_boundary_block(&self) -> bool {
+        match self {
+            BlockHeaderView::Boundary(_) => true,
+            BlockHeaderView::Normal(_) => false,
+        }
+    }
+
+    fn to_cbor(&self) -> Vec<u8> {
+        // the only reason this would fail is if there was no more memory
+        // to allocate. This would be the users' last concern if it was
+        // the case.
+        cbor!(self).unwrap()
+    }
+
+    /// Serializes the block header into its raw data representation.
+    pub fn to_raw(&self) -> RawBlockHeader {
+        RawBlockHeader(self.to_cbor())
+    }
+
+    /// Computes the hash of the block header data.
+    pub fn compute_hash(&self) -> HeaderHash {
+        HeaderHash::new(&self.to_cbor())
     }
 }
 
@@ -166,6 +230,15 @@ impl Block {
             &Block::MainBlock(_) => false,
         }
     }
+
+    pub fn header(&self) -> BlockHeaderView {
+        match self {
+            Block::BoundaryBlock(blk) => BlockHeaderView::Boundary(&blk.header),
+            Block::MainBlock(blk) => BlockHeaderView::Normal(&blk.header),
+        }
+    }
+
+    #[deprecated(note = "use header() instead")]
     pub fn get_header(&self) -> BlockHeader {
         match self {
             &Block::BoundaryBlock(ref blk) => BlockHeader::BoundaryBlockHeader(blk.header.clone()),
@@ -210,7 +283,7 @@ impl chain_core::property::Block for Block {
     type Header = BlockHeader;
 
     fn id(&self) -> Self::Id {
-        self.get_header().compute_hash()
+        self.header().compute_hash()
     }
 
     fn parent_id(&self) -> Self::Id {
@@ -228,7 +301,7 @@ impl chain_core::property::Block for Block {
     }
 
     fn header(&self) -> BlockHeader {
-        self.get_header()
+        self.header().into()
     }
 }
 
@@ -291,6 +364,19 @@ impl cbor_event::de::Deserialize for Block {
                 "Unsupported Block: {}",
                 idx
             ))),
+        }
+    }
+}
+
+impl<'a> cbor_event::se::Serialize for BlockHeaderView<'a> {
+    fn serialize<'se, W: Write>(
+        &self,
+        serializer: &'se mut Serializer<W>,
+    ) -> cbor_event::Result<&'se mut Serializer<W>> {
+        let serializer = serializer.write_array(cbor_event::Len::Len(2))?;
+        match self {
+            BlockHeaderView::Boundary(hdr) => serializer.write_unsigned_integer(0)?.serialize(hdr),
+            BlockHeaderView::Normal(hdr) => serializer.write_unsigned_integer(1)?.serialize(hdr),
         }
     }
 }

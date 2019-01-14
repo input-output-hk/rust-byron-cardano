@@ -14,7 +14,7 @@ pub fn iter(storage: &Storage, from: BlockHash, to: BlockHash) -> Result<Range> 
     let mut finished = false;
 
     for block in ri {
-        let hash = block.get_header().compute_hash().into();
+        let hash = block.header().compute_hash().into();
         rp.push_front(hash);
         if hash == from {
             finished = true;

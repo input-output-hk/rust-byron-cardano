@@ -284,7 +284,7 @@ pub fn restore_chain_state(
                 // prevent having to read the block again below, but
                 // require more memory.
                 blocks_to_apply.push(cur);
-                cur = blk.get_header().get_previous_header();
+                cur = blk.header().previous_header();
                 continue;
             }
             Err(err) => return Err(err),

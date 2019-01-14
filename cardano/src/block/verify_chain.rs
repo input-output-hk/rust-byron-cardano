@@ -15,7 +15,7 @@ impl ChainState {
         add_error(&mut res, self.do_verify(block_hash, blk));
 
         self.last_block = block_hash.clone();
-        self.last_date = Some(blk.get_header().get_blockdate());
+        self.last_date = Some(blk.header().blockdate());
         // FIXME: count boundary blocks as part of the chain length?
         self.chain_length += 1;
 
@@ -47,7 +47,8 @@ impl ChainState {
             return Err(Error::WrongMagic);
         }
 
-        let prev_block = blk.get_header().get_previous_header();
+        let hdr = blk.header();
+        let prev_block = hdr.previous_header();
         if prev_block != self.last_block {
             return Err(Error::WrongPreviousBlock(
                 prev_block,
@@ -56,7 +57,7 @@ impl ChainState {
         }
 
         // Check the block date.
-        let date = blk.get_header().get_blockdate();
+        let date = hdr.blockdate();
 
         match self.last_date {
             Some(last_date) => {

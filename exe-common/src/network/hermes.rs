@@ -179,19 +179,19 @@ impl Api for HermesEndPoint {
                 while let Some(data) = packfile.next_block()? {
                     let block_raw = block::RawBlock(data);
                     let block = block_raw.decode()?;
-                    let hdr = block.get_header();
+                    let hdr = block.header();
 
-                    assert!(hdr.get_blockdate().get_epochid() == epoch);
+                    assert!(hdr.blockdate().get_epochid() == epoch);
                     //assert!(from.date != hdr.get_blockdate() || from.hash == hdr.compute_hash());
 
-                    if from.date <= hdr.get_blockdate() {
+                    if from.date <= hdr.blockdate() {
                         got_block(&hdr.compute_hash(), &block, &block_raw);
                     }
 
                     from = BlockRef {
                         hash: hdr.compute_hash(),
-                        parent: hdr.get_previous_header(),
-                        date: hdr.get_blockdate(),
+                        parent: hdr.previous_header(),
+                        date: hdr.blockdate(),
                     };
                     inclusive = false;
                 }
@@ -204,10 +204,12 @@ impl Api for HermesEndPoint {
                 loop {
                     let block_raw = self.get_block(&to)?;
                     let block = block_raw.decode()?;
-                    let hdr = block.get_header();
-                    assert!(hdr.get_blockdate() >= from.date);
-                    let prev = hdr.get_previous_header();
-                    blocks.push((hdr.compute_hash(), block, block_raw));
+                    let (prev, hash) = {
+                        let hdr = block.header();
+                        assert!(hdr.blockdate() >= from.date);
+                        (hdr.previous_header(), hdr.compute_hash())
+                    };
+                    blocks.push((hash, block, block_raw));
                     if (inclusive && prev == from.parent) || (!inclusive && prev == from.hash) {
                         break;
                     }

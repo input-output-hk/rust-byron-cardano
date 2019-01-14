@@ -304,7 +304,7 @@ enum ReverseSearch {
 }
 
 fn previous_block(storage: &Storage, block: &Block) -> Block {
-    let prev_hash = block.get_header().get_previous_header();
+    let prev_hash = block.header().previous_header();
     let blk = blob::read(&storage, &header_to_blockhash(&prev_hash))
         .unwrap()
         .decode()
@@ -354,13 +354,13 @@ pub fn resolve_date_to_blockhash(
             Ok(rblk) => {
                 let blk = rblk.decode()?;
                 let found = block_reverse_search_from_tip(storage, &blk, |x| {
-                    match x.get_header().get_blockdate().cmp(date) {
+                    match x.header().blockdate().cmp(date) {
                         Ordering::Equal => Ok(ReverseSearch::Found),
                         Ordering::Greater => Ok(ReverseSearch::Continue),
                         Ordering::Less => Ok(ReverseSearch::Abort),
                     }
                 })?;
-                Ok(found.map(|x| header_to_blockhash(&x.get_header().compute_hash())))
+                Ok(found.map(|x| header_to_blockhash(&x.header().compute_hash())))
             }
         },
     }
@@ -443,9 +443,9 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
 
     while let Some(raw_block) = packreader_block_next(&mut pack)? {
         let block = raw_block.decode()?;
-        let hdr = block.get_header();
+        let hdr = block.header();
         let hash = hdr.compute_hash();
-        let date = hdr.get_blockdate();
+        let date = hdr.blockdate();
 
         // either we have seen genesis yet or not
         match current_state {
@@ -453,7 +453,7 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                 if !hdr.is_boundary_block() {
                     return Err(Error::EpochExpectingBoundary);
                 }
-                current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
+                current_state = Some((hdr.blockdate().get_epochid(), 0, hdr.compute_hash()));
                 rp.append_hash(hash.into());
             }
             Some((current_epoch, expected_slotid, current_prevhash)) => match date.clone() {
@@ -467,12 +467,9 @@ pub fn refpack_epoch_pack<S: AsRef<str>>(storage: &Storage, tag: &S) -> Result<(
                     if slotid.slotid < expected_slotid {
                         return Err(Error::EpochSlotRewind(current_epoch, slotid.slotid));
                     }
-                    if hdr.get_previous_header() != current_prevhash {
-                        return Err(Error::EpochChainInvalid(
-                            date,
-                            hdr.get_previous_header(),
-                            current_prevhash,
-                        ));
+                    let prevhash = hdr.previous_header();
+                    if prevhash != current_prevhash {
+                        return Err(Error::EpochChainInvalid(date, prevhash, current_prevhash));
                     }
 
                     let mut current_slotid = expected_slotid;
@@ -514,10 +511,10 @@ fn epoch_integrity_check(
 
     while let Some(raw_block) = packreader_block_next(&mut pack)? {
         let block = raw_block.decode()?;
-        let hdr = block.get_header();
+        let hdr = block.header();
         let hash = hdr.compute_hash();
-        let prevhash = hdr.get_previous_header();
-        let date = hdr.get_blockdate();
+        let prevhash = hdr.previous_header();
+        let date = hdr.blockdate();
 
         // either we have seen genesis yet or not
         match current_state {
@@ -528,7 +525,7 @@ fn epoch_integrity_check(
                 if last_known_hash != prevhash {
                     return Err(Error::EpochChainInvalid(date, last_known_hash, prevhash));
                 }
-                current_state = Some((hdr.get_blockdate().get_epochid(), 0, hdr.compute_hash()));
+                current_state = Some((date.get_epochid(), 0, hdr.compute_hash()));
             }
             Some((current_epoch, expected_slotid, current_prevhash)) => match date.clone() {
                 cardano::block::BlockDate::Boundary(_) => {

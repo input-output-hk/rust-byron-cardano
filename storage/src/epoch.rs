@@ -47,9 +47,9 @@ pub fn epoch_create(
     let mut last_block = None;
     while let Some(rblk) = packreader_block_next(&mut reader).unwrap() {
         let blk = rblk.decode().unwrap();
-        let hdr = blk.get_header();
+        let hdr = blk.header();
         let hash = hdr.compute_hash();
-        let blockdate = hdr.get_blockdate();
+        let blockdate = hdr.blockdate();
 
         while current_slotid != blockdate {
             rp.append_missing_hash();
