@@ -5,6 +5,7 @@
 
 pub mod block;
 pub mod boundary; /* boundary block related value */
+pub mod chain_state;
 pub mod date;
 pub mod normal; /* normal block related value */
 pub mod sign;
@@ -14,6 +15,7 @@ pub mod verify;
 pub mod verify_chain;
 
 pub use block::block::*;
+pub use block::chain_state::*;
 pub use block::date::BlockDate;
 pub use block::types::*;
 pub use block::verify::*;

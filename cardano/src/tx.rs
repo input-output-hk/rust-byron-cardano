@@ -22,6 +22,7 @@ use crate::{
 };
 
 use cbor_event::{self, de::Deserializer, se::Serializer};
+
 use chain_core::property;
 
 // Transaction IDs are either a hash of the CBOR serialisation of a
@@ -626,7 +627,7 @@ impl cbor_event::de::Deserialize for TxProof {
     }
 }
 
-impl core::property::Serialize for Tx {
+impl chain_core::property::Serialize for Tx {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -637,7 +638,7 @@ impl core::property::Serialize for Tx {
     }
 }
 
-impl core::property::Deserialize for Tx {
+impl chain_core::property::Deserialize for Tx {
     type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
@@ -646,7 +647,7 @@ impl core::property::Deserialize for Tx {
     }
 }
 
-impl core::property::Serialize for TxAux {
+impl chain_core::property::Serialize for TxAux {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -657,7 +658,7 @@ impl core::property::Serialize for TxAux {
     }
 }
 
-impl core::property::Deserialize for TxAux {
+impl chain_core::property::Deserialize for TxAux {
     type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
@@ -666,7 +667,7 @@ impl core::property::Deserialize for TxAux {
     }
 }
 
-impl core::property::Transaction for Tx {
+impl chain_core::property::Transaction for Tx {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
@@ -681,7 +682,7 @@ impl core::property::Transaction for Tx {
         Tx::id(self)
     }
 }
-impl core::property::Transaction for TxAux {
+impl chain_core::property::Transaction for TxAux {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;

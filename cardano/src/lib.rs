@@ -15,8 +15,6 @@
 //!
 #![cfg_attr(feature = "with-bench", feature(test))]
 
-extern crate chain_core;
-
 #[cfg(feature = "generic-serialization")]
 #[macro_use]
 extern crate serde_derive;
@@ -44,7 +42,7 @@ extern crate cryptoxide;
 #[macro_use]
 extern crate cbor_event;
 
-extern crate chain_core as core;
+extern crate chain_core;
 
 pub mod address;
 pub mod coin;

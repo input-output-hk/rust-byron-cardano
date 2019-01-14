@@ -1,5 +1,4 @@
 use super::types::{EpochId, EpochSlotId, SlotId};
-
 use chain_core::property;
 
 use std::{

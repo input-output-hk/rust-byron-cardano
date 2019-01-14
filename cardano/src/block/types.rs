@@ -1,6 +1,5 @@
 use super::normal::SscPayload;
 use cbor_event::{self, de::Deserializer, se::Serializer};
-use chain_core::property;
 use hash::Blake2b256;
 use util::try_from_slice::TryFromSlice;
 
@@ -36,7 +35,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct HeaderHash(Blake2b256);
 impl HeaderHash {
@@ -48,8 +47,6 @@ impl HeaderHash {
         self.0.as_hash_bytes()
     }
 }
-
-impl property::BlockId for HeaderHash {}
 
 impl fmt::Display for HeaderHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -88,6 +85,25 @@ impl FromStr for HeaderHash {
         Ok(Self::from(Blake2b256::from_str(s)?))
     }
 }
+
+impl chain_core::property::Serialize for HeaderHash {
+    type Error = std::io::Error;
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+        writer.write(self.0.as_hash_bytes())?;
+        Ok(())
+    }
+}
+
+impl chain_core::property::Deserialize for HeaderHash {
+    type Error = std::io::Error;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, Self::Error> {
+        let mut buffer = [0; Blake2b256::HASH_SIZE];
+        reader.read_exact(&mut buffer)?;
+        Ok(HeaderHash(Blake2b256::from(buffer)))
+    }
+}
+
+impl chain_core::property::BlockId for HeaderHash {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct BlockVersion(u16, u16, u8);

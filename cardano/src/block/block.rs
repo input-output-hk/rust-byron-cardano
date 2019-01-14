@@ -14,8 +14,8 @@ use super::date::BlockDate;
 use super::normal;
 use super::types::HeaderHash;
 use crate::tx::TxAux;
-use cbor_event::{self, de::Deserializer, se::Serializer};
-use core;
+use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
+use chain_core;
 
 #[derive(Debug, Clone)]
 pub struct RawBlockHeaderMultiple(pub Vec<u8>);
@@ -80,7 +80,7 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
-impl core::property::Header for BlockHeader {}
+impl chain_core::property::Header for BlockHeader {}
 
 /// BlockHeaders is a vector of block headers, as produced by
 /// MsgBlocks.
@@ -204,7 +204,7 @@ impl fmt::Display for Block {
     }
 }
 
-impl core::property::Block for Block {
+impl chain_core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
     type Header = BlockHeader;
@@ -219,6 +219,7 @@ impl core::property::Block for Block {
             Block::BoundaryBlock(ref block) => block.header.previous_header.clone(),
         }
     }
+
     fn date(&self) -> Self::Date {
         match self {
             Block::MainBlock(ref block) => block.header.consensus.slot_id.into(),
@@ -231,16 +232,7 @@ impl core::property::Block for Block {
     }
 }
 
-impl core::property::HasTransaction<TxAux> for Block {
-    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
-        match self {
-            &Block::BoundaryBlock(_) => [].iter(),
-            &Block::MainBlock(ref blk) => blk.body.tx.iter(),
-        }
-    }
-}
-
-impl core::property::Serialize for Block {
+impl chain_core::property::Serialize for Block {
     type Error = cbor_event::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -251,12 +243,20 @@ impl core::property::Serialize for Block {
     }
 }
 
-impl core::property::Deserialize for Block {
+impl chain_core::property::Deserialize for Block {
     type Error = cbor_event::Error;
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        let mut deserializer = cbor_event::de::Deserializer::from(reader);
-        deserializer.deserialize::<Self>()
+        Deserialize::deserialize(&mut Deserializer::from(reader))
+    }
+}
+
+impl chain_core::property::HasTransaction<TxAux> for Block {
+    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
+        match self {
+            &Block::BoundaryBlock(_) => [].iter(),
+            &Block::MainBlock(ref blk) => blk.body.tx.iter(),
+        }
     }
 }
 
