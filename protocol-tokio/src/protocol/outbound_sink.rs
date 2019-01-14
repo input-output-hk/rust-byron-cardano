@@ -6,8 +6,10 @@ use std::{
 use tokio_io::AsyncWrite;
 
 use super::{nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId};
+use std::marker::PhantomData;
 
-pub type Outbound = Message;
+pub type Outbound<Header, BlockId, Block, TransactionId> =
+    Message<Header, BlockId, Block, TransactionId>;
 
 #[derive(Debug)]
 pub enum OutboundError {
@@ -25,11 +27,14 @@ impl From<io::Error> for OutboundError {
     }
 }
 
-pub struct OutboundSink<T> {
+pub struct OutboundSink<T, Header, BlockId, Block, TransactionId> {
     sink: SplitSink<nt::Connection<T>>,
     state: Arc<Mutex<ConnectionState>>,
+    phantoms: PhantomData<(Header,BlockId, Block, TransactionId)>,
 }
-impl<T> OutboundSink<T> {
+impl<T, Header, BlockId, Block, TransactionId>
+    OutboundSink<T, Header, BlockId, Block, TransactionId>
+{
     fn get_next_light_id(&mut self) -> nt::LightWeightConnectionId {
         self.state.lock().unwrap().get_next_light_id()
     }
@@ -38,10 +43,24 @@ impl<T> OutboundSink<T> {
         self.state.lock().unwrap().get_next_node_id()
     }
 }
-
-impl<T: AsyncWrite> OutboundSink<T> {
+impl<T: AsyncWrite, Header, BlockId, Block, TransactionId>
+    OutboundSink<T, Header, BlockId, Block, TransactionId>
+where
+    BlockId: cbor_event::Deserialize,
+    BlockId: cbor_event::Serialize,
+    Block: cbor_event::Deserialize,
+    Block: cbor_event::Serialize,
+    Header: cbor_event::Deserialize,
+    Header: cbor_event::Serialize,
+    TransactionId: cbor_event::Serialize,
+    TransactionId: cbor_event::Deserialize,
+{
     pub fn new(sink: SplitSink<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
-        OutboundSink { sink, state }
+        OutboundSink {
+            sink,
+            state,
+            phantoms: PhantomData,
+        }
     }
 
     /// create a new light weight connection with the remote peer
@@ -125,8 +144,19 @@ impl<T: AsyncWrite> OutboundSink<T> {
     }
 }
 
-impl<T: AsyncWrite> Sink for OutboundSink<T> {
-    type SinkItem = Outbound;
+impl<T: AsyncWrite, Header, BlockId, Block, TransactionId> Sink
+    for OutboundSink<T, Header, BlockId, Block, TransactionId>
+where
+    BlockId: cbor_event::Deserialize,
+    BlockId: cbor_event::Serialize,
+    Block: cbor_event::Deserialize,
+    Block: cbor_event::Serialize,
+    Header: cbor_event::Deserialize,
+    Header: cbor_event::Serialize,
+    TransactionId: cbor_event::Serialize,
+    TransactionId: cbor_event::Deserialize,
+{
+    type SinkItem = Outbound<Header, BlockId, Block, TransactionId>;
     type SinkError = OutboundError;
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {

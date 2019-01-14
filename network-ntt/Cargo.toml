@@ -1,0 +1,22 @@
+[package]
+name = "network-ntt"
+version = "0.1.0"
+authors = [ "Nicolas Di Prima <nicolas.diprima@iohk.io>"
+          , "Vincent Hanquez <vincent.hanquez@iohk.io>"
+          , "Eelco Dolstra <edolstra@gmail.com>"
+          , "Mikhail Zabaluev <mikhail.zabaluev@gmail.com>"
+          , "Alexander Vershilov <alexander.vershilov@gmail.com>"
+          ]
+edition = "2018"
+
+[dependencies]
+slog = "^2.4.1"
+futures = "^0.1"
+tokio = "^0.1"
+network-core = { path = "../network-core" }
+chain-core = { path = "../chain-core" }
+protocol-tokio = { path = "../protocol-tokio" }
+cbor_event = "*"
+
+[dev-dependencies]
+quickcheck = "0.7"

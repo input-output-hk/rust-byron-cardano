@@ -4,7 +4,7 @@ extern crate log;
 extern crate protocol_tokio;
 extern crate tokio;
 
-use protocol_tokio::{Connection, Inbound, Message};
+use protocol_tokio::{Connection, Inbound, InboundStream, Message, OutboundSink};
 
 use futures::{future, sync::mpsc};
 use tokio::net::TcpListener;
@@ -28,7 +28,10 @@ fn main() {
             Connection::accept(stream)
                 .map_err(|err| println!("accepting connection error {:?}", err))
                 .and_then(|connection| {
-                    let (sink, stream) = connection.split();
+                    let (sink, stream): (
+                        OutboundSink<_, u8, u8, u8, u8>,
+                        InboundStream<_, u8, u8, u8, u8>,
+                    ) = connection.split();
 
                     let (sink_tx, sink_rx) = mpsc::unbounded();
 

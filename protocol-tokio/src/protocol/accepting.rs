@@ -11,28 +11,35 @@ use std::{self, io::Cursor, vec};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
-enum AcceptingState<T> {
+enum AcceptingState<T, Header, BlockId, Block, TransactionId> {
     NtAccepting(nt::Accepting<T>),
-    ExpectNewLightWeightId(StreamFuture<Connection<T>>),
-    ExpectHandshake(StreamFuture<Connection<T>>),
-    ExpectNodeId(StreamFuture<Connection<T>>),
-    SendHandshake(SendAll<Connection<T>, IterOk<vec::IntoIter<nt::Event>, std::io::Error>>),
+    ExpectNewLightWeightId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
+    ExpectHandshake(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
+    ExpectNodeId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
+    SendHandshake(
+        SendAll<
+            Connection<T, Header, BlockId, Block, TransactionId>,
+            IterOk<vec::IntoIter<nt::Event>, std::io::Error>,
+        >,
+    ),
     Consumed,
 }
 
-enum Transition<T> {
-    Connected(Connection<T>),
-    ReceivedNewLightWeightId(Connection<T>),
-    ReceivedHandshake(Connection<T>),
-    ReceivedNodeId(Connection<T>),
-    HandshakeSent(Connection<T>),
+enum Transition<T, Header, BlockId, Block, TransactionId> {
+    Connected(Connection<T, Header, BlockId, Block, TransactionId>),
+    ReceivedNewLightWeightId(Connection<T, Header, BlockId, Block, TransactionId>),
+    ReceivedHandshake(Connection<T, Header, BlockId, Block, TransactionId>),
+    ReceivedNodeId(Connection<T, Header, BlockId, Block, TransactionId>),
+    HandshakeSent(Connection<T, Header, BlockId, Block, TransactionId>),
 }
 
-pub struct Accepting<T> {
-    state: AcceptingState<T>,
+pub struct Accepting<T, Header, BlockId, Block, TransactionId> {
+    state: AcceptingState<T, Header, BlockId, Block, TransactionId>,
 }
 
-impl<T: AsyncRead + AsyncWrite> Accepting<T> {
+impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
+    Accepting<T, Header, BlockId, Block, TransactionId>
+{
     pub fn new(inner: T) -> Self {
         Accepting {
             state: AcceptingState::NtAccepting(nt::Connection::accept(inner)),
@@ -40,8 +47,19 @@ impl<T: AsyncRead + AsyncWrite> Accepting<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> Future for Accepting<T> {
-    type Item = Connection<T>;
+impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId> Future
+    for Accepting<T, Header, BlockId, Block, TransactionId>
+where
+    Block: cbor_event::Deserialize,
+    Block: cbor_event::Serialize,
+    BlockId: cbor_event::Deserialize,
+    BlockId: cbor_event::Serialize,
+    Header: cbor_event::Deserialize,
+    Header: cbor_event::Serialize,
+    TransactionId: cbor_event::Deserialize,
+    TransactionId: cbor_event::Serialize,
+{
+    type Item = Connection<T, Header, BlockId, Block, TransactionId>;
     type Error = AcceptingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -128,11 +146,21 @@ impl<T: AsyncRead + AsyncWrite> Future for Accepting<T> {
                 Transition::ReceivedNodeId(mut connection) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
+                    let msg1 : Message<Header,BlockId,Block,TransactionId> =
+                        Message::CreateLightWeightConnectionId(lid);
+                    let msg2 : Message<Header,BlockId,Block,TransactionId> =
+                        Message::Bytes(
+                            lid,
+                            cbor!(Handshake::default()).unwrap().into(),
+                        );
+                    let msg3 : Message<Header,BlockId,Block,TransactionId> =
+
+                        Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, std::io::Error>(vec![
-                        Message::CreateLightWeightConnectionId(lid).to_nt_event(),
-                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into())
-                            .to_nt_event(),
-                        Message::CreateNodeId(lid, nid).to_nt_event(),
+                        msg1.to_nt_event(),
+                        msg2.to_nt_event(),
+                        msg3.to_nt_event(),
+
                     ]);
                     let send_all = connection.send_all(commands);
                     self.state = AcceptingState::SendHandshake(send_all);

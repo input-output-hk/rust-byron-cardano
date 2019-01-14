@@ -10,10 +10,9 @@ description = """
 Cardano full node network protocol using rust's futures for asynchronous
 network connection support.
 """
-keywords = [ "Cardano", "Protocol" ]
+keywords = [ "blockchain", "protocol" ]
 
 [dependencies]
-cardano    = { path = "../cardano" }
 cbor_event = "^2.1.1"
 futures = "^0.1.25"
 tokio-io = "^0.1.9"

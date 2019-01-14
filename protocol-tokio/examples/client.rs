@@ -4,7 +4,7 @@ extern crate log;
 extern crate protocol_tokio;
 extern crate tokio;
 
-use protocol_tokio::{ConnectingError, Connection, Message};
+use protocol_tokio::{ConnectingError, Connection, InboundStream, Message, OutboundSink};
 
 use tokio::net::TcpStream;
 use tokio::prelude::*;
@@ -30,7 +30,10 @@ fn main() {
             Connection::connect(stream)
         })
         .and_then(|connection| {
-            let (sink, stream) = connection.split();
+            let (sink, stream): (
+                OutboundSink<_, u8, u8, u8, u8>,
+                InboundStream<_, u8, u8, u8, u8>,
+            ) = connection.split();
 
             let stream = stream
                 .for_each(move |inbound| {
