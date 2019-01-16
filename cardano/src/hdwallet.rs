@@ -1329,26 +1329,29 @@ mod golden_tests {
         words: &'static str,
     }
 
+    #[derive(Debug, PartialEq, Eq)]
     enum MasterKeyGeneration { RetryOld, PBKDF }
 
-    fn check_derivation(test_index: usize, test: &TestVector) {
-        let mkg = match test.master_key_generation {
-            "retry-old" => MasterKeyGeneration::RetryOld,
-            "pbkdf" => MasterKeyGeneration::PBKDF,
-            _ => panic!(
-                "Unnown master key generation: {}, from test{}",
-                test.master_key_generation, test_index
-            ),
-        };
+    impl TestVector {
+        fn get_master_key_generation(&self) -> MasterKeyGeneration {
+            match self.master_key_generation {
+                "retry-old" => MasterKeyGeneration::RetryOld,
+                "pbkdf" => MasterKeyGeneration::PBKDF,
+                _ => panic!("Unnown master key generation: {}", self.master_key_generation),
+            }
+        }
+        fn get_derivation(&self) -> DerivationScheme {
+            match self.derivation_scheme {
+                "derivation-scheme1" => DerivationScheme::V1,
+                "derivation-scheme2" => DerivationScheme::V2,
+                _ => panic!("Unnown derivation scheme: {}", self.derivation_scheme),
+            }
+        }
+    }
 
-        let scheme = match test.derivation_scheme {
-            "derivation-scheme1" => DerivationScheme::V1,
-            "derivation-scheme2" => DerivationScheme::V2,
-            _ => panic!(
-                "Unnown derivation scheme: {}, from test{}",
-                test.derivation_scheme, test_index
-            ),
-        };
+    fn check_derivation(test_index: usize, test: &TestVector) {
+        let mkg = test.get_master_key_generation();
+        let scheme = test.get_derivation();
 
         let mut xprv = match mkg {
             MasterKeyGeneration::RetryOld => XPrv::generate_from_daedalus_seed(&test.seed),
@@ -1380,6 +1383,10 @@ mod golden_tests {
             .expect("retrieve the mnemonics from the string");
         let entropy = bip39::Entropy::from_mnemonics(&mnemonics)
             .expect("retrieve the entropy from the mnemonics");
+
+        if test.get_master_key_generation() == MasterKeyGeneration::PBKDF {
+            return;
+        }
 
         let entropy_bytes = cbor_event::Value::Bytes(Vec::from(entropy.as_ref()));
         let entropy_cbor = cbor!(&entropy_bytes).expect("encode entropy in cbor");
