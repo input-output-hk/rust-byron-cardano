@@ -1330,14 +1330,20 @@ mod golden_tests {
     }
 
     #[derive(Debug, PartialEq, Eq)]
-    enum MasterKeyGeneration { RetryOld, PBKDF }
+    enum MasterKeyGeneration {
+        RetryOld,
+        PBKDF,
+    }
 
     impl TestVector {
         fn get_master_key_generation(&self) -> MasterKeyGeneration {
             match self.master_key_generation {
                 "retry-old" => MasterKeyGeneration::RetryOld,
                 "pbkdf" => MasterKeyGeneration::PBKDF,
-                _ => panic!("Unnown master key generation: {}", self.master_key_generation),
+                _ => panic!(
+                    "Unnown master key generation: {}",
+                    self.master_key_generation
+                ),
             }
         }
         fn get_derivation(&self) -> DerivationScheme {
@@ -1986,7 +1992,6 @@ mod golden_tests {
                 194, 101, 163, 77, 247, 3, 114, 38, 180, 248, 228,
             ],
         },
-
         TestVector {
             data_to_sign: "Hello World",
             path: &[2147483648],
