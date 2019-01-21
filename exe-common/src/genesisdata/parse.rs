@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use genesisdata::raw;
 
-pub fn parse_genesis_data<R: Read>(json: R) -> config::GenesisData {
+pub fn parse<R: Read>(json: R) -> config::GenesisData {
     // FIXME: use Result
 
     let data_value: serde_json::Value = serde_json::from_reader(json).unwrap();
