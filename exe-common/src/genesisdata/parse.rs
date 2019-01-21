@@ -17,8 +17,8 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
 
     let parse_fee_constant = |s: &str| {
         let n = s.parse::<u64>().unwrap();
-        assert!(n % 1000000 == 0);
-        fee::Milli(n / 1000000)
+        assert!(n % 1000 == 0);
+        fee::Milli::integral(n / 1000)
     };
 
     let mut avvm_distr = BTreeMap::new();

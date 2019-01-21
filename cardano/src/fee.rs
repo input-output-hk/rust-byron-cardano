@@ -59,7 +59,7 @@ impl ::std::fmt::Display for Error {
 
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
-pub struct Milli(pub u64);
+pub struct Milli(u64);
 impl Milli {
     pub fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
@@ -109,9 +109,9 @@ impl Mul for Milli {
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct LinearFee {
     /// this is the minimal fee
-    constant: Milli,
+    pub constant: Milli,
     /// the transaction's size coefficient fee
-    coefficient: Milli,
+    pub coefficient: Milli,
 }
 impl LinearFee {
     pub fn new(constant: Milli, coefficient: Milli) -> Self {
