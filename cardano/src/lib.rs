@@ -44,6 +44,9 @@ extern crate cbor_event;
 
 extern crate chain_core;
 
+#[cfg(test)]
+extern crate base64;
+
 pub mod address;
 pub mod coin;
 pub mod config;

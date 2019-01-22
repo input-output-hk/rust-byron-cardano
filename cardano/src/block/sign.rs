@@ -125,6 +125,32 @@ impl cbor_event::de::Deserialize for ProxySecretKey {
     }
 }
 
+impl ProxySecretKey {
+    /// Verify that 'cert' is a signature from 'issuer_pk' over
+    /// 'delegate_pk' and 'omega'.
+    pub fn verify(&self, protocol_magic: ProtocolMagic) -> bool {
+        // Yes, this really is
+        // CBOR-in-byte-vector-in-CBOR-in-byte-vector...
+        let mut buf2 = vec![];
+        buf2.push('0' as u8);
+        buf2.push('0' as u8);
+        buf2.extend(self.delegate_pk.as_ref());
+        se::Serializer::new(&mut buf2)
+            .serialize(&self.omega)
+            .unwrap();
+
+        let mut buf = vec![];
+        buf.push(tags::SigningTag::ProxySK as u8);
+        se::Serializer::new(&mut buf)
+            .serialize(&protocol_magic)
+            .unwrap()
+            .write_bytes(buf2)
+            .unwrap();
+
+        self.issuer_pk.verify(&buf, &self.cert)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ProxySignature {
     pub psk: ProxySecretKey,
@@ -207,4 +233,31 @@ impl cbor_event::de::Deserialize for BlockSignature {
             ))),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::sign;
+    use base64;
+    use hdwallet;
+
+    #[test]
+    fn test_psk_verify() {
+        let mut psk = sign::ProxySecretKey {
+            omega: 0,
+            issuer_pk: hdwallet::XPub::from_slice(&base64::decode(&"nFhj99RbuDjG5jU3XjRXlUbP+4LStPeiMh7E7l3oWWfwRqjxXg10jUFt+4pKRlnZTrmI4weBWMGpchDJA9MKnA==").unwrap()).unwrap(),
+            delegate_pk: hdwallet::XPub::from_slice(&base64::decode(&"mLujHvc/6KIvUEt2IdnjmVRENEHx9ifl45ZmhZZ8e39+C4fe/HgnKjFtT1M5LjeeSn1Bp8tSAM4WZwL+ECWgsw==").unwrap()).unwrap(),
+            cert: hdwallet::Signature::<()>::from_hex(&"fd30c5ac3f77df733eabe48de391ad6727b6ecd7ee72cc85207075a9bba90365f10455b80f3dbf5cc821f71075f00ebdfcffd30b264b5262c1473fd70125ee05").unwrap()
+        };
+
+        let pm = 1097911063.into();
+
+        assert!(psk.verify(pm));
+
+        psk.omega = 1;
+
+        assert!(!psk.verify(pm));
+    }
+
 }
