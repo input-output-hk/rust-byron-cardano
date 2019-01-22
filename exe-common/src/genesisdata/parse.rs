@@ -59,9 +59,11 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
 
         let psk = cardano::block::sign::ProxySecretKey {
             omega: 0,
-            issuer_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.issuerPk).unwrap()).unwrap(),
-            delegate_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.delegatePk).unwrap()).unwrap(),
-            cert: hdwallet::Signature::<()>::from_hex(&heavy.cert).unwrap()
+            issuer_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.issuerPk).unwrap())
+                .unwrap(),
+            delegate_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.delegatePk).unwrap())
+                .unwrap(),
+            cert: hdwallet::Signature::<()>::from_hex(&heavy.cert).unwrap(),
         };
 
         // Check that the stakeholder ID corresponds to the issuer public key.
