@@ -98,7 +98,7 @@ impl<Addressing> Blackjack<Addressing> {
     }
 
     pub fn new(dust_threshold: Coin, inputs: Vec<Input<Addressing>>) -> Self {
-        let seed = inputs.len() as u64 + *dust_threshold;
+        let seed = inputs.len() as u64 + u64::from(dust_threshold);
         Blackjack {
             inputs: inputs.into_iter().map(|i| (false, i)).collect(),
             total_input_selected: Coin::zero(),
