@@ -6,8 +6,6 @@ extern crate rand;
 extern crate storage_units;
 #[macro_use]
 extern crate log;
-#[cfg(test)]
-extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;
