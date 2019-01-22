@@ -158,9 +158,7 @@ impl ProxySecretKey {
     ) -> Vec<u8> {
         // Yes, this really is
         // CBOR-in-byte-vector-in-CBOR-in-byte-vector...
-        let mut buf2 = vec![];
-        buf2.push('0' as u8);
-        buf2.push('0' as u8);
+        let mut buf2 = vec!['0' as u8, '0' as u8];
         buf2.extend(delegate_pk.as_ref());
         se::Serializer::new(&mut buf2).serialize(&omega).unwrap();
 
