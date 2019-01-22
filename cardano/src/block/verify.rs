@@ -376,13 +376,11 @@ impl Verify for update::UpdateProposal {
             attributes: &self.attributes.clone(),
         };
 
+        buf.push(tags::SigningTag::USProposal as u8);
+
         se::Serializer::new(&mut buf)
-            .serialize(&(tags::SigningTag::USProposal as u8))
-            .unwrap()
-            .serialize(&protocol_magic)
-            .unwrap()
-            .serialize(&to_sign)
-            .unwrap();
+            .serialize(&protocol_magic)?
+            .serialize(&to_sign)?;
 
         if !self.from.verify(
             &buf,

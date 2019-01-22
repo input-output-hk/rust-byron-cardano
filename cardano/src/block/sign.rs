@@ -67,10 +67,9 @@ where
     let mut buf = vec!['0' as u8, '1' as u8];
 
     buf.extend(proxy_sig.psk.issuer_pk.as_ref());
+    buf.push(tag as u8);
 
     se::Serializer::new(&mut buf)
-        .serialize(&(tag as u8))
-        .unwrap()
         .serialize(&protocol_magic)
         .unwrap()
         .serialize(data)
