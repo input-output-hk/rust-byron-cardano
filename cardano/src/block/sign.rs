@@ -129,15 +129,40 @@ impl ProxySecretKey {
     /// Verify that 'cert' is a signature from 'issuer_pk' over
     /// 'delegate_pk' and 'omega'.
     pub fn verify(&self, protocol_magic: ProtocolMagic) -> bool {
+        let buf = Self::data_to_sign(&self.delegate_pk, self.omega, protocol_magic);
+        self.issuer_pk.verify(&buf, &self.cert)
+    }
+
+    /// Use 'issuer_prv' to sign 'delegate_pk' and 'omega' to create a
+    /// ProxySecretKey.
+    pub fn sign(
+        issuer_prv: &hdwallet::XPrv,
+        delegate_pk: hdwallet::XPub,
+        omega: u64,
+        protocol_magic: ProtocolMagic,
+    ) -> Self {
+        let buf = Self::data_to_sign(&delegate_pk, omega, protocol_magic);
+
+        Self {
+            omega,
+            issuer_pk: issuer_prv.public(),
+            delegate_pk,
+            cert: issuer_prv.sign(&buf),
+        }
+    }
+
+    fn data_to_sign(
+        delegate_pk: &hdwallet::XPub,
+        omega: u64,
+        protocol_magic: ProtocolMagic,
+    ) -> Vec<u8> {
         // Yes, this really is
         // CBOR-in-byte-vector-in-CBOR-in-byte-vector...
         let mut buf2 = vec![];
         buf2.push('0' as u8);
         buf2.push('0' as u8);
-        buf2.extend(self.delegate_pk.as_ref());
-        se::Serializer::new(&mut buf2)
-            .serialize(&self.omega)
-            .unwrap();
+        buf2.extend(delegate_pk.as_ref());
+        se::Serializer::new(&mut buf2).serialize(&omega).unwrap();
 
         let mut buf = vec![];
         buf.push(tags::SigningTag::ProxySK as u8);
@@ -147,7 +172,7 @@ impl ProxySecretKey {
             .write_bytes(buf2)
             .unwrap();
 
-        self.issuer_pk.verify(&buf, &self.cert)
+        buf
     }
 }
 
@@ -241,6 +266,7 @@ mod tests {
     use super::sign;
     use base64;
     use hdwallet;
+    use std::str::FromStr;
 
     #[test]
     fn test_psk_verify() {
@@ -258,6 +284,21 @@ mod tests {
         psk.omega = 1;
 
         assert!(!psk.verify(pm));
+    }
+
+    #[test]
+    fn test_psk_sign() {
+        let pm = 328429219.into();
+
+        let issuer_prv = hdwallet::XPrv::from_str("b8b054ec1b92dd4542db35e2f813f013a8d7ee9f53255b26f3ef3dafb74e11462545bd9c85aa0a6f6719a933eba16909c1a2fa0bbb58e9cd98bf9ddbb79f7d50fcfc22db8155f8d6ca0e3a975cb1b6aa5d6e7609b30c99877e469db06b5d5016").unwrap();
+        let delegate_pk = hdwallet::XPub::from_str("695b380fc72ae7d830d46f902a7c9d4057a4b9a7a0be235b87fdf51e698619e033aac8d93fd4cb82785973bb943f2047ddd1e664d4e185e7be634722e108389a").unwrap();
+        let expected_cert = hdwallet::Signature::from_hex("a72bf0119afd1ba5bed56b6521544105b6077c884609666296dbc59275477149a1b8230ce5b6c0fa81e1ec61c717164be57422e86a8f2f5773cdc66da99fcc0e").unwrap();
+
+        let psk = sign::ProxySecretKey::sign(&issuer_prv, delegate_pk, 0, pm);
+
+        assert_eq!(psk.cert, expected_cert);
+
+        assert!(psk.verify(pm));
     }
 
 }
