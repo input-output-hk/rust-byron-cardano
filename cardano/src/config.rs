@@ -9,6 +9,7 @@ use block;
 use cbor_event::{self, de::Deserializer, se::Serializer};
 use coin;
 use fee;
+use hdwallet;
 use redeem;
 use std::{
     collections::BTreeMap,
@@ -138,4 +139,15 @@ pub struct GenesisData {
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
     pub non_avvm_balances: BTreeMap<address::Addr, coin::Coin>,
+    pub boot_stakeholders: BTreeMap<address::StakeholderId, BootStakeholder>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootStakeholder {
+    pub weight: BootStakeWeight,
+    pub issuer_pk: hdwallet::XPub,
+    pub delegate_pk: hdwallet::XPub,
+    pub cert: hdwallet::Signature<()>,
+}
+
+pub type BootStakeWeight = u16;

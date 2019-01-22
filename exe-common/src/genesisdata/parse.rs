@@ -1,5 +1,5 @@
 use base64;
-use cardano::{address, block, coin, config, fee, redeem};
+use cardano::{address, block, coin, config, fee, hdwallet, redeem};
 use serde_json;
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -14,6 +14,8 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
     let data_value: serde_json::Value = serde_json::from_reader(json).unwrap();
     let genesis_prev = block::HeaderHash::new(data_value.to_string().as_bytes());
     let data: raw::GenesisData = serde_json::from_value(data_value.clone()).unwrap();
+
+    let protocol_magic = config::ProtocolMagic::from(data.protocolConsts.protocolMagic);
 
     let parse_fee_constant = |s: &str| {
         let n = s.parse::<u64>().unwrap();
@@ -48,10 +50,41 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
         );
     }
 
+    let mut boot_stakeholders = BTreeMap::new();
+
+    for (stakeholder_id, weight) in &data.bootStakeholders {
+        let heavy = data.heavyDelegation.get(stakeholder_id).unwrap();
+
+        let stakeholder_id = address::StakeholderId::from_str(stakeholder_id).unwrap();
+
+        let psk = cardano::block::sign::ProxySecretKey {
+            omega: 0,
+            issuer_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.issuerPk).unwrap()).unwrap(),
+            delegate_pk: hdwallet::XPub::from_slice(&base64::decode(&heavy.delegatePk).unwrap()).unwrap(),
+            cert: hdwallet::Signature::<()>::from_hex(&heavy.cert).unwrap()
+        };
+
+        // Check that the stakeholder ID corresponds to the issuer public key.
+        assert_eq!(stakeholder_id, address::StakeholderId::new(&psk.issuer_pk));
+
+        // Check that the certificate is correct.
+        assert!(psk.verify(protocol_magic));
+
+        boot_stakeholders.insert(
+            stakeholder_id,
+            config::BootStakeholder {
+                weight: *weight,
+                issuer_pk: psk.issuer_pk,
+                delegate_pk: psk.delegate_pk,
+                cert: psk.cert,
+            },
+        );
+    }
+
     config::GenesisData {
         genesis_prev,
         epoch_stability_depth: data.protocolConsts.k,
-        protocol_magic: config::ProtocolMagic::from(data.protocolConsts.protocolMagic),
+        protocol_magic,
         fee_policy: fee::LinearFee::new(
             parse_fee_constant(&data.blockVersionData.txFeePolicy.summand),
             parse_fee_constant(&data.blockVersionData.txFeePolicy.multiplier),
@@ -60,6 +93,7 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
         non_avvm_balances,
         start_time,
         slot_duration,
+        boot_stakeholders,
     }
 }
 

@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use cardano::config;
 
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
 pub struct GenesisData {
     pub avvmDistr: HashMap<String, String>,
     pub nonAvvmBalances: HashMap<String, String>,
-    pub bootStakeholders: HashMap<String, u32>,
+    pub bootStakeholders: HashMap<String, config::BootStakeWeight>,
+    pub heavyDelegation: HashMap<String, HeavyDelegation>,
     pub protocolConsts: ProtocolConsts,
     pub startTime: u64,
     pub blockVersionData: BlockVersionData,
@@ -52,4 +54,13 @@ pub struct SoftforkRule {
     pub initThd: String,
     pub minThd: String,
     pub thdDecrement: String,
+}
+
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HeavyDelegation {
+    pub issuerPk: String,
+    pub delegatePk: String,
+    pub cert: String,
 }
