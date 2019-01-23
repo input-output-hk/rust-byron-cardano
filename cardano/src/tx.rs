@@ -883,7 +883,10 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        assert_eq!(txinwitness, TxInWitness::new(protocol_magic, &sk, &tx.id()));
+        assert_eq!(
+            txinwitness,
+            TxInWitness::new_extended_pk(protocol_magic, &sk, &tx.id())
+        );
     }
 
     #[test]
@@ -895,7 +898,7 @@ mod tests {
         let seed = hdwallet::Seed::from_bytes(SEED);
         let sk = hdwallet::XPrv::generate_from_seed(&seed);
 
-        let txinwitness = TxInWitness::new(protocol_magic, &sk, &tx.id());
+        let txinwitness = TxInWitness::new_extended_pk(protocol_magic, &sk, &tx.id());
 
         assert!(cbor_event::test_encode_decode(&txinwitness).expect("encode/decode TxInWitness"));
     }
@@ -929,7 +932,7 @@ mod tests {
         // txout of this given transation
 
         // create a TxInWitness (i.e. sign the given transaction)
-        let txinwitness = TxInWitness::new(protocol_magic, &sk, &tx.id());
+        let txinwitness = TxInWitness::new_extended_pk(protocol_magic, &sk, &tx.id());
 
         // check the address is the correct one
         assert!(txinwitness.verify_address(&ea));

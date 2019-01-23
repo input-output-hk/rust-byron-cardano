@@ -148,7 +148,7 @@ impl scheme::Wallet for Wallet {
                 .change(self.derivation_scheme, addressing.address_type())
                 .index(self.derivation_scheme, addressing.index.get_scheme_value());
 
-            let tx_witness = TxInWitness::new(protocol_magic, &key, txid);
+            let tx_witness = TxInWitness::new_extended_pk(protocol_magic, &key, txid);
             witnesses.push(tx_witness);
         }
         witnesses

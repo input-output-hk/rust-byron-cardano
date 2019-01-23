@@ -247,7 +247,7 @@ impl scheme::Wallet for Wallet {
                 .derive(self.derivation_scheme, addressing.0)
                 .derive(self.derivation_scheme, addressing.1);
 
-            let tx_witness = TxInWitness::new(protocol_magic, &key, txid);
+            let tx_witness = TxInWitness::new_extended_pk(protocol_magic, &key, txid);
             witnesses.push(tx_witness);
         }
         witnesses
