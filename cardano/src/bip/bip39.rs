@@ -133,6 +133,7 @@ pub type Result<T> = result::Result<T, Error>;
 /// `Entropy`.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Entropy {
+    Entropy9([u8; 12]),
     Entropy12([u8; 16]),
     Entropy15([u8; 20]),
     Entropy18([u8; 24]),
@@ -179,6 +180,7 @@ impl Entropy {
 
     fn new(t: Type, bytes: &[u8]) -> Self {
         let mut e = match t {
+            Type::Type9Words => Entropy::Entropy9([0u8; 12]),
             Type::Type12Words => Entropy::Entropy12([0u8; 16]),
             Type::Type15Words => Entropy::Entropy15([0u8; 20]),
             Type::Type18Words => Entropy::Entropy18([0u8; 24]),
@@ -196,6 +198,7 @@ impl Entropy {
     #[inline]
     pub fn get_type(&self) -> Type {
         match self {
+            &Entropy::Entropy9(_) => Type::Type9Words,
             &Entropy::Entropy12(_) => Type::Type12Words,
             &Entropy::Entropy15(_) => Type::Type15Words,
             &Entropy::Entropy18(_) => Type::Type18Words,
@@ -206,6 +209,7 @@ impl Entropy {
 
     fn as_mut(&mut self) -> &mut [u8] {
         match self {
+            &mut Entropy::Entropy9(ref mut b) => b.as_mut(),
             &mut Entropy::Entropy12(ref mut b) => b.as_mut(),
             &mut Entropy::Entropy15(ref mut b) => b.as_mut(),
             &mut Entropy::Entropy18(ref mut b) => b.as_mut(),
@@ -230,6 +234,7 @@ impl Entropy {
     ///
     /// | entropy type | checksum size (in bits) |
     /// | ------------ | ----------------------- |
+    /// | 9 words      | 3 bits                  |
     /// | 12 words     | 4 bits                  |
     /// | 15 words     | 5 bits                  |
     /// | 18 words     | 6 bits                  |
@@ -251,6 +256,7 @@ impl Entropy {
     pub fn checksum(&self) -> u8 {
         let hash = self.hash()[0];
         match self.get_type() {
+            Type::Type9Words => (hash >> 5) & 0b0000_0111,
             Type::Type12Words => (hash >> 4) & 0b0000_1111,
             Type::Type15Words => (hash >> 3) & 0b0001_1111,
             Type::Type18Words => (hash >> 2) & 0b0011_1111,
@@ -359,6 +365,7 @@ impl fmt::Debug for Entropy {
 impl AsRef<[u8]> for Entropy {
     fn as_ref(&self) -> &[u8] {
         match self {
+            &Entropy::Entropy9(ref b) => b.as_ref(),
             &Entropy::Entropy12(ref b) => b.as_ref(),
             &Entropy::Entropy15(ref b) => b.as_ref(),
             &Entropy::Entropy18(ref b) => b.as_ref(),
@@ -376,6 +383,7 @@ impl Deref for Entropy {
 impl Drop for Entropy {
     fn drop(&mut self) {
         match self {
+            Entropy::Entropy9(b) => securemem::zero(b),
             Entropy::Entropy12(b) => securemem::zero(b),
             Entropy::Entropy15(b) => securemem::zero(b),
             Entropy::Entropy18(b) => securemem::zero(b),
@@ -561,6 +569,7 @@ impl fmt::Display for MnemonicString {
 ///
 /// | number of words | entropy size (bits) | checksum size (bits)  |
 /// | --------------- | ------------------- | --------------------- |
+/// | 9               | 96                  | 3                     |
 /// | 12              | 128                 | 4                     |
 /// | 15              | 160                 | 5                     |
 /// | 18              | 192                 | 6                     |
@@ -570,6 +579,7 @@ impl fmt::Display for MnemonicString {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Type {
+    Type9Words,
     Type12Words,
     Type15Words,
     Type18Words,
@@ -579,6 +589,7 @@ pub enum Type {
 impl Type {
     pub fn from_word_count(len: usize) -> Result<Self> {
         match len {
+            9 => Ok(Type::Type9Words),
             12 => Ok(Type::Type12Words),
             15 => Ok(Type::Type15Words),
             18 => Ok(Type::Type18Words),
@@ -590,6 +601,7 @@ impl Type {
 
     pub fn from_entropy_size(len: usize) -> Result<Self> {
         match len {
+            96 => Ok(Type::Type9Words),
             128 => Ok(Type::Type12Words),
             160 => Ok(Type::Type15Words),
             192 => Ok(Type::Type18Words),
@@ -601,6 +613,7 @@ impl Type {
 
     pub fn to_key_size(&self) -> usize {
         match self {
+            &Type::Type9Words => 96,
             &Type::Type12Words => 128,
             &Type::Type15Words => 160,
             &Type::Type18Words => 192,
@@ -611,6 +624,7 @@ impl Type {
 
     pub fn checksum_size_bits(&self) -> usize {
         match self {
+            &Type::Type9Words => 3,
             &Type::Type12Words => 4,
             &Type::Type15Words => 5,
             &Type::Type18Words => 6,
@@ -621,6 +635,7 @@ impl Type {
 
     pub fn mnemonic_count(&self) -> usize {
         match self {
+            &Type::Type9Words => 9,
             &Type::Type12Words => 12,
             &Type::Type15Words => 15,
             &Type::Type18Words => 18,
@@ -637,6 +652,7 @@ impl Default for Type {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            &Type::Type9Words => write!(f, "9"),
             &Type::Type12Words => write!(f, "12"),
             &Type::Type15Words => write!(f, "15"),
             &Type::Type18Words => write!(f, "18"),
@@ -649,6 +665,7 @@ impl str::FromStr for Type {
     type Err = &'static str;
     fn from_str(s: &str) -> result::Result<Self, Self::Err> {
         match s {
+            "9" => Ok(Type::Type9Words),
             "12" => Ok(Type::Type12Words),
             "15" => Ok(Type::Type15Words),
             "18" => Ok(Type::Type18Words),
