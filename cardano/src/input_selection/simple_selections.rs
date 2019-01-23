@@ -323,7 +323,7 @@ mod test {
             let key = private_keys
                 .get(&input.ptr)
                 .expect("this should always successfully finds the private key");
-            let witness = tx::TxInWitness::new(protocol_magic, key, &txid);
+            let witness = tx::TxInWitness::new_extended_pk(protocol_magic, key, &txid);
             witnesses.push(witness);
         }
         let expected_fee = fee_alg
