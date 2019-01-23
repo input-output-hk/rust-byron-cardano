@@ -121,16 +121,40 @@ impl TxInWitness {
     }
 
     /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
+    #[deprecated(note = "use new_extended_pk method instead")]
     pub fn new(protocol_magic: ProtocolMagic, key: &XPrv, txid: &TxId) -> Self {
+        Self::new_extended_pk(protocol_magic, key, txid)
+    }
+
+    /// create a TxInWitness from a given private key `XPrv` for the given transaction id `TxId`.
+    pub fn new_extended_pk(protocol_magic: ProtocolMagic, key: &XPrv, txid: &TxId) -> Self {
+        let vec = Self::prepare_byte_to_sign(protocol_magic, SigningTag::Tx, txid);
+        TxInWitness::PkWitness(key.public(), key.sign(&vec))
+    }
+
+    /// create a TxInWitness from a given Redeem key
+    pub fn new_redeem_pk(
+        protocol_magic: ProtocolMagic,
+        key: &redeem::PrivateKey,
+        txid: &TxId,
+    ) -> Self {
+        let vec = Self::prepare_byte_to_sign(protocol_magic, SigningTag::RedeemTx, txid);
+        TxInWitness::RedeemWitness(key.public(), key.sign(&vec))
+    }
+
+    fn prepare_byte_to_sign(
+        protocol_magic: ProtocolMagic,
+        sign_tag: SigningTag,
+        txid: &TxId,
+    ) -> Vec<u8> {
         let mut se = Serializer::new_vec();
-        se.write_unsigned_integer(1)
-            .expect("write byte 0x01")
+        se.write_unsigned_integer(sign_tag as u64)
+            .expect("write the sign tag")
             .serialize(&protocol_magic)
             .expect("serialize protocol magic")
-            .serialize(&txid)
+            .serialize(txid)
             .expect("serialize Tx's Id");
-        let vec = se.finalize();
-        TxInWitness::PkWitness(key.public(), key.sign(&vec))
+        se.finalize()
     }
 
     /// verify a given extended address is associated to the witness.
@@ -156,14 +180,7 @@ impl TxInWitness {
     /// verify the signature against the given transation `Tx`
     ///
     pub fn verify_tx(&self, protocol_magic: ProtocolMagic, tx: &Tx) -> bool {
-        let mut se = Serializer::new_vec();
-        se.write_unsigned_integer(self.get_sign_tag() as u64)
-            .expect("write sign tag")
-            .serialize(&protocol_magic)
-            .expect("serialize protocol magic")
-            .serialize(&tx.id())
-            .expect("serialize Tx's Id");
-        let vec = se.finalize();
+        let vec = Self::prepare_byte_to_sign(protocol_magic, self.get_sign_tag(), &tx.id());
         match self {
             &TxInWitness::PkWitness(ref pk, ref sig) => pk.verify(&vec, sig),
             &TxInWitness::ScriptWitness(_, _) => unimplemented!(),
