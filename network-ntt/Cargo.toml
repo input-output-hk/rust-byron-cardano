@@ -16,7 +16,7 @@ tokio = "^0.1"
 network-core = { path = "../network-core" }
 chain-core = { path = "../chain-core" }
 protocol-tokio = { path = "../protocol-tokio" }
-cbor_event = "*"
+cbor_event = "^2.1"
 
 [dev-dependencies]
 quickcheck = "0.7"

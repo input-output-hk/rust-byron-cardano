@@ -12,6 +12,8 @@ extern crate log;
 #[macro_use]
 extern crate quickcheck;
 
+extern crate chain_core;
+
 pub mod network_transport;
 pub mod protocol;
 

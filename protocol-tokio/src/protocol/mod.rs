@@ -4,6 +4,8 @@ mod connecting;
 mod inbound_stream;
 mod outbound_sink;
 
+use chain_core::property;
+
 use super::network_transport as nt;
 
 use futures::{Poll, Sink, StartSend, Stream};
@@ -16,8 +18,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use self::accepting::{Accepting, AcceptingError};
 pub use self::codec::{
-    BlockHeaders, GetBlockHeaders, GetBlocks, HandlerSpec, HandlerSpecs, Handshake,
-    KeepAlive, Message, MessageType, NodeId, Response,
+    BlockHeaders, GetBlockHeaders, GetBlocks, HandlerSpec, HandlerSpecs, Handshake, KeepAlive,
+    Message, MessageType, NodeId, Response,
 };
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
@@ -66,14 +68,14 @@ impl ConnectionState {
 ///
 /// Once established call `split` to get the inbound stream
 /// and the outbound sink and starts processing queries
-pub struct Connection<T, Header, BlockId, Block, TransactionId> {
+pub struct Connection<T, B: property::Block, Tx: property::TransactionId> {
     connection: nt::Connection<T>,
     state: Arc<Mutex<ConnectionState>>,
-    phantoms: PhantomData<(Header, BlockId, Block, TransactionId)>,
+    phantoms: PhantomData<(B, Tx)>,
 }
 
-impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
-    Connection<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId>
+    Connection<T, B, Tx>
 {
     fn new(connection: nt::Connection<T>) -> Self {
         Connection {
@@ -93,30 +95,25 @@ impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
 
     /// this function is to use when establishing a connection with
     /// with a remote.
-    pub fn connect(inner: T) -> Connecting<T, Header, BlockId, Block, TransactionId> {
+    pub fn connect(inner: T) -> Connecting<T, B, Tx> {
         Connecting::new(inner)
     }
 
     /// this function is to use when receiving inbound connection
-    pub fn accept(inner: T) -> Accepting<T, Header, BlockId, Block, TransactionId> {
+    pub fn accept(inner: T) -> Accepting<T, B, Tx> {
         Accepting::new(inner)
     }
 
-    pub fn split(
-        self,
-    ) -> (
-        OutboundSink<T, Header, BlockId, Block, TransactionId>,
-        InboundStream<T, Header, BlockId, Block, TransactionId>,
-    )
+    pub fn split(self) -> (OutboundSink<T, B, Tx>, InboundStream<T, B, Tx>)
     where
-        Header: cbor_event::Serialize,
-        Header: cbor_event::Deserialize,
-        BlockId: cbor_event::Serialize,
-        BlockId: cbor_event::Deserialize,
-        Block: cbor_event::Serialize,
-        Block: cbor_event::Deserialize,
-        TransactionId: cbor_event::Serialize,
-        TransactionId: cbor_event::Deserialize,
+        B::Header: cbor_event::Serialize,
+        B::Header: cbor_event::Deserialize,
+        B::Id: cbor_event::Serialize,
+        B::Id: cbor_event::Deserialize,
+        B: cbor_event::Serialize,
+        B: cbor_event::Deserialize,
+        Tx: cbor_event::Serialize,
+        Tx: cbor_event::Deserialize,
     {
         let state = self.state;
         let (sink, stream) = self.connection.split();
@@ -128,8 +125,8 @@ impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
     }
 }
 
-impl<T: AsyncRead, Header, BlockId, Block, TransactionId> Stream
-    for Connection<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead, B: property::Block, Tx: property::TransactionId> Stream
+    for Connection<T, B, Tx>
 {
     type Item = nt::Event;
     type Error = nt::DecodeEventError;
@@ -138,9 +135,7 @@ impl<T: AsyncRead, Header, BlockId, Block, TransactionId> Stream
         self.connection.poll()
     }
 }
-impl<T: AsyncWrite, Header, BlockId, Block, TransactionId> Sink
-    for Connection<T, Header, BlockId, Block, TransactionId>
-{
+impl<T: AsyncWrite, B: property::Block, Tx: property::TransactionId> Sink for Connection<T, B, Tx> {
     type SinkItem = nt::Event;
     type SinkError = io::Error;
 

@@ -7,38 +7,34 @@ use futures::{
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::de::Deserializer;
-use std::{self, io::Cursor, vec};
+use chain_core::property;
+use std::{self, io::Cursor, vec, fmt};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
-enum AcceptingState<T, Header, BlockId, Block, TransactionId> {
+enum AcceptingState<T, B: property::Block, Tx: property::TransactionId> {
     NtAccepting(nt::Accepting<T>),
-    ExpectNewLightWeightId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
-    ExpectHandshake(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
-    ExpectNodeId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
-    SendHandshake(
-        SendAll<
-            Connection<T, Header, BlockId, Block, TransactionId>,
-            IterOk<vec::IntoIter<nt::Event>, std::io::Error>,
-        >,
-    ),
+    ExpectNewLightWeightId(StreamFuture<Connection<T, B, Tx>>),
+    ExpectHandshake(StreamFuture<Connection<T, B, Tx>>),
+    ExpectNodeId(StreamFuture<Connection<T, B, Tx>>),
+    SendHandshake(SendAll<Connection<T, B, Tx>, IterOk<vec::IntoIter<nt::Event>, std::io::Error>>),
     Consumed,
 }
 
-enum Transition<T, Header, BlockId, Block, TransactionId> {
-    Connected(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedNewLightWeightId(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedHandshake(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedNodeId(Connection<T, Header, BlockId, Block, TransactionId>),
-    HandshakeSent(Connection<T, Header, BlockId, Block, TransactionId>),
+enum Transition<T, B: property::Block, Tx: property::TransactionId> {
+    Connected(Connection<T, B, Tx>),
+    ReceivedNewLightWeightId(Connection<T, B, Tx>),
+    ReceivedHandshake(Connection<T, B, Tx>),
+    ReceivedNodeId(Connection<T, B, Tx>),
+    HandshakeSent(Connection<T, B, Tx>),
 }
 
-pub struct Accepting<T, Header, BlockId, Block, TransactionId> {
-    state: AcceptingState<T, Header, BlockId, Block, TransactionId>,
+pub struct Accepting<T, B: property::Block, Tx: property::TransactionId> {
+    state: AcceptingState<T, B, Tx>,
 }
 
-impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
-    Accepting<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
+    Accepting<T, B, Tx>
 {
     pub fn new(inner: T) -> Self {
         Accepting {
@@ -47,19 +43,19 @@ impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId> Future
-    for Accepting<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Future
+    for Accepting<T, B, Tx>
 where
-    Block: cbor_event::Deserialize,
-    Block: cbor_event::Serialize,
-    BlockId: cbor_event::Deserialize,
-    BlockId: cbor_event::Serialize,
-    Header: cbor_event::Deserialize,
-    Header: cbor_event::Serialize,
-    TransactionId: cbor_event::Deserialize,
-    TransactionId: cbor_event::Serialize,
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
+    Tx: cbor_event::Serialize,
 {
-    type Item = Connection<T, Header, BlockId, Block, TransactionId>;
+    type Item = Connection<T, B, Tx>;
     type Error = AcceptingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -146,21 +142,14 @@ where
                 Transition::ReceivedNodeId(mut connection) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
-                    let msg1 : Message<Header,BlockId,Block,TransactionId> =
-                        Message::CreateLightWeightConnectionId(lid);
-                    let msg2 : Message<Header,BlockId,Block,TransactionId> =
-                        Message::Bytes(
-                            lid,
-                            cbor!(Handshake::default()).unwrap().into(),
-                        );
-                    let msg3 : Message<Header,BlockId,Block,TransactionId> =
-
-                        Message::CreateNodeId(lid, nid);
+                    let msg1: Message<B, Tx> = Message::CreateLightWeightConnectionId(lid);
+                    let msg2: Message<B, Tx> =
+                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into());
+                    let msg3: Message<B, Tx> = Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, std::io::Error>(vec![
                         msg1.to_nt_event(),
                         msg2.to_nt_event(),
                         msg3.to_nt_event(),
-
                     ]);
                     let send_all = connection.send_all(commands);
                     self.state = AcceptingState::SendHandshake(send_all);
@@ -199,5 +188,28 @@ impl From<nt::AcceptingError> for AcceptingError {
 impl From<nt::DecodeEventError> for AcceptingError {
     fn from(e: nt::DecodeEventError) -> Self {
         AcceptingError::EventDecodeError(e)
+    }
+}
+impl std::error::Error for AcceptingError  {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            AcceptingError::IoError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for AcceptingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AcceptingError::NtError(e) => write!(f, "network transport error: {:?}", e),
+            AcceptingError::IoError(_) => write!(f, "IO error"),
+            AcceptingError::EventDecodeError(e) => write!(f, "event decode error: {:?}", e),
+            AcceptingError::ConnectionClosed => write!(f, "connection closed"),
+            AcceptingError::ExpectedNewLightWeightConnectionId => write!(f, "expected new lightweight connection id"),
+            AcceptingError::ExpectedHandshake => write!(f, "expected handshake"),
+            AcceptingError::InvalidHandshake(e) => write!(f, "invalid handshake: {:?}", e),
+            AcceptingError::ExpectedNodeId => write!(f, "expected node id"),
+            AcceptingError::AlreadyConnected => write!(f, "already connected"),
+        }
     }
 }

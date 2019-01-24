@@ -1,5 +1,7 @@
 use std::{io::Cursor, vec};
 
+use chain_core::property;
+
 use bytes::{Buf, IntoBuf};
 use futures::{
     sink::SendAll,
@@ -12,34 +14,31 @@ use cbor_event::{self, de::Deserializer};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
-enum ConnectingState<T, Header, BlockId, Block, TransactionId> {
+enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
     NtConnecting(nt::Connecting<T>),
     SendHandshake(
-        SendAll<
-            Connection<T, Header, BlockId, Block, TransactionId>,
-            IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>,
-        >,
+        SendAll<Connection<T, B, Tx>, IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>>,
     ),
-    ExpectNewLightWeightId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
-    ExpectHandshake(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
-    ExpectNodeId(StreamFuture<Connection<T, Header, BlockId, Block, TransactionId>>),
+    ExpectNewLightWeightId(StreamFuture<Connection<T, B, Tx>>),
+    ExpectHandshake(StreamFuture<Connection<T, B, Tx>>),
+    ExpectNodeId(StreamFuture<Connection<T, B, Tx>>),
     Consumed,
 }
 
-enum Transition<T, Header, BlockId, Block, TransactionId> {
-    Connected(Connection<T, Header, BlockId, Block, TransactionId>),
-    HandshakeSent(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedNewLightWeightId(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedHandshake(Connection<T, Header, BlockId, Block, TransactionId>),
-    ReceivedNodeId(Connection<T, Header, BlockId, Block, TransactionId>),
+enum Transition<T, B: property::Block, Tx: property::TransactionId> {
+    Connected(Connection<T, B, Tx>),
+    HandshakeSent(Connection<T, B, Tx>),
+    ReceivedNewLightWeightId(Connection<T, B, Tx>),
+    ReceivedHandshake(Connection<T, B, Tx>),
+    ReceivedNodeId(Connection<T, B, Tx>),
 }
 
-pub struct Connecting<T, Header, BlockId, Block, TransactionId> {
-    state: ConnectingState<T, Header, BlockId, Block, TransactionId>,
+pub struct Connecting<T, B: property::Block, Tx: property::TransactionId> {
+    state: ConnectingState<T, B, Tx>,
 }
 
-impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
-    Connecting<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
+    Connecting<T, B, Tx>
 {
     pub fn new(inner: T) -> Self {
         Connecting {
@@ -48,19 +47,19 @@ impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite, Header, BlockId, Block, TransactionId> Future
-    for Connecting<T, Header, BlockId, Block, TransactionId>
+impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Future
+    for Connecting<T, B, Tx>
 where
-    Block: cbor_event::Deserialize,
-    Block: cbor_event::Serialize,
-    BlockId: cbor_event::Deserialize,
-    BlockId: cbor_event::Serialize,
-    Header: cbor_event::Deserialize,
-    Header: cbor_event::Serialize,
-    TransactionId: cbor_event::Deserialize,
-    TransactionId: cbor_event::Serialize,
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
+    Tx: cbor_event::Serialize,
 {
-    type Item = Connection<T, Header, BlockId, Block, TransactionId>;
+    type Item = Connection<T, B, Tx>;
     type Error = ConnectingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -139,15 +138,10 @@ where
                 Transition::Connected(mut connection) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
-                    let msg1 : Message<Header,BlockId,Block,TransactionId> =
-                        Message::CreateLightWeightConnectionId(lid);
-                    let msg2 : Message<Header,BlockId,Block,TransactionId> =
-                        Message::Bytes(
-                            lid,
-                            cbor!(Handshake::default()).unwrap().into(),
-                        );
-                    let msg3 : Message<Header,BlockId,Block,TransactionId> =
-                        Message::CreateNodeId(lid, nid);
+                    let msg1: Message<B, Tx> = Message::CreateLightWeightConnectionId(lid);
+                    let msg2: Message<B, Tx> =
+                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into());
+                    let msg3: Message<B, Tx> = Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, ::std::io::Error>(vec![
                         msg1.to_nt_event(),
                         msg2.to_nt_event(),

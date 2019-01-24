@@ -12,6 +12,7 @@ use cbor_event::{
 
 use super::super::nt;
 use super::NodeId;
+use chain_core::property;
 
 pub type MessageCode = u32;
 
@@ -75,7 +76,7 @@ impl de::Deserialize for MessageType {
 pub type KeepAlive = bool;
 
 #[derive(Clone, Debug)]
-pub enum Message<Header, BlockId, Block, TransactionId> {
+pub enum Message<B: property::Block + property::HasHeader, Tx: property::TransactionId> {
     CreateLightWeightConnectionId(nt::LightWeightConnectionId),
     CloseConnection(nt::LightWeightConnectionId),
     CloseEndPoint(nt::LightWeightConnectionId),
@@ -86,28 +87,28 @@ pub enum Message<Header, BlockId, Block, TransactionId> {
     AckNodeId(nt::LightWeightConnectionId, NodeId),
     Bytes(nt::LightWeightConnectionId, Bytes),
 
-    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders<BlockId>),
+    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders<B::Id>),
     BlockHeaders(
         nt::LightWeightConnectionId,
-        Response<BlockHeaders<Header>, String>,
+        Response<BlockHeaders<B::Header>, String>,
     ),
-    GetBlocks(nt::LightWeightConnectionId, GetBlocks<BlockId>),
-    Block(nt::LightWeightConnectionId, Response<Block, String>),
-    SendTransaction(nt::LightWeightConnectionId, TransactionId),
+    GetBlocks(nt::LightWeightConnectionId, GetBlocks<B::Id>),
+    Block(nt::LightWeightConnectionId, Response<B, String>),
+    SendTransaction(nt::LightWeightConnectionId, Tx),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
 }
 
-impl<Header, BlockId, Block, TransactionId> Message<Header, BlockId, Block, TransactionId>
+impl<B: property::Block + property::HasHeader, Tx: property::TransactionId> Message<B, Tx>
 where
-    BlockId: cbor_event::Deserialize,
-    BlockId: cbor_event::Serialize,
-    Block: cbor_event::Deserialize,
-    Block: cbor_event::Serialize,
-    Header: cbor_event::Deserialize,
-    Header: cbor_event::Serialize,
-    TransactionId: cbor_event::Serialize,
-    TransactionId: cbor_event::Deserialize,
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
 {
     pub fn to_nt_event(self) -> nt::Event {
         use self::nt::{ControlHeader::*, Event::*};
@@ -201,10 +202,10 @@ where
     }
 }
 
-fn decode_node_ack_or_syn<Header, BlockId, Block, TransactionId>(
+fn decode_node_ack_or_syn<B: property::Block + property::HasHeader, Tx: property::TransactionId>(
     lwcid: nt::LightWeightConnectionId,
     bytes: &Bytes,
-) -> Option<Message<Header, BlockId, Block, TransactionId>> {
+) -> Option<Message<B, Tx>> {
     use bytes::{Buf, IntoBuf};
     if bytes.len() != 9 {
         return None;

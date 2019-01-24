@@ -30,12 +30,19 @@
 //! As NT state is shared all the services could provide a uniform
 //! access to the chain state. And one could build very flexible
 //! topology.
+mod error;
+
 use cbor_event;
 use futures::{future, prelude::*, stream::Stream, sync::mpsc};
-use network_core::server::{self, block::BlockService, transaction::TransactionService};
+use network_core::server::{self, block::BlockService, block::HeaderService, transaction::TransactionService};
 use protocol::{Inbound, Message};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
+use error::Error;
+use error::ErrorKind;
+
+use chain_core::property;
+
 
 /// Internal structure of network transport node.
 #[derive(Clone)]
@@ -53,79 +60,60 @@ pub fn listen(
     Ok(stream)
 }
 
-//pub struct Connection<N,F>(F,Server<N>)
-pub struct Connection<F>(F)
-where
-    F: future::Future<Item = (), Error = ()>;
-
-//impl<N,F> Future for Connection<N,F>
-impl<F> Future for Connection<F>
-where
-    F: future::Future<Item = (), Error = ()>,
-{
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<(), ()> {
-        self.0.poll()
-    }
-}
-
 /// Run a server that will listen on a specific sockets
 /// and accept all incomming connections.
 /// Server maintains all of the incomming connection and
 /// `run_connection` is spawned on each of those connections.
-pub fn accept<N: 'static, F>(
+pub fn accept<N: 'static>(
     stream: TcpStream,
     node: Server<N>,
-) -> impl future::Future<Item = Connection<impl futures::future::Future>, Error = ()>
+) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
 where
     N: server::Node + Clone,
-    F: future::Future<Item = (), Error = ()>,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::se::Serialize,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::de::Deserialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
 {
     protocol::Connection::accept(stream)
-        .map_err(|_| ())
+        .map_err(move |err| Error::new(ErrorKind::Handshake, err))
         .and_then(move |connection| {
-            let node = node.clone();
-            Ok(Connection(run_connection(node, connection)))
-        })
+        let node = node.clone();
+        Ok(run_connection(node, connection))
+    })
 }
 
 /// Connect to another client.
 /// `run_connection` is spawned on the single heavyweight
 /// connection.
-pub fn connect<N: 'static, F>(
+pub fn connect<N: 'static>(
     sockaddr: SocketAddr,
     node: Server<N>,
-) -> impl future::Future<Item = Connection<impl futures::future::Future>, Error = ()>
+) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
 where
     N: server::Node + Clone,
-    F: future::Future<Item = (), Error = ()>,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::se::Serialize,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header: cbor_event::de::Deserialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::se::Serialize + cbor_event::de::Deserialize
 {
     TcpStream::connect(&sockaddr)
-        .map_err(move |_err| ())
+        .map_err(move |err| Error::new(ErrorKind::Connect, err))
         .and_then(move |stream| {
             protocol::Connection::connect(stream)
-                .map_err(move |_err| ())
+                .map_err(move |err| Error::new(ErrorKind::Handshake, err))
                 .and_then(move |connection| {
                     let node = node.clone();
-                    Ok(Connection(run_connection(node, connection)))
+                    Ok(run_connection(node, connection))
                 })
         })
 }
@@ -137,22 +125,20 @@ where
 pub fn run_connection<N, T>(
     server: Server<N>,
     connection: protocol::Connection<T,
-        <<N as server::Node>::BlockService as server::block::BlockService>::Header,
-        <<N as server::Node>::BlockService as server::block::BlockService>::BlockId,
-        <<N as server::Node>::BlockService as server::block::BlockService>::Block,
-        <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId>,
-) -> impl future::Future<Item = (), Error = ()>
+        <<N as server::Node>::BlockService as BlockService>::Block,
+        <<N as server::Node>::TransactionService as TransactionService>::TransactionId>,
+) -> impl future::Future<Item = (), Error = Error>
 where
     T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
     N: server::Node,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::BlockId : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::se::Serialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::de::Deserialize,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Header : cbor_event::se::Serialize,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::de::Deserialize,
+    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
     <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
+    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::se::Serialize + cbor_event::de::Deserialize
 {
     use protocol::{protocol::BlockHeaders, Response};
 
@@ -191,7 +177,7 @@ where
                     future::Either::B(future::Either::A({
                         let mut service = server
                             .node
-                            .block_service()
+                            .header_service()
                             .expect("block service is not implemented");
                         match get_block_header.to {
                             Some(to) => service.block_headers(&get_block_header.from, &to),
@@ -207,7 +193,7 @@ where
                                         Response::Ok(BlockHeaders(hdrs)),
                                     );
                                     sink1.unbounded_send(msg).unwrap();
-                                    future::ok(())
+                                    Ok(())
                                 })
                         })
                         .map_err(move |msg| {
@@ -217,8 +203,8 @@ where
                         .then(move |_| {
                             sink3
                                 .unbounded_send(Message::CloseConnection(lwcid))
-                                .unwrap_or(());
-                            future::ok(())
+                                .unwrap();
+                            Ok(())
                         })
                     }))
                 }
@@ -230,24 +216,27 @@ where
                             .block_service()
                             .expect("block service is not implemented")
                             .stream_blocks_to(&vec![get_blocks.from], &get_blocks.to)
-                            .map_err(|_| ())
+                            .map_err(|err| err.to_string())
                             .and_then(move |blocks| {
                                 let inner1 = sink.clone();
                                 let inner2 = sink.clone();
                                 blocks
-                                    .map_err(|_| ())
+                                    .map_err(|err| err.to_string())
                                     .for_each(move |blk| {
                                         inner1
                                             .unbounded_send(Message::Block(
                                                 lwcid,
                                                 Response::Ok(blk),
                                             ))
-                                            .map_err(|_| ())
+                                            .unwrap();
+                                        Ok(())
                                     })
                                     .then(move |_| {
-                                        inner2.unbounded_send(Message::CloseConnection(lwcid))
+                                        inner2
+                                            .unbounded_send(Message::CloseConnection(lwcid))
+                                            .unwrap();
+                                        Ok(())
                                     })
-                                    .or_else(|_| Ok(()))
                             })
                             .or_else(|_| Ok(())),
                     )))
@@ -259,7 +248,7 @@ where
                             .transaction_service()
                             .unwrap()
                             .propose_transactions(&vec![tx])
-                            .then(|_| Ok(())) // FIXME handle the error
+                            .then(|_| Ok(())), // FIXME handle the error
                     )))
                 }
                 _x => future::Either::A(future::ok(())),
@@ -281,8 +270,10 @@ where
                     message => future::Either::B(sink.send(message).map_err(|_err| ())),
                 })
                 .map(|_| ())
-        })
-        .map_err(|_| ());
+        });
 
-    stream.select(sink).then(|_| Ok(()))
+    stream
+        .select(sink)
+        .map_err(|_| Error::ProtocolError("error".to_string()))
+        .map(|_| ())
 }
