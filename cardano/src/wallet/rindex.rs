@@ -22,7 +22,7 @@ use super::scheme;
 pub struct Addressing(u32, u32);
 impl Addressing {
     pub fn new(account: u32, index: u32) -> Self {
-        Addressing(account | 0x80000000, index | 0x80000000)
+        Addressing(account, index)
     }
 }
 impl ::std::fmt::Display for Addressing {
