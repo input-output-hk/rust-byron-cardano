@@ -217,6 +217,25 @@ impl fmt::Display for BlockHeader {
     }
 }
 
+impl chain_core::property::Serialize for BlockHeader {
+    type Error = cbor_event::Error;
+
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        let mut serializer = cbor_event::se::Serializer::new(writer);
+        serializer.serialize(self)?;
+        serializer.finalize();
+        Ok(())
+    }
+}
+
+impl chain_core::property::Deserialize for BlockHeader {
+    type Error = cbor_event::Error;
+
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+        Deserialize::deserialize(&mut Deserializer::from(reader))
+    }
+}
+
 /// Block of either a boundary block or a normal block
 #[derive(Debug, Clone)]
 pub enum Block {
@@ -280,7 +299,6 @@ impl fmt::Display for Block {
 impl chain_core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
-    type Header = BlockHeader;
 
     fn id(&self) -> Self::Id {
         self.header().compute_hash()
@@ -299,6 +317,10 @@ impl chain_core::property::Block for Block {
             Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
         }
     }
+}
+
+impl chain_core::property::HasHeader for Block {
+    type Header = BlockHeader;
 
     fn header(&self) -> BlockHeader {
         self.header().into()
