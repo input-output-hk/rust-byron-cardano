@@ -688,12 +688,14 @@ impl chain_core::property::Transaction for Tx {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
+    type Inputs = Vec<TxoPointer>;
+    type Outputs = Vec<TxOut>;
 
-    fn inputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Input> {
-        self.inputs.iter()
+    fn inputs(&self) -> &Self::Inputs {
+        &self.inputs
     }
-    fn outputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Output> {
-        self.outputs.iter()
+    fn outputs(&self) -> &Self::Outputs {
+        &self.outputs
     }
     fn id(&self) -> Self::Id {
         Tx::id(self)
@@ -703,12 +705,14 @@ impl chain_core::property::Transaction for TxAux {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
+    type Inputs = Vec<TxoPointer>;
+    type Outputs = Vec<TxOut>;
 
-    fn inputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Input> {
-        self.tx.inputs.iter()
+    fn inputs(&self) -> &Self::Inputs {
+        &self.tx.inputs
     }
-    fn outputs<'a>(&'a self) -> std::slice::Iter<'a, Self::Output> {
-        self.tx.outputs.iter()
+    fn outputs(&self) -> &Self::Outputs {
+        &self.tx.outputs
     }
     fn id(&self) -> Self::Id {
         self.tx.id()
