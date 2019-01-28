@@ -23,6 +23,5 @@ pub mod genesis_data;
 pub mod genesisdata;
 mod mstream;
 pub mod network;
-pub mod parse_genesis_data;
 pub mod sync;
 pub mod utils;

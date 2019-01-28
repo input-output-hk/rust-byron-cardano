@@ -106,10 +106,10 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
     let fee_algo = LinearFee::default();
 
     if let Ok(fee) = builder.calculate_fee(&fee_algo) {
-        *fee.to_coin() as u64
+        u64::from(fee.to_coin())
     } else {
         // failed to calculate transaction fee, return zero
-        *fee::Fee::new(Coin::zero()).to_coin() as u64
+        u64::from(fee::Fee::new(Coin::zero()).to_coin())
     }
 }
 

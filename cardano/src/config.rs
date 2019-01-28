@@ -9,6 +9,7 @@ use block;
 use cbor_event::{self, de::Deserializer, se::Serializer};
 use coin;
 use fee;
+use hdwallet;
 use redeem;
 use std::{
     collections::BTreeMap,
@@ -128,8 +129,9 @@ impl Default for Config {
 /// parent of the genesis block of epoch 0. (Note that "genesis data"
 /// is something completely different from a epoch genesis block. The
 /// genesis data is not stored in the chain as a block.)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisData {
+    // FIXME: genesis_prev shouldn't be here since it's computed *from* the GenesisData.
     pub genesis_prev: block::HeaderHash,
     pub epoch_stability_depth: usize, // a.k.a. 'k'
     pub start_time: SystemTime,
@@ -138,4 +140,15 @@ pub struct GenesisData {
     pub fee_policy: fee::LinearFee,
     pub avvm_distr: BTreeMap<redeem::PublicKey, coin::Coin>, // AVVM = Ada Voucher Vending Machine
     pub non_avvm_balances: BTreeMap<address::Addr, coin::Coin>,
+    pub boot_stakeholders: BTreeMap<address::StakeholderId, BootStakeholder>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootStakeholder {
+    pub weight: BootStakeWeight,
+    pub issuer_pk: hdwallet::XPub,
+    pub delegate_pk: hdwallet::XPub,
+    pub cert: hdwallet::Signature<()>,
+}
+
+pub type BootStakeWeight = u16;
