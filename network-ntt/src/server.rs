@@ -274,6 +274,6 @@ where
 
     stream
         .select(sink)
-        .map_err(|_| Error::ProtocolError("error".to_string()))
+        .map_err(|_| Error::new(ErrorKind::Protocol,"error in receive"))
         .map(|_| ())
 }

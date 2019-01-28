@@ -11,6 +11,7 @@ pub struct Error {
 pub enum ErrorKind {
     Handshake,
     Connect,
+    Protocol
 }
 
 impl Error {
@@ -40,6 +41,7 @@ impl fmt::Display for Error {
         match self.kind {
             ErrorKind::Handshake => write!(f, "error during handshake"),
             ErrorKind::Connect => write!(f, "error during connection"),
+            ErrorKind::Protocol => write!(f, "protocol error"),
         }
     }
 }

@@ -12,6 +12,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::{self, de::Deserializer};
 
+use std::fmt;
 use super::{nt, Connection, Handshake, Message, NodeId};
 
 enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
@@ -180,6 +181,7 @@ pub enum ConnectingError {
     ExpectedNodeId,
     AlreadyConnected,
 }
+
 impl From<::std::io::Error> for ConnectingError {
     fn from(e: ::std::io::Error) -> Self {
         ConnectingError::IoError(e)
@@ -193,5 +195,28 @@ impl From<nt::ConnectingError> for ConnectingError {
 impl From<nt::DecodeEventError> for ConnectingError {
     fn from(e: nt::DecodeEventError) -> Self {
         ConnectingError::EventDecodeError(e)
+    }
+}
+impl std::error::Error for ConnectingError  {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ConnectingError::IoError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for ConnectingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConnectingError::NtError(e) => write!(f, "network transport error: {:?}", e),
+            ConnectingError::IoError(_) => write!(f, "IO error"),
+            ConnectingError::EventDecodeError(e) => write!(f, "event decode error: {:?}", e),
+            ConnectingError::ConnectionClosed => write!(f, "connection closed"),
+            ConnectingError::ExpectedNewLightWeightConnectionId => write!(f, "expected new lightweight connection id"),
+            ConnectingError::ExpectedHandshake => write!(f, "expected handshake"),
+            ConnectingError::InvalidHandshake(e) => write!(f, "invalid handshake: {:?}", e),
+            ConnectingError::ExpectedNodeId => write!(f, "expected node id"),
+            ConnectingError::AlreadyConnected => write!(f, "already connected"),
+        }
     }
 }
