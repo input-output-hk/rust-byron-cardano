@@ -1,0 +1,25 @@
+[package]
+name = "rest-server"
+version = "0.1.0"
+authors = ["CodeSandwich <igor.zuk@protonmail.com>"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/rust-cardano"
+homepage = "https://github.com/input-output-hk/rust-cardano/protocol#README.md"
+description = """
+Server framework for REST API server. It's a wrapper around Actix-web
+allowing it to be run as a background service.
+"""
+keywords = [ "Cardano", "REST" ]
+edition = "2018"
+
+[dependencies]
+actix-net = "0.2.6"
+actix-web = { version = "0.7.18", features = ["tls"] }
+futures = "0.1.25"
+native-tls = "0.2.2"
+
+[dev-dependencies]
+serde = "1.0.85"
+serde_derive = "1.0.85"
+serde_json = "1.0.36"

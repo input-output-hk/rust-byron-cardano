@@ -10,6 +10,7 @@ members = [
     "network-grpc",
     "protocol",
     "protocol-tokio",
+    "rest-server",
     "storage-units",
     "storage",
     "cardano-c",
