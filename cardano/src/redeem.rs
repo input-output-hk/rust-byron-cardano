@@ -67,7 +67,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub const PUBLICKEY_SIZE: usize = 32;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 pub struct PublicKey([u8; PUBLICKEY_SIZE]);
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; PUBLICKEY_SIZE]) -> Self {
@@ -128,7 +128,18 @@ impl AsRef<[u8]> for PrivateKey {
     }
 }
 impl PrivateKey {
-    pub fn from_bytes(bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
+    /// takes the given raw bytes and perform some modifications to normalize
+    /// it properly to a Private Key.
+    ///
+    pub fn normalize_bytes(mut bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
+        bytes[0] &= 0b1111_1000;
+        bytes[31] &= 0b0001_1111;
+        bytes[31] |= 0b0100_0000;;
+
+        Self::from_bytes(bytes)
+    }
+
+    fn from_bytes(bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
         PrivateKey(bytes)
     }
 
@@ -138,7 +149,7 @@ impl PrivateKey {
         }
         let mut buf = [0; PRIVATEKEY_SIZE];
         buf[0..PRIVATEKEY_SIZE].clone_from_slice(bytes);
-        Ok(Self::from_bytes(buf))
+        Ok(Self::normalize_bytes(buf))
     }
 
     pub fn from_hex(hex: &str) -> Result<Self> {
@@ -161,7 +172,7 @@ impl PrivateKey {
     }
 }
 
-const SIGNATURE_SIZE: usize = 64;
+pub const SIGNATURE_SIZE: usize = 64;
 
 pub struct Signature([u8; SIGNATURE_SIZE]);
 impl Signature {
@@ -503,8 +514,14 @@ impl<'de> serde::Deserialize<'de> for Signature {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use quickcheck::{Arbitrary, Gen};
 
+    impl Arbitrary for PublicKey {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            PrivateKey::arbitrary(g).public()
+        }
+    }
     impl Arbitrary for PrivateKey {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let mut seed = [0u8; PRIVATEKEY_SIZE];
