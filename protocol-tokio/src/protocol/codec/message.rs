@@ -373,10 +373,11 @@ impl<T: de::Deserialize + property::BlockId> de::Deserialize for GetBlocks<T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use cbor_event::de::Deserializer;
-    use std::io::Cursor;
+    use chain_core::property;
 
-    impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlockHeaders<T> {
+    impl<T: ::quickcheck::Arbitrary + property::BlockId> ::quickcheck::Arbitrary
+        for GetBlockHeaders<T>
+    {
         fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
             let from = ::quickcheck::Arbitrary::arbitrary(g);
             let to = ::quickcheck::Arbitrary::arbitrary(g);
@@ -384,28 +385,11 @@ mod test {
         }
     }
 
-    impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlocks<T> {
+    impl<T: ::quickcheck::Arbitrary + property::BlockId> ::quickcheck::Arbitrary for GetBlocks<T> {
         fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
             let from = ::quickcheck::Arbitrary::arbitrary(g);
             let to = ::quickcheck::Arbitrary::arbitrary(g);
             GetBlocks { from: from, to: to }
-        }
-    }
-    quickcheck! {
-        fn get_block_headers_encode_decode(command: GetBlockHeaders<u8>) -> bool {
-            let encoded = cbor!(command).unwrap();
-            let mut de = Deserializer::from(Cursor::new(&encoded));
-            let decoded : GetBlockHeaders<u8> = de.deserialize_complete().unwrap();
-
-            decoded == command
-        }
-
-        fn get_blocks_encode_decode(command: GetBlocks<u8>) -> bool {
-            let encoded = cbor!(command).unwrap();
-            let mut de = Deserializer::from(Cursor::new(&encoded));
-            let decoded : GetBlocks<u8> = de.deserialize_complete().unwrap();
-
-            decoded == command
         }
     }
 }
