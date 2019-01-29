@@ -1,5 +1,7 @@
 use std::{io::Cursor, vec};
 
+use chain_core::property;
+
 use bytes::{Buf, IntoBuf};
 use futures::{
     sink::SendAll,
@@ -12,28 +14,34 @@ use cbor_event::{self, de::Deserializer};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
-enum ConnectingState<T> {
+use std::fmt;
+
+enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
     NtConnecting(nt::Connecting<T>),
-    SendHandshake(SendAll<Connection<T>, IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>>),
-    ExpectNewLightWeightId(StreamFuture<Connection<T>>),
-    ExpectHandshake(StreamFuture<Connection<T>>),
-    ExpectNodeId(StreamFuture<Connection<T>>),
+    SendHandshake(
+        SendAll<Connection<T, B, Tx>, IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>>,
+    ),
+    ExpectNewLightWeightId(StreamFuture<Connection<T, B, Tx>>),
+    ExpectHandshake(StreamFuture<Connection<T, B, Tx>>),
+    ExpectNodeId(StreamFuture<Connection<T, B, Tx>>),
     Consumed,
 }
 
-enum Transition<T> {
-    Connected(Connection<T>),
-    HandshakeSent(Connection<T>),
-    ReceivedNewLightWeightId(Connection<T>),
-    ReceivedHandshake(Connection<T>),
-    ReceivedNodeId(Connection<T>),
+enum Transition<T, B: property::Block, Tx: property::TransactionId> {
+    Connected(Connection<T, B, Tx>),
+    HandshakeSent(Connection<T, B, Tx>),
+    ReceivedNewLightWeightId(Connection<T, B, Tx>),
+    ReceivedHandshake(Connection<T, B, Tx>),
+    ReceivedNodeId(Connection<T, B, Tx>),
 }
 
-pub struct Connecting<T> {
-    state: ConnectingState<T>,
+pub struct Connecting<T, B: property::Block, Tx: property::TransactionId> {
+    state: ConnectingState<T, B, Tx>,
 }
 
-impl<T: AsyncRead + AsyncWrite> Connecting<T> {
+impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
+    Connecting<T, B, Tx>
+{
     pub fn new(inner: T) -> Self {
         Connecting {
             state: ConnectingState::NtConnecting(nt::Connection::connect(inner)),
@@ -41,8 +49,22 @@ impl<T: AsyncRead + AsyncWrite> Connecting<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> Future for Connecting<T> {
-    type Item = Connection<T>;
+impl<
+        T: AsyncRead + AsyncWrite,
+        B: property::Block + property::HasHeader,
+        Tx: property::TransactionId,
+    > Future for Connecting<T, B, Tx>
+where
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
+    Tx: cbor_event::Serialize,
+{
+    type Item = Connection<T, B, Tx>;
     type Error = ConnectingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -121,11 +143,14 @@ impl<T: AsyncRead + AsyncWrite> Future for Connecting<T> {
                 Transition::Connected(mut connection) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
+                    let msg1: Message<B, Tx> = Message::CreateLightWeightConnectionId(lid);
+                    let msg2: Message<B, Tx> =
+                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into());
+                    let msg3: Message<B, Tx> = Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, ::std::io::Error>(vec![
-                        Message::CreateLightWeightConnectionId(lid).to_nt_event(),
-                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into())
-                            .to_nt_event(),
-                        Message::CreateNodeId(lid, nid).to_nt_event(),
+                        msg1.to_nt_event(),
+                        msg2.to_nt_event(),
+                        msg3.to_nt_event(),
                     ]);
                     let send_all = connection.send_all(commands);
                     self.state = ConnectingState::SendHandshake(send_all);
@@ -160,6 +185,7 @@ pub enum ConnectingError {
     ExpectedNodeId,
     AlreadyConnected,
 }
+
 impl From<::std::io::Error> for ConnectingError {
     fn from(e: ::std::io::Error) -> Self {
         ConnectingError::IoError(e)
@@ -173,5 +199,33 @@ impl From<nt::ConnectingError> for ConnectingError {
 impl From<nt::DecodeEventError> for ConnectingError {
     fn from(e: nt::DecodeEventError) -> Self {
         ConnectingError::EventDecodeError(e)
+    }
+}
+impl std::error::Error for ConnectingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ConnectingError::NtError(e) => Some(e),
+            ConnectingError::IoError(e) => Some(e),
+            ConnectingError::EventDecodeError(e) => Some(e),
+            ConnectingError::InvalidHandshake(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for ConnectingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConnectingError::NtError(_) => write!(f, "network transport error"),
+            ConnectingError::IoError(_) => write!(f, "I/O error"),
+            ConnectingError::EventDecodeError(_) => write!(f, "event decode error"),
+            ConnectingError::ConnectionClosed => write!(f, "connection closed"),
+            ConnectingError::ExpectedNewLightWeightConnectionId => {
+                write!(f, "expected new lightweight connection id")
+            }
+            ConnectingError::ExpectedHandshake => write!(f, "expected handshake"),
+            ConnectingError::InvalidHandshake(_) => write!(f, "invalid handshake"),
+            ConnectingError::ExpectedNodeId => write!(f, "expected node id"),
+            ConnectingError::AlreadyConnected => write!(f, "already connected"),
+        }
     }
 }

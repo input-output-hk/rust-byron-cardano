@@ -1,4 +1,4 @@
-use std::{io, ops::Deref};
+use std::{error, fmt, io, ops::Deref};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use tokio_codec as codec;
@@ -89,9 +89,32 @@ pub enum DecodeEventError {
     /// includes value in range `[0..1024[`
     InvalidLightWeightConnectionId(u32),
 }
+
 impl From<io::Error> for DecodeEventError {
     fn from(e: io::Error) -> Self {
         DecodeEventError::IoError(e)
+    }
+}
+
+impl fmt::Display for DecodeEventError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DecodeEventError::IoError(_) => write!(f, "I/O error"),
+            DecodeEventError::InvalidControlHeader(n) => write!(f, "invalid control header {}", n),
+            DecodeEventError::InvalidLightWeightConnectionId(n) => {
+                write!(f, "invalid lightweight connection id {}", n)
+            }
+        }
+    }
+}
+
+impl error::Error for DecodeEventError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecodeEventError::IoError(e) => Some(e),
+            DecodeEventError::InvalidControlHeader(_) => None,
+            DecodeEventError::InvalidLightWeightConnectionId(_) => None,
+        }
     }
 }
 

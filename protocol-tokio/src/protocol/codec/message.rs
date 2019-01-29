@@ -4,10 +4,6 @@ use std::{
     ops::Deref,
 };
 
-use cardano::{
-    block::{self, HeaderHash},
-    tx::TxAux,
-};
 use cbor_event::{
     self,
     de::{self, Deserializer},
@@ -16,6 +12,7 @@ use cbor_event::{
 
 use super::super::nt;
 use super::NodeId;
+use chain_core::property;
 
 pub type MessageCode = u32;
 
@@ -79,7 +76,7 @@ impl de::Deserialize for MessageType {
 pub type KeepAlive = bool;
 
 #[derive(Clone, Debug)]
-pub enum Message {
+pub enum Message<B: property::Block + property::HasHeader, Tx: property::TransactionId> {
     CreateLightWeightConnectionId(nt::LightWeightConnectionId),
     CloseConnection(nt::LightWeightConnectionId),
     CloseEndPoint(nt::LightWeightConnectionId),
@@ -88,17 +85,31 @@ pub enum Message {
     ProbeSocketAck(nt::LightWeightConnectionId),
     CreateNodeId(nt::LightWeightConnectionId, NodeId),
     AckNodeId(nt::LightWeightConnectionId, NodeId),
+    Bytes(nt::LightWeightConnectionId, Bytes),
 
-    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders),
-    BlockHeaders(nt::LightWeightConnectionId, Response<BlockHeaders, String>),
-    GetBlocks(nt::LightWeightConnectionId, GetBlocks),
-    Block(nt::LightWeightConnectionId, Response<Block, String>),
-    SendTransaction(nt::LightWeightConnectionId, TxAux),
+    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders<B::Id>),
+    BlockHeaders(
+        nt::LightWeightConnectionId,
+        Response<BlockHeaders<B::Header>, String>,
+    ),
+    GetBlocks(nt::LightWeightConnectionId, GetBlocks<B::Id>),
+    Block(nt::LightWeightConnectionId, Response<B, String>),
+    SendTransaction(nt::LightWeightConnectionId, Tx),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
-    Bytes(nt::LightWeightConnectionId, Bytes),
 }
-impl Message {
+
+impl<B: property::Block + property::HasHeader, Tx: property::TransactionId> Message<B, Tx>
+where
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
+{
     pub fn to_nt_event(self) -> nt::Event {
         use self::nt::{ControlHeader::*, Event::*};
         match self {
@@ -120,6 +131,7 @@ impl Message {
                 bytes.put_u64_be(*node_id);
                 Data(lwcid, bytes.freeze())
             }
+            Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
             Message::GetBlockHeaders(lwcid, gbh) => {
                 Data(lwcid, MessageType::MsgGetHeaders.encode_with(&gbh))
             }
@@ -134,7 +146,6 @@ impl Message {
                 let keep_alive: u64 = if keep_alive { 43 } else { 42 };
                 Data(lwcid, MessageType::MsgSubscribe1.encode_with(&keep_alive))
             }
-            Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),
         }
     }
 
@@ -163,7 +174,6 @@ impl Message {
         if let Some(msg) = decode_node_ack_or_syn(lwcid, &bytes) {
             return Ok(msg);
         }
-
         let mut cbor = Deserializer::from(Cursor::new(bytes.deref()));
         let msg_type: MessageType = cbor.deserialize().unwrap();
         match msg_type {
@@ -192,7 +202,10 @@ impl Message {
     }
 }
 
-fn decode_node_ack_or_syn(lwcid: nt::LightWeightConnectionId, bytes: &Bytes) -> Option<Message> {
+fn decode_node_ack_or_syn<B: property::Block + property::HasHeader, Tx: property::TransactionId>(
+    lwcid: nt::LightWeightConnectionId,
+    bytes: &Bytes,
+) -> Option<Message<B, Tx>> {
     use bytes::{Buf, IntoBuf};
     if bytes.len() != 9 {
         return None;
@@ -240,11 +253,11 @@ impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> 
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct GetBlockHeaders {
-    pub from: Vec<HeaderHash>,
-    pub to: Option<HeaderHash>,
+pub struct GetBlockHeaders<T: property::BlockId> {
+    pub from: Vec<T>,
+    pub to: Option<T>,
 }
-impl GetBlockHeaders {
+impl<T: property::BlockId> GetBlockHeaders<T> {
     pub fn is_tip(&self) -> bool {
         self.from.is_empty() && self.to.is_none()
     }
@@ -254,14 +267,14 @@ impl GetBlockHeaders {
             to: None,
         }
     }
-    pub fn range(from: Vec<HeaderHash>, to: HeaderHash) -> Self {
+    pub fn range(from: Vec<T>, to: T) -> Self {
         GetBlockHeaders {
             from: from,
             to: Some(to),
         }
     }
 }
-impl se::Serialize for GetBlockHeaders {
+impl<T: cbor_event::Serialize + property::BlockId> se::Serialize for GetBlockHeaders<T> {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
@@ -276,7 +289,8 @@ impl se::Serialize for GetBlockHeaders {
         }
     }
 }
-impl de::Deserialize for GetBlockHeaders {
+
+impl<T: de::Deserialize + property::BlockId> de::Deserialize for GetBlockHeaders<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
@@ -301,13 +315,17 @@ impl de::Deserialize for GetBlockHeaders {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockHeaders(pub Vec<block::BlockHeader>);
-impl From<Vec<block::BlockHeader>> for BlockHeaders {
-    fn from(v: Vec<block::BlockHeader>) -> Self {
+pub struct BlockHeaders<T: property::Header>(pub Vec<T>);
+impl<T: property::Header> From<Vec<T>> for BlockHeaders<T> {
+    fn from(v: Vec<T>) -> Self {
         BlockHeaders(v)
     }
 }
-impl se::Serialize for BlockHeaders {
+
+impl<T> se::Serialize for BlockHeaders<T>
+where
+    T: cbor_event::Serialize + property::Header,
+{
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
@@ -315,23 +333,24 @@ impl se::Serialize for BlockHeaders {
         se::serialize_fixed_array(self.0.iter(), serializer)
     }
 }
-impl de::Deserialize for BlockHeaders {
+
+impl<T: cbor_event::Deserialize + property::Header> de::Deserialize for BlockHeaders<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.deserialize().map(BlockHeaders)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GetBlocks {
-    pub from: HeaderHash,
-    pub to: HeaderHash,
+pub struct GetBlocks<T: property::BlockId> {
+    pub from: T,
+    pub to: T,
 }
-impl GetBlocks {
-    pub fn new(from: HeaderHash, to: HeaderHash) -> Self {
+impl<T: property::BlockId> GetBlocks<T> {
+    pub fn new(from: T, to: T) -> Self {
         GetBlocks { from, to }
     }
 }
-impl se::Serialize for GetBlocks {
+impl<T: se::Serialize + property::BlockId> se::Serialize for GetBlocks<T> {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
@@ -342,7 +361,7 @@ impl se::Serialize for GetBlocks {
             .serialize(&self.to)
     }
 }
-impl de::Deserialize for GetBlocks {
+impl<T: de::Deserialize + property::BlockId> de::Deserialize for GetBlocks<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
@@ -351,65 +370,26 @@ impl de::Deserialize for GetBlocks {
     }
 }
 
-pub type Block = block::block::Block;
-
-#[cfg(test)]
-fn random_headerhash<G: ::quickcheck::Gen>(g: &mut G) -> HeaderHash {
-    let bytes: Vec<u8> = ::quickcheck::Arbitrary::arbitrary(g);
-    HeaderHash::new(&bytes)
-}
-
-#[cfg(test)]
-fn random_to<G: ::quickcheck::Gen>(g: &mut G) -> Option<HeaderHash> {
-    let value: Option<()> = ::quickcheck::Arbitrary::arbitrary(g);
-    value.map(|_| random_headerhash(g))
-}
-
-#[cfg(test)]
-fn random_from<G: ::quickcheck::Gen>(g: &mut G) -> Vec<HeaderHash> {
-    let num: usize = ::quickcheck::Arbitrary::arbitrary(g);
-    ::std::iter::repeat_with(|| random_headerhash(g))
-        .take(num)
-        .collect()
-}
-
-#[cfg(test)]
-impl ::quickcheck::Arbitrary for GetBlockHeaders {
-    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
-        let from = random_from(g);
-        let to = random_to(g);
-        GetBlockHeaders { from: from, to: to }
-    }
-}
-
-#[cfg(test)]
-impl ::quickcheck::Arbitrary for GetBlocks {
-    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
-        let from = random_headerhash(g);
-        let to = random_headerhash(g);
-        GetBlocks { from: from, to: to }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use chain_core::property;
 
-    quickcheck! {
-        fn get_block_headers_encode_decode(command: GetBlockHeaders) -> bool {
-            let encoded = cbor!(command).unwrap();
-            let mut de = Deserializer::from(Cursor::new(&encoded));
-            let decoded : GetBlockHeaders = de.deserialize_complete().unwrap();
-
-            decoded == command
+    impl<T: ::quickcheck::Arbitrary + property::BlockId> ::quickcheck::Arbitrary
+        for GetBlockHeaders<T>
+    {
+        fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+            let from = ::quickcheck::Arbitrary::arbitrary(g);
+            let to = ::quickcheck::Arbitrary::arbitrary(g);
+            GetBlockHeaders { from: from, to: to }
         }
+    }
 
-        fn get_blocks_encode_decode(command: GetBlocks) -> bool {
-            let encoded = cbor!(command).unwrap();
-            let mut de = Deserializer::from(Cursor::new(&encoded));
-            let decoded : GetBlocks = de.deserialize_complete().unwrap();
-
-            decoded == command
+    impl<T: ::quickcheck::Arbitrary + property::BlockId> ::quickcheck::Arbitrary for GetBlocks<T> {
+        fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+            let from = ::quickcheck::Arbitrary::arbitrary(g);
+            let to = ::quickcheck::Arbitrary::arbitrary(g);
+            GetBlocks { from: from, to: to }
         }
     }
 }

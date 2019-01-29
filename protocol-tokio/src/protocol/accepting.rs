@@ -7,32 +7,35 @@ use futures::{
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::de::Deserializer;
-use std::{self, io::Cursor, vec};
+use chain_core::property;
+use std::{self, fmt, io::Cursor, vec};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
-enum AcceptingState<T> {
+enum AcceptingState<T, B: property::Block, Tx: property::TransactionId> {
     NtAccepting(nt::Accepting<T>),
-    ExpectNewLightWeightId(StreamFuture<Connection<T>>),
-    ExpectHandshake(StreamFuture<Connection<T>>),
-    ExpectNodeId(StreamFuture<Connection<T>>),
-    SendHandshake(SendAll<Connection<T>, IterOk<vec::IntoIter<nt::Event>, std::io::Error>>),
+    ExpectNewLightWeightId(StreamFuture<Connection<T, B, Tx>>),
+    ExpectHandshake(StreamFuture<Connection<T, B, Tx>>),
+    ExpectNodeId(StreamFuture<Connection<T, B, Tx>>),
+    SendHandshake(SendAll<Connection<T, B, Tx>, IterOk<vec::IntoIter<nt::Event>, std::io::Error>>),
     Consumed,
 }
 
-enum Transition<T> {
-    Connected(Connection<T>),
-    ReceivedNewLightWeightId(Connection<T>),
-    ReceivedHandshake(Connection<T>),
-    ReceivedNodeId(Connection<T>),
-    HandshakeSent(Connection<T>),
+enum Transition<T, B: property::Block, Tx: property::TransactionId> {
+    Connected(Connection<T, B, Tx>),
+    ReceivedNewLightWeightId(Connection<T, B, Tx>),
+    ReceivedHandshake(Connection<T, B, Tx>),
+    ReceivedNodeId(Connection<T, B, Tx>),
+    HandshakeSent(Connection<T, B, Tx>),
 }
 
-pub struct Accepting<T> {
-    state: AcceptingState<T>,
+pub struct Accepting<T, B: property::Block, Tx: property::TransactionId> {
+    state: AcceptingState<T, B, Tx>,
 }
 
-impl<T: AsyncRead + AsyncWrite> Accepting<T> {
+impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
+    Accepting<T, B, Tx>
+{
     pub fn new(inner: T) -> Self {
         Accepting {
             state: AcceptingState::NtAccepting(nt::Connection::accept(inner)),
@@ -40,8 +43,22 @@ impl<T: AsyncRead + AsyncWrite> Accepting<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> Future for Accepting<T> {
-    type Item = Connection<T>;
+impl<
+        T: AsyncRead + AsyncWrite,
+        B: property::Block + property::HasHeader,
+        Tx: property::TransactionId,
+    > Future for Accepting<T, B, Tx>
+where
+    B: cbor_event::Deserialize,
+    B: cbor_event::Serialize,
+    B::Id: cbor_event::Deserialize,
+    B::Id: cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize,
+    B::Header: cbor_event::Serialize,
+    Tx: cbor_event::Deserialize,
+    Tx: cbor_event::Serialize,
+{
+    type Item = Connection<T, B, Tx>;
     type Error = AcceptingError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -128,11 +145,14 @@ impl<T: AsyncRead + AsyncWrite> Future for Accepting<T> {
                 Transition::ReceivedNodeId(mut connection) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
+                    let msg1: Message<B, Tx> = Message::CreateLightWeightConnectionId(lid);
+                    let msg2: Message<B, Tx> =
+                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into());
+                    let msg3: Message<B, Tx> = Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, std::io::Error>(vec![
-                        Message::CreateLightWeightConnectionId(lid).to_nt_event(),
-                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into())
-                            .to_nt_event(),
-                        Message::CreateNodeId(lid, nid).to_nt_event(),
+                        msg1.to_nt_event(),
+                        msg2.to_nt_event(),
+                        msg3.to_nt_event(),
                     ]);
                     let send_all = connection.send_all(commands);
                     self.state = AcceptingState::SendHandshake(send_all);
@@ -171,5 +191,33 @@ impl From<nt::AcceptingError> for AcceptingError {
 impl From<nt::DecodeEventError> for AcceptingError {
     fn from(e: nt::DecodeEventError) -> Self {
         AcceptingError::EventDecodeError(e)
+    }
+}
+impl std::error::Error for AcceptingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            AcceptingError::IoError(e) => Some(e),
+            AcceptingError::NtError(e) => Some(e),
+            AcceptingError::EventDecodeError(e) => Some(e),
+            AcceptingError::InvalidHandshake(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for AcceptingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AcceptingError::NtError(_) => write!(f, "network transport error"),
+            AcceptingError::IoError(_) => write!(f, "I/O error"),
+            AcceptingError::EventDecodeError(_) => write!(f, "failed to decode event message"),
+            AcceptingError::ConnectionClosed => write!(f, "connection closed"),
+            AcceptingError::ExpectedNewLightWeightConnectionId => {
+                write!(f, "expected new lightweight connection id")
+            }
+            AcceptingError::ExpectedHandshake => write!(f, "expected handshake"),
+            AcceptingError::InvalidHandshake(_) => write!(f, "invalid handshake"),
+            AcceptingError::ExpectedNodeId => write!(f, "expected node id"),
+            AcceptingError::AlreadyConnected => write!(f, "already connected"),
+        }
     }
 }
