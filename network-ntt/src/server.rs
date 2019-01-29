@@ -33,16 +33,17 @@
 mod error;
 
 use cbor_event;
+use error::Error;
+use error::ErrorKind;
 use futures::{future, prelude::*, stream::Stream, sync::mpsc};
-use network_core::server::{self, block::BlockService, block::HeaderService, transaction::TransactionService};
+use network_core::server::{
+    self, block::BlockService, block::HeaderService, transaction::TransactionService,
+};
 use protocol::{Inbound, Message};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
-use error::Error;
-use error::ErrorKind;
 
 use chain_core::property;
-
 
 /// Internal structure of network transport node.
 #[derive(Clone)]
@@ -70,8 +71,8 @@ pub fn accept<N: 'static>(
 ) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
 where
     N: server::Node + Clone,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::de::Deserialize + cbor_event::se::Serialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
@@ -83,9 +84,9 @@ where
     protocol::Connection::accept(stream)
         .map_err(move |err| Error::new(ErrorKind::Handshake, err))
         .and_then(move |connection| {
-        let node = node.clone();
-        Ok(run_connection(node, connection))
-    })
+            let node = node.clone();
+            Ok(run_connection(node, connection))
+        })
 }
 
 /// Connect to another client.
@@ -97,7 +98,8 @@ pub fn connect<N: 'static>(
 ) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
 where
     N: server::Node + Clone,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
     <<N as server::Node>::HeaderService as server::block::HeaderService>::Header: cbor_event::de::Deserialize,
@@ -131,7 +133,8 @@ pub fn run_connection<N, T>(
 where
     T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
     N: server::Node,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block : cbor_event::de::Deserialize + cbor_event::se::Serialize + property::HasHeader,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
+    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
     <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
     <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::de::Deserialize,
@@ -274,6 +277,6 @@ where
 
     stream
         .select(sink)
-        .map_err(|_| Error::new(ErrorKind::Protocol,"error in receive"))
+        .map_err(|_| Error::new(ErrorKind::Protocol, "error in receive"))
         .map(|_| ())
 }
