@@ -253,11 +253,11 @@ impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> 
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct GetBlockHeaders<T> {
+pub struct GetBlockHeaders<T: property::BlockId> {
     pub from: Vec<T>,
     pub to: Option<T>,
 }
-impl<T> GetBlockHeaders<T> {
+impl<T: property::BlockId> GetBlockHeaders<T> {
     pub fn is_tip(&self) -> bool {
         self.from.is_empty() && self.to.is_none()
     }
@@ -274,7 +274,7 @@ impl<T> GetBlockHeaders<T> {
         }
     }
 }
-impl<T: cbor_event::Serialize> se::Serialize for GetBlockHeaders<T> {
+impl<T: cbor_event::Serialize + property::BlockId> se::Serialize for GetBlockHeaders<T> {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
@@ -290,7 +290,7 @@ impl<T: cbor_event::Serialize> se::Serialize for GetBlockHeaders<T> {
     }
 }
 
-impl<T: de::Deserialize> de::Deserialize for GetBlockHeaders<T> {
+impl<T: de::Deserialize + property::BlockId> de::Deserialize for GetBlockHeaders<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
@@ -315,8 +315,8 @@ impl<T: de::Deserialize> de::Deserialize for GetBlockHeaders<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockHeaders<T>(pub Vec<T>);
-impl<T> From<Vec<T>> for BlockHeaders<T> {
+pub struct BlockHeaders<T: property::Header>(pub Vec<T>);
+impl<T: property::Header> From<Vec<T>> for BlockHeaders<T> {
     fn from(v: Vec<T>) -> Self {
         BlockHeaders(v)
     }
@@ -324,7 +324,7 @@ impl<T> From<Vec<T>> for BlockHeaders<T> {
 
 impl<T> se::Serialize for BlockHeaders<T>
 where
-    T: cbor_event::Serialize,
+    T: cbor_event::Serialize + property::Header,
 {
     fn serialize<'se, W: Write>(
         &self,
@@ -334,23 +334,23 @@ where
     }
 }
 
-impl<T: cbor_event::Deserialize> de::Deserialize for BlockHeaders<T> {
+impl<T: cbor_event::Deserialize + property::Header> de::Deserialize for BlockHeaders<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.deserialize().map(BlockHeaders)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GetBlocks<T> {
+pub struct GetBlocks<T: property::BlockId> {
     pub from: T,
     pub to: T,
 }
-impl<T> GetBlocks<T> {
+impl<T: property::BlockId> GetBlocks<T> {
     pub fn new(from: T, to: T) -> Self {
         GetBlocks { from, to }
     }
 }
-impl<T: se::Serialize> se::Serialize for GetBlocks<T> {
+impl<T: se::Serialize + property::BlockId> se::Serialize for GetBlocks<T> {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
@@ -361,7 +361,7 @@ impl<T: se::Serialize> se::Serialize for GetBlocks<T> {
             .serialize(&self.to)
     }
 }
-impl<T: de::Deserialize> de::Deserialize for GetBlocks<T> {
+impl<T: de::Deserialize + property::BlockId> de::Deserialize for GetBlocks<T> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "GetBlockHeader")?;
         let from = raw.deserialize()?;
@@ -371,29 +371,26 @@ impl<T: de::Deserialize> de::Deserialize for GetBlocks<T> {
 }
 
 #[cfg(test)]
-impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlockHeaders<T> {
-    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
-        let from = ::quickcheck::Arbitrary::arbitrary(g);
-        let to = ::quickcheck::Arbitrary::arbitrary(g);
-        GetBlockHeaders { from: from, to: to }
-    }
-}
-
-#[cfg(test)]
-impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlocks<T> {
-    fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
-        let from = ::quickcheck::Arbitrary::arbitrary(g);
-        let to = ::quickcheck::Arbitrary::arbitrary(g);
-        GetBlocks { from: from, to: to }
-    }
-}
-
-#[cfg(test)]
 mod test {
     use super::*;
     use cbor_event::de::Deserializer;
     use std::io::Cursor;
 
+    impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlockHeaders<T> {
+        fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+            let from = ::quickcheck::Arbitrary::arbitrary(g);
+            let to = ::quickcheck::Arbitrary::arbitrary(g);
+            GetBlockHeaders { from: from, to: to }
+        }
+    }
+
+    impl<T: ::quickcheck::Arbitrary> ::quickcheck::Arbitrary for GetBlocks<T> {
+        fn arbitrary<G: ::quickcheck::Gen>(g: &mut G) -> Self {
+            let from = ::quickcheck::Arbitrary::arbitrary(g);
+            let to = ::quickcheck::Arbitrary::arbitrary(g);
+            GetBlocks { from: from, to: to }
+        }
+    }
     quickcheck! {
         fn get_block_headers_encode_decode(command: GetBlockHeaders<u8>) -> bool {
             let encoded = cbor!(command).unwrap();
