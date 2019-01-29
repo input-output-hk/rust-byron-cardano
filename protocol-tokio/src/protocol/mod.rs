@@ -74,8 +74,11 @@ pub struct Connection<T, B: property::Block, Tx: property::TransactionId> {
     phantoms: PhantomData<(B, Tx)>,
 }
 
-impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId>
-    Connection<T, B, Tx>
+impl<
+        T: AsyncRead + AsyncWrite,
+        B: property::Block + property::HasHeader,
+        Tx: property::TransactionId,
+    > Connection<T, B, Tx>
 {
     fn new(connection: nt::Connection<T>) -> Self {
         Connection {

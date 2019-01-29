@@ -42,7 +42,8 @@ impl<T, B, Tx> OutboundSink<T, B, Tx> {
         self.state.lock().unwrap().get_next_node_id()
     }
 }
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> OutboundSink<T, B, Tx>
+impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId>
+    OutboundSink<T, B, Tx>
 where
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
@@ -142,7 +143,8 @@ where
     }
 }
 
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Sink for OutboundSink<T, B, Tx>
+impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Sink
+    for OutboundSink<T, B, Tx>
 where
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,

@@ -94,7 +94,8 @@ where
         }
     }
 }
-impl<T, B: property::Block + property::HasHeader, Tx: property::TransactionId> InboundStream<T, B, Tx>
+impl<T, B: property::Block + property::HasHeader, Tx: property::TransactionId>
+    InboundStream<T, B, Tx>
 where
     B::Id: std::marker::Sized,
     B::Header: std::marker::Sized,

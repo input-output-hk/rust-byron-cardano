@@ -11,7 +11,7 @@ pub struct Error {
 pub enum ErrorKind {
     Handshake,
     Connect,
-    Protocol
+    Protocol,
 }
 
 impl Error {
