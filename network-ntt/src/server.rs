@@ -32,18 +32,18 @@
 //! topology.
 mod error;
 
-use cbor_event;
-use error::Error;
-use error::ErrorKind;
-use futures::{future, prelude::*, stream::Stream, sync::mpsc};
-use network_core::server::{
-    self, block::BlockService, block::HeaderService, transaction::TransactionService,
-};
-use protocol::{Inbound, Message};
-use std::net::SocketAddr;
-use tokio::net::{TcpListener, TcpStream};
+use error::{Error, ErrorKind};
 
 use chain_core::property;
+use network_core::server::{
+    block::BlockService, block::HeaderService, transaction::TransactionService, Node,
+};
+use protocol::{Inbound, Message};
+
+use futures::{future, prelude::*, stream::Stream, sync::mpsc};
+use tokio::net::{TcpListener, TcpStream};
+
+use std::net::SocketAddr;
 
 /// Internal structure of network transport node.
 #[derive(Clone)]
@@ -68,18 +68,19 @@ pub fn listen(
 pub fn accept<N: 'static>(
     stream: TcpStream,
     node: Server<N>,
-) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
+) -> impl future::Future<Item = impl futures::future::Future<Item = (), Error = Error>, Error = Error>
 where
-    N: server::Node + Clone,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::de::Deserialize + cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::de::Deserialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
+    N: Node + Clone,
+    <<N as Node>::BlockService as BlockService>::Block:
+        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
+    <<N as Node>::BlockService as BlockService>::Block:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<<N as Node>::BlockService as BlockService>::Block as property::Block>::Id:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::HeaderService as HeaderService>::Header:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::TransactionService as TransactionService>::TransactionId:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
 {
     protocol::Connection::accept(stream)
         .map_err(move |err| Error::new(ErrorKind::Handshake, err))
@@ -95,18 +96,19 @@ where
 pub fn connect<N: 'static>(
     sockaddr: SocketAddr,
     node: Server<N>,
-) -> impl future::Future<Item = impl futures::future::Future<Item=(),Error=Error>, Error = Error>
+) -> impl future::Future<Item = impl futures::future::Future<Item = (), Error = Error>, Error = Error>
 where
-    N: server::Node + Clone,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header: cbor_event::de::Deserialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::se::Serialize + cbor_event::de::Deserialize
+    N: Node + Clone,
+    <<N as Node>::BlockService as BlockService>::Block:
+        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
+    <<N as Node>::BlockService as BlockService>::Block:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<<N as Node>::BlockService as BlockService>::Block as property::Block>::Id:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::HeaderService as HeaderService>::Header:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::TransactionService as TransactionService>::TransactionId:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
 {
     TcpStream::connect(&sockaddr)
         .map_err(move |err| Error::new(ErrorKind::Connect, err))
@@ -126,22 +128,25 @@ where
 /// types that has the semantics for our application.
 pub fn run_connection<N, T>(
     server: Server<N>,
-    connection: protocol::Connection<T,
-        <<N as server::Node>::BlockService as BlockService>::Block,
-        <<N as server::Node>::TransactionService as TransactionService>::TransactionId>,
+    connection: protocol::Connection<
+        T,
+        <<N as Node>::BlockService as BlockService>::Block,
+        <<N as Node>::TransactionService as TransactionService>::TransactionId,
+    >,
 ) -> impl future::Future<Item = (), Error = Error>
 where
     T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
-    N: server::Node,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: property::HasHeader<Header = <<N as server::Node>::HeaderService as server::block::HeaderService>::Header>,
-    <<N as server::Node>::BlockService as server::block::BlockService>::Block: cbor_event::de::Deserialize + cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::de::Deserialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::Block>::Id : cbor_event::se::Serialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::de::Deserialize,
-    <<N as server::Node>::HeaderService as server::block::HeaderService>::Header : cbor_event::se::Serialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::de::Deserialize,
-    <<N as server::Node>::TransactionService as server::transaction::TransactionService>::TransactionId : cbor_event::se::Serialize,
-    <<<N as server::Node>::BlockService as server::block::BlockService>::Block as property::HasHeader>::Header: cbor_event::se::Serialize + cbor_event::de::Deserialize
+    N: Node,
+    <<N as Node>::BlockService as BlockService>::Block:
+        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
+    <<N as Node>::BlockService as BlockService>::Block:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<<N as Node>::BlockService as BlockService>::Block as property::Block>::Id:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::HeaderService as HeaderService>::Header:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
+    <<N as Node>::TransactionService as TransactionService>::TransactionId:
+        cbor_event::de::Deserialize + cbor_event::se::Serialize,
 {
     use protocol::{protocol::BlockHeaders, Response};
 
