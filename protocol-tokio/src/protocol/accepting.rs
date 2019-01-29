@@ -8,7 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::de::Deserializer;
 use chain_core::property;
-use std::{self, io::Cursor, vec, fmt};
+use std::{self, fmt, io::Cursor, vec};
 
 use super::{nt, Connection, Handshake, Message, NodeId};
 
@@ -43,8 +43,11 @@ impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Future
-    for Accepting<T, B, Tx>
+impl<
+        T: AsyncRead + AsyncWrite,
+        B: property::Block + property::HasHeader,
+        Tx: property::TransactionId,
+    > Future for Accepting<T, B, Tx>
 where
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
@@ -190,10 +193,13 @@ impl From<nt::DecodeEventError> for AcceptingError {
         AcceptingError::EventDecodeError(e)
     }
 }
-impl std::error::Error for AcceptingError  {
+impl std::error::Error for AcceptingError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             AcceptingError::IoError(e) => Some(e),
+            AcceptingError::NtError(e) => Some(e),
+            AcceptingError::EventDecodeError(e) => Some(e),
+            AcceptingError::InvalidHandshake(e) => Some(e),
             _ => None,
         }
     }
@@ -201,13 +207,15 @@ impl std::error::Error for AcceptingError  {
 impl fmt::Display for AcceptingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AcceptingError::NtError(e) => write!(f, "network transport error: {:?}", e),
-            AcceptingError::IoError(_) => write!(f, "IO error"),
-            AcceptingError::EventDecodeError(e) => write!(f, "event decode error: {:?}", e),
+            AcceptingError::NtError(_) => write!(f, "network transport error"),
+            AcceptingError::IoError(_) => write!(f, "I/O error"),
+            AcceptingError::EventDecodeError(_) => write!(f, "failed to decode event message"),
             AcceptingError::ConnectionClosed => write!(f, "connection closed"),
-            AcceptingError::ExpectedNewLightWeightConnectionId => write!(f, "expected new lightweight connection id"),
+            AcceptingError::ExpectedNewLightWeightConnectionId => {
+                write!(f, "expected new lightweight connection id")
+            }
             AcceptingError::ExpectedHandshake => write!(f, "expected handshake"),
-            AcceptingError::InvalidHandshake(e) => write!(f, "invalid handshake: {:?}", e),
+            AcceptingError::InvalidHandshake(_) => write!(f, "invalid handshake"),
             AcceptingError::ExpectedNodeId => write!(f, "expected node id"),
             AcceptingError::AlreadyConnected => write!(f, "already connected"),
         }

@@ -12,8 +12,9 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::{self, de::Deserializer};
 
-use std::fmt;
 use super::{nt, Connection, Handshake, Message, NodeId};
+
+use std::fmt;
 
 enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
     NtConnecting(nt::Connecting<T>),
@@ -48,8 +49,11 @@ impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Future
-    for Connecting<T, B, Tx>
+impl<
+        T: AsyncRead + AsyncWrite,
+        B: property::Block + property::HasHeader,
+        Tx: property::TransactionId,
+    > Future for Connecting<T, B, Tx>
 where
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
@@ -197,10 +201,13 @@ impl From<nt::DecodeEventError> for ConnectingError {
         ConnectingError::EventDecodeError(e)
     }
 }
-impl std::error::Error for ConnectingError  {
+impl std::error::Error for ConnectingError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            ConnectingError::NtError(e) => Some(e),
             ConnectingError::IoError(e) => Some(e),
+            ConnectingError::EventDecodeError(e) => Some(e),
+            ConnectingError::InvalidHandshake(e) => Some(e),
             _ => None,
         }
     }
@@ -208,13 +215,15 @@ impl std::error::Error for ConnectingError  {
 impl fmt::Display for ConnectingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ConnectingError::NtError(e) => write!(f, "network transport error: {:?}", e),
-            ConnectingError::IoError(_) => write!(f, "IO error"),
-            ConnectingError::EventDecodeError(e) => write!(f, "event decode error: {:?}", e),
+            ConnectingError::NtError(_) => write!(f, "network transport error"),
+            ConnectingError::IoError(_) => write!(f, "I/O error"),
+            ConnectingError::EventDecodeError(_) => write!(f, "event decode error"),
             ConnectingError::ConnectionClosed => write!(f, "connection closed"),
-            ConnectingError::ExpectedNewLightWeightConnectionId => write!(f, "expected new lightweight connection id"),
+            ConnectingError::ExpectedNewLightWeightConnectionId => {
+                write!(f, "expected new lightweight connection id")
+            }
             ConnectingError::ExpectedHandshake => write!(f, "expected handshake"),
-            ConnectingError::InvalidHandshake(e) => write!(f, "invalid handshake: {:?}", e),
+            ConnectingError::InvalidHandshake(_) => write!(f, "invalid handshake"),
             ConnectingError::ExpectedNodeId => write!(f, "expected node id"),
             ConnectingError::AlreadyConnected => write!(f, "already connected"),
         }
