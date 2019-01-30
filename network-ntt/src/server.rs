@@ -223,7 +223,7 @@ where
                             .node
                             .block_service()
                             .expect("block service is not implemented")
-                            .stream_blocks_to(&vec![get_blocks.from], &get_blocks.to)
+                            .pull_blocks_to(&vec![get_blocks.from], &get_blocks.to)
                             .map_err(|err| err.to_string())
                             .and_then(move |blocks| {
                                 let inner1 = sink.clone();
