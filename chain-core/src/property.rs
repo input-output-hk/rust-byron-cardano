@@ -91,11 +91,17 @@ pub trait Block: Serialize + Deserialize {
 /// block's metadata via a network protocol or in other uses where the
 /// full content of the block is too bulky and not necessary.
 pub trait HasHeader {
+    /// The block header id.
+    type Id: BlockId;
+
     /// The block header type.
     type Header: Header;
 
     /// Retrieves the block's header.
     fn header(&self) -> Self::Header;
+
+    /// Retrieves the block's header id.
+    fn id(&self) -> Self::Id;
 }
 
 /// define a transaction within the blockchain. This transaction can be used

@@ -87,12 +87,18 @@ pub enum Message<B: property::Block + property::HasHeader, Tx: property::Transac
     AckNodeId(nt::LightWeightConnectionId, NodeId),
     Bytes(nt::LightWeightConnectionId, Bytes),
 
-    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders<B::Id>),
+    GetBlockHeaders(
+        nt::LightWeightConnectionId,
+        GetBlockHeaders<<B as property::Block>::Id>,
+    ),
     BlockHeaders(
         nt::LightWeightConnectionId,
         Response<BlockHeaders<B::Header>, String>,
     ),
-    GetBlocks(nt::LightWeightConnectionId, GetBlocks<B::Id>),
+    GetBlocks(
+        nt::LightWeightConnectionId,
+        GetBlocks<<B as property::Block>::Id>,
+    ),
     Block(nt::LightWeightConnectionId, Response<B, String>),
     SendTransaction(nt::LightWeightConnectionId, Tx),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
@@ -101,8 +107,8 @@ pub enum Message<B: property::Block + property::HasHeader, Tx: property::Transac
 
 impl<B: property::Block + property::HasHeader, Tx: property::TransactionId> Message<B, Tx>
 where
-    B::Id: cbor_event::Deserialize,
-    B::Id: cbor_event::Serialize,
+    <B as property::Block>::Id: cbor_event::Deserialize,
+    <B as property::Block>::Id: cbor_event::Serialize,
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
     B::Header: cbor_event::Deserialize,

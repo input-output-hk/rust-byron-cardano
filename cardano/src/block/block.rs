@@ -321,9 +321,14 @@ impl chain_core::property::Block for Block {
 
 impl chain_core::property::HasHeader for Block {
     type Header = BlockHeader;
+    type Id = HeaderHash;
 
     fn header(&self) -> BlockHeader {
         self.header().into()
+    }
+
+    fn id(&self) -> Self::Id {
+        self.header().compute_hash()
     }
 }
 
