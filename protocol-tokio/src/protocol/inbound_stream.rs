@@ -51,12 +51,18 @@ pub enum Inbound<B: property::Block + property::HasHeader, Tx: property::Transac
 
     // need to call Connection::ack_node_id(node_id)
     NewNode(nt::LightWeightConnectionId, NodeId),
-    GetBlockHeaders(nt::LightWeightConnectionId, GetBlockHeaders<B::Id>),
+    GetBlockHeaders(
+        nt::LightWeightConnectionId,
+        GetBlockHeaders<<B as property::Block>::Id>,
+    ),
     BlockHeaders(
         nt::LightWeightConnectionId,
         Response<BlockHeaders<B::Header>, String>,
     ),
-    GetBlocks(nt::LightWeightConnectionId, GetBlocks<B::Id>),
+    GetBlocks(
+        nt::LightWeightConnectionId,
+        GetBlocks<<B as property::Block>::Id>,
+    ),
     Block(nt::LightWeightConnectionId, Response<B, String>),
     SendTransaction(nt::LightWeightConnectionId, Tx),
     TransactionReceived(nt::LightWeightConnectionId, Response<bool, String>),
@@ -74,8 +80,8 @@ impl<T: AsyncRead, B: property::Block + property::HasHeader, Tx: property::Trans
 where
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
-    B::Id: cbor_event::Deserialize,
-    B::Id: cbor_event::Serialize,
+    <B as property::Block>::Id: cbor_event::Deserialize,
+    <B as property::Block>::Id: cbor_event::Serialize,
     B::Header: cbor_event::Deserialize,
     B::Header: cbor_event::Serialize,
     Tx: cbor_event::Deserialize,
@@ -97,10 +103,10 @@ where
 impl<T, B: property::Block + property::HasHeader, Tx: property::TransactionId>
     InboundStream<T, B, Tx>
 where
-    B::Id: std::marker::Sized,
+    <B as property::Block>::Id: std::marker::Sized,
     B::Header: std::marker::Sized,
-    B::Id: cbor_event::Deserialize,
-    B::Id: cbor_event::Serialize,
+    <B as property::Block>::Id: cbor_event::Deserialize,
+    <B as property::Block>::Id: cbor_event::Serialize,
     B: cbor_event::Deserialize,
     B: cbor_event::Serialize,
     B::Header: cbor_event::Deserialize,
@@ -147,8 +153,10 @@ where
             Message::AckNodeId(lwcid, node_id) => self.process_ack_node_id(lwcid, node_id),
             Message::Bytes(lwcid, bytes) => self.forward_message(lwcid, Inbound::Data, bytes),
             Message::GetBlockHeaders(lwcid, gdh) => {
-                let f: fn(nt::LightWeightConnectionId, GetBlockHeaders<B::Id>) -> Inbound<B, Tx> =
-                    Inbound::GetBlockHeaders;
+                let f: fn(
+                    nt::LightWeightConnectionId,
+                    GetBlockHeaders<<B as property::Block>::Id>,
+                ) -> Inbound<B, Tx> = Inbound::GetBlockHeaders;
                 self.forward_message(lwcid, f, gdh)
             }
             Message::BlockHeaders(lwcid, bh) => {
