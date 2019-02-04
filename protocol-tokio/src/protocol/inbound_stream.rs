@@ -48,6 +48,7 @@ impl From<nt::DecodeEventError> for InboundError {
 pub enum Inbound<B: property::Block + property::HasHeader, Tx: property::TransactionId> {
     NothingExciting,
     NewConnection(nt::LightWeightConnectionId),
+    CloseConnection(nt::LightWeightConnectionId),
 
     // need to call Connection::ack_node_id(node_id)
     NewNode(nt::LightWeightConnectionId, NodeId),
@@ -78,14 +79,10 @@ pub struct InboundStream<T, B: property::Block, Tx: property::TransactionId> {
 impl<T: AsyncRead, B: property::Block + property::HasHeader, Tx: property::TransactionId> Stream
     for InboundStream<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
-    Tx: cbor_event::Serialize,
+    B: cbor_event::Deserialize + cbor_event::Serialize,
+    B::Id: cbor_event::Deserialize + cbor_event::Serialize,
+    B::Header: cbor_event::Deserialize + cbor_event::Serialize,
+    Tx: cbor_event::Deserialize + cbor_event::Serialize,
 {
     type Item = Inbound<B, Tx>;
     type Error = InboundError;
@@ -206,7 +203,7 @@ where
         let mut state = self.state.lock().unwrap();
         let result = state.server_handles.remove(&lwcid);
         match result {
-            None => Ok(Inbound::NothingExciting),
+            None => Ok(Inbound::CloseConnection(lwcid)),
             Some(light_state) => {
                 if let Some(ref node_id) = &light_state.node {
                     if let Some(client_connection_id) = state.map_to_client.remove(node_id) {
@@ -217,7 +214,7 @@ where
                         }
                     }
                 }
-                Ok(Inbound::NothingExciting)
+                Ok(Inbound::CloseConnection(lwcid))
             }
         }
     }
