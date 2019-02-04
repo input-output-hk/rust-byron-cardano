@@ -18,4 +18,4 @@ cardano = { path = "../cardano" }
 cbor_event = "^2.1.1"
 storage-units = { path = "../storage-units" }
 log = "*"
-rand = "0.5"
+rand = "0.6"

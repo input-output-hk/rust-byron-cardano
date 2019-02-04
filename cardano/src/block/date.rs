@@ -18,7 +18,14 @@ pub enum BlockDate {
     Normal(EpochSlotId),
 }
 
-impl property::BlockDate for BlockDate {}
+impl property::BlockDate for BlockDate {
+    fn from_epoch_slot_id(epoch: u64, slot_id: u64) -> Self {
+        BlockDate::Normal(EpochSlotId {
+            epoch: epoch,
+            slotid: slot_id as u16,
+        })
+    }
+}
 
 impl ::std::ops::Sub<BlockDate> for BlockDate {
     type Output = usize;

@@ -12,5 +12,5 @@ blob storage using immutable/append-only files
 """
 
 [dependencies]
-rand = "0.5"
+rand = "0.6"
 cryptoxide = "0.1"
