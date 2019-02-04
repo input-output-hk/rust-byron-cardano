@@ -20,5 +20,5 @@ cardano = { path = "../cardano" }
 log = "0.4"
 
 [dev-dependencies]
-rand = "*"
+rand = "0.6"
 env_logger = "*"
