@@ -346,8 +346,9 @@ impl chain_core::property::Deserialize for Block {
     }
 }
 
-impl chain_core::property::HasTransaction<TxAux> for Block {
-    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, TxAux> {
+impl chain_core::property::HasTransaction for Block {
+    type Transaction = TxAux;
+    fn transactions<'a>(&'a self) -> std::slice::Iter<'a, Self::Transaction> {
         match self {
             &Block::BoundaryBlock(_) => [].iter(),
             &Block::MainBlock(ref blk) => blk.body.tx.iter(),
