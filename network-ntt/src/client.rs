@@ -251,7 +251,7 @@ enum Command<B: Block + HasHeader, Tx: TransactionId> {
     CloseConnection(LightWeightConnectionId),
 }
 
-enum V<A1, A2, A3, A4, A5,A6, A7> {
+enum V<A1, A2, A3, A4, A5, A6, A7> {
     A1(A1),
     A2(A2),
     A3(A3),
@@ -261,14 +261,15 @@ enum V<A1, A2, A3, A4, A5,A6, A7> {
     A7(A7),
 }
 
-impl<A1,A2,A3,A4,A5,A6,A7> Future for V<A1, A2, A3, A4,A5,A6,A7>
-    where A1: Future,
-          A2: Future<Item = A1::Item, Error = A1::Error>,
-          A3: Future<Item = A1::Item, Error = A1::Error>,
-          A4: Future<Item = A1::Item, Error = A1::Error>,
-          A5: Future<Item = A1::Item, Error = A1::Error>,
-          A6: Future<Item = A1::Item, Error = A1::Error>,
-          A7: Future<Item = A1::Item, Error = A1::Error>,
+impl<A1, A2, A3, A4, A5, A6, A7> Future for V<A1, A2, A3, A4, A5, A6, A7>
+where
+    A1: Future,
+    A2: Future<Item = A1::Item, Error = A1::Error>,
+    A3: Future<Item = A1::Item, Error = A1::Error>,
+    A4: Future<Item = A1::Item, Error = A1::Error>,
+    A5: Future<Item = A1::Item, Error = A1::Error>,
+    A6: Future<Item = A1::Item, Error = A1::Error>,
+    A7: Future<Item = A1::Item, Error = A1::Error>,
 {
     type Item = A1::Item;
     type Error = A1::Error;
@@ -285,7 +286,6 @@ impl<A1,A2,A3,A4,A5,A6,A7> Future for V<A1, A2, A3, A4,A5,A6,A7>
         }
     }
 }
-
 
 fn run_connection<T, B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
     connection: protocol::Connection<T, B, Tx>,
@@ -348,9 +348,9 @@ where
                             .map_err(|_err| ())
                             .map(|x| (x, cc)),
                     ),
-                    Command::Message(message) => V::A2(
-                        sink.send(message).map_err(|_err| ()).map(|x| (x, cc)),
-                    ),
+                    Command::Message(message) => {
+                        V::A2(sink.send(message).map_err(|_err| ()).map(|x| (x, cc)))
+                    }
                     Command::BlockHeaders(lwid, resp) => {
                         let request = cc.requests.remove(&lwid);
                         V::A3(match request {
@@ -417,57 +417,50 @@ where
                         )
                     }
                     Command::Transaction(_, _) => V::A5(future::ok((sink, cc))),
-                    Command::Request(request) => {
-                        V::A6(
-                            sink.new_light_connection()
-                                .and_then(move |(lwcid, sink)| match request {
-                                    Request::Tip(t) => {
-                                        cc.requests.insert(lwcid, Request::Tip(t));
-                                        future::Either::A({
-                                            sink.send(Message::GetBlockHeaders(
-                                                lwcid,
-                                                GetBlockHeaders {
-                                                    from: vec![],
-                                                    to: None,
-                                                },
-                                            ))
-                                            .and_then(|sink| future::ok((sink, cc)))
-                                        })
-                                    }
-                                    Request::Block(t, from, to) => {
-                                        let from1 = from.clone();
-                                        let to1 = to.clone();
-                                        cc.requests.insert(lwcid, Request::Block(t, from1, to1));
-                                        future::Either::B({
-                                            sink.send(Message::GetBlocks(
-                                                lwcid,
-                                                GetBlocks { from, to },
-                                            ))
-                                            .and_then(|sink| future::ok((sink, cc)))
-                                        })
-                                    }
-                                })
-                                .map_err(|_| ()),
-                        )
-                    }
-                    Command::CloseConnection(lwcid) => {
-                        V::A7({
-                            match cc.requests.remove(&lwcid) {
-                                Some(Request::Tip(chan)) => {
-                                    chan.send(Err(core_client::Error::new(
-                                        core_client::ErrorKind::Rpc,
-                                        "unexpected close",
-                                    )))
-                                    .unwrap();
+                    Command::Request(request) => V::A6(
+                        sink.new_light_connection()
+                            .and_then(move |(lwcid, sink)| match request {
+                                Request::Tip(t) => {
+                                    cc.requests.insert(lwcid, Request::Tip(t));
+                                    future::Either::A({
+                                        sink.send(Message::GetBlockHeaders(
+                                            lwcid,
+                                            GetBlockHeaders {
+                                                from: vec![],
+                                                to: None,
+                                            },
+                                        ))
+                                        .and_then(|sink| future::ok((sink, cc)))
+                                    })
                                 }
-                                Some(Request::Block(mut chan, _, _)) => {
-                                    chan.close().unwrap();
+                                Request::Block(t, from, to) => {
+                                    let from1 = from.clone();
+                                    let to1 = to.clone();
+                                    cc.requests.insert(lwcid, Request::Block(t, from1, to1));
+                                    future::Either::B({
+                                        sink.send(Message::GetBlocks(lwcid, GetBlocks { from, to }))
+                                            .and_then(|sink| future::ok((sink, cc)))
+                                    })
                                 }
-                                _ => (),
-                            };
-                            future::ok((sink, cc))
-                        })
-                    }
+                            })
+                            .map_err(|_| ()),
+                    ),
+                    Command::CloseConnection(lwcid) => V::A7({
+                        match cc.requests.remove(&lwcid) {
+                            Some(Request::Tip(chan)) => {
+                                chan.send(Err(core_client::Error::new(
+                                    core_client::ErrorKind::Rpc,
+                                    "unexpected close",
+                                )))
+                                .unwrap();
+                            }
+                            Some(Request::Block(mut chan, _, _)) => {
+                                chan.close().unwrap();
+                            }
+                            _ => (),
+                        };
+                        future::ok((sink, cc))
+                    }),
                 })
                 .map_err(|_| ())
                 .map(|_| ())
