@@ -21,7 +21,7 @@ pub struct ClientHandle<T: Block, Tx> {
 
 /// Connect to the remote client. Returns future that can
 /// be run on any executor.
-pub fn connect<B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
+pub fn connect<B, H, I, D, Tx>(
     sockaddr: SocketAddr,
 ) -> impl Future<
     Item = (impl Future<Item = (), Error = ()>, ClientHandle<B, Tx>),
@@ -29,6 +29,10 @@ pub fn connect<B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, T
 >
 where
     Tx: TransactionId + cbor_event::Serialize + cbor_event::Deserialize,
+    B: NttBlock<D, I, H>,
+    H: NttHeader<D, I>,
+    I: NttId,
+    D: NttDate,
 {
     TcpStream::connect(&sockaddr)
         .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
