@@ -348,13 +348,19 @@ where
 
 impl<T, S, E> HeaderService<T> for Client<S, E>
 where
-    T: HasHeader,
+    T: Block + HasHeader,
     S: AsyncRead + AsyncWrite,
     E: Executor<Background<S, BoxBody>> + Clone,
     <T::Header as Deserialize>::Error: Send + Sync + 'static,
 {
-    type GetHeadersStream = ResponseStream<T::Header, gen::node::Header>;
-    type GetHeadersFuture = ResponseStreamFuture<T::Header, gen::node::Header>;
+    //type GetHeadersStream = ResponseStream<T::Header, gen::node::Header>;
+    //type GetHeadersFuture = ResponseStreamFuture<T::Header, gen::node::Header>;
+
+    type GetTipFuture = ResponseFuture<T::Header, gen::node::Header>;
+
+    fn tip_header(&mut self) -> Self::GetTipFuture {
+        unimplemented!()
+    }
 }
 
 /// The error type for gRPC client operations.

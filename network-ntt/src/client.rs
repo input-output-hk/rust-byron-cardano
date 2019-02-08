@@ -1,7 +1,7 @@
 use chain_core::property::{Block, HasHeader, Header, TransactionId};
 use future::Either;
 use futures::{sync::mpsc, sync::oneshot};
-use network_core::client::{self as core_client, block::BlockService};
+use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
 use protocol::{
     network_transport::LightWeightConnectionId, protocol::BlockHeaders, protocol::GetBlockHeaders,
     protocol::GetBlocks, Inbound, Message, Response,
@@ -14,7 +14,7 @@ use tokio::prelude::*;
 
 /// A handle that can be used in order for communication
 /// with the client thread.
-pub struct ClientHandle<T: Block, Tx> {
+pub struct ClientHandle<T: Block + HasHeader, Tx> {
     channel: mpsc::UnboundedSender<Request<T>>,
     phantom: PhantomData<Tx>,
 }
@@ -80,13 +80,16 @@ impl<T> Stream for RequestStream<T> {
     }
 }
 
-pub struct PullBlocksToTip<T: Block> {
-    chan: RequestFuture<(T::Id, T::Date)>,
+pub struct PullBlocksToTip<T: Block + HasHeader> {
+    chan: TipFuture<T::Header>,
     from: T::Id,
     request: mpsc::UnboundedSender<Request<T>>,
 }
 
-impl<T: Block> Future for PullBlocksToTip<T> {
+impl<T: Block + HasHeader> Future for PullBlocksToTip<T>
+where
+    T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
+{
     type Item = PullBlocksToTipStream<T>;
     type Error = core_client::Error;
 
@@ -128,9 +131,32 @@ impl<T: Block> Stream for PullBlocksToTipStream<T> {
     }
 }
 
-impl<T: Block, Tx> BlockService<T> for ClientHandle<T, Tx> {
-    type TipFuture = RequestFuture<(T::Id, T::Date)>;
+pub struct TipFuture<T>(RequestFuture<T>);
 
+impl<T: Header> Future for TipFuture<T> {
+    type Item = (T::Id, T::Date);
+    type Error = core_client::Error;
+
+    fn poll(&mut self) -> Poll<(T::Id, T::Date), Self::Error> {
+        match self.0.poll() {
+            Ok(Async::Ready(hdr)) => {
+                let id = hdr.id();
+                let date = hdr.date();
+                Ok(Async::Ready((id, date)))
+            }
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, e)),
+        }
+    }
+}
+
+
+
+impl<T: Block + HasHeader, Tx> BlockService<T> for ClientHandle<T, Tx>
+where
+    T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
+{
+    type TipFuture = TipFuture<T::Header>;
     type PullBlocksToTipStream = PullBlocksToTipStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
     type GetBlocksStream = RequestStream<T>;
@@ -139,22 +165,37 @@ impl<T: Block, Tx> BlockService<T> for ClientHandle<T, Tx> {
     fn tip(&mut self) -> Self::TipFuture {
         let (source, sink) = oneshot::channel();
         self.channel.unbounded_send(Request::Tip(source)).unwrap();
-        RequestFuture(sink)
+        TipFuture(RequestFuture(sink))
     }
 
     fn pull_blocks_to_tip(&mut self, from: &[T::Id]) -> Self::PullBlocksToTipFuture {
         let (source, sink) = oneshot::channel();
         self.channel.unbounded_send(Request::Tip(source)).unwrap();
         PullBlocksToTip {
-            chan: RequestFuture(sink),
+            chan: TipFuture(RequestFuture(sink)),
             from: from[0].clone(),
             request: self.channel.clone(),
         }
     }
 }
 
-enum Request<T: Block> {
-    Tip(oneshot::Sender<Result<(T::Id, T::Date), core_client::Error>>),
+impl<T: Block, Tx> HeaderService<T> for ClientHandle<T, Tx>
+where
+    T: HasHeader,
+{
+    //type GetHeadersStream = Self::GetHeadersStream<T::Header>;
+    //type GetHeadersFuture = Self::GetHeaders<T::Header>;
+    type GetTipFuture = RequestFuture<T::Header>;
+
+    fn tip_header(&mut self) -> Self::GetTipFuture {
+        let (source, sink) = oneshot::channel();
+        self.channel.unbounded_send(Request::Tip(source)).unwrap();
+        RequestFuture(sink)
+    }
+}
+
+enum Request<T: Block + HasHeader> {
+    Tip(oneshot::Sender<Result<T::Header, core_client::Error>>),
     Block(
         mpsc::UnboundedSender<Result<T, core_client::Error>>,
         T::Id,
@@ -171,7 +212,7 @@ pub trait NttBlock<D, I, H>:
 where
     D: NttDate,
     I: NttId,
-    H: NttHeader<D, I>,
+    H: NttHeader<D, I> + Clone + core::fmt::Debug,
 {
 }
 
@@ -184,12 +225,12 @@ where
         + cbor_event::Serialize,
     D: NttDate,
     I: NttId,
-    H: NttHeader<D, I>,
+    H: NttHeader<D, I> + Clone + core::fmt::Debug,
 {
 }
 
 pub trait NttHeader<D, I>:
-    Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize
+    Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize + core::fmt::Debug + Clone
 where
     D: chain_core::property::BlockDate + core::fmt::Debug,
     I: cbor_event::Deserialize
@@ -201,7 +242,7 @@ where
 
 impl<D, I, T> NttHeader<D, I> for T
 where
-    T: Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize,
+    T: Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize + core::fmt::Debug + Clone,
     D: chain_core::property::BlockDate + core::fmt::Debug,
     I: cbor_event::Deserialize
         + cbor_event::Serialize
@@ -356,9 +397,8 @@ where
                         V::A3(match request {
                             Some(Request::Tip(chan)) => match resp {
                                 Response::Ok(x) => {
-                                    let id = x.0[0].id();
-                                    let date = x.0[0].date();
-                                    chan.send(Ok((id, date))).unwrap();
+                                    let s = x.0[0].clone();
+                                    chan.send(Ok(s)).unwrap();
                                     Either::A(future::ok((sink, cc)))
                                 }
                                 Response::Err(x) => {
