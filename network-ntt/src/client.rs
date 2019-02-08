@@ -21,23 +21,14 @@ pub struct ClientHandle<T: Block, Tx> {
 
 /// Connect to the remote client. Returns future that can
 /// be run on any executor.
-pub fn connect<B, Tx>(
+pub fn connect<B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
     sockaddr: SocketAddr,
 ) -> impl Future<
     Item = (impl Future<Item = (), Error = ()>, ClientHandle<B, Tx>),
     Error = core_client::Error,
 >
 where
-    B: Block + HasHeader,
-    B: cbor_event::Deserialize + cbor_event::Serialize,
-    <B as Block>::Id: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: Header<Id = <B as Block>::Id, Date = <B as Block>::Date>,
-    B: core::fmt::Debug,
-    <B as Block>::Id: core::fmt::Debug,
-    <B as Block>::Date: core::fmt::Debug,
-    Tx: cbor_event::Serialize + cbor_event::Deserialize,
-    Tx: TransactionId,
+    Tx: TransactionId + cbor_event::Serialize + cbor_event::Deserialize,
 {
     TcpStream::connect(&sockaddr)
         .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
@@ -167,6 +158,71 @@ enum Request<T: Block> {
     ),
 }
 
+pub trait NttBlock<D, I, H>:
+    Block<Id = I, Date = D>
+    + core::fmt::Debug
+    + HasHeader<Header = H>
+    + cbor_event::Deserialize
+    + cbor_event::Serialize
+where
+    D: NttDate,
+    I: NttId,
+    H: NttHeader<D, I>,
+{
+}
+
+impl<D, I, H, T> NttBlock<D, I, H> for T
+where
+    T: Block<Id = I, Date = D>
+        + core::fmt::Debug
+        + HasHeader<Header = H>
+        + cbor_event::Deserialize
+        + cbor_event::Serialize,
+    D: NttDate,
+    I: NttId,
+    H: NttHeader<D, I>,
+{
+}
+
+pub trait NttHeader<D, I>:
+    Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize
+where
+    D: chain_core::property::BlockDate + core::fmt::Debug,
+    I: cbor_event::Deserialize
+        + cbor_event::Serialize
+        + chain_core::property::BlockId
+        + core::fmt::Debug,
+{
+}
+
+impl<D, I, T> NttHeader<D, I> for T
+where
+    T: Header<Id = I, Date = D> + cbor_event::Deserialize + cbor_event::Serialize,
+    D: chain_core::property::BlockDate + core::fmt::Debug,
+    I: cbor_event::Deserialize
+        + cbor_event::Serialize
+        + chain_core::property::BlockId
+        + core::fmt::Debug,
+{
+}
+
+pub trait NttDate: chain_core::property::BlockDate + core::fmt::Debug {}
+
+impl<T> NttDate for T where T: chain_core::property::BlockDate + core::fmt::Debug {}
+
+pub trait NttId:
+    cbor_event::Deserialize + cbor_event::Serialize + chain_core::property::BlockId + core::fmt::Debug
+{
+}
+
+impl<T> NttId for T where
+    T: cbor_event::Deserialize
+        + cbor_event::Serialize
+        + chain_core::property::BlockId
+        + core::fmt::Debug
+{
+}
+
 struct ConnectionState<B: Block + HasHeader> {
     requests: HashMap<LightWeightConnectionId, Request<B>>,
 }
@@ -191,22 +247,13 @@ enum Command<B: Block + HasHeader, Tx: TransactionId> {
     CloseConnection(LightWeightConnectionId),
 }
 
-/// Run connection to the server.
-fn run_connection<T, B: Block, Tx: TransactionId>(
+fn run_connection<T, B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
     connection: protocol::Connection<T, B, Tx>,
     input: mpsc::UnboundedReceiver<Request<B>>,
 ) -> impl future::Future<Item = (), Error = ()>
 where
     T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
-    B: HasHeader,
-    B: cbor_event::Deserialize + cbor_event::Serialize,
-    <B as Block>::Id: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: Header<Id = <B as Block>::Id, Date = <B as Block>::Date>,
-    B: core::fmt::Debug,
-    <B as Block>::Id: core::fmt::Debug,
-    <B as Block>::Date: core::fmt::Debug,
-    Tx: cbor_event::Serialize + cbor_event::Deserialize,
+    Tx: TransactionId + cbor_event::Serialize + cbor_event::Deserialize,
 {
     let (sink, stream) = connection.split();
     let (sink_tx, sink_rx) = mpsc::unbounded();
@@ -247,6 +294,7 @@ where
         })
         .map_err(|_err| ())
         .map(|_| ());
+
     // Receive commands.
     let sink = sink
         .subscribe(false)
