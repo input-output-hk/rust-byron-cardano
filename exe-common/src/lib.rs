@@ -1,3 +1,4 @@
+#![type_length_limit = "2097152"]
 extern crate cardano;
 extern crate cardano_storage;
 extern crate cbor_event;
@@ -17,6 +18,9 @@ extern crate serde_yaml;
 extern crate futures;
 extern crate hyper;
 extern crate tokio_core;
+
+extern crate network_core;
+extern crate network_ntt;
 
 pub mod config;
 pub mod genesis_data;

@@ -5,13 +5,14 @@ use cardano::{
 };
 use config;
 use network::api::{BlockRef, *};
-use network::{hermes, native, Result};
+use network::{hermes, native, ntt, Result};
 
 /// network object to handle a peer connection and redirect to constructing
 /// the appropriate network protocol object (native, http...)
 pub enum Peer {
     Native(native::PeerPool),
     Http(hermes::HermesEndPoint),
+    Ntt(ntt::NetworkCore),
 }
 impl Peer {
     pub fn new(
@@ -29,6 +30,9 @@ impl Peer {
             config::net::Peer::Http(addr) => {
                 Ok(Peer::Http(hermes::HermesEndPoint::new(addr, network)))
             }
+            config::net::Peer::Ntt(addr) => {
+                ntt::NetworkCore::new(addr.parse().unwrap()).map(Peer::Ntt)
+            }
         }
     }
 }
@@ -37,6 +41,7 @@ impl Api for Peer {
         match self {
             Peer::Native(peer) => peer.get_tip(),
             Peer::Http(endpoint) => endpoint.get_tip(),
+            Peer::Ntt(endpoint) => endpoint.get_tip(),
         }
     }
 
@@ -44,6 +49,7 @@ impl Api for Peer {
         match self {
             Peer::Native(peer) => peer.wait_for_new_tip(prev_tip),
             Peer::Http(endpoint) => endpoint.wait_for_new_tip(prev_tip),
+            Peer::Ntt(endpoint) => endpoint.wait_for_new_tip(prev_tip),
         }
     }
 
@@ -51,6 +57,7 @@ impl Api for Peer {
         match self {
             Peer::Native(peer) => peer.get_block(hash),
             Peer::Http(endpoint) => endpoint.get_block(hash),
+            Peer::Ntt(endpoint) => endpoint.get_block(hash),
         }
     }
 
@@ -67,6 +74,7 @@ impl Api for Peer {
         match self {
             Peer::Native(peer) => peer.get_blocks(from, inclusive, to, got_block),
             Peer::Http(endpoint) => endpoint.get_blocks(from, inclusive, to, got_block),
+            Peer::Ntt(endpoint) => endpoint.get_blocks(from, inclusive, to, got_block),
         }
     }
 
@@ -74,6 +82,7 @@ impl Api for Peer {
         match self {
             Peer::Native(peer) => peer.send_transaction(txaux),
             Peer::Http(endpoint) => endpoint.send_transaction(txaux),
+            Peer::Ntt(endpoint) => endpoint.send_transaction(txaux),
         }
     }
 }
