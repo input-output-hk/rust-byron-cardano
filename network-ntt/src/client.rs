@@ -247,6 +247,42 @@ enum Command<B: Block + HasHeader, Tx: TransactionId> {
     CloseConnection(LightWeightConnectionId),
 }
 
+enum V<A1, A2, A3, A4, A5,A6, A7> {
+    A1(A1),
+    A2(A2),
+    A3(A3),
+    A4(A4),
+    A5(A5),
+    A6(A6),
+    A7(A7),
+}
+
+impl<A1,A2,A3,A4,A5,A6,A7> Future for V<A1, A2, A3, A4,A5,A6,A7>
+    where A1: Future,
+          A2: Future<Item = A1::Item, Error = A1::Error>,
+          A3: Future<Item = A1::Item, Error = A1::Error>,
+          A4: Future<Item = A1::Item, Error = A1::Error>,
+          A5: Future<Item = A1::Item, Error = A1::Error>,
+          A6: Future<Item = A1::Item, Error = A1::Error>,
+          A7: Future<Item = A1::Item, Error = A1::Error>,
+{
+    type Item = A1::Item;
+    type Error = A1::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match *self {
+            V::A1(ref mut x) => x.poll(),
+            V::A2(ref mut x) => x.poll(),
+            V::A3(ref mut x) => x.poll(),
+            V::A4(ref mut x) => x.poll(),
+            V::A5(ref mut x) => x.poll(),
+            V::A6(ref mut x) => x.poll(),
+            V::A7(ref mut x) => x.poll(),
+        }
+    }
+}
+
+
 fn run_connection<T, B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
     connection: protocol::Connection<T, B, Tx>,
     input: mpsc::UnboundedReceiver<Request<B>>,
@@ -303,17 +339,17 @@ where
             let cc: ConnectionState<B> = ConnectionState::new();
             sink_rx
                 .fold((sink, cc), move |(sink, mut cc), outbound| match outbound {
-                    Command::Message(Message::AckNodeId(_lwcid, node_id)) => Either::A(
+                    Command::Message(Message::AckNodeId(_lwcid, node_id)) => V::A1(
                         sink.ack_node_id(node_id)
                             .map_err(|_err| ())
                             .map(|x| (x, cc)),
                     ),
-                    Command::Message(message) => Either::B(Either::A(
+                    Command::Message(message) => V::A2(
                         sink.send(message).map_err(|_err| ()).map(|x| (x, cc)),
-                    )),
+                    ),
                     Command::BlockHeaders(lwid, resp) => {
                         let request = cc.requests.remove(&lwid);
-                        Either::B(Either::B(Either::A(match request {
+                        V::A3(match request {
                             Some(Request::Tip(chan)) => match resp {
                                 Response::Ok(x) => {
                                     let id = x.0[0].id();
@@ -339,11 +375,11 @@ where
                                 .and_then(|_| future::ok((sink, cc))),
                             ),
                             None => Either::A(future::ok((sink, cc))),
-                        })))
+                        })
                     }
                     Command::Blocks(lwid, resp) => {
                         let val = cc.requests.remove(&lwid);
-                        Either::B(Either::B(Either::B(Either::A(
+                        V::A4(
                             match val {
                                 Some(Request::Block(chan, a, b)) => Either::B(
                                     match resp {
@@ -374,13 +410,11 @@ where
                                     .and_then(|x| future::ok((x, cc)))
                                     .map_err(|_| ())
                             }),
-                        ))))
+                        )
                     }
-                    Command::Transaction(_, _) => Either::B(Either::B(Either::B(Either::B(
-                        Either::A(future::ok((sink, cc))),
-                    )))),
+                    Command::Transaction(_, _) => V::A5(future::ok((sink, cc))),
                     Command::Request(request) => {
-                        Either::B(Either::B(Either::B(Either::B(Either::B(Either::A(
+                        V::A6(
                             sink.new_light_connection()
                                 .and_then(move |(lwcid, sink)| match request {
                                     Request::Tip(t) => {
@@ -410,10 +444,10 @@ where
                                     }
                                 })
                                 .map_err(|_| ()),
-                        ))))))
+                        )
                     }
                     Command::CloseConnection(lwcid) => {
-                        Either::B(Either::B(Either::B(Either::B(Either::B(Either::B({
+                        V::A7({
                             match cc.requests.remove(&lwcid) {
                                 Some(Request::Tip(chan)) => {
                                     chan.send(Err(core_client::Error::new(
@@ -428,7 +462,7 @@ where
                                 _ => (),
                             };
                             future::ok((sink, cc))
-                        }))))))
+                        })
                     }
                 })
                 .map_err(|_| ())
