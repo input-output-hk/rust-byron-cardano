@@ -51,9 +51,9 @@ where
 }
 
 /// Internal message that is used to load reply from the client.
-pub struct Receiver<T>(oneshot::Receiver<Result<T, core_client::Error>>);
+pub struct RequestFuture<T>(oneshot::Receiver<Result<T, core_client::Error>>);
 
-impl<T> Future for Receiver<T> {
+impl<T> Future for RequestFuture<T> {
     type Item = T;
     type Error = core_client::Error;
 
@@ -67,9 +67,9 @@ impl<T> Future for Receiver<T> {
     }
 }
 
-pub struct StreamOnce<K>(oneshot::Receiver<K>);
+pub struct RequestStream<T>(oneshot::Receiver<T>);
 
-impl<T> Stream for StreamOnce<T> {
+impl<T> Stream for RequestStream<T> {
     type Item = T;
     type Error = core_client::Error;
 
@@ -81,7 +81,7 @@ impl<T> Stream for StreamOnce<T> {
 }
 
 pub struct PullBlocksToTip<T: Block> {
-    chan: Receiver<(T::Id, T::Date)>,
+    chan: RequestFuture<(T::Id, T::Date)>,
     from: T::Id,
     request: mpsc::UnboundedSender<Request<T>>,
 }
@@ -129,24 +129,24 @@ impl<T: Block> Stream for PullBlocksToTipStream<T> {
 }
 
 impl<T: Block, Tx> BlockService<T> for ClientHandle<T, Tx> {
-    type TipFuture = Receiver<(T::Id, T::Date)>;
+    type TipFuture = RequestFuture<(T::Id, T::Date)>;
 
     type PullBlocksToTipStream = PullBlocksToTipStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
-    type GetBlocksStream = StreamOnce<T>;
-    type GetBlocksFuture = Receiver<StreamOnce<T>>;
+    type GetBlocksStream = RequestStream<T>;
+    type GetBlocksFuture = RequestFuture<RequestStream<T>>;
 
     fn tip(&mut self) -> Self::TipFuture {
         let (source, sink) = oneshot::channel();
         self.channel.unbounded_send(Request::Tip(source)).unwrap();
-        Receiver(sink)
+        RequestFuture(sink)
     }
 
     fn pull_blocks_to_tip(&mut self, from: &[T::Id]) -> Self::PullBlocksToTipFuture {
         let (source, sink) = oneshot::channel();
         self.channel.unbounded_send(Request::Tip(source)).unwrap();
         PullBlocksToTip {
-            chan: Receiver(sink),
+            chan: RequestFuture(sink),
             from: from[0].clone(),
             request: self.channel.clone(),
         }
