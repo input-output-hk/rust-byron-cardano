@@ -111,8 +111,8 @@ impl<
     where
         B::Header: cbor_event::Serialize,
         B::Header: cbor_event::Deserialize,
-        B::Id: cbor_event::Serialize,
-        B::Id: cbor_event::Deserialize,
+        <B as property::Block>::Id: cbor_event::Serialize,
+        <B as property::Block>::Id: cbor_event::Deserialize,
         B: cbor_event::Serialize,
         B: cbor_event::Deserialize,
         Tx: cbor_event::Serialize,

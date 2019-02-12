@@ -6,4 +6,5 @@
 
 extern crate protocol_tokio as protocol;
 
+pub mod client;
 pub mod server;

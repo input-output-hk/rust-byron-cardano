@@ -80,7 +80,21 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
-impl chain_core::property::Header for BlockHeader {}
+impl chain_core::property::Header for BlockHeader {
+    type Id = HeaderHash;
+    type Date = BlockDate;
+
+    fn id(&self) -> Self::Id {
+        self.compute_hash()
+    }
+
+    fn date(&self) -> Self::Date {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref header) => header.consensus.epoch.into(),
+            BlockHeader::MainBlockHeader(ref header) => header.consensus.slot_id.into(),
+        }
+    }
+}
 
 /// Accessor to the header block data.
 ///
