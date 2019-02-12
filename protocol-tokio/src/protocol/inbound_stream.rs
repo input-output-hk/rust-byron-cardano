@@ -1,4 +1,5 @@
 use super::{
+    chain_bounds::{ProtocolBlock, ProtocolTransactionId},
     nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId, Response,
 };
 use super::{BlockHeaders, GetBlockHeaders, GetBlocks};
@@ -71,18 +72,19 @@ pub enum Inbound<B: property::Block + property::HasHeader, Tx: property::Transac
     Data(nt::LightWeightConnectionId, Bytes),
 }
 
-pub struct InboundStream<T, B: property::Block, Tx: property::TransactionId> {
+pub struct InboundStream<T, B, Tx> {
     stream: SplitStream<nt::Connection<T>>,
     state: Arc<Mutex<ConnectionState>>,
     phantoms: PhantomData<(B, Tx)>,
 }
-impl<T: AsyncRead, B: property::Block + property::HasHeader, Tx: property::TransactionId> Stream
-    for InboundStream<T, B, Tx>
+
+impl<T, B, Tx> Stream for InboundStream<T, B, Tx>
 where
-    B: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Id: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize + cbor_event::Serialize,
-    Tx: cbor_event::Deserialize + cbor_event::Serialize,
+    T: AsyncRead,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
 {
     type Item = Inbound<B, Tx>;
     type Error = InboundError;
@@ -97,19 +99,13 @@ where
         }
     }
 }
-impl<T, B: property::Block + property::HasHeader, Tx: property::TransactionId>
-    InboundStream<T, B, Tx>
+impl<T, B, Tx> InboundStream<T, B, Tx>
 where
-    <B as property::Block>::Id: std::marker::Sized,
-    B::Header: std::marker::Sized,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
-    Tx: cbor_event::Serialize,
+    T: AsyncRead,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
 {
     pub fn new(stream: SplitStream<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
         InboundStream {

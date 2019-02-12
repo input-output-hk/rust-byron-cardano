@@ -10,7 +10,10 @@ use cbor_event::de::Deserializer;
 use chain_core::property;
 use std::{self, fmt, io::Cursor, vec};
 
-use super::{nt, Connection, Handshake, Message, NodeId};
+use super::{
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
+    nt, Connection, Handshake, Message, NodeId,
+};
 
 enum AcceptingState<T, B: property::Block, Tx: property::TransactionId> {
     NtAccepting(nt::Accepting<T>),
@@ -43,20 +46,13 @@ impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
     }
 }
 
-impl<
-        T: AsyncRead + AsyncWrite,
-        B: property::Block + property::HasHeader,
-        Tx: property::TransactionId,
-    > Future for Accepting<T, B, Tx>
+impl<T, B, Tx> Future for Accepting<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
-    Tx: cbor_event::Serialize,
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     type Item = Connection<T, B, Tx>;
     type Error = AcceptingError;

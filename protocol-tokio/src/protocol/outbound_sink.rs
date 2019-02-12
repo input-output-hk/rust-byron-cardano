@@ -1,14 +1,18 @@
 use futures::{future, stream::SplitSink, Future, Poll, Sink, StartSend};
-use std::{
-    io,
-    sync::{Arc, Mutex},
-};
 use tokio_io::AsyncWrite;
 
-use super::{nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId};
-use std::marker::PhantomData;
+use super::{
+    chain_bounds::{ProtocolBlock, ProtocolTransactionId},
+    nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId,
+};
 
 use chain_core::property;
+
+use std::{
+    io,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 pub type Outbound<B, Tx> = Message<B, Tx>;
 
@@ -33,6 +37,7 @@ pub struct OutboundSink<T, B, Tx> {
     state: Arc<Mutex<ConnectionState>>,
     phantoms: PhantomData<(B, Tx)>,
 }
+
 impl<T, B, Tx> OutboundSink<T, B, Tx> {
     fn get_next_light_id(&mut self) -> nt::LightWeightConnectionId {
         self.state.lock().unwrap().get_next_light_id()
@@ -42,17 +47,14 @@ impl<T, B, Tx> OutboundSink<T, B, Tx> {
         self.state.lock().unwrap().get_next_node_id()
     }
 }
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId>
-    OutboundSink<T, B, Tx>
+
+impl<T, B, Tx> OutboundSink<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
 {
     pub fn new(sink: SplitSink<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
         OutboundSink {
@@ -143,17 +145,13 @@ where
     }
 }
 
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Sink
-    for OutboundSink<T, B, Tx>
+impl<T, B, Tx> Sink for OutboundSink<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
 {
     type SinkItem = Outbound<B, Tx>;
     type SinkError = OutboundError;
