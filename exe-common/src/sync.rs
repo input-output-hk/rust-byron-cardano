@@ -369,10 +369,12 @@ fn get_unpacked_blocks_in_epoch(
             let hdr = block.header();
             (hdr.blockdate(), hdr.previous_header())
         };
-        assert!(blockdate.get_epochid() == epoch_id);
-        blocks.push((cur_hash, block_raw, block));
-        cur_hash = prev_hash;
-        if blockdate.is_boundary() {
+        let from_this_epoch = blockdate.get_epochid() == epoch_id;
+        if from_this_epoch {
+            blocks.push((cur_hash, block_raw, block));
+            cur_hash = prev_hash;
+        }
+        if blockdate.is_boundary() || !from_this_epoch {
             break;
         }
     }
