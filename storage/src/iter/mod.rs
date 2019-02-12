@@ -115,7 +115,7 @@ impl<'a> Iter<'a> {
 
     fn new_internal(storage: &'a Storage, from: BlockHash, to: BlockHash) -> Result<Self> {
         let iterator = match storage.block_location(&from)? {
-            BlockLocation::Loose(to) => {
+            BlockLocation::Loose(from) => {
                 let mut range = range_iter(storage, from, to)?;
                 IteratorType::Loose(storage, range)
             }
