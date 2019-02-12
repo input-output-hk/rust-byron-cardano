@@ -45,14 +45,17 @@ fn net_sync_to<A: Api>(
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let genesis_ref = BlockRef {
-        hash: net_cfg.genesis.clone(),
-        parent: net_cfg.genesis_prev.clone(),
-        date: BlockDate::Boundary(net_cfg.epoch_start),
-    };
-
     let (our_tip, our_tip_is_genesis) = match storage.get_block_from_tag(&tag::HEAD) {
-        Err(Error::NoSuchTag) => (genesis_ref.clone(), true),
+        Err(Error::NoSuchTag) => {
+            (
+                BlockRef {
+                    hash: net_cfg.genesis.clone(),
+                    parent: net_cfg.genesis_prev.clone(),
+                    date: BlockDate::Boundary(net_cfg.epoch_start),
+                },
+                true
+            )
+        },
         Err(err) => panic!(err),
         Ok(block) => {
             let header = block.header();
