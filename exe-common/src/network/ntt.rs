@@ -23,11 +23,15 @@ pub struct NetworkCore {
 
 impl NetworkCore {
     pub fn new(sockaddr: SocketAddr) -> Result<Self> {
+        println!("New network core: {}", sockaddr);
         let connecting = ntt::connect(sockaddr);
         match connecting.wait() {
             Ok((connection, handle)) => {
+                println!("Connection: ok");
                 let mut core = Core::new().unwrap();
+                println!("Connection: core ok");
                 core.execute(connection).unwrap();
+                println!("Connection: core ok");
                 Ok(NetworkCore { handle, core })
             }
             Err(_err) => unimplemented!(),
@@ -41,11 +45,11 @@ impl Api for NetworkCore {
     }
 
     fn wait_for_new_tip(&mut self, _prev_tip: &HeaderHash) -> Result<BlockHeader> {
-        unimplemented!("not yet ready")
+        panic!("not yet ready")
     }
 
     fn get_block(&mut self, _hash: &HeaderHash) -> Result<RawBlock> {
-        unimplemented!("not yet ready")
+        panic!("not yet ready")
     }
 
     fn get_blocks<F>(
