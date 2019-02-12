@@ -369,11 +369,15 @@ fn get_unpacked_blocks_in_epoch(
             let hdr = block.header();
             (hdr.blockdate(), hdr.previous_header())
         };
+        // Only add block and switch to previous block
+        // if currently viewed block is still from the current epoch
         let from_this_epoch = blockdate.get_epochid() == epoch_id;
         if from_this_epoch {
             blocks.push((cur_hash, block_raw, block));
             cur_hash = prev_hash;
         }
+        // Terminate if current block is EBB
+        // or if there isn't one and we already jumped to previous epoch
         if blockdate.is_boundary() || !from_this_epoch {
             break;
         }
