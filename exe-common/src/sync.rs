@@ -40,9 +40,7 @@ fn net_sync_to<A: Api>(
     debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
     info!(
         "Network TIP is       : {} ({}) <- {}",
-        tip.hash,
-        tip.date,
-        tip.parent
+        tip.hash, tip.date, tip.parent
     );
 
     // Start fetching at the current HEAD tag, or the genesis block if
@@ -73,10 +71,7 @@ fn net_sync_to<A: Api>(
     // ancestor of tip. In that case we should start from the last
     // stable epoch before our_tip.
 
-    info!(
-        "Fetching from        : {} ({})",
-        our_tip.hash, our_tip.date
-    );
+    info!("Fetching from        : {} ({})", our_tip.hash, our_tip.date);
 
     // Determine whether the previous epoch is stable yet. Note: This
     // assumes that k is smaller than the number of blocks in an
