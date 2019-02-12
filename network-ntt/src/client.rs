@@ -1,15 +1,27 @@
 use chain_core::property::{Block, HasHeader, Header, TransactionId};
-use future::Either;
-use futures::{sync::mpsc, sync::oneshot};
+
 use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
-    network_transport::LightWeightConnectionId, protocol::GetBlockHeaders, protocol::GetBlocks,
-    Inbound, Message, Response,
+    network_transport::LightWeightConnectionId,
+    protocol::{CloseLightConnection, GetBlockHeaders, GetBlocks, NewLightConnection},
+    Inbound, InboundError, InboundStream, Message, OutboundError, OutboundSink, ProtocolBlock,
+    ProtocolBlockId, ProtocolHeader, ProtocolTransactionId, Response,
 };
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::net::SocketAddr;
+
+use futures::{
+    sink,
+    sync::{mpsc, oneshot},
+};
+
+use std::{
+    collections::{hash_map, HashMap},
+    error, fmt,
+    marker::PhantomData,
+    mem,
+    net::SocketAddr,
+};
+
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 
@@ -25,12 +37,9 @@ pub struct ClientHandle<T: Block + HasHeader, Tx> {
 pub fn connect<B, H, I, D, Tx>(
     sockaddr: SocketAddr,
     magic: ProtocolMagic,
-) -> impl Future<
-    Item = (impl Future<Item = (), Error = ()>, ClientHandle<B, Tx>),
-    Error = core_client::Error,
->
+) -> impl Future<Item = (Connection<TcpStream, B, Tx>, ClientHandle<B, Tx>), Error = core_client::Error>
 where
-    Tx: TransactionId + cbor_event::Serialize + cbor_event::Deserialize,
+    Tx: ProtocolTransactionId,
     B: NttBlock<D, I, H>,
     H: NttHeader<D, I>,
     I: NttId,
@@ -41,13 +50,13 @@ where
         .and_then(move |stream| {
             protocol::Connection::connect(stream, magic)
                 .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
-                .and_then(move |connection: protocol_tokio::Connection<_, B, Tx>| {
-                    let (stream, source) = mpsc::unbounded();
+                .and_then(move |connection| {
+                    let (cmd_sink, cmd_source) = mpsc::unbounded();
                     let handle = ClientHandle {
-                        channel: stream,
+                        channel: cmd_sink,
                         phantom: PhantomData,
                     };
-                    future::ok((run_connection(connection, source), handle))
+                    future::ok((Connection::new(connection, cmd_source), handle))
                 })
         })
 }
@@ -276,163 +285,216 @@ impl<T> NttId for T where
 {
 }
 
-struct ConnectionState<B: Block + HasHeader> {
+#[derive(Debug)]
+pub enum Error {
+    Inbound(InboundError),
+    Outbound(OutboundError),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Inbound(e) => write!(f, "network input error"),
+            Error::Outbound(e) => write!(f, "network output error"),
+        }
+    }
+}
+
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            Error::Inbound(e) => Some(e),
+            Error::Outbound(e) => Some(e),
+        }
+    }
+}
+
+impl From<InboundError> for Error {
+    fn from(err: InboundError) -> Self {
+        Error::Inbound(err)
+    }
+}
+
+impl From<OutboundError> for Error {
+    fn from(err: OutboundError) -> Self {
+        Error::Outbound(err)
+    }
+}
+
+pub struct Connection<T, B, Tx>
+where
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
+{
+    inbound: Option<InboundStream<T, B, Tx>>,
+    out_state: OutboundState<T, B, Tx>,
+    commands: mpsc::UnboundedReceiver<Request<B>>,
     requests: HashMap<LightWeightConnectionId, Request<B>>,
 }
 
-impl<B: Block + HasHeader> ConnectionState<B> {
-    pub fn new() -> Self {
-        ConnectionState {
+impl<T, B, Tx> Connection<T, B, Tx>
+where
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
+{
+    fn new(
+        connection: protocol::Connection<T, B, Tx>,
+        commands: mpsc::UnboundedReceiver<Request<B>>,
+    ) -> Self {
+        let (sink, stream) = connection.split();
+        Connection {
+            inbound: Some(stream),
+            out_state: OutboundState::Ready(sink),
+            commands,
             requests: HashMap::new(),
         }
     }
 }
 
-enum Command<B: Block + HasHeader, Tx: TransactionId> {
-    Message(Message<B, Tx>),
-    Request(Request<B>),
-    CloseConnection(LightWeightConnectionId),
-    Reply(LightWeightConnectionId, Vec<u8>),
-}
-
-enum V<A1, A2, A3, A4, A5> {
-    A1(A1),
-    A2(A2),
-    A3(A3),
-    A4(A4),
-    A5(A5),
-}
-
-impl<A1, A2, A3, A4, A5> Future for V<A1, A2, A3, A4, A5>
+impl<T, B, Tx> Future for Connection<T, B, Tx>
 where
-    A1: Future,
-    A2: Future<Item = A1::Item, Error = A1::Error>,
-    A3: Future<Item = A1::Item, Error = A1::Error>,
-    A4: Future<Item = A1::Item, Error = A1::Error>,
-    A5: Future<Item = A1::Item, Error = A1::Error>,
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
 {
-    type Item = A1::Item;
-    type Error = A1::Error;
+    type Item = ();
+    type Error = Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match *self {
-            V::A1(ref mut x) => x.poll(),
-            V::A2(ref mut x) => x.poll(),
-            V::A3(ref mut x) => x.poll(),
-            V::A4(ref mut x) => x.poll(),
-            V::A5(ref mut x) => x.poll(),
+    fn poll(&mut self) -> Poll<(), Self::Error> {
+        if let Some(ref mut inbound) = self.inbound {
+            loop {
+                let mut events_processed = false;
+                match inbound.poll() {
+                    Ok(Async::NotReady) => {}
+                    Ok(Async::Ready(None)) => {
+                        break;
+                    }
+                    Ok(Async::Ready(Some(msg))) => {
+                        self.process_inbound(msg);
+                        events_processed = true;
+                    }
+                    Err(err) => return Err(err.into()),
+                }
+                match self.out_state.poll_ready() {
+                    Ok(Async::NotReady) => {
+                        // Some work on the output is pending,
+                        // not processing commands this time.
+                    }
+                    Ok(Async::Ready(())) => {
+                        // The output state machine is ready
+                        // for sending messages.
+                        match self.commands.poll() {
+                            Ok(Async::NotReady) => {}
+                            Ok(Async::Ready(Some(req))) => {
+                                self.process_request(req);
+                                events_processed = true;
+                            }
+                            Ok(Async::Ready(None)) => {
+                                // The request queue has been closed,
+                                // proceed to shutdown.
+                                break;
+                            }
+                            Err(err) => panic!("unexpected error in command queue: {:?}", err),
+                        }
+                    }
+                    Err(err) => return Err(err.into()),
+                }
+                if !events_processed {
+                    return Ok(Async::NotReady);
+                }
+            }
         }
+
+        // We only get here if the inbound stream or the request queue
+        // is closed.
+        // Make sure the inbound half is dropped.
+        self.inbound.take();
+
+        // Manage shutdown of the outbound half,
+        // returning result as the result of the connection poll.
+        try_ready!(self.out_state.close());
+        Ok(Async::Ready(()))
     }
 }
 
-fn run_connection<T, B: NttBlock<D, I, H>, H: NttHeader<D, I>, I: NttId, D: NttDate, Tx>(
-    connection: protocol::Connection<T, B, Tx>,
-    input: mpsc::UnboundedReceiver<Request<B>>,
-) -> impl future::Future<Item = (), Error = ()>
-where
-    T: tokio::io::AsyncRead + tokio::io::AsyncWrite,
-    Tx: TransactionId + cbor_event::Serialize + cbor_event::Deserialize,
-{
-    let (sink, stream) = connection.split();
-    let (sink_tx, sink_rx) = mpsc::unbounded();
-    let sink2_tx = sink_tx.clone();
-    // process messages comming from the network.
-    let stream = stream
-        .for_each(move |inbound| {
-            dbg!("inbound");
-            match inbound {
-                Inbound::NothingExciting => {}
-                Inbound::CloseConnection(lwcid) => {
-                    sink_tx
-                        .unbounded_send(Command::CloseConnection(lwcid))
-                        .unwrap();
-                }
-                Inbound::Data(lwcid, data) => {
-                    sink_tx
-                        .unbounded_send(Command::Reply(lwcid, data.to_vec()))
-                        .unwrap();
-                }
-                _x => {}
-            }
-            future::ok(())
-        })
-        .map_err(|_e| ())
-        .map(|_| ());
-    // Accept all commands from the program and send that
-    // further in the ppeline.
-    let commands = input
-        .for_each(move |request| {
-            sink2_tx.unbounded_send(Command::Request(request)).unwrap();
-            future::ok(())
-        })
-        .map_err(|_err| ())
-        .map(|_| ());
+fn unexpected_response_error() -> core_client::Error {
+    core_client::Error::new(core_client::ErrorKind::Rpc, "unexpected response".into())
+}
 
-    // Receive commands.
-    let cc: ConnectionState<B> = ConnectionState::new();
-    let sink = sink_rx
-        .fold((sink, cc), move |(sink, mut cc), outbound| match outbound {
-            Command::Message(Message::AckNodeId(_lwcid, node_id)) => V::A1(
-                sink.ack_node_id(node_id)
-                    .map_err(|_err| ())
-                    .map(|x| (x, cc)),
-            ),
-            Command::Message(message) => {
-                V::A2(sink.send(message).map_err(|_err| ()).map(|x| (x, cc)))
-            }
-            Command::Reply(lwid, bytes) => match cc.requests.remove(&lwid) {
-                Some(Request::Block(_chan, _a, _b)) => V::A3(Either::A(future::ok((sink, cc)))),
-                Some(Request::Tip(chan)) => {
-                    let mut raw = cbor_event::de::Deserializer::from(std::io::Cursor::new(bytes));
-                    let value: Response<Vec<H>, String> = raw.deserialize_complete().unwrap();
-                    match value {
-                        Response::Ok(x) => {
-                            let s = x[0].clone();
-                            chan.send(Ok(s)).unwrap();
-                        }
-                        Response::Err(x) => {
-                            chan.send(Err(core_client::Error::new(core_client::ErrorKind::Rpc, x)))
-                                .unwrap();
-                        }
-                    };
-                    V::A3(Either::B(
-                        sink.close_light_connection(lwid)
-                            .and_then(|x| future::ok((x, cc)))
-                            .map_err(|_| ()),
-                    ))
+fn convert_response<P, Q, F>(
+    response: Response<P, String>,
+    conversion: F,
+) -> Result<Q, core_client::Error>
+where
+    F: FnOnce(P) -> Q,
+{
+    match response {
+        Response::Ok(x) => Ok(conversion(x)),
+        Response::Err(err) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, err)),
+    }
+}
+
+impl<T, B, Tx> Connection<T, B, Tx>
+where
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
+{
+    fn process_inbound(&mut self, inbound: Inbound<B, Tx>) {
+        match inbound {
+            Inbound::NothingExciting => {}
+            Inbound::BlockHeaders(lwcid, response) => {
+                let request = self.requests.remove(&lwcid);
+                match request {
+                    None => {
+                        // TODO: log the bogus response
+                    }
+                    Some(Request::Tip(chan)) => {
+                        let res = convert_response(response, |p| p.0[0]);
+                        chan.send(res).unwrap();
+                    }
+                    Some(Request::Block(chan, ..)) => {
+                        chan.unbounded_send(Err(unexpected_response_error()))
+                            .unwrap();
+                    }
                 }
-                None => V::A3(Either::A(future::ok((sink, cc)))),
-            },
-            Command::Request(request) => V::A4(
-                sink.new_light_connection()
-                    .and_then(move |(lwcid, sink)| match request {
-                        Request::Tip(t) => {
-                            cc.requests.insert(lwcid, Request::Tip(t));
-                            future::Either::A({
-                                sink.send(Message::GetBlockHeaders(
-                                    lwcid,
-                                    GetBlockHeaders {
-                                        from: vec![],
-                                        to: None,
-                                    },
-                                ))
-                                .and_then(|sink| future::ok((sink, cc)))
-                            })
+            }
+            Inbound::Block(lwcid, response) => {
+                use hash_map::Entry::*;
+
+                match self.requests.entry(lwcid) {
+                    Vacant(_) => {
+                        // TODO: log the bogus response
+                    }
+                    Occupied(entry) => match entry.get() {
+                        Request::Block(chan, ..) => {
+                            let res = convert_response(response, |p| p);
+                            chan.unbounded_send(res).unwrap();
                         }
-                        Request::Block(t, from, to) => {
-                            let from1 = from.clone();
-                            let to1 = to.clone();
-                            cc.requests.insert(lwcid, Request::Block(t, from1, to1));
-                            future::Either::B({
-                                sink.send(Message::GetBlocks(lwcid, GetBlocks { from, to }))
-                                    .and_then(|sink| future::ok((sink, cc)))
-                            })
+                        Request::Tip(chan) => {
+                            chan.send(Err(unexpected_response_error())).unwrap();
                         }
-                    })
-                    .map_err(|_e| ()),
-            ),
-            Command::CloseConnection(lwcid) => V::A5({
-                match cc.requests.remove(&lwcid) {
+                    },
+                }
+            }
+            Inbound::TransactionReceived(_lwcid, _response) => {
+                // TODO: to be implemented
+            }
+            Inbound::CloseConnection(lwcid) => {
+                match self.requests.remove(&lwcid) {
+                    None => {
+                        // TODO: log the bogus close message
+                    }
                     Some(Request::Tip(chan)) => {
                         chan.send(Err(core_client::Error::new(
                             core_client::ErrorKind::Rpc,
@@ -440,16 +502,114 @@ where
                         )))
                         .unwrap();
                     }
-                    Some(Request::Block(mut chan, _, _)) => {
+                    Some(Request::Block(mut chan, ..)) => {
                         chan.close().unwrap();
                     }
                     _ => (),
                 };
-                future::ok((sink, cc))
-            }),
-        })
-        .map_err(|_| ())
-        .map(|_| ());
-    let cmds = commands.select(sink).map_err(|_| ()).map(|_| ());
-    stream.select(cmds).then(|_| Ok(()))
+            }
+            _ => {}
+        }
+    }
+
+    fn process_request(&mut self, req: Request<B>) {
+        let (new_out_state, lwcid) = self.out_state.start_send(&req);
+        self.out_state = new_out_state;
+        self.requests.insert(lwcid, req);
+    }
+}
+
+enum OutboundState<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
+{
+    Ready(OutboundSink<T, B, Tx>),
+    PendingMessage(NewLightConnection<T, B, Tx>, Option<Message<B, Tx>>),
+    Sending(sink::Send<OutboundSink<T, B, Tx>>, LightWeightConnectionId),
+    ClosingLightConnection(CloseLightConnection<T, B, Tx>),
+    Closing(OutboundSink<T, B, Tx>),
+    Closed,
+}
+
+impl<T, B, Tx> OutboundState<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
+{
+    fn poll_ready(&mut self) -> Poll<(), OutboundError> {
+        use OutboundState::*;
+
+        loop {
+            let new_state = match self {
+                Ready(_) => return Ok(Async::Ready(())),
+                PendingMessage(future, msg) => {
+                    let (lwcid, sink) = try_ready!(future.poll());
+                    let msg = mem::replace(msg, None).unwrap();
+                    Sending(sink.send(msg), lwcid)
+                }
+                Sending(future, lwcid) => {
+                    let sink = try_ready!(future.poll());
+                    ClosingLightConnection(sink.close_light_connection(lwcid.clone()))
+                }
+                ClosingLightConnection(future) => {
+                    let sink = try_ready!(future.poll());
+                    Ready(sink)
+                }
+                Closing(_) => panic!("outbound connection polled after closing"),
+                Closed => panic!("outbound connection polled after closing"),
+            };
+            *self = new_state;
+        }
+    }
+
+    fn start_send(self, req: &Request<B>) -> (Self, LightWeightConnectionId) {
+        use OutboundState::*;
+
+        match self {
+            Ready(sink) => {
+                let future = sink.new_light_connection();
+                let lwcid = future.connection_id();
+                let msg = match req {
+                    Request::Tip(t) => Message::GetBlockHeaders(
+                        lwcid,
+                        GetBlockHeaders {
+                            from: vec![],
+                            to: None,
+                        },
+                    ),
+                    Request::Block(t, from, to) => Message::GetBlocks(
+                        lwcid,
+                        GetBlocks {
+                            from: from.clone(),
+                            to: to.clone(),
+                        },
+                    ),
+                };
+                (PendingMessage(future, Some(msg)), lwcid)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn close(&mut self) -> Poll<(), OutboundError> {
+        use OutboundState::*;
+
+        let sink = match self {
+            Closed => return Ok(Async::Ready(())),
+            Closing(sink) => sink,
+            Ready(sink) => sink,
+            PendingMessage(future, _) => future.get_mut(),
+            Sending(future, _) => future.get_mut(),
+            ClosingLightConnection(future) => future.get_mut(),
+        };
+
+        sink.close()
+    }
 }
