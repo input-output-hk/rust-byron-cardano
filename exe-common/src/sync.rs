@@ -52,7 +52,7 @@ fn net_sync_to<A: Api>(
                 parent: net_cfg.genesis_prev.clone(),
                 date: BlockDate::Boundary(net_cfg.epoch_start),
             },
-            true
+            true,
         ),
         Err(err) => panic!(err),
         Ok(block) => {
