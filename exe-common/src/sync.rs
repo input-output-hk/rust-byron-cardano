@@ -161,9 +161,13 @@ fn net_sync_to<A: Api>(
             let block = block_raw.decode().unwrap();
             let hdr = block.header();
             let blockdate = hdr.blockdate();
-            assert!(blockdate.get_epochid() == first_unstable_epoch);
-            cur_hash = hdr.previous_header();
-            if blockdate.is_boundary() {
+            let from_this_epoch = blockdate.get_epochid() == first_unstable_epoch;
+            // switch to previous block if still in this epoch
+            if from_this_epoch {
+                cur_hash = hdr.previous_header();
+            }
+            // terminate if EBB or there isn't one and already another epoch
+            if blockdate.is_boundary() || !from_this_epoch {
                 break;
             }
         }
