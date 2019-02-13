@@ -65,14 +65,16 @@ impl ChainState {
                     return Err(Error::BlockDateInPast);
                 }
 
-                // If this is an EBB - it should be the next epoch;
-                // Otherwise it might be this or next epoch, if EBB is skipped.
-                if date.is_boundary() {
-                    if date.get_epochid() != last_date.get_epochid() + 1 {
+                // New date should be this or next epoch, not further
+                if date.get_epochid() > last_date.get_epochid() {
+                    if date.get_epochid() > last_date.get_epochid() + 1 {
                         return Err(Error::BlockDateInFuture);
                     }
-                } else if date.get_epochid() > last_date.get_epochid() {
-                    // TODO: validate we are in OBFT?
+                    // First next-epoch block supposed to be EBB,
+                    // unless we are in OBFT era
+                    if !date.is_boundary() {
+                        // TODO: validate we are in OBFT?
+                    }
                 }
             }
 
