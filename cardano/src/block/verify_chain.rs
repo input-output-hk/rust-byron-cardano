@@ -71,11 +71,8 @@ impl ChainState {
                     if date.get_epochid() != last_date.get_epochid() + 1 {
                         return Err(Error::BlockDateInFuture);
                     }
-                } else {
-                    if date.get_epochid() > last_date.get_epochid() {
-                        // TODO: validate we are in OBFT?
-                    }
-                    // TODO: validate max slot number?
+                } else if date.get_epochid() > last_date.get_epochid() {
+                    // TODO: validate we are in OBFT?
                 }
             }
 
