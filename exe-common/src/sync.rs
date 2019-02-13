@@ -199,9 +199,12 @@ fn net_sync_to<A: Api>(
 
             // Flush the previous epoch (if any). FIXME: shouldn't rely on
             // 'date' here since the block hasn't been verified yet.
-            if date.is_boundary() {
-                let mut writer_state = None;
-                mem::swap(&mut writer_state, &mut epoch_writer_state);
+
+            // Only if there's previous date and we get new block from new epoch (EBB or not)
+            if let Some(last_date) = chain_state.last_date {
+                if date.get_epochid() > last_date.get_epochid() {
+                    let mut writer_state = None;
+                    mem::swap(&mut writer_state, &mut epoch_writer_state);
 
                 if let Some(epoch_writer_state) = writer_state {
                     finish_epoch(
