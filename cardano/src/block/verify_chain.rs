@@ -14,19 +14,31 @@ impl ChainState {
 
         add_error(&mut res, self.do_verify(block_hash, blk));
 
+        match blk {
+            Block::BoundaryBlock(blk) => {
+                self.last_boundary_block = Some(block_hash.clone());
+                self.last_boundary_block_epoch = Some(blk.header.consensus.epoch);
+                self.slot_leaders = blk.body.slot_leaders.clone();
+            }
+            Block::MainBlock(blk) => {
+                let block_epoch = blk.header.consensus.slot_id.epoch;
+                let local_epoch = self.last_date.map(|d| d.get_epochid()).unwrap_or(0);
+                if block_epoch > local_epoch {
+                    // We are in OBFT and switched epochs without EBB
+                    // Remove last boundary block state
+
+                    // TODO: should cleanup EBB state here?
+                    //self.last_boundary_block = None;
+                    //self.last_boundary_block_epoch = None;
+                    //self.slot_leaders = vec![];
+                }
+            }
+        };
+
         self.last_block = block_hash.clone();
         self.last_date = Some(blk.header().blockdate());
         // FIXME: count boundary blocks as part of the chain length?
         self.chain_length += 1;
-
-        match blk {
-            Block::BoundaryBlock(blk) => {
-                self.last_boundary_block = Some(block_hash.clone());
-                self.slot_leaders = blk.body.slot_leaders.clone();
-            }
-
-            Block::MainBlock(_) => {}
-        };
 
         // Update the utxos from the transactions.
         if let Block::MainBlock(blk) = blk {
@@ -91,19 +103,34 @@ impl ChainState {
             Block::BoundaryBlock(_) => {}
 
             Block::MainBlock(blk) => {
-                let slot_id = blk.header.consensus.slot_id.slotid as usize;
+                let epoch_id = blk.header.consensus.slot_id.epoch as usize;
+                let epoch_with_ebb = match &self.last_boundary_block_epoch {
+                    Some(last_ebb_epoch) => epoch_id == last_ebb_epoch,
+                    _ => false
+                };
 
-                if slot_id >= self.slot_leaders.len() {
-                    return Err(Error::NonExistentSlot);
-                }
+                if epoch_with_ebb {
 
-                let slot_leader = &self.slot_leaders[slot_id];
+                    // If epoch contains EBB - validate block using the leader-list
 
-                // Note: the block signature was already checked in
-                // verify_block, so here we only check the leader key
-                // against the genesis block.
-                if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
-                    return Err(Error::WrongSlotLeader);
+                    let slot_id = blk.header.consensus.slot_id.slotid as usize;
+
+                    if slot_id >= self.slot_leaders.len() {
+                        return Err(Error::NonExistentSlot);
+                    }
+
+                    let slot_leader = &self.slot_leaders[slot_id];
+
+                    // Note: the block signature was already checked in
+                    // verify_block, so here we only check the leader key
+                    // against the genesis block.
+                    if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
+                        return Err(Error::WrongSlotLeader);
+                    }
+
+                } else {
+
+                    // TODO: validate OBFT leader
                 }
             }
         };
