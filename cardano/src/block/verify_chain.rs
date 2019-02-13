@@ -65,12 +65,17 @@ impl ChainState {
                     return Err(Error::BlockDateInPast);
                 }
 
-                // If this is a genesis block, it should be the next
-                // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid()
-                    != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 })
-                {
-                    return Err(Error::BlockDateInFuture);
+                // If this is an EBB - it should be the next epoch;
+                // Otherwise it might be this or next epoch, if EBB is skipped.
+                if date.is_boundary() {
+                    if date.get_epochid() != last_date.get_epochid() + 1 {
+                        return Err(Error::BlockDateInFuture);
+                    }
+                } else {
+                    if date.get_epochid() > last_date.get_epochid() {
+                        // TODO: validate we are in OBFT?
+                    }
+                    // TODO: validate max slot number?
                 }
             }
 
