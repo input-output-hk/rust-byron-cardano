@@ -200,11 +200,16 @@ fn net_sync_to<A: Api>(
             // Flush the previous epoch (if any). FIXME: shouldn't rely on
             // 'date' here since the block hasn't been verified yet.
 
-            // Only if there's previous date and we get new block from new epoch (EBB or not)
-            if let Some(last_date) = chain_state.last_date {
-                if date.get_epochid() > last_date.get_epochid() {
-                    let mut writer_state = None;
-                    mem::swap(&mut writer_state, &mut epoch_writer_state);
+            // Calculate if this is a start of a new epoch (including the very first one)
+            // And if there's any previous date available (previous epochs)
+            let (is_new_epoch_start, is_prev_date_exists) = match chain_state.last_date {
+                None => (true, false),
+                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true)
+            };
+
+            if is_new_epoch_start && is_prev_date_exists {
+                let mut writer_state = None;
+                mem::swap(&mut writer_state, &mut epoch_writer_state);
 
                 if let Some(epoch_writer_state) = writer_state {
                     finish_epoch(
@@ -238,7 +243,7 @@ fn net_sync_to<A: Api>(
                 blob::write(&storage.read().unwrap(), &block_hash, block_raw.as_ref()).unwrap();
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
-                if date.is_boundary() {
+                if is_new_epoch_start {
                     epoch_writer_state = Some(EpochWriterState {
                         epoch_id: date.get_epochid(),
                         writer: pack::packwriter_init(&storage_config).unwrap(),
