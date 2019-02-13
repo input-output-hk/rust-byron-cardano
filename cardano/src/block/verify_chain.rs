@@ -21,16 +21,18 @@ impl ChainState {
                 self.slot_leaders = blk.body.slot_leaders.clone();
             }
             Block::MainBlock(blk) => {
-                let block_epoch = blk.header.consensus.slot_id.epoch;
-                let local_epoch = self.last_date.map(|d| d.get_epochid()).unwrap_or(0);
-                if block_epoch > local_epoch {
-                    // We are in OBFT and switched epochs without EBB
-                    // Remove last boundary block state
+                if self.last_boundary_block.is_some() {
+                    let block_epoch = blk.header.consensus.slot_id.epoch;
+                    let local_epoch = self.last_date.map(|d| d.get_epochid()).unwrap_or(0);
+                    if block_epoch > local_epoch {
+                        // We are in OBFT and switched epochs without EBB
+                        // Remove last boundary block state
 
-                    // TODO: should cleanup EBB state here?
-                    //self.last_boundary_block = None;
-                    //self.last_boundary_block_epoch = None;
-                    //self.slot_leaders = vec![];
+                        // TODO: should cleanup EBB state here?
+                        //self.last_boundary_block = None;
+                        //self.last_boundary_block_epoch = None;
+                        //self.slot_leaders = vec![];
+                    }
                 }
             }
         };
