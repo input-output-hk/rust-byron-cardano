@@ -65,6 +65,15 @@ impl BlockDate {
             &BlockDate::Normal(ref s) => s.epoch,
         }
     }
+    pub fn get_slotid(&self) -> Option<SlotId> {
+        match self {
+            &BlockDate::Boundary(_) => None,
+            &BlockDate::Normal(ref s) => Some(s.slotid),
+        }
+    }
+    pub fn get_epoch_and_slot(&self) -> (EpochId, Option<SlotId>) {
+        (self.get_epochid(), self.get_slotid())
+    }
     pub fn next(&self) -> Self {
         match self {
             &BlockDate::Boundary(e) => BlockDate::Normal(EpochSlotId {
