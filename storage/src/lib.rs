@@ -19,7 +19,7 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use cardano::block::{Block, BlockDate, EpochId, HeaderHash, RawBlock, SlotId};
-use std::{collections::BTreeMap, error, fmt};
+use std::{error, fmt};
 use linked_hash_map::LinkedHashMap;
 
 use storage_units::utils::error::StorageError;
@@ -143,14 +143,17 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::ChainState))?;
 
-        let packhashes = cfg.list_indexes();
-        for p in packhashes.iter() {
-            match pack::read_index_fanout(&cfg, p) {
-                Err(_) => {}
-                Ok(lookup) => {
-                    lookups.insert(*p, lookup);
-                }
-            }
+        let mut parsed_lookups = cfg.list_indexes().into_iter()
+            .map(|p| (p, pack::read_index_fanout(&cfg, &p)))
+            .filter_map(|(p, r)| match r {
+                Ok(l) => Some((p, l)),
+                _ => None,
+            })
+            .collect::<Vec<(PackHash, indexfile::Lookup)>>();
+
+        parsed_lookups.sort_by(|a, b| a.1.params.ordinal.cmp(&b.1.params.ordinal));
+        for (p, l) in parsed_lookups {
+            lookups.insert(p, l);
         }
 
         let storage = Storage {
@@ -205,7 +208,7 @@ impl Storage {
             if h < (total as u64) {
                 return Ok(BlockLocation::Packed(packref.clone(), h as u32));
             }
-            h -= (total as u64);
+            h -= total as u64;
         }
         Err(Error::BlockHeightNotFound(height))
     }
@@ -432,7 +435,7 @@ pub fn pack_blobs(storage: &mut Storage, params: &PackParameters) -> PackHash {
 
     let (packhash, index) = pack::packwriter_finalize(&storage.config, writer);
 
-    let (lookup, tmpfile) = pack::create_index(storage, &index);
+    let (lookup, tmpfile) = pack::create_index(storage, &index, 0);
     tmpfile
         .render_permanent(&storage.config.get_index_filepath(&packhash))
         .unwrap();
