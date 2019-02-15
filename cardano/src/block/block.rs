@@ -364,7 +364,7 @@ impl chain_core::property::HasTransaction for Block {
     type Transactions = [TxAux];
     fn transactions(&self) -> &Self::Transactions {
         match self {
-            Block::BoundaryBlock(blk) => &blk.body.no_transactions,
+            Block::BoundaryBlock(_) => &[],
             Block::MainBlock(blk) => &blk.body.tx,
         }
     }

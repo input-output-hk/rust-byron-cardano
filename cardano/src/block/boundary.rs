@@ -1,5 +1,5 @@
-use crate::{address, config::ProtocolMagic, hash::Blake2b256, tx};
 use super::types::{self, ChainDifficulty, HeaderHash};
+use crate::{address, config::ProtocolMagic, hash::Blake2b256};
 
 use std::{
     fmt,
@@ -33,7 +33,6 @@ impl cbor_event::de::Deserialize for BodyProof {
 #[derive(Debug, Clone)]
 pub struct Body {
     pub slot_leaders: Vec<address::StakeholderId>,
-    pub no_transactions: [tx::TxAux; 0], // A placeholder for the HasTransaction impl
 }
 impl cbor_event::se::Serialize for Body {
     fn serialize<'se, W: Write>(
@@ -59,7 +58,7 @@ impl cbor_event::de::Deserialize for Body {
                 true
             }
         } {}
-        Ok(Body { slot_leaders, no_transactions: [] })
+        Ok(Body { slot_leaders })
     }
 }
 
