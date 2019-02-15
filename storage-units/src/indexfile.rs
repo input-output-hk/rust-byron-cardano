@@ -71,7 +71,7 @@ pub struct Lookup {
 pub struct Fanout([u32; FANOUT_ELEMENTS]);
 pub struct FanoutStart(u32);
 pub struct FanoutNb(pub u32);
-pub struct FanoutTotal(u32);
+pub struct FanoutTotal(pub u32);
 
 impl Fanout {
     pub fn get_indexer_by_hash(&self, hash: &BlockHash) -> (FanoutStart, FanoutNb) {
