@@ -688,8 +688,8 @@ impl chain_core::property::Transaction for Tx {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
-    type Inputs = Vec<TxoPointer>;
-    type Outputs = Vec<TxOut>;
+    type Inputs = [TxoPointer];
+    type Outputs = [TxOut];
 
     fn inputs(&self) -> &Self::Inputs {
         &self.inputs
@@ -705,8 +705,8 @@ impl chain_core::property::Transaction for TxAux {
     type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
-    type Inputs = Vec<TxoPointer>;
-    type Outputs = Vec<TxOut>;
+    type Inputs = [TxoPointer];
+    type Outputs = [TxOut];
 
     fn inputs(&self) -> &Self::Inputs {
         &self.tx.inputs
