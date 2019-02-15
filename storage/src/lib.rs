@@ -28,6 +28,7 @@ use types::*;
 use pack::{packreader_block_next, packreader_init};
 use std::cmp::Ordering;
 use storage_units::{indexfile, packfile, reffile};
+use cardano::util::hex;
 
 #[derive(Debug)]
 pub enum Error {
@@ -38,6 +39,7 @@ pub enum Error {
     RefPackUnexpectedBoundary(SlotId),
 
     BlockNotFound(BlockHash),
+    BlockHeightNotFound(u64),
 
     // ** Epoch pack assumption errors
     EpochExpectingBoundary,
@@ -73,7 +75,8 @@ impl fmt::Display for Error {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
             Error::BlockError(_) => write!(f, "Block error"),
-            Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hh),
+            Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hex::encode(hh)),
+            Error::BlockHeightNotFound(hh) => write!(f, "Block with height {:?} not found", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
@@ -90,6 +93,7 @@ impl error::Error for Error {
             Error::CborBlockError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
             Error::BlockNotFound(_) => None,
+            Error::BlockHeightNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
@@ -104,7 +108,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    lookups: BTreeMap<PackHash, indexfile::Lookup>,
+    pub lookups: BTreeMap<PackHash, indexfile::Lookup>,
 }
 
 macro_rules! try_open {
@@ -189,6 +193,15 @@ impl Storage {
             return Ok(BlockLocation::Loose(hash.clone()));
         }
         Err(Error::BlockNotFound(hash.clone()))
+    }
+
+    pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
+        info!("Lokup size from request: {}", self.lookups.len());
+        for (packref, lookup) in self.lookups.iter() {
+            let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
+            info!("{} : {}", hex::encode(packref), total)
+        }
+        Err(Error::BlockHeightNotFound(height))
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
