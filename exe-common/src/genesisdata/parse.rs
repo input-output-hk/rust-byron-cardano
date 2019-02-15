@@ -166,7 +166,8 @@ mod test {
             genesis_data
                 .non_avvm_balances
                 .iter()
-                .find(|(n, _)| n.to_string() == "2cWKMJemoBaheSTiK9XEtQDf47Z3My8jwN25o5jjm7s7jaXin2nothhWQrTDd8m433M8K")
+                .find(|(n, _)| n.to_string()
+                    == "2cWKMJemoBaheSTiK9XEtQDf47Z3My8jwN25o5jjm7s7jaXin2nothhWQrTDd8m433M8K")
                 .unwrap()
                 .1,
             &coin::Coin::new(5428571428571429).unwrap()
