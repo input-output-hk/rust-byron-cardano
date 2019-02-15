@@ -19,7 +19,6 @@ extern crate hyper;
 extern crate tokio_core;
 
 pub mod config;
-pub mod genesis_data;
 pub mod genesisdata;
 mod mstream;
 pub mod network;
