@@ -4,6 +4,7 @@ extern crate cardano;
 extern crate cbor_event;
 extern crate rand;
 extern crate storage_units;
+extern crate linked_hash_map;
 
 pub mod chain_state;
 pub mod config;
@@ -19,6 +20,7 @@ pub use config::StorageConfig;
 
 use cardano::block::{Block, BlockDate, EpochId, HeaderHash, RawBlock, SlotId};
 use std::{collections::BTreeMap, error, fmt};
+use linked_hash_map::LinkedHashMap;
 
 use storage_units::utils::error::StorageError;
 use storage_units::utils::magic;
@@ -108,7 +110,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    pub lookups: BTreeMap<PackHash, indexfile::Lookup>,
+    pub lookups: LinkedHashMap<PackHash, indexfile::Lookup>,
 }
 
 macro_rules! try_open {
@@ -131,7 +133,7 @@ macro_rules! try_open {
 
 impl Storage {
     pub fn init(cfg: &StorageConfig) -> Result<Self> {
-        let mut lookups = BTreeMap::new();
+        let mut lookups = LinkedHashMap::with_capacity(1000);
 
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Blob))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
