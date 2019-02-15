@@ -40,24 +40,20 @@ fn net_sync_to<A: Api>(
     debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
     info!(
         "Network TIP is       : {} ({}) <- {}",
-        tip.hash,
-        tip.date,
-        tip_header.get_previous_header()
+        tip.hash, tip.date, tip.parent
     );
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let genesis_ref = (
-        BlockRef {
-            hash: net_cfg.genesis.clone(),
-            parent: net_cfg.genesis_prev.clone(),
-            date: BlockDate::Boundary(net_cfg.epoch_start),
-        },
-        true,
-    );
-
-    let our_tip = match storage.get_block_from_tag(&tag::HEAD) {
-        Err(Error::NoSuchTag) => genesis_ref.clone(),
+    let (our_tip, our_tip_is_genesis) = match storage.get_block_from_tag(&tag::HEAD) {
+        Err(Error::NoSuchTag) => (
+            BlockRef {
+                hash: net_cfg.genesis.clone(),
+                parent: net_cfg.genesis_prev.clone(),
+                date: BlockDate::Boundary(net_cfg.epoch_start),
+            },
+            true,
+        ),
         Err(err) => panic!(err),
         Ok(block) => {
             let header = block.header();
@@ -76,10 +72,7 @@ fn net_sync_to<A: Api>(
     // ancestor of tip. In that case we should start from the last
     // stable epoch before our_tip.
 
-    info!(
-        "Fetching from        : {} ({})",
-        our_tip.0.hash, our_tip.0.date
-    );
+    info!("Fetching from        : {} ({})", our_tip.hash, our_tip.date);
 
     // Determine whether the previous epoch is stable yet. Note: This
     // assumes that k is smaller than the number of blocks in an
@@ -102,16 +95,16 @@ fn net_sync_to<A: Api>(
     // If our tip is in an epoch that has become stable, we now need
     // to pack it. So read the previously fetched blocks in this epoch
     // and prepend them to the incoming blocks.
-    if our_tip.0.date.get_epochid() < first_unstable_epoch
-        && our_tip != genesis_ref
-        && !epoch_exists(&storage.config, our_tip.0.date.get_epochid()).unwrap()
+    if our_tip.date.get_epochid() < first_unstable_epoch
+        && !our_tip_is_genesis
+        && !epoch_exists(&storage.config, our_tip.date.get_epochid()).unwrap()
     {
-        let epoch_id = our_tip.0.date.get_epochid();
+        let epoch_id = our_tip.date.get_epochid();
 
         // Read the blocks in the current epoch.
         let mut blobs_to_delete = vec![];
         let (last_block_in_prev_epoch, blocks) =
-            get_unpacked_blocks_in_epoch(storage, &our_tip.0.hash, epoch_id, &mut blobs_to_delete);
+            get_unpacked_blocks_in_epoch(storage, &our_tip.hash, epoch_id, &mut blobs_to_delete);
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
@@ -143,12 +136,12 @@ fn net_sync_to<A: Api>(
     }
     // If the previous epoch has become stable, then we may need to
     // pack it.
-    else if our_tip.0.date.get_epochid() == first_unstable_epoch
+    else if our_tip.date.get_epochid() == first_unstable_epoch
         && first_unstable_epoch > net_cfg.epoch_start
         && !epoch_exists(&storage.config, first_unstable_epoch - 1).unwrap()
     {
         // Iterate to the last block in the previous epoch.
-        let mut cur_hash = our_tip.0.hash.clone();
+        let mut cur_hash = our_tip.hash.clone();
         loop {
             let block_raw = storage.read_block(&cur_hash.into()).unwrap();
             let block = block_raw.decode().unwrap();
@@ -167,16 +160,16 @@ fn net_sync_to<A: Api>(
     let mut chain_state = chain_state::restore_chain_state(
         storage,
         genesis_data,
-        if our_tip.1 {
-            &our_tip.0.parent
+        if our_tip_is_genesis {
+            &our_tip.parent
         } else {
-            &our_tip.0.hash
+            &our_tip.hash
         },
     )?;
 
     net.get_blocks(
-        &our_tip.0,
-        our_tip.1,
+        &our_tip,
+        our_tip_is_genesis,
         &tip,
         &mut |block_hash, block, block_raw| {
             let date = block.header().blockdate();
