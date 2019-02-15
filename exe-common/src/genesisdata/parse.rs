@@ -103,3 +103,74 @@ pub fn canonicalize_json<R: Read>(json: R) -> String {
     let data: serde_json::Value = serde_json::from_reader(json).unwrap();
     data.to_string()
 }
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use cardano::{coin, fee::Milli};
+
+    #[test]
+    pub fn test() {
+        let genesis_hash = cardano::block::HeaderHash::from_str(
+            &"c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323",
+        )
+        .unwrap();
+
+        let genesis_data = super::parse(
+            super::super::data::get_genesis_data(&genesis_hash)
+                .unwrap()
+                .as_bytes(),
+        );
+
+        assert_eq!(genesis_data.epoch_stability_depth, 2160);
+        assert_eq!(
+            genesis_data
+                .start_time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            1506450213
+        );
+        assert_eq!(genesis_data.slot_duration.as_secs(), 20);
+        assert_eq!(genesis_data.slot_duration.subsec_millis(), 0);
+        assert_eq!(genesis_data.protocol_magic, 633343913.into());
+        assert_eq!(genesis_data.fee_policy.coefficient, Milli::new(43, 946));
+        assert_eq!(genesis_data.fee_policy.constant, Milli::integral(155381));
+
+        assert_eq!(
+            base64::encode_config(
+                genesis_data
+                    .avvm_distr
+                    .iter()
+                    .find(|(_, v)| **v == coin::Coin::new(9999300000000).unwrap())
+                    .unwrap()
+                    .0,
+                base64::URL_SAFE
+            ),
+            "-0BJDi-gauylk4LptQTgjMeo7kY9lTCbZv12vwOSTZk="
+        );
+
+        let genesis_hash = cardano::block::HeaderHash::from_str(
+            &"b7f76950bc4866423538ab7764fc1c7020b24a5f717a5bee3109ff2796567214",
+        )
+        .unwrap();
+
+        let genesis_data = super::parse(
+            super::super::data::get_genesis_data(&genesis_hash)
+                .unwrap()
+                .as_bytes(),
+        );
+
+        assert_eq!(
+            genesis_data
+                .non_avvm_balances
+                .iter()
+                .find(|(n, _)| n.to_string() == "2cWKMJemoBaheSTiK9XEtQDf47Z3My8jwN25o5jjm7s7jaXin2nothhWQrTDd8m433M8K")
+                .unwrap()
+                .1,
+            &coin::Coin::new(5428571428571429).unwrap()
+        );
+    }
+
+}
