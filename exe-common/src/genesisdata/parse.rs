@@ -8,6 +8,8 @@ use std::time::{Duration, SystemTime};
 
 use genesisdata::raw;
 
+pub const FEE_BASE: u64 = 1000000000;
+
 pub fn parse<R: Read>(json: R) -> config::GenesisData {
     // FIXME: use Result
 
@@ -19,8 +21,15 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
 
     let parse_fee_constant = |s: &str| {
         let n = s.parse::<u64>().unwrap();
-        assert!(n % 1000 == 0);
-        fee::Milli::integral(n / 1000)
+        if n % FEE_BASE == 0 {
+            fee::Milli::integral(n / FEE_BASE)
+        } else {
+            // Fee base in the genesis is one billionth of a lovelace
+            // But we can only process up to one thousandth of a lovelace so far (milli)
+            // So the fraction is calculated as remainder of a billion, but divided by a million
+            // So far it processes all known genesis blocks fine, but potentially can lose some information
+            fee::Milli::new(n / FEE_BASE, (n % FEE_BASE) / (FEE_BASE / 1000))
+        }
     };
 
     let mut avvm_distr = BTreeMap::new();
