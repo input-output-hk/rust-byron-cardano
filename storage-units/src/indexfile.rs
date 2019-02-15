@@ -58,8 +58,10 @@ pub type IndexOffset = u32;
 
 // The parameters associated with the index file.
 // * the bloom filter size in bytes
+// * the ordinal index for the lookup (e.g. epoch)
 pub struct Params {
     pub bloom_size: u32,
+    pub ordinal: u32,
 }
 
 pub struct Lookup {
@@ -137,7 +139,7 @@ impl Index {
         self.offsets.push(offset);
     }
 
-    pub fn write_to_tmpfile(&self, tmpfile: &mut TmpFile) -> Result<Lookup> {
+    pub fn write_to_tmpfile(&self, tmpfile: &mut TmpFile, ordinal: u32) -> Result<Lookup> {
         magic::write_header(tmpfile, FILE_TYPE, VERSION)?;
 
         let mut hdr_buf = [0u8; HEADER_SIZE];
@@ -149,10 +151,11 @@ impl Index {
         let bloom_size = default_bloom_size(entries);
         let params = Params {
             bloom_size: bloom_size,
+            ordinal: ordinal,
         };
 
         write_size(&mut hdr_buf[0..4], bloom_size);
-        write_size(&mut hdr_buf[4..8], 0);
+        write_size(&mut hdr_buf[4..8], ordinal);
 
         // write fanout to hdr_buf
         let fanout = {
@@ -213,6 +216,7 @@ impl Lookup {
 
         file.read_exact(&mut hdr_buf)?;
         let bloom_size = read_size(&hdr_buf[0..4]);
+        let ordinal = read_size(&hdr_buf[4..8]);
 
         let mut fanout = [0u32; FANOUT_ELEMENTS];
         for i in 0..FANOUT_ELEMENTS {
@@ -226,6 +230,7 @@ impl Lookup {
         Ok(Lookup {
             params: Params {
                 bloom_size: bloom_size,
+                ordinal: ordinal,
             },
             fanout: Fanout(fanout),
             bloom: Bloom(bloom),
