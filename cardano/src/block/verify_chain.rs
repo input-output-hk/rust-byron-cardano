@@ -208,7 +208,7 @@ impl ChainState {
         };
 
         // Check that total outputs + minimal fee <= total inputs.
-        if output_plus_fee > input_amount {
+        if output_plus_fee <= input_amount {
             add_error(&mut res, Err(Error::OutputsExceedInputs));
         }
 
