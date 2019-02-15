@@ -2,9 +2,10 @@ use chain_core::property::{Block, HasHeader, Header, TransactionId};
 use future::Either;
 use futures::{sync::mpsc, sync::oneshot};
 use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
+pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId, protocol::GetBlockHeaders, protocol::GetBlocks,
-    protocol::ProtocolMagic, Inbound, Message, Response,
+    Inbound, Message, Response,
 };
 use std::collections::HashMap;
 use std::marker::PhantomData;

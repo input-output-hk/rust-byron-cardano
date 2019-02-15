@@ -43,6 +43,12 @@ impl de::Deserialize for ProtocolMagic {
     }
 }
 
+impl From<u32> for ProtocolMagic {
+    fn from(input: u32) -> ProtocolMagic {
+        ProtocolMagic(input)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct HandlerSpec(u16);
 impl HandlerSpec {
