@@ -105,9 +105,9 @@ impl ChainState {
             Block::BoundaryBlock(_) => {}
 
             Block::MainBlock(blk) => {
-                let epoch_id = blk.header.consensus.slot_id.epoch as usize;
+                let epoch_id = blk.header.consensus.slot_id.epoch;
                 let epoch_with_ebb = match &self.last_boundary_block_epoch {
-                    Some(last_ebb_epoch) => epoch_id == last_ebb_epoch,
+                    Some(last_ebb_epoch) => epoch_id == *last_ebb_epoch,
                     _ => false
                 };
 
