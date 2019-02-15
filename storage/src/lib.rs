@@ -199,9 +199,13 @@ impl Storage {
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
         info!("Lokup size from request: {}", self.lookups.len());
+        let mut h = height;
         for (packref, lookup) in self.lookups.iter() {
             let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
-            info!("{} : {}", hex::encode(packref), total)
+            if h < (total as u64) {
+                return Ok(BlockLocation::Packed(packref.clone(), h as u32));
+            }
+            h -= (total as u64);
         }
         Err(Error::BlockHeightNotFound(height))
     }
