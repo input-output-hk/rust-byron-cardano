@@ -17,7 +17,7 @@ use super::{MessageCode, MessageType};
 pub struct ProtocolMagic(u32);
 impl Default for ProtocolMagic {
     fn default() -> Self {
-        ProtocolMagic(764824073)
+        ProtocolMagic(1097911063)
     }
 }
 
@@ -252,5 +252,16 @@ impl cbor_event::de::Deserialize for Handshake {
             in_handlers: ins,
             out_handlers: outs,
         })
+    }
+}
+
+impl Handshake {
+    pub fn default_with(magic: ProtocolMagic) -> Self {
+        Handshake {
+            protocol_magic: magic,
+            version: Version::default(),
+            in_handlers: HandlerSpecs::default_ins(),
+            out_handlers: HandlerSpecs::default_outs(),
+        }
     }
 }
