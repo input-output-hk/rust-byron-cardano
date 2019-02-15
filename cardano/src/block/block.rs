@@ -12,7 +12,7 @@ use super::super::config::ProtocolMagic;
 use super::boundary;
 use super::date::BlockDate;
 use super::normal;
-use super::types::HeaderHash;
+use super::types::{HeaderHash, ChainDifficulty};
 use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
@@ -219,6 +219,13 @@ impl BlockHeader {
         // case
         let v = cbor!(self).unwrap();
         HeaderHash::new(&v[..])
+    }
+
+    pub fn get_difficulty(&self) -> ChainDifficulty {
+        match self {
+            &BlockHeader::BoundaryBlockHeader(ref h) => h.consensus.chain_difficulty,
+            &BlockHeader::MainBlockHeader(ref h) => h.consensus.chain_difficulty,
+        }
     }
 }
 
