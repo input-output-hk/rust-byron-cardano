@@ -54,6 +54,11 @@ fn offset_offsets(bloom_size: u32, number_hashes: u32) -> u64 {
     offset_hashes(bloom_size) + HASH_SIZE as u64 * number_hashes as u64
 }
 
+// calculate the file offset from where the unsorted offsets are stored
+fn offset_unsorted_offsets(bloom_size: u32, number_hashes: u32) -> u64 {
+    offset_offsets(bloom_size, number_hashes) + OFF_SIZE as u64 * number_hashes as u64
+}
+
 pub type IndexOffset = u32;
 
 // The parameters associated with the index file.
@@ -201,6 +206,14 @@ impl Index {
             write_offset(&mut buf, ofs);
             tmpfile.write_all(&buf[..])?;
         }
+
+        // Write ordered offsets to seek blocks by height
+        for ofs in self.offsets.iter() {
+            let mut buf = [0u8; OFF_SIZE];
+            write_offset(&mut buf, *ofs);
+            tmpfile.write_all(&buf[..])?;
+        }
+
         Ok(Lookup {
             params: params,
             fanout: fanout,
@@ -282,6 +295,14 @@ impl ReaderNoLookup<fs::File> {
         self.handle.seek(SeekFrom::Start(ofs)).unwrap();
         file_read_offset(&mut self.handle)
     }
+
+    pub fn resolve_index_offset_by_height(&mut self, lookup: &Lookup, index_offset: IndexOffset) -> Offset {
+        let FanoutTotal(total) = lookup.fanout.get_total();
+        let ofs_base = offset_unsorted_offsets(lookup.params.bloom_size, total);
+        let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
+        self.handle.seek(SeekFrom::Start(ofs)).unwrap();
+        file_read_offset(&mut self.handle)
+    }
 }
 
 pub struct Reader<R> {
@@ -358,6 +379,14 @@ impl Reader<fs::File> {
     pub fn resolve_index_offset(&mut self, index_offset: IndexOffset) -> Offset {
         let FanoutTotal(total) = self.lookup.fanout.get_total();
         let ofs_base = offset_offsets(self.lookup.params.bloom_size, total);
+        let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
+        self.handle.seek(SeekFrom::Start(ofs)).unwrap();
+        file_read_offset(&mut self.handle)
+    }
+
+    pub fn resolve_index_offset_by_height(&mut self, index_offset: IndexOffset) -> Offset {
+        let FanoutTotal(total) = self.lookup.fanout.get_total();
+        let ofs_base = offset_unsorted_offsets(self.lookup.params.bloom_size, total);
         let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
         self.handle.seek(SeekFrom::Start(ofs)).unwrap();
         file_read_offset(&mut self.handle)

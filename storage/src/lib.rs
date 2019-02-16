@@ -206,7 +206,7 @@ impl Storage {
         for (packref, lookup) in self.lookups.iter() {
             let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
             if h < (total as u64) {
-                return Ok(BlockLocation::Packed(packref.clone(), h as u32));
+                return Ok(BlockLocation::Height(packref.clone(), h as u32));
             }
             h -= total as u64;
         }
@@ -242,6 +242,24 @@ impl Storage {
                     Ok(rblk)
                 }
             },
+            BlockLocation::Height(ref packref, ref iofs) => match self.lookups.get(packref) {
+                None => {
+                    unreachable!();
+                }
+                Some(lookup) => {
+                    let idx_filepath = self.config.get_index_filepath(packref);
+                    let mut idx_file =
+                        try_open!(indexfile::ReaderNoLookup::init, &idx_filepath, "index file");
+                    let pack_offset = idx_file.resolve_index_offset_by_height(lookup, *iofs);
+                    let pack_filepath = self.config.get_pack_filepath(packref);
+                    let mut pack_file =
+                        try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
+                    let rblk = pack_file
+                        .block_at_offset(pack_offset)
+                        .and_then(|x| Ok(RawBlock(x)))?;
+                    Ok(rblk)
+                }
+            }
         }
     }
 
@@ -316,6 +334,7 @@ pub mod blob {
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
     Packed(PackHash, indexfile::IndexOffset),
+    Height(PackHash, indexfile::IndexOffset),
     Loose(BlockHash),
 }
 
