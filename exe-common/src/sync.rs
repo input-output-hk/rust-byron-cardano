@@ -200,6 +200,8 @@ fn net_sync_to<A: Api>(
                 // yet. Instead we write this block to disk separately.
                 let block_hash = types::header_to_blockhash(&block_hash);
                 blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
+                // Add lose block to index
+                storage.add_loose_to_index(&block.header());
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if date.is_boundary() {
@@ -389,6 +391,15 @@ fn finish_epoch(
         debug!("removing blob {}", hash);
         blob::remove(&storage, &hash.clone().into());
     }
+
+    let diff = storage
+        .read_block(&types::header_to_blockhash(&chain_state.last_block)).unwrap()
+        .decode().unwrap()
+        .header()
+        .difficulty();
+
+    // Drop this epoch from loose index
+    storage.drop_loose_index_before(diff);
 
     Ok(())
 }

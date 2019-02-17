@@ -32,6 +32,7 @@ use std::cmp::Ordering;
 use storage_units::{indexfile, packfile, reffile};
 use cardano::util::hex;
 use cardano::block::types::ChainDifficulty;
+use cardano::block::block::BlockHeaderView;
 
 #[derive(Debug)]
 pub enum Error {
@@ -112,7 +113,7 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Storage {
     pub config: StorageConfig,
     pub lookups: LinkedHashMap<PackHash, indexfile::Lookup>,
-    pub loose_idx: Vec<(ChainDifficulty, EpochId, BlockHash)>,
+    pub loose_idx: Vec<(ChainDifficulty, BlockDate, BlockHash)>,
 }
 
 macro_rules! try_open {
@@ -173,7 +174,6 @@ impl Storage {
     }
 
     fn build_loose_index(&mut self, tip: HeaderHash) {
-        let mut res: Vec<(ChainDifficulty, EpochId, BlockHash)> = vec![];
         let mut cur_hash: HeaderHash = tip;
         loop {
             let blockhash = types::header_to_blockhash(&cur_hash);
@@ -181,17 +181,12 @@ impl Storage {
             if path.exists() {
                 let block = self.read_block(&blockhash).unwrap().decode().unwrap();
                 let header = block.header();
-                res.insert(0,(
-                    header.difficulty(),
-                    header.blockdate().get_epochid(),
-                    blockhash
-                ));
+                self.add_loose_to_index(&header);
                 cur_hash = header.previous_header();
                 continue;
             }
             break;
         }
-        self.loose_idx = res;
     }
 
     /// Returns an iterator over blocks in the given block range.
@@ -295,6 +290,41 @@ impl Storage {
 
     pub fn add_lookup(&mut self, packhash: PackHash, lookup: indexfile::Lookup) {
         self.lookups.insert(packhash, lookup);
+    }
+
+    pub fn add_loose_to_index(&mut self, header: &BlockHeaderView) {
+        self.loose_idx.insert(0,(
+            header.difficulty(),
+            header.blockdate(),
+            types::header_to_blockhash(&header.compute_hash()),
+        ));
+    }
+
+    pub fn drop_loose_index_before(&mut self, diff: ChainDifficulty) {
+        if self.loose_idx.is_empty() {
+            return;
+        }
+        let ChainDifficulty(drop_diff) = diff;
+        let ChainDifficulty(tip_diff) = self.loose_idx[0].0;
+        let drop_after = (tip_diff - drop_diff) as usize;
+        if self.loose_idx.len() > drop_after {
+            self.loose_idx = self.loose_idx[0..drop_after].to_vec();
+        }
+    }
+
+    pub fn get_from_loose_index(
+        &self,
+        diff: ChainDifficulty
+    ) -> Option<(ChainDifficulty, BlockDate, BlockHash)> {
+        if !self.loose_idx.is_empty() {
+            let ChainDifficulty(find_diff) = diff;
+            let ChainDifficulty(tip_diff) = self.loose_idx[0].0;
+            let idx = (tip_diff - find_diff) as usize;
+            if self.loose_idx.len() > idx {
+                return Some(self.loose_idx[idx]);
+            }
+        }
+        return None;
     }
 }
 
