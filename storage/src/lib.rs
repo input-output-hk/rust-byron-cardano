@@ -206,7 +206,9 @@ impl Storage {
         for (packref, lookup) in self.lookups.iter() {
             let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
             if h < (total as u64) {
-                return Ok(BlockLocation::Packed(packref.clone(), h as u32));
+                let epoch_id = lookup.params.ordinal as u64;
+                let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                return Ok(BlockLocation::Offset(packref.clone(), ofs));
             }
             h -= total as u64;
         }
