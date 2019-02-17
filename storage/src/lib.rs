@@ -23,7 +23,7 @@ use std::{error, fmt};
 use linked_hash_map::LinkedHashMap;
 
 use storage_units::utils::error::StorageError;
-use storage_units::utils::magic;
+use storage_units::utils::{magic, serialize};
 use storage_units::utils::tmpfile::*;
 use types::*;
 
@@ -233,15 +233,18 @@ impl Storage {
                     let mut idx_file =
                         try_open!(indexfile::ReaderNoLookup::init, &idx_filepath, "index file");
                     let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
-                    let pack_filepath = self.config.get_pack_filepath(packref);
-                    let mut pack_file =
-                        try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
-                    let rblk = pack_file
-                        .block_at_offset(pack_offset)
-                        .and_then(|x| Ok(RawBlock(x)))?;
-                    Ok(rblk)
+                    self.read_block_at(&BlockLocation::Offset(*packref, pack_offset))
                 }
             },
+            BlockLocation::Offset(ref packref, ref offset) => {
+                let pack_filepath = self.config.get_pack_filepath(packref);
+                let mut pack_file =
+                    try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
+                let rblk = pack_file
+                    .block_at_offset(*offset)
+                    .and_then(|x| Ok(RawBlock(x)))?;
+                Ok(rblk)
+            }
         }
     }
 
@@ -316,6 +319,7 @@ pub mod blob {
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
     Packed(PackHash, indexfile::IndexOffset),
+    Offset(PackHash, serialize::Offset),
     Loose(BlockHash),
 }
 
