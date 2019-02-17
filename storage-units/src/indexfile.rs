@@ -32,6 +32,7 @@ use utils::serialize::{
     read_offset, read_size, write_offset, write_size, Offset, OFF_SIZE, SIZE_SIZE,
 };
 use utils::tmpfile::TmpFile;
+use std::slice::Iter;
 
 const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
 const VERSION: magic::Version = 1;
@@ -50,21 +51,11 @@ fn offset_hashes(bloom_size: u32) -> u64 {
 }
 
 // calculate the file offset from where the offsets are stored
-fn offset_offsets(bloom_size: u32, number_hashes: u32, offset_type: &IndexOffsetType) -> u64 {
-    let standard = offset_hashes(bloom_size) + HASH_SIZE as u64 * number_hashes as u64;
-    match offset_type {
-        IndexOffsetType::Standard => standard,
-        IndexOffsetType::Unsorted => standard + OFF_SIZE as u64 * number_hashes as u64,
-    }
+fn offset_offsets(bloom_size: u32, number_hashes: u32) -> u64 {
+    offset_hashes(bloom_size) + HASH_SIZE as u64 * number_hashes as u64
 }
 
 pub type IndexOffset = u32;
-
-#[derive(Clone, Debug)]
-pub enum IndexOffsetType {
-    Standard,
-    Unsorted,
-}
 
 // The parameters associated with the index file.
 // * the bloom filter size in bytes
@@ -206,18 +197,9 @@ impl Index {
             tmpfile.write_all(&hash[..])?;
         }
 
-        for &(_, ofs) in sorted.iter() {
-            let mut buf = [0u8; OFF_SIZE];
-            write_offset(&mut buf, ofs);
-            tmpfile.write_all(&buf[..])?;
-        }
-
-        // Write ordered offsets to seek blocks by height
-        for ofs in self.offsets.iter() {
-            let mut buf = [0u8; OFF_SIZE];
-            write_offset(&mut buf, *ofs);
-            tmpfile.write_all(&buf[..])?;
-        }
+        let sorted_offsets = sorted.iter()
+            .map(|(_, b)| *b).collect::<Vec<Offset>>();
+        write_offsets_to_file(tmpfile, sorted_offsets.iter())?;
 
         Ok(Lookup {
             params: params,
@@ -254,6 +236,15 @@ impl Lookup {
             bloom: Bloom(bloom),
         })
     }
+}
+
+pub fn write_offsets_to_file(tmpfile: &mut TmpFile, offsets: Iter<Offset>) -> Result<()> {
+    for ofs in offsets {
+        let mut buf = [0u8; OFF_SIZE];
+        write_offset(&mut buf, *ofs);
+        tmpfile.write_all(&buf[..])?;
+    }
+    Ok(())
 }
 
 fn file_read_offset(mut file: &fs::File) -> Offset {
@@ -293,9 +284,9 @@ impl ReaderNoLookup<fs::File> {
         let _ = Lookup::read_from_file(&mut file)?;
         Ok(ReaderNoLookup { handle: file })
     }
-    pub fn resolve_index_offset(&mut self, lookup: &Lookup, index_offset: IndexOffset, offset_type: &IndexOffsetType) -> Offset {
+    pub fn resolve_index_offset(&mut self, lookup: &Lookup, index_offset: IndexOffset) -> Offset {
         let FanoutTotal(total) = lookup.fanout.get_total();
-        let ofs_base = offset_offsets(lookup.params.bloom_size, total, offset_type);
+        let ofs_base = offset_offsets(lookup.params.bloom_size, total);
         let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
         self.handle.seek(SeekFrom::Start(ofs)).unwrap();
         file_read_offset(&mut self.handle)
@@ -373,9 +364,9 @@ impl Reader<fs::File> {
         }
     }
 
-    pub fn resolve_index_offset(&mut self, index_offset: IndexOffset, offset_type: &IndexOffsetType) -> Offset {
+    pub fn resolve_index_offset(&mut self, index_offset: IndexOffset) -> Offset {
         let FanoutTotal(total) = self.lookup.fanout.get_total();
-        let ofs_base = offset_offsets(self.lookup.params.bloom_size, total, offset_type);
+        let ofs_base = offset_offsets(self.lookup.params.bloom_size, total);
         let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
         self.handle.seek(SeekFrom::Start(ofs)).unwrap();
         file_read_offset(&mut self.handle)
