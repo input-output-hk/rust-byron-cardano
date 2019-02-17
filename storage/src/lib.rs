@@ -188,7 +188,7 @@ impl Storage {
                             try_open!(indexfile::Reader::init, &idx_filepath, "index file");
                         let sr = idx_file.search(&lookup.params, hash, start, nb);
                         if let Some(iloc) = sr {
-                            return Ok(BlockLocation::Packed(packref.clone(), iloc, indexfile::IndexOffsetType::Standard));
+                            return Ok(BlockLocation::Packed(packref.clone(), iloc));
                         }
                     }
                 }
@@ -206,7 +206,7 @@ impl Storage {
         for (packref, lookup) in self.lookups.iter() {
             let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
             if h < (total as u64) {
-                return Ok(BlockLocation::Packed(packref.clone(), h as u32, indexfile::IndexOffsetType::Unsorted));
+                return Ok(BlockLocation::Packed(packref.clone(), h as u32));
             }
             h -= total as u64;
         }
@@ -224,7 +224,7 @@ impl Storage {
     pub fn read_block_at(&self, loc: &BlockLocation) -> Result<RawBlock> {
         match loc {
             BlockLocation::Loose(hash) => blob::read(self, hash),
-            BlockLocation::Packed(ref packref, ref iofs, ofs_type) => match self.lookups.get(packref) {
+            BlockLocation::Packed(ref packref, ref iofs) => match self.lookups.get(packref) {
                 None => {
                     unreachable!();
                 }
@@ -232,7 +232,7 @@ impl Storage {
                     let idx_filepath = self.config.get_index_filepath(packref);
                     let mut idx_file =
                         try_open!(indexfile::ReaderNoLookup::init, &idx_filepath, "index file");
-                    let pack_offset = idx_file.resolve_index_offset(lookup, *iofs, ofs_type);
+                    let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
                     let pack_filepath = self.config.get_pack_filepath(packref);
                     let mut pack_file =
                         try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
@@ -315,7 +315,7 @@ pub mod blob {
 
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
-    Packed(PackHash, indexfile::IndexOffset, indexfile::IndexOffsetType),
+    Packed(PackHash, indexfile::IndexOffset),
     Loose(BlockHash),
 }
 
