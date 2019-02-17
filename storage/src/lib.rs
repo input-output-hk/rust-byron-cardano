@@ -227,18 +227,26 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        info!("Lokup size from request: {}", self.lookups.len());
-        let mut h = height;
-        for (packref, lookup) in self.lookups.iter() {
-            let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
-            if h < (total as u64) {
-                let epoch_id = lookup.params.ordinal as u64;
-                let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
-                return Ok(BlockLocation::Offset(packref.clone(), ofs));
+        match self.get_from_loose_index(ChainDifficulty(height)) {
+            Some((diff,date,hash)) => {
+                debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
+                       height, diff, date, hex::encode(hash));
+                Ok(BlockLocation::Loose(hash))
+            },
+            None => {
+                let mut h = height;
+                for (packref, lookup) in self.lookups.iter() {
+                    let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
+                    if h < (total as u64) {
+                        let epoch_id = lookup.params.ordinal as u64;
+                        let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                        return Ok(BlockLocation::Offset(packref.clone(), ofs));
+                    }
+                    h -= total as u64;
+                }
+                Err(Error::BlockHeightNotFound(height))
             }
-            h -= total as u64;
         }
-        Err(Error::BlockHeightNotFound(height))
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
