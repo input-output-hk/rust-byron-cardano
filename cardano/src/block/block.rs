@@ -177,7 +177,7 @@ impl<'a> BlockHeaderView<'a> {
         HeaderHash::new(&self.to_cbor())
     }
 
-    pub fn get_difficulty(&self) -> ChainDifficulty {
+    pub fn difficulty(&self) -> ChainDifficulty {
         match self {
             BlockHeaderView::Boundary(h) => h.consensus.chain_difficulty,
             BlockHeaderView::Normal(h) => h.consensus.chain_difficulty,
@@ -226,13 +226,6 @@ impl BlockHeader {
         // case
         let v = cbor!(self).unwrap();
         HeaderHash::new(&v[..])
-    }
-
-    pub fn get_difficulty(&self) -> ChainDifficulty {
-        match self {
-            &BlockHeader::BoundaryBlockHeader(ref h) => h.consensus.chain_difficulty,
-            &BlockHeader::MainBlockHeader(ref h) => h.consensus.chain_difficulty,
-        }
     }
 }
 
