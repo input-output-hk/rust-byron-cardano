@@ -197,6 +197,13 @@ impl<'a> BlockHeaderView<'a> {
     pub fn compute_hash(&self) -> HeaderHash {
         HeaderHash::new(&self.to_cbor())
     }
+
+    pub fn get_difficulty(&self) -> ChainDifficulty {
+        match self {
+            BlockHeaderView::Boundary(h) => h.consensus.chain_difficulty,
+            BlockHeaderView::Normal(h) => h.consensus.chain_difficulty,
+        }
+    }
 }
 
 impl BlockHeader {
