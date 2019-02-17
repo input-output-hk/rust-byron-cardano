@@ -253,6 +253,11 @@ fn file_read_offset(mut file: &fs::File) -> Offset {
     read_offset(&buf)
 }
 
+pub fn file_read_offset_at(mut file: &fs::File, ofs: u64) -> Offset {
+    file.seek(SeekFrom::Start(ofs)).unwrap();
+    file_read_offset(file)
+}
+
 fn file_read_hash(mut file: &fs::File) -> BlockHash {
     let mut buf = [0u8; HASH_SIZE];
     file.read_exact(&mut buf).unwrap();
@@ -288,8 +293,7 @@ impl ReaderNoLookup<fs::File> {
         let FanoutTotal(total) = lookup.fanout.get_total();
         let ofs_base = offset_offsets(lookup.params.bloom_size, total);
         let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
-        self.handle.seek(SeekFrom::Start(ofs)).unwrap();
-        file_read_offset(&mut self.handle)
+        file_read_offset_at(&mut self.handle, ofs)
     }
 }
 
