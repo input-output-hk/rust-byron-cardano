@@ -407,6 +407,7 @@ fn finish_epoch(
         &storage,
         &packhash,
         epoch_id,
+        index,
         Some((chain_state, genesis_data)),
     );
 
