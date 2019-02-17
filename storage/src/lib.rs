@@ -31,6 +31,7 @@ use pack::{packreader_block_next, packreader_init};
 use std::cmp::Ordering;
 use storage_units::{indexfile, packfile, reffile};
 use cardano::util::hex;
+use cardano::block::types::ChainDifficulty;
 
 #[derive(Debug)]
 pub enum Error {
@@ -111,6 +112,7 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Storage {
     pub config: StorageConfig,
     pub lookups: LinkedHashMap<PackHash, indexfile::Lookup>,
+    pub loose_idx: Vec<(ChainDifficulty, EpochId, BlockHash)>,
 }
 
 macro_rules! try_open {
@@ -156,11 +158,40 @@ impl Storage {
             lookups.insert(p, l);
         }
 
-        let storage = Storage {
+        let mut storage = Storage {
             config: cfg.clone(),
             lookups: lookups,
+            loose_idx: vec![],
         };
+
+        match tag::read_hash(&storage, &tag::HEAD) {
+            None => {},
+            Some(hash) => storage.build_loose_index(hash),
+        };
+
         Ok(storage)
+    }
+
+    fn build_loose_index(&mut self, tip: HeaderHash) {
+        let mut res: Vec<(ChainDifficulty, EpochId, BlockHash)> = vec![];
+        let mut cur_hash: HeaderHash = tip;
+        loop {
+            let blockhash = types::header_to_blockhash(&cur_hash);
+            let path = self.config.get_blob_filepath(&blockhash);
+            if path.exists() {
+                let block = self.read_block(&blockhash).unwrap().decode().unwrap();
+                let header = block.header();
+                res.insert(0,(
+                    header.difficulty(),
+                    header.blockdate().get_epochid(),
+                    blockhash
+                ));
+                cur_hash = header.previous_header();
+                continue;
+            }
+            break;
+        }
+        self.loose_idx = res;
     }
 
     /// Returns an iterator over blocks in the given block range.
