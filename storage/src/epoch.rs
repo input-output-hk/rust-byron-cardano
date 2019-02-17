@@ -9,7 +9,7 @@ use super::{
     StorageConfig,
 };
 use storage_units::utils::error::StorageError;
-use storage_units::utils::tmpfile;
+use storage_units::utils::{tmpfile, serialize};
 use storage_units::utils::tmpfile::TmpFile;
 use storage_units::{packfile, reffile, indexfile};
 
@@ -112,6 +112,13 @@ pub fn epoch_read_pack(config: &StorageConfig, epochid: EpochId) -> Result<PackH
     let mut file = fs::File::open(&pack_filepath)?;
     file.read_exact(&mut ph)?;
     Ok(ph)
+}
+
+pub fn epoch_read_block_offset(config: &StorageConfig, epochid: EpochId, block_index: u32) -> Result<serialize::Offset> {
+    let offset_offset = super::HASH_SIZE as u64 + block_index as u64 * serialize::OFF_SIZE as u64;
+    let pack_filepath = config.get_epoch_pack_filepath(epochid);
+    let file = fs::File::open(&pack_filepath)?;
+    Ok(indexfile::file_read_offset_at(&file, offset_offset))
 }
 
 pub fn epoch_open_packref(config: &StorageConfig, epochid: EpochId) -> Result<reffile::Reader> {
