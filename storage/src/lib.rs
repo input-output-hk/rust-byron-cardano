@@ -230,7 +230,7 @@ impl Storage {
         match self.get_from_loose_index(ChainDifficulty(height)) {
             Some((diff,date,hash)) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
-                       height, diff, date, hex::encode(hash));
+                       height, diff, date, hex::encode(&hash));
                 Ok(BlockLocation::Loose(hash))
             },
             None => {
