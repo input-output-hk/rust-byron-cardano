@@ -32,7 +32,6 @@ use utils::serialize::{
     read_offset, read_size, write_offset, write_size, Offset, OFF_SIZE, SIZE_SIZE,
 };
 use utils::tmpfile::TmpFile;
-use std::slice::Iter;
 
 const FILE_TYPE: magic::FileType = 0x494e4458; // = INDX
 const VERSION: magic::Version = 1;
@@ -197,9 +196,7 @@ impl Index {
             tmpfile.write_all(&hash[..])?;
         }
 
-        let sorted_offsets = sorted.iter()
-            .map(|(_, b)| *b).collect::<Vec<Offset>>();
-        write_offsets_to_file(tmpfile, sorted_offsets.iter())?;
+        write_offsets_to_file(tmpfile, sorted.iter().map(|(_, b)| b))?;
 
         Ok(Lookup {
             params: params,
@@ -238,7 +235,7 @@ impl Lookup {
     }
 }
 
-pub fn write_offsets_to_file(tmpfile: &mut TmpFile, offsets: Iter<Offset>) -> Result<()> {
+pub fn write_offsets_to_file<'a, I: Iterator<Item = &'a Offset>>(tmpfile: &mut TmpFile, offsets: I) -> Result<()> {
     for ofs in offsets {
         let mut buf = [0u8; OFF_SIZE];
         write_offset(&mut buf, *ofs);
