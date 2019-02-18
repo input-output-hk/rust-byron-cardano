@@ -112,8 +112,8 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct Storage {
     pub config: StorageConfig,
-    pub lookups: LinkedHashMap<PackHash, indexfile::Lookup>,
-    pub loose_idx: Vec<(ChainDifficulty, BlockDate, BlockHash)>,
+    lookups: LinkedHashMap<PackHash, indexfile::Lookup>,
+    loose_idx: Vec<(ChainDifficulty, BlockDate, BlockHash)>,
 }
 
 macro_rules! try_open {
