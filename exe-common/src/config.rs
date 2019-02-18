@@ -14,6 +14,8 @@ pub mod net {
 
     const DEFAULT_EPOCH_STABILITY_DEPTH: usize = 2160;
 
+    const NTT_PREFIX: &'static str = r"x-cardano-ntt://";
+
     /// A blockchain may have multiple Peer of different kind. Here we define the list
     /// of possible kind of peer we may connect to.
     ///
@@ -49,6 +51,7 @@ pub mod net {
     pub enum Peer {
         Native(String),
         Http(String),
+        Ntt(String),
     }
     impl Peer {
         /// analyse the content of the given `addr` and construct the correct kind
@@ -56,6 +59,8 @@ pub mod net {
         pub fn new(addr: String) -> Self {
             if addr.starts_with(r"http://") || addr.starts_with(r"https://") {
                 Peer::http(addr)
+            } else if addr.starts_with(NTT_PREFIX) {
+                Peer::ntt(addr[NTT_PREFIX.len()..].to_string())
             } else {
                 Peer::native(addr)
             }
@@ -68,6 +73,10 @@ pub mod net {
         /// force constructing a http `Peer`.
         pub fn http(addr: String) -> Self {
             Peer::Http(addr)
+        }
+        /// force constructing a http `Peer`.
+        pub fn ntt(addr: String) -> Self {
+            Peer::Ntt(addr)
         }
         /// return the content of the native peer if the given object is a native peer.
         pub fn get_native(&self) -> Option<&str> {
@@ -83,12 +92,21 @@ pub mod net {
                 _ => None,
             }
         }
+        /// return the content of the ntt peer if the given object is a http peer.
+        pub fn get_ntt(&self) -> Option<&str> {
+            match self {
+                &Peer::Ntt(ref addr) => Some(addr.as_ref()),
+                _ => None,
+            }
+        }
+
         /// get the address, indifferent to whether the `Peer` is a native or
         /// a http `Peer`.
         pub fn get_address(&self) -> &str {
             match self {
                 &Peer::Native(ref addr) => addr.as_ref(),
                 &Peer::Http(ref addr) => addr.as_ref(),
+                &Peer::Ntt(ref addr) => addr.as_ref(),
             }
         }
         /// test if the `Peer` is a native `Peer`.
@@ -99,12 +117,17 @@ pub mod net {
         pub fn is_http(&self) -> bool {
             self.get_http().is_some()
         }
+        /// test if the `Peer` is a http `Peer`.
+        pub fn is_ntt(&self) -> bool {
+            self.get_ntt().is_some()
+        }
     }
     impl fmt::Display for Peer {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
                 &Peer::Native(ref addr) => write!(f, "native: {}", addr),
                 &Peer::Http(ref addr) => write!(f, "http: {}", addr),
+                &Peer::Ntt(ref addr) => write!(f, "ntt: {}", addr),
             }
         }
     }
