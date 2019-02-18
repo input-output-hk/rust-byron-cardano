@@ -1,4 +1,4 @@
-{ nixpkgs ? fetchTarball channel:nixos-unstable
+{ nixpkgs ? fetchTarball https://github.com/NixOS/nixpkgs/archive/7fff567ee99c1f343ecdd82fef2e35fb6f50e423.tar.gz
 , pkgs ? import nixpkgs {}
 }:
 
