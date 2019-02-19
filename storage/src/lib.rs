@@ -330,14 +330,15 @@ impl Storage {
     }
 
     pub fn drop_loose_index_before(&mut self, diff: ChainDifficulty) {
-        if self.loose_idx.is_empty() {
-            return;
-        }
-        let drop_diff = u64::from(diff);
-        let tip_diff = u64::from(self.loose_idx[0].0);
-        let drop_after = (tip_diff - drop_diff) as usize;
-        if self.loose_idx.len() > drop_after {
-            self.loose_idx = self.loose_idx[0..drop_after].to_vec();
+        if let Some(&(idx_tip_diff, _, _)) = self.loose_idx.first() {
+            let drop_diff = u64::from(diff);
+            let tip_diff = u64::from(idx_tip_diff);
+            if tip_diff > drop_diff {
+                let drop_after = (tip_diff - drop_diff) as usize;
+                if self.loose_idx.len() > drop_after {
+                    self.loose_idx = self.loose_idx[0..drop_after].to_vec();
+                }
+            }
         }
     }
 
@@ -349,9 +350,9 @@ impl Storage {
         &self,
         height: ChainDifficulty
     ) -> Result<Option<(ChainDifficulty, BlockDate, BlockHash)>> {
-        if !self.loose_idx.is_empty() {
+        if let Some(idx_tip_diff) = self.loose_idx.first() {
             let find_diff = u64::from(height);
-            let tip_diff = u64::from(self.loose_idx[0].0);
+            let tip_diff = u64::from(idx_tip_diff);
             if find_diff > tip_diff {
                 return Err(Error::BlockHeightNotFound(find_diff));
             }
