@@ -236,7 +236,7 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        self.get_from_loose_index(ChainDifficulty::from(height)).and_then(|r| match r {
+        match self.get_from_loose_index(ChainDifficulty::from(height))? {
             Some((diff,date,hash)) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
                        height, diff, date, hex::encode(&hash));
@@ -256,7 +256,7 @@ impl Storage {
                 }
                 return Err(Error::BlockHeightNotFound(height));
             }
-        })
+        }
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
