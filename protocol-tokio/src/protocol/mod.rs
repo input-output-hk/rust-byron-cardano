@@ -25,7 +25,9 @@ pub use self::codec::{
 };
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
-pub use self::outbound_sink::{Outbound, OutboundError, OutboundSink};
+pub use self::outbound_sink::{
+    CloseLightConnection, NewLightConnection, Outbound, OutboundError, OutboundSink,
+};
 
 use std::marker::PhantomData;
 
@@ -82,8 +84,8 @@ where
     T: AsyncRead + AsyncWrite,
     B: ProtocolBlock,
     Tx: ProtocolTransactionId,
-    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
-    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     fn new(connection: nt::Connection<T>) -> Self {
         Connection {
