@@ -229,7 +229,7 @@ fn net_sync_to<A: Api>(
                 // yet. Instead we write this block to disk separately.
                 let block_hash = types::header_to_blockhash(&block_hash);
                 blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
-                // Add lose block to index
+                // Add loose block to index
                 storage.add_loose_to_index(&block.header());
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
