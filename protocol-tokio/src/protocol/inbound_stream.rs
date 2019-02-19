@@ -3,15 +3,18 @@ use super::{
     nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId, Response,
 };
 use super::{BlockHeaders, GetBlockHeaders, GetBlocks};
-use bytes::Bytes;
+
 use chain_core::property;
+
+use bytes::Bytes;
 use futures::{stream::SplitStream, Async, Poll, Stream};
-use std::marker::PhantomData;
+use tokio_io::AsyncRead;
+
 use std::{
-    io,
+    error, fmt, io,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
-use tokio_io::AsyncRead;
 
 #[derive(Debug)]
 pub enum InboundError {
@@ -42,6 +45,54 @@ impl From<io::Error> for InboundError {
 impl From<nt::DecodeEventError> for InboundError {
     fn from(e: nt::DecodeEventError) -> Self {
         InboundError::EventParsingError(e)
+    }
+}
+
+impl fmt::Display for InboundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use InboundError::*;
+
+        match self {
+            EventParsingError(_) => write!(f, "error parsing CBOR"),
+            IoError(_) => write!(f, "I/O error"),
+            ConnectionTerminated => write!(f, "connection terminated"),
+            RemoteCreatedDuplicatedLightConnection(lwcid) => write!(
+                f,
+                "remote peer created a duplicated light connection {}",
+                lwcid
+            ),
+            RemoteLightConnectionIdUnknown(lwcid) => write!(
+                f,
+                "remote peer used an unknown light connection id {}",
+                lwcid
+            ),
+            RemoteLightConnectionIdNotLinkedToLocalClientId(lwcid) => write!(
+                f,
+                "remote light connection id {} is not linked to a local client id",
+                lwcid
+            ),
+            RemoteLightConnectionIdNotLinkedToKnownLocalClientId(lwcid, node_id) => write!(
+                f,
+                "remote light connection id {} is not linked to the client id {}",
+                lwcid, node_id
+            ),
+        }
+    }
+}
+
+impl error::Error for InboundError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use InboundError::*;
+
+        match self {
+            EventParsingError(e) => Some(e),
+            IoError(e) => Some(e),
+            ConnectionTerminated => None,
+            RemoteCreatedDuplicatedLightConnection(_) => None,
+            RemoteLightConnectionIdUnknown(_) => None,
+            RemoteLightConnectionIdNotLinkedToLocalClientId(_) => None,
+            RemoteLightConnectionIdNotLinkedToKnownLocalClientId(..) => None,
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use futures::{sink, stream::SplitSink};
 use tokio_io::AsyncWrite;
 
 use std::{
-    io,
+    error, fmt, io,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
@@ -30,6 +30,28 @@ impl From<()> for OutboundError {
 impl From<io::Error> for OutboundError {
     fn from(e: io::Error) -> Self {
         OutboundError::IoError(e)
+    }
+}
+
+impl fmt::Display for OutboundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use OutboundError::*;
+
+        match self {
+            IoError(_) => write!(f, "I/O error"),
+            Unknown => write!(f, "unknown error"),
+        }
+    }
+}
+
+impl error::Error for OutboundError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use OutboundError::*;
+
+        match self {
+            IoError(e) => Some(e),
+            Unknown => None,
+        }
     }
 }
 
