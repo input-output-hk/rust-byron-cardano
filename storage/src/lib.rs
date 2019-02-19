@@ -236,7 +236,7 @@ impl Storage {
             None => {
                 let mut h = height;
                 for (packref, lookup) in self.lookups.iter() {
-                    let indexfile::FanoutTotal(total) = lookup.fanout.get_total();
+                    let total = u32::from(lookup.fanout.get_total());
                     if h < (total as u64) {
                         let epoch_id = lookup.params.ordinal as u64;
                         let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
