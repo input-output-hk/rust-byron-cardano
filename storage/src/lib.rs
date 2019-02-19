@@ -236,26 +236,23 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        match self.get_from_loose_index(ChainDifficulty::from(height))? {
-            Some((diff,date,hash)) => {
-                debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
-                       height, diff, date, hex::encode(&hash));
-                return Ok(BlockLocation::Loose(hash));
-            },
-            None => {
-                // Search height in packed epochs
-                let mut h = height;
-                for (packref, lookup) in self.lookups.iter() {
-                    let total = u32::from(lookup.fanout.get_total()) as u64;
-                    if h < total {
-                        let epoch_id = lookup.params.ordinal as u64;
-                        let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
-                        return Ok(BlockLocation::Offset(packref.clone(), ofs));
-                    }
-                    h -= total;
+        if let Some((diff,date,hash)) = self.get_from_loose_index(ChainDifficulty::from(height))? {
+            debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
+                   height, diff, date, hex::encode(&hash));
+            return Ok(BlockLocation::Loose(hash));
+        } else {
+            // Search height in packed epochs
+            let mut h = height;
+            for (packref, lookup) in self.lookups.iter() {
+                let total = u32::from(lookup.fanout.get_total()) as u64;
+                if h < total {
+                    let epoch_id = lookup.params.ordinal as u64;
+                    let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                    return Ok(BlockLocation::Offset(packref.clone(), ofs));
                 }
-                return Err(Error::BlockHeightNotFound(height));
+                h -= total;
             }
+            return Err(Error::BlockHeightNotFound(height));
         }
     }
 
