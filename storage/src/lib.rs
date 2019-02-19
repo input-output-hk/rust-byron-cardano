@@ -235,13 +235,14 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        match self.get_from_loose_index(ChainDifficulty::from(height)) {
-            Ok(Some((diff,date,hash))) => {
+        self.get_from_loose_index(ChainDifficulty::from(height)).and_then(|r| match r {
+            Some((diff,date,hash)) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
                        height, diff, date, hex::encode(&hash));
                 return Ok(BlockLocation::Loose(hash));
             },
-            Ok(None) => {
+            None => {
+                // Search height in packed epochs
                 let mut h = height;
                 for (packref, lookup) in self.lookups.iter() {
                     let total = u32::from(lookup.fanout.get_total()) as u64;
@@ -253,9 +254,8 @@ impl Storage {
                     h -= total;
                 }
                 return Err(Error::BlockHeightNotFound(height));
-            },
-            Err(e) => Err(e)
-        }
+            }
+        })
     }
 
     pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
