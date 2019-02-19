@@ -174,7 +174,7 @@ impl Storage {
 
     fn build_loose_index(&mut self, tip: HeaderHash) {
         let mut cur_hash: HeaderHash = tip;
-        let mut prev_diff: Option<ChainDifficulty> = None;
+        let mut prev_diff: Option<u64> = None;
         loop {
             let blockhash = types::header_to_blockhash(&cur_hash);
             let path = self.config.get_blob_filepath(&blockhash);
@@ -182,11 +182,12 @@ impl Storage {
                 let block = self.read_block(&blockhash).unwrap().decode().unwrap();
                 let header = block.header();
                 let entry = Storage::create_loose_index_entry(&header);
-                if let Some(prev_diff) = prev_diff {
+                let new_tip_diff = u64::from(entry.0);
+                if let Some(prev_tip_diff) = prev_diff {
                     // Here we are going bavkward in history, so check next height is lower
-                    assert!(entry.0 < prev_diff);
+                    assert!((new_tip_diff < prev_tip_diff) & (prev_tip_diff - new_tip_diff == 1));
                 }
-                prev_diff = Some(entry.0);
+                prev_diff = Some(new_tip_diff);
                 // Here we append elements to the end,
                 // because we are iterating from newer block to older
                 self.loose_idx.push(entry);
@@ -311,9 +312,10 @@ impl Storage {
 
     pub fn add_loose_to_index(&mut self, header: &BlockHeaderView) {
         if let Some((idx_tip_diff, _, _)) = self.loose_idx.get(0) {
-            let new_diff = header.difficulty();
+            let new_diff = u64::from(header.difficulty());
+            let prev_diff = u64::from(*idx_tip_diff);
             // Assert new proposed idx tip has higher chain height
-            assert!(new_diff > *idx_tip_diff);
+            assert!((new_diff > prev_diff) & (new_diff - prev_diff == 1));
         }
         // Here we insert elements to the start, because index is going from newer to older
         self.loose_idx.insert(0,Storage::create_loose_index_entry(header));

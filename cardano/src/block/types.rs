@@ -227,7 +227,7 @@ impl SscProof {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy)]
 pub struct ChainDifficulty(u64);
 
 impl fmt::Display for ChainDifficulty {
