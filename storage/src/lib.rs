@@ -174,13 +174,22 @@ impl Storage {
 
     fn build_loose_index(&mut self, tip: HeaderHash) {
         let mut cur_hash: HeaderHash = tip;
+        let mut prev_diff: Option<ChainDifficulty> = None;
         loop {
             let blockhash = types::header_to_blockhash(&cur_hash);
             let path = self.config.get_blob_filepath(&blockhash);
             if path.exists() {
                 let block = self.read_block(&blockhash).unwrap().decode().unwrap();
                 let header = block.header();
-                self.add_loose_to_index(&header);
+                let entry = Storage::create_loose_index_entry(&header);
+                if let Some(prev_diff) = prev_diff {
+                    // Here are going bavkward in history, so check next height is lower
+                    assert!(entry.0 < prev_diff);
+                }
+                prev_diff = Some(entry.0);
+                // Here we append elements to the end,
+                // because we are iterating from newer block to older
+                self.loose_idx.push(entry);
                 cur_hash = header.previous_header();
                 continue;
             }
@@ -300,11 +309,21 @@ impl Storage {
     }
 
     pub fn add_loose_to_index(&mut self, header: &BlockHeaderView) {
-        self.loose_idx.insert(0,(
+        if let Some((idx_tip_diff, _, _)) = self.loose_idx.get(0) {
+            let new_diff = header.difficulty();
+            // Assert new proposed idx tip has higher chain height
+            assert!(new_diff > *idx_tip_diff);
+        }
+        // Here we insert elements to the start, because index is going from newer to older
+        self.loose_idx.insert(0,Storage::create_loose_index_entry(header));
+    }
+
+    fn create_loose_index_entry(header: &BlockHeaderView) -> (ChainDifficulty, BlockDate, BlockHash) {
+        (
             header.difficulty(),
             header.blockdate(),
             types::header_to_blockhash(&header.compute_hash()),
-        ));
+        )
     }
 
     pub fn drop_loose_index_before(&mut self, diff: ChainDifficulty) {
