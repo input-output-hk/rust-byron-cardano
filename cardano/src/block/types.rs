@@ -228,7 +228,7 @@ impl SscProof {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ChainDifficulty(pub u64);
+pub struct ChainDifficulty(u64);
 
 impl fmt::Display for ChainDifficulty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -238,6 +238,11 @@ impl fmt::Display for ChainDifficulty {
 impl From<u64> for ChainDifficulty {
     fn from(f: u64) -> Self {
         ChainDifficulty(f)
+    }
+}
+impl From<ChainDifficulty> for u64 {
+    fn from(cd: ChainDifficulty) -> Self {
+        cd.0
     }
 }
 

@@ -227,7 +227,7 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        match self.get_from_loose_index(ChainDifficulty(height)) {
+        match self.get_from_loose_index(ChainDifficulty::from(height)) {
             Some((diff,date,hash)) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
                        height, diff, date, hex::encode(&hash));
@@ -312,8 +312,8 @@ impl Storage {
         if self.loose_idx.is_empty() {
             return;
         }
-        let ChainDifficulty(drop_diff) = diff;
-        let ChainDifficulty(tip_diff) = self.loose_idx[0].0;
+        let drop_diff = u64::from(diff);
+        let tip_diff = u64::from(self.loose_idx[0].0);
         let drop_after = (tip_diff - drop_diff) as usize;
         if self.loose_idx.len() > drop_after {
             self.loose_idx = self.loose_idx[0..drop_after].to_vec();
@@ -325,8 +325,8 @@ impl Storage {
         diff: ChainDifficulty
     ) -> Option<(ChainDifficulty, BlockDate, BlockHash)> {
         if !self.loose_idx.is_empty() {
-            let ChainDifficulty(find_diff) = diff;
-            let ChainDifficulty(tip_diff) = self.loose_idx[0].0;
+            let find_diff = u64::from(diff);
+            let tip_diff = u64::from(self.loose_idx[0].0);
             let idx = (tip_diff - find_diff) as usize;
             if self.loose_idx.len() > idx {
                 return Some(self.loose_idx[idx]);
