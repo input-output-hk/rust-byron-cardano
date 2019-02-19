@@ -350,7 +350,7 @@ impl Storage {
         &self,
         height: ChainDifficulty
     ) -> Result<Option<(ChainDifficulty, BlockDate, BlockHash)>> {
-        if let Some(idx_tip_diff) = self.loose_idx.first() {
+        if let Some(&(idx_tip_diff, _, _)) = self.loose_idx.first() {
             let find_diff = u64::from(height);
             let tip_diff = u64::from(idx_tip_diff);
             if find_diff > tip_diff {
