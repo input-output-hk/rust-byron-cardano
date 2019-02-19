@@ -236,12 +236,12 @@ impl Storage {
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
         match self.get_from_loose_index(ChainDifficulty::from(height)) {
-            Some((diff,date,hash)) => {
+            Ok(Some((diff,date,hash))) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
                        height, diff, date, hex::encode(&hash));
                 return Ok(BlockLocation::Loose(hash));
             },
-            None => {
+            Ok(None) => {
                 let mut h = height;
                 for (packref, lookup) in self.lookups.iter() {
                     let total = u32::from(lookup.fanout.get_total()) as u64;
@@ -253,7 +253,8 @@ impl Storage {
                     h -= total;
                 }
                 return Err(Error::BlockHeightNotFound(height));
-            }
+            },
+            Err(e) => Err(e)
         }
     }
 
@@ -338,19 +339,26 @@ impl Storage {
         }
     }
 
+    /// Returns:
+    /// - Ok of Some entry - if found in loose index
+    /// - Ok of None - if requested height is low enough to not be in the index already
+    /// - Err of `BlockHeightNotFound` - if requested height is too large and out of index bounds
     pub fn get_from_loose_index(
         &self,
-        diff: ChainDifficulty
-    ) -> Option<(ChainDifficulty, BlockDate, BlockHash)> {
+        height: ChainDifficulty
+    ) -> Result<Option<(ChainDifficulty, BlockDate, BlockHash)>> {
         if !self.loose_idx.is_empty() {
-            let find_diff = u64::from(diff);
+            let find_diff = u64::from(height);
             let tip_diff = u64::from(self.loose_idx[0].0);
+            if find_diff > tip_diff {
+                return Err(Error::BlockHeightNotFound(find_diff));
+            }
             let idx = (tip_diff - find_diff) as usize;
             if self.loose_idx.len() > idx {
-                return Some(self.loose_idx[idx]);
+                return Ok(Some(self.loose_idx[idx]));
             }
         }
-        return None;
+        return Ok(None);
     }
 }
 
