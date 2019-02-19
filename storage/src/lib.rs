@@ -165,10 +165,9 @@ impl Storage {
             loose_idx: vec![],
         };
 
-        match tag::read_hash(&storage, &tag::HEAD) {
-            None => {},
-            Some(hash) => storage.build_loose_index(hash),
-        };
+        if let Some(hash) = tag::read_hash(&storage, &tag::HEAD) {
+            storage.build_loose_index(hash);
+        }
 
         Ok(storage)
     }
