@@ -183,7 +183,7 @@ impl Storage {
                 let header = block.header();
                 let entry = Storage::create_loose_index_entry(&header);
                 if let Some(prev_diff) = prev_diff {
-                    // Here are going bavkward in history, so check next height is lower
+                    // Here we are going bavkward in history, so check next height is lower
                     assert!(entry.0 < prev_diff);
                 }
                 prev_diff = Some(entry.0);
@@ -239,20 +239,20 @@ impl Storage {
             Some((diff,date,hash)) => {
                 debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
                        height, diff, date, hex::encode(&hash));
-                Ok(BlockLocation::Loose(hash))
+                return Ok(BlockLocation::Loose(hash));
             },
             None => {
                 let mut h = height;
                 for (packref, lookup) in self.lookups.iter() {
-                    let total = u32::from(lookup.fanout.get_total());
-                    if h < (total as u64) {
+                    let total = u32::from(lookup.fanout.get_total()) as u64;
+                    if h < total {
                         let epoch_id = lookup.params.ordinal as u64;
                         let ofs = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
                         return Ok(BlockLocation::Offset(packref.clone(), ofs));
                     }
-                    h -= total as u64;
+                    h -= total;
                 }
-                Err(Error::BlockHeightNotFound(height))
+                return Err(Error::BlockHeightNotFound(height));
             }
         }
     }
