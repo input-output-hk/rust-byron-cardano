@@ -12,7 +12,7 @@ use super::super::config::ProtocolMagic;
 use super::boundary;
 use super::date::BlockDate;
 use super::normal;
-use super::types::{HeaderHash, ChainDifficulty};
+use super::types::{ChainDifficulty, HeaderHash};
 use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;

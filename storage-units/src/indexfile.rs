@@ -235,7 +235,10 @@ impl Lookup {
     }
 }
 
-pub fn write_offsets_to_file<'a, I: Iterator<Item = &'a Offset>>(tmpfile: &mut TmpFile, offsets: I) -> Result<()> {
+pub fn write_offsets_to_file<'a, I: Iterator<Item = &'a Offset>>(
+    tmpfile: &mut TmpFile,
+    offsets: I,
+) -> Result<()> {
     for ofs in offsets {
         let mut buf = [0u8; OFF_SIZE];
         write_offset(&mut buf, *ofs);

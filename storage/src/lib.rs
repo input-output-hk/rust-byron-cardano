@@ -18,20 +18,20 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use cardano::block::{Block, BlockDate, EpochId, HeaderHash, RawBlock, SlotId};
-use std::{error, fmt};
 use std::collections::HashMap;
+use std::{error, fmt};
 
 use storage_units::utils::error::StorageError;
-use storage_units::utils::{magic, serialize};
 use storage_units::utils::tmpfile::*;
+use storage_units::utils::{magic, serialize};
 use types::*;
 
+use cardano::block::block::BlockHeaderView;
+use cardano::block::types::ChainDifficulty;
+use cardano::util::hex;
 use pack::{packreader_block_next, packreader_init};
 use std::cmp::Ordering;
 use storage_units::{indexfile, packfile, reffile};
-use cardano::util::hex;
-use cardano::block::types::ChainDifficulty;
-use cardano::block::block::BlockHeaderView;
 
 #[derive(Debug)]
 pub enum Error {
@@ -248,10 +248,15 @@ impl Storage {
     }
 
     pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
-        if let Some(LooseChainHeightEntry { difficulty, date, hash }) = self.get_from_loose_index(ChainDifficulty::from(height))? {
-            debug!("Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
-                   height, difficulty, date, hex::encode(hash));
-            return Ok(BlockLocation::Loose(*hash));
+        if let Some(e) = self.get_from_loose_index(ChainDifficulty::from(height))? {
+            debug!(
+                "Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
+                height,
+                e.difficulty,
+                e.date,
+                hex::encode(&e.hash)
+            );
+            return Ok(BlockLocation::Loose(e.hash));
         } else {
             // Search height in packed epochs
             let mut h = height;
@@ -259,7 +264,8 @@ impl Storage {
                 let total = *epoch_size as u64;
                 if h < total {
                     let epoch_id = epoch_id as u64;
-                    let (packref, ofs) = epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                    let (packref, ofs) =
+                        epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
                     return Ok(BlockLocation::Offset(packref, ofs));
                 }
                 h -= total;
@@ -293,8 +299,7 @@ impl Storage {
             },
             BlockLocation::Offset(ref packref, ref offset) => {
                 let pack_filepath = self.config.get_pack_filepath(packref);
-                let mut pack_file =
-                    try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
+                let mut pack_file = try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
                 let rblk = pack_file
                     .block_at_offset(*offset)
                     .and_then(|x| Ok(RawBlock(x)))?;
@@ -327,7 +332,9 @@ impl Storage {
             assert!((new_diff > prev_diff) & (new_diff - prev_diff == 1));
         }
         // Here we insert elements to the start, because index is going from newer to older
-        self.chain_height_idx.loose_idx.insert(0,Storage::create_loose_index_entry(header));
+        self.chain_height_idx
+            .loose_idx
+            .insert(0, Storage::create_loose_index_entry(header));
     }
 
     pub fn add_pack_to_index(&mut self, epoch_id: u64, epoch_size: serialize::Size) {
@@ -368,7 +375,7 @@ impl Storage {
     /// - Err of `BlockHeightNotFound` - if requested height is too large and out of index bounds
     pub fn get_from_loose_index(
         &self,
-        height: ChainDifficulty
+        height: ChainDifficulty,
     ) -> Result<Option<&LooseChainHeightEntry>> {
         if let Some(ref idx_tip) = self.chain_height_idx.loose_idx.first() {
             let find_diff = u64::from(height);
