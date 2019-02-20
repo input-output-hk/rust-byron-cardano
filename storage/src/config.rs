@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use cardano::util::hex;
 
-use types::*;
 use epoch;
+use types::*;
 use Error;
 
 #[derive(Clone)]
@@ -114,7 +114,9 @@ impl StorageConfig {
             if !entry.file_type().unwrap().is_dir() {
                 continue;
             }
-            let epoch_id = entry.file_name().into_string()
+            let epoch_id = entry
+                .file_name()
+                .into_string()
                 .expect("Failed to read epoch_id string!")
                 .parse::<u64>()
                 .expect("Failed to parse epoch_id string!");
@@ -127,9 +129,7 @@ impl StorageConfig {
             assert_eq!(i as u64, *j);
         }
         // Drop explicit epoch_id, because now we can refer by index
-        let res = packs.into_iter()
-            .map(|(_, p)| p)
-            .collect::<Vec<u32>>();
+        let res = packs.into_iter().map(|(_, p)| p).collect::<Vec<u32>>();
         Ok(res)
     }
 
