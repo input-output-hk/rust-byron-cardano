@@ -356,7 +356,7 @@ fn finish_epoch(
 ) -> Result<()> {
     let epoch_id = epoch_writer_state.epoch_id;
     let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
-    let (lookup, tmpfile) = pack::create_index(&storage, &index, epoch_id as u32);
+    let (lookup, tmpfile) = pack::create_index(&storage, &index);
     tmpfile.render_permanent(&storage.config.get_index_filepath(&packhash))?;
     storage.add_lookup(packhash, lookup);
     let epoch_time_elapsed = epoch_writer_state.write_start_time.elapsed().unwrap();
@@ -373,7 +373,7 @@ fn finish_epoch(
     assert_eq!(chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
     epoch::epoch_create(
-        &storage,
+        storage,
         &packhash,
         epoch_id,
         index,

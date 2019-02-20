@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use cardano::util::hex;
 
 use types::*;
+use epoch;
+use Error;
 
 #[derive(Clone)]
 pub struct StorageConfig {
@@ -102,6 +104,33 @@ impl StorageConfig {
             }
         }
         packs
+    }
+
+    pub fn list_epochs_heights(&self) -> Result<Vec<u32>, Error> {
+        let mut packs: Vec<(u64, u32)> = Vec::new();
+        let p = self.get_filetype_dir(StorageFileType::Epoch);
+        for entry in fs::read_dir(p)? {
+            let entry = entry?;
+            if !entry.file_type().unwrap().is_dir() {
+                continue;
+            }
+            let epoch_id = entry.file_name().into_string()
+                .expect("Failed to read epoch_id string!")
+                .parse::<u64>()
+                .expect("Failed to parse epoch_id string!");
+            let sz = epoch::epoch_read_size(&self, epoch_id)?;
+            packs.push((epoch_id, sz));
+        }
+        // Sort readed epoch files by epoch_id and assert they match with their indexes after being sorted
+        packs.sort_by(|(idx1, _), (idx2, _)| idx1.cmp(idx2));
+        for (i, (j, _)) in packs.iter().enumerate() {
+            assert_eq!(i as u64, *j);
+        }
+        // Drop explicit epoch_id, because now we can refer by index
+        let res = packs.into_iter()
+            .map(|(_, p)| p)
+            .collect::<Vec<u32>>();
+        Ok(res)
     }
 
     pub fn list_blob(&self, limits: Option<u32>) -> Vec<BlockHash> {

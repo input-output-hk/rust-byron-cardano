@@ -9,10 +9,9 @@ use storage_units::packfile;
 pub fn create_index(
     storage: &super::Storage,
     index: &indexfile::Index,
-    epoch_id: u32,
 ) -> (indexfile::Lookup, super::TmpFile) {
     let mut tmpfile = super::tmpfile_create_type(storage, super::StorageFileType::Index);
-    let lookup = index.write_to_tmpfile(&mut tmpfile, epoch_id).unwrap();
+    let lookup = index.write_to_tmpfile(&mut tmpfile).unwrap();
     (lookup, tmpfile)
 }
 
