@@ -12,12 +12,12 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::{self, de::Deserializer};
 
-use super::{nt, Connection, Handshake, Message, NodeId};
+use super::{nt, Connection, Handshake, Message, NodeId, ProtocolMagic};
 
 use std::fmt;
 
 enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
-    NtConnecting(nt::Connecting<T>),
+    NtConnecting(nt::Connecting<T>, ProtocolMagic),
     SendHandshake(
         SendAll<Connection<T, B, Tx>, IterOk<vec::IntoIter<nt::Event>, ::std::io::Error>>,
     ),
@@ -28,7 +28,7 @@ enum ConnectingState<T, B: property::Block, Tx: property::TransactionId> {
 }
 
 enum Transition<T, B: property::Block, Tx: property::TransactionId> {
-    Connected(Connection<T, B, Tx>),
+    Connected(Connection<T, B, Tx>, ProtocolMagic),
     HandshakeSent(Connection<T, B, Tx>),
     ReceivedNewLightWeightId(Connection<T, B, Tx>),
     ReceivedHandshake(Connection<T, B, Tx>),
@@ -42,9 +42,9 @@ pub struct Connecting<T, B: property::Block, Tx: property::TransactionId> {
 impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
     Connecting<T, B, Tx>
 {
-    pub fn new(inner: T) -> Self {
+    pub fn new(inner: T, magic: ProtocolMagic) -> Self {
         Connecting {
-            state: ConnectingState::NtConnecting(nt::Connection::connect(inner)),
+            state: ConnectingState::NtConnecting(nt::Connection::connect(inner), magic),
         }
     }
 }
@@ -73,9 +73,9 @@ where
                 ConnectingState::Consumed => {
                     return Err(ConnectingError::AlreadyConnected);
                 }
-                ConnectingState::NtConnecting(ref mut nt) => {
+                ConnectingState::NtConnecting(ref mut nt, magic) => {
                     let nt = try_ready!(nt.poll());
-                    Transition::Connected(Connection::new(nt))
+                    Transition::Connected(Connection::new(nt), *magic)
                 }
                 ConnectingState::SendHandshake(ref mut send_all) => {
                     let (connection, _) = try_ready!(send_all.poll());
@@ -140,12 +140,12 @@ where
             };
 
             match connection {
-                Transition::Connected(mut connection) => {
+                Transition::Connected(mut connection, magic) => {
                     let lid = connection.get_next_light_id();
                     let nid = connection.get_next_node_id();
                     let msg1: Message<B, Tx> = Message::CreateLightWeightConnectionId(lid);
                     let msg2: Message<B, Tx> =
-                        Message::Bytes(lid, cbor!(Handshake::default()).unwrap().into());
+                        Message::Bytes(lid, cbor!(Handshake::default_with(magic)).unwrap().into());
                     let msg3: Message<B, Tx> = Message::CreateNodeId(lid, nid);
                     let commands = stream::iter_ok::<_, ::std::io::Error>(vec![
                         msg1.to_nt_event(),

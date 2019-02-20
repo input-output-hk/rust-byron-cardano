@@ -17,6 +17,7 @@ pub enum Error {
     NoSuchBlock(HeaderHash),
     StorageError(storage::Error),
     BlockError(cardano::block::Error),
+    InvalidPeerAddress(String),
 }
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
@@ -66,6 +67,7 @@ impl fmt::Display for Error {
             Error::NoSuchBlock(hash) => write!(f, "Requested block {} does not exist", hash),
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::BlockError(_) => write!(f, "Block error"),
+            Error::InvalidPeerAddress(addr) => write!(f, "Invalid peer address {}", addr),
         }
     }
 }
@@ -82,6 +84,7 @@ impl error::Error for Error {
             Error::NoSuchBlock(_) => None,
             Error::StorageError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
+            Error::InvalidPeerAddress(_) => None,
         }
     }
 }

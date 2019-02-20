@@ -1,12 +1,11 @@
-use config::ProtocolMagic;
+use super::types::{self, ChainDifficulty, HeaderHash};
+use crate::{address, config::ProtocolMagic, hash::Blake2b256};
+
 use std::{
     fmt,
     io::{BufRead, Write},
 };
-use {address, hash::Blake2b256};
 
-use super::types;
-use super::types::{ChainDifficulty, HeaderHash};
 use cbor_event::{self, de::Deserializer, se::Serializer};
 
 #[derive(Debug, Clone)]

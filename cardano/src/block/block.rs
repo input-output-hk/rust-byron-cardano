@@ -368,11 +368,11 @@ impl chain_core::property::Deserialize for Block {
 }
 
 impl chain_core::property::HasTransaction for Block {
-    type Transactions = Vec<TxAux>;
-    fn transactions(&self) -> Option<&Self::Transactions> {
+    type Transactions = [TxAux];
+    fn transactions(&self) -> &Self::Transactions {
         match self {
-            Block::BoundaryBlock(_) => None,
-            Block::MainBlock(ref blk) => Some(&blk.body.tx),
+            Block::BoundaryBlock(_) => &[],
+            Block::MainBlock(blk) => &blk.body.tx,
         }
     }
 }

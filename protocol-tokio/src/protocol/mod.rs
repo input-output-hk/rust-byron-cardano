@@ -19,7 +19,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 pub use self::accepting::{Accepting, AcceptingError};
 pub use self::codec::{
     BlockHeaders, GetBlockHeaders, GetBlocks, HandlerSpec, HandlerSpecs, Handshake, KeepAlive,
-    Message, MessageType, NodeId, Response,
+    Message, MessageType, NodeId, ProtocolMagic, Response,
 };
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
@@ -98,8 +98,8 @@ impl<
 
     /// this function is to use when establishing a connection with
     /// with a remote.
-    pub fn connect(inner: T) -> Connecting<T, B, Tx> {
-        Connecting::new(inner)
+    pub fn connect(inner: T, magic: ProtocolMagic) -> Connecting<T, B, Tx> {
+        Connecting::new(inner, magic)
     }
 
     /// this function is to use when receiving inbound connection

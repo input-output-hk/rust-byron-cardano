@@ -38,7 +38,7 @@ use chain_core::property;
 use network_core::server::{
     block::BlockService, block::HeaderService, transaction::TransactionService, Node,
 };
-use protocol::{Inbound, Message};
+use protocol::{protocol::ProtocolMagic, Inbound, Message};
 
 use futures::{future, prelude::*, stream::Stream, sync::mpsc};
 use tokio::net::{TcpListener, TcpStream};
@@ -96,6 +96,7 @@ where
 pub fn connect<N: 'static>(
     sockaddr: SocketAddr,
     node: Server<N>,
+    magic: ProtocolMagic,
 ) -> impl future::Future<Item = impl futures::future::Future<Item = (), Error = Error>, Error = Error>
 where
     N: Node + Clone,
@@ -113,7 +114,7 @@ where
     TcpStream::connect(&sockaddr)
         .map_err(move |err| Error::new(ErrorKind::Connect, err))
         .and_then(move |stream| {
-            protocol::Connection::connect(stream)
+            protocol::Connection::connect(stream, magic)
                 .map_err(move |err| Error::new(ErrorKind::Handshake, err))
                 .and_then(move |connection| {
                     let node = node.clone();

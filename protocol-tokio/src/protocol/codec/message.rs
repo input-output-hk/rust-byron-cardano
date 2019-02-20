@@ -1,8 +1,5 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use std::{
-    io::{BufRead, Cursor, Write},
-    ops::Deref,
-};
+use std::io::{BufRead, Write};
 
 use cbor_event::{
     self,
@@ -177,33 +174,9 @@ where
 
     pub fn expect_bytes(event: nt::Event) -> Result<Self, nt::Event> {
         let (lwcid, bytes) = event.expect_data()?;
-        if let Some(msg) = decode_node_ack_or_syn(lwcid, &bytes) {
-            return Ok(msg);
-        }
-        let mut cbor = Deserializer::from(Cursor::new(bytes.deref()));
-        let msg_type: MessageType = cbor.deserialize().unwrap();
-        match msg_type {
-            MessageType::MsgGetHeaders => Ok(Message::GetBlockHeaders(
-                lwcid,
-                cbor.deserialize_complete().unwrap(),
-            )),
-            MessageType::MsgHeaders => Ok(Message::BlockHeaders(
-                lwcid,
-                cbor.deserialize_complete().unwrap(),
-            )),
-            MessageType::MsgGetBlocks => Ok(Message::GetBlocks(
-                lwcid,
-                cbor.deserialize_complete().unwrap(),
-            )),
-            MessageType::MsgBlock => {
-                Ok(Message::Block(lwcid, cbor.deserialize_complete().unwrap()))
-            }
-            MessageType::MsgSubscribe1 => {
-                let v: u64 = cbor.deserialize_complete().unwrap();
-                let keep_alive = v == 43;
-                Ok(Message::Subscribe(lwcid, keep_alive))
-            }
-            _ => unimplemented!(),
+        match decode_node_ack_or_syn(lwcid, &bytes) {
+            Some(msg) => Ok(msg),
+            None => Ok(Message::Bytes(lwcid, bytes)),
         }
     }
 }
@@ -246,7 +219,7 @@ impl<T: se::Serialize, E: se::Serialize> se::Serialize for Response<T, E> {
 impl<T: de::Deserialize, E: de::Deserialize> de::Deserialize for Response<T, E> {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         raw.tuple(2, "protocol::Response")?;
-        let id = raw.deserialize()?;
+        let id = raw.unsigned_integer()?;
         match id {
             0u64 => Ok(Response::Ok(raw.deserialize()?)),
             1u64 => Ok(Response::Err(raw.deserialize()?)),
