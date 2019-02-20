@@ -393,8 +393,8 @@ fn finish_epoch(
     }
 
     let diff = storage
-        .read_block(&types::header_to_blockhash(&chain_state.last_block)).unwrap()
-        .decode().unwrap()
+        .read_block(&types::header_to_blockhash(&chain_state.last_block))?
+        .decode()?
         .header()
         .difficulty();
 
