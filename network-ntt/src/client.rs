@@ -5,8 +5,8 @@ pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
     protocol::{CloseLightConnection, GetBlockHeaders, GetBlocks, NewLightConnection},
-    Inbound, InboundError, InboundStream, Message, OutboundError, OutboundSink, ProtocolBlock,
-    ProtocolBlockId, ProtocolHeader, ProtocolTransactionId, Response,
+    ConnectingError, Inbound, InboundError, InboundStream, Message, OutboundError, OutboundSink,
+    ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId, Response,
 };
 
 use futures::{
@@ -22,8 +22,8 @@ use std::{
     net::SocketAddr,
 };
 
-use tokio::net::TcpStream;
 use tokio::prelude::*;
+use tokio::{io, net::TcpStream};
 
 /// A handle that can be used in order for communication
 /// with the client thread.
@@ -37,7 +37,7 @@ pub struct ClientHandle<T: Block + HasHeader, Tx> {
 pub fn connect<B, Tx>(
     sockaddr: SocketAddr,
     magic: ProtocolMagic,
-) -> impl Future<Item = (Connection<TcpStream, B, Tx>, ClientHandle<B, Tx>), Error = core_client::Error>
+) -> impl Future<Item = (Connection<TcpStream, B, Tx>, ClientHandle<B, Tx>), Error = Error>
 where
     B: ProtocolBlock,
     Tx: ProtocolTransactionId,
@@ -45,10 +45,10 @@ where
     <B as HasHeader>::Header: ProtocolHeader,
 {
     TcpStream::connect(&sockaddr)
-        .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
+        .map_err(Error::Connect)
         .and_then(move |stream| {
             protocol::Connection::connect(stream, magic)
-                .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
+                .map_err(Error::Handshake)
                 .and_then(move |connection| {
                     let (cmd_sink, cmd_source) = mpsc::unbounded();
                     let handle = ClientHandle {
@@ -213,6 +213,8 @@ enum Request<T: Block + HasHeader> {
 
 #[derive(Debug)]
 pub enum Error {
+    Connect(io::Error),
+    Handshake(ConnectingError),
     Inbound(InboundError),
     Outbound(OutboundError),
 }
@@ -220,6 +222,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::Connect(e) => write!(f, "connection error"),
+            Error::Handshake(e) => write!(f, "failed to set up the protocol connection"),
             Error::Inbound(e) => write!(f, "network input error"),
             Error::Outbound(e) => write!(f, "network output error"),
         }
@@ -229,6 +233,8 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
+            Error::Connect(e) => Some(e),
+            Error::Handshake(e) => Some(e),
             Error::Inbound(e) => Some(e),
             Error::Outbound(e) => Some(e),
         }
