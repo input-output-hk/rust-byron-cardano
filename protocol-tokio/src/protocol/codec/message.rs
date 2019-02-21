@@ -8,8 +8,8 @@ use cbor_event::{
 };
 
 use super::super::{
-    nt,
     chain_bounds::{ProtocolBlock, ProtocolTransactionId},
+    nt,
 };
 use super::NodeId;
 use chain_core::property;
