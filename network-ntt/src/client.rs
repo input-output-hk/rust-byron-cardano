@@ -1,4 +1,4 @@
-use chain_core::property::{Block, HasHeader, Header, TransactionId};
+use chain_core::property::{Block, HasHeader, Header};
 
 use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
 pub use protocol::protocol::ProtocolMagic;
@@ -34,16 +34,15 @@ pub struct ClientHandle<T: Block + HasHeader, Tx> {
 
 /// Connect to the remote client. Returns future that can
 /// be run on any executor.
-pub fn connect<B, H, I, D, Tx>(
+pub fn connect<B, Tx>(
     sockaddr: SocketAddr,
     magic: ProtocolMagic,
 ) -> impl Future<Item = (Connection<TcpStream, B, Tx>, ClientHandle<B, Tx>), Error = core_client::Error>
 where
+    B: ProtocolBlock,
     Tx: ProtocolTransactionId,
-    B: NttBlock<D, I, H>,
-    H: NttHeader<D, I>,
-    I: NttId,
-    D: NttDate,
+    <B as Block>::Id: ProtocolBlockId,
+    <B as HasHeader>::Header: ProtocolHeader,
 {
     TcpStream::connect(&sockaddr)
         .map_err(move |err| core_client::Error::new(core_client::ErrorKind::Rpc, err))
@@ -210,79 +209,6 @@ enum Request<T: Block + HasHeader> {
         T::Id,
         T::Id,
     ),
-}
-
-pub trait NttBlock<D, I, H>:
-    Block<Id = I, Date = D>
-    + core::fmt::Debug
-    + HasHeader<Header = H>
-    + cbor_event::Deserialize
-    + cbor_event::Serialize
-where
-    D: NttDate,
-    I: NttId,
-    H: NttHeader<D, I> + Clone + core::fmt::Debug,
-{
-}
-
-impl<D, I, H, T> NttBlock<D, I, H> for T
-where
-    T: Block<Id = I, Date = D>
-        + core::fmt::Debug
-        + HasHeader<Header = H>
-        + cbor_event::Deserialize
-        + cbor_event::Serialize,
-    D: NttDate,
-    I: NttId,
-    H: NttHeader<D, I> + Clone + core::fmt::Debug,
-{
-}
-
-pub trait NttHeader<D, I>:
-    Header<Id = I, Date = D>
-    + cbor_event::Deserialize
-    + cbor_event::Serialize
-    + core::fmt::Debug
-    + Clone
-where
-    D: chain_core::property::BlockDate + core::fmt::Debug,
-    I: cbor_event::Deserialize
-        + cbor_event::Serialize
-        + chain_core::property::BlockId
-        + core::fmt::Debug,
-{
-}
-
-impl<D, I, T> NttHeader<D, I> for T
-where
-    T: Header<Id = I, Date = D>
-        + cbor_event::Deserialize
-        + cbor_event::Serialize
-        + core::fmt::Debug
-        + Clone,
-    D: chain_core::property::BlockDate + core::fmt::Debug,
-    I: cbor_event::Deserialize
-        + cbor_event::Serialize
-        + chain_core::property::BlockId
-        + core::fmt::Debug,
-{
-}
-
-pub trait NttDate: chain_core::property::BlockDate + core::fmt::Debug {}
-
-impl<T> NttDate for T where T: chain_core::property::BlockDate + core::fmt::Debug {}
-
-pub trait NttId:
-    cbor_event::Deserialize + cbor_event::Serialize + chain_core::property::BlockId + core::fmt::Debug
-{
-}
-
-impl<T> NttId for T where
-    T: cbor_event::Deserialize
-        + cbor_event::Serialize
-        + chain_core::property::BlockId
-        + core::fmt::Debug
-{
 }
 
 #[derive(Debug)]
