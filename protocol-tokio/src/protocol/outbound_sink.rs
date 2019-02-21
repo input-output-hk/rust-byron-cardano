@@ -202,6 +202,18 @@ where
             state,
         }
     }
+
+    pub fn connection_id(&self) -> nt::LightWeightConnectionId {
+        self.lwcid
+    }
+
+    pub fn get_mut(&mut self) -> &mut OutboundSink<T, B, Tx> {
+        use self::CreationState::*;
+        match &mut self.state {
+            CreatingConnectionId(send) => send.get_mut(),
+            CreatingNodeId(send) => send.get_mut(),
+        }
+    }
 }
 
 enum CreationState<T, B, Tx>
@@ -274,6 +286,10 @@ where
     fn new(sink: OutboundSink<T, B, Tx>, lwcid: nt::LightWeightConnectionId) -> Self {
         let send = sink.send(Message::CloseConnection(lwcid));
         CloseLightConnection { lwcid, send }
+    }
+
+    pub fn get_mut(&mut self) -> &mut OutboundSink<T, B, Tx> {
+        self.send.get_mut()
     }
 }
 
