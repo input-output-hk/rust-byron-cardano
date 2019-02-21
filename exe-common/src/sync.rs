@@ -9,8 +9,8 @@ use cardano_storage::{
 use config::net;
 use network::{api::Api, api::BlockRef, Peer, Result};
 use std::mem;
-use std::time::{Duration, SystemTime};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 use storage_units::packfile;
 
 fn duration_print(d: Duration) -> String {
@@ -47,7 +47,8 @@ fn net_sync_to<A: Api>(
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let (our_tip, our_tip_is_genesis) = match storage.read().unwrap().get_block_from_tag(&tag::HEAD) {
+    let (our_tip, our_tip_is_genesis) = match storage.read().unwrap().get_block_from_tag(&tag::HEAD)
+    {
         Err(Error::NoSuchTag) => (
             BlockRef {
                 hash: net_cfg.genesis.clone(),
@@ -105,8 +106,12 @@ fn net_sync_to<A: Api>(
 
         // Read the blocks in the current epoch.
         let mut blobs_to_delete = vec![];
-        let (last_block_in_prev_epoch, blocks) =
-            get_unpacked_blocks_in_epoch(&storage.read().unwrap(), &our_tip.hash, epoch_id, &mut blobs_to_delete);
+        let (last_block_in_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(
+            &storage.read().unwrap(),
+            &our_tip.hash,
+            epoch_id,
+            &mut blobs_to_delete,
+        );
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
@@ -127,8 +132,11 @@ fn net_sync_to<A: Api>(
             blobs_to_delete,
         });
 
-        let mut chain_state =
-            chain_state::restore_chain_state(&storage.read().unwrap(), genesis_data, &last_block_in_prev_epoch)?;
+        let mut chain_state = chain_state::restore_chain_state(
+            &storage.read().unwrap(),
+            genesis_data,
+            &last_block_in_prev_epoch,
+        )?;
 
         append_blocks_to_epoch_reverse(
             epoch_writer_state.as_mut().unwrap(),
@@ -145,7 +153,11 @@ fn net_sync_to<A: Api>(
         // Iterate to the last block in the previous epoch.
         let mut cur_hash = our_tip.hash.clone();
         loop {
-            let block_raw = storage.read().unwrap().read_block(&cur_hash.into()).unwrap();
+            let block_raw = storage
+                .read()
+                .unwrap()
+                .read_block(&cur_hash.into())
+                .unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.header();
             let blockdate = hdr.blockdate();
@@ -156,7 +168,12 @@ fn net_sync_to<A: Api>(
             }
         }
 
-        maybe_create_epoch(&mut storage.write().unwrap(), genesis_data, first_unstable_epoch - 1, &cur_hash)?;
+        maybe_create_epoch(
+            &mut storage.write().unwrap(),
+            genesis_data,
+            first_unstable_epoch - 1,
+            &cur_hash,
+        )?;
     }
 
     let mut chain_state = chain_state::restore_chain_state(
@@ -183,11 +200,21 @@ fn net_sync_to<A: Api>(
                 mem::swap(&mut writer_state, &mut epoch_writer_state);
 
                 if let Some(epoch_writer_state) = writer_state {
-                    finish_epoch(&mut storage.write().unwrap(), genesis_data, epoch_writer_state, &chain_state).unwrap();
+                    finish_epoch(
+                        &mut storage.write().unwrap(),
+                        genesis_data,
+                        epoch_writer_state,
+                        &chain_state,
+                    )
+                    .unwrap();
 
                     // Checkpoint the tip so we don't have to refetch
                     // everything if we get interrupted.
-                    tag::write(&storage.read().unwrap(), &tag::HEAD, &chain_state.last_block.as_ref());
+                    tag::write(
+                        &storage.read().unwrap(),
+                        &tag::HEAD,
+                        &chain_state.last_block.as_ref(),
+                    );
                 }
             }
 
@@ -227,7 +254,11 @@ fn net_sync_to<A: Api>(
     )?;
 
     // Update the tip tag to point to the most recent block.
-    tag::write(&storage.read().unwrap(), &tag::HEAD, chain_state.last_block.as_ref());
+    tag::write(
+        &storage.read().unwrap(),
+        &tag::HEAD,
+        chain_state.last_block.as_ref(),
+    );
 
     Ok(())
 }
