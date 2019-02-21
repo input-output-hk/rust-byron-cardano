@@ -9,6 +9,7 @@ use cardano_storage::{
 use config::net;
 use network::{api::Api, api::BlockRef, Peer, Result};
 use std::mem;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use storage_units::packfile;
 
@@ -27,7 +28,7 @@ fn net_sync_to<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
-    storage: &mut Storage,
+    storage: Arc<RwLock<Storage>>,
     tip_header: &BlockHeader,
 ) -> Result<()> {
     let tip = BlockRef {
@@ -35,6 +36,7 @@ fn net_sync_to<A: Api>(
         parent: tip_header.get_previous_header(),
         date: tip_header.get_blockdate(),
     };
+    let storage_config = storage.read().unwrap().config.clone();
 
     debug!("Configured genesis   : {}", net_cfg.genesis);
     debug!("Configured genesis-1 : {}", net_cfg.genesis_prev);
@@ -45,7 +47,8 @@ fn net_sync_to<A: Api>(
 
     // Start fetching at the current HEAD tag, or the genesis block if
     // it doesn't exist.
-    let (our_tip, our_tip_is_genesis) = match storage.get_block_from_tag(&tag::HEAD) {
+    let (our_tip, our_tip_is_genesis) = match storage.read().unwrap().get_block_from_tag(&tag::HEAD)
+    {
         Err(Error::NoSuchTag) => (
             BlockRef {
                 hash: net_cfg.genesis.clone(),
@@ -97,20 +100,24 @@ fn net_sync_to<A: Api>(
     // and prepend them to the incoming blocks.
     if our_tip.date.get_epochid() < first_unstable_epoch
         && !our_tip_is_genesis
-        && !epoch_exists(&storage.config, our_tip.date.get_epochid()).unwrap()
+        && !epoch_exists(&storage_config, our_tip.date.get_epochid()).unwrap()
     {
         let epoch_id = our_tip.date.get_epochid();
 
         // Read the blocks in the current epoch.
         let mut blobs_to_delete = vec![];
-        let (last_block_in_prev_epoch, blocks) =
-            get_unpacked_blocks_in_epoch(storage, &our_tip.hash, epoch_id, &mut blobs_to_delete);
+        let (last_block_in_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(
+            &storage.read().unwrap(),
+            &our_tip.hash,
+            epoch_id,
+            &mut blobs_to_delete,
+        );
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
         if epoch_id > net_cfg.epoch_start {
             maybe_create_epoch(
-                storage,
+                &mut storage.write().unwrap(),
                 genesis_data,
                 epoch_id - 1,
                 &last_block_in_prev_epoch,
@@ -120,13 +127,16 @@ fn net_sync_to<A: Api>(
         // Initialize the epoch writer and add the blocks in the current epoch.
         epoch_writer_state = Some(EpochWriterState {
             epoch_id,
-            writer: pack::packwriter_init(&storage.config).unwrap(),
+            writer: pack::packwriter_init(&storage_config).unwrap(),
             write_start_time: SystemTime::now(),
             blobs_to_delete,
         });
 
-        let mut chain_state =
-            chain_state::restore_chain_state(storage, genesis_data, &last_block_in_prev_epoch)?;
+        let mut chain_state = chain_state::restore_chain_state(
+            &storage.read().unwrap(),
+            genesis_data,
+            &last_block_in_prev_epoch,
+        )?;
 
         append_blocks_to_epoch_reverse(
             epoch_writer_state.as_mut().unwrap(),
@@ -138,12 +148,16 @@ fn net_sync_to<A: Api>(
     // pack it.
     else if our_tip.date.get_epochid() == first_unstable_epoch
         && first_unstable_epoch > net_cfg.epoch_start
-        && !epoch_exists(&storage.config, first_unstable_epoch - 1).unwrap()
+        && !epoch_exists(&storage_config, first_unstable_epoch - 1).unwrap()
     {
         // Iterate to the last block in the previous epoch.
         let mut cur_hash = our_tip.hash.clone();
         loop {
-            let block_raw = storage.read_block(&cur_hash.into()).unwrap();
+            let block_raw = storage
+                .read()
+                .unwrap()
+                .read_block(&cur_hash.into())
+                .unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.header();
             let blockdate = hdr.blockdate();
@@ -154,11 +168,16 @@ fn net_sync_to<A: Api>(
             }
         }
 
-        maybe_create_epoch(storage, genesis_data, first_unstable_epoch - 1, &cur_hash)?;
+        maybe_create_epoch(
+            &mut storage.write().unwrap(),
+            genesis_data,
+            first_unstable_epoch - 1,
+            &cur_hash,
+        )?;
     }
 
     let mut chain_state = chain_state::restore_chain_state(
-        storage,
+        &storage.read().unwrap(),
         genesis_data,
         if our_tip_is_genesis {
             &our_tip.parent
@@ -181,11 +200,21 @@ fn net_sync_to<A: Api>(
                 mem::swap(&mut writer_state, &mut epoch_writer_state);
 
                 if let Some(epoch_writer_state) = writer_state {
-                    finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state).unwrap();
+                    finish_epoch(
+                        &mut storage.write().unwrap(),
+                        genesis_data,
+                        epoch_writer_state,
+                        &chain_state,
+                    )
+                    .unwrap();
 
                     // Checkpoint the tip so we don't have to refetch
                     // everything if we get interrupted.
-                    tag::write(storage, &tag::HEAD, &chain_state.last_block.as_ref());
+                    tag::write(
+                        &storage.read().unwrap(),
+                        &tag::HEAD,
+                        &chain_state.last_block.as_ref(),
+                    );
                 }
             }
 
@@ -199,13 +228,13 @@ fn net_sync_to<A: Api>(
                 // be rolled back. Therefore we can't pack this epoch
                 // yet. Instead we write this block to disk separately.
                 let block_hash = types::header_to_blockhash(&block_hash);
-                blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
+                blob::write(&storage.read().unwrap(), &block_hash, block_raw.as_ref()).unwrap();
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if date.is_boundary() {
                     epoch_writer_state = Some(EpochWriterState {
                         epoch_id: date.get_epochid(),
-                        writer: pack::packwriter_init(&storage.config).unwrap(),
+                        writer: pack::packwriter_init(&storage_config).unwrap(),
                         write_start_time: SystemTime::now(),
                         blobs_to_delete: vec![],
                     });
@@ -225,7 +254,11 @@ fn net_sync_to<A: Api>(
     )?;
 
     // Update the tip tag to point to the most recent block.
-    tag::write(&storage, &tag::HEAD, chain_state.last_block.as_ref());
+    tag::write(
+        &storage.read().unwrap(),
+        &tag::HEAD,
+        chain_state.last_block.as_ref(),
+    );
 
     Ok(())
 }
@@ -247,14 +280,14 @@ pub fn net_sync<A: Api>(
     net: &mut A,
     net_cfg: &net::Config,
     genesis_data: &GenesisData,
-    storage: &mut Storage,
+    storage: Arc<RwLock<Storage>>,
     sync_once: bool,
 ) -> Result<()> {
     // recover and print the TIP of the network
     let mut tip_header = net.get_tip()?;
 
     loop {
-        net_sync_to(net, net_cfg, genesis_data, storage, &tip_header)?;
+        net_sync_to(net, net_cfg, genesis_data, storage.clone(), &tip_header)?;
 
         if sync_once {
             break;
