@@ -1,5 +1,5 @@
 use super::{
-    chain_bounds::{ProtocolBlock, ProtocolTransactionId},
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
     nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId, Response,
 };
 use super::{BlockHeaders, GetBlockHeaders, GetBlocks};
@@ -134,8 +134,8 @@ where
     T: AsyncRead,
     B: ProtocolBlock,
     Tx: ProtocolTransactionId,
-    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
-    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     type Item = Inbound<B, Tx>;
     type Error = InboundError;

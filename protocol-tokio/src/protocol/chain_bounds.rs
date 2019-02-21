@@ -22,12 +22,13 @@ where
 
 /// Traits required for the blockchain header payloads used by the protocol.
 pub trait ProtocolHeader:
-    property::Header + cbor_event::Deserialize + cbor_event::Serialize
+    property::Header + cbor_event::Deserialize + cbor_event::Serialize + Debug
 {
 }
 
 impl<T> ProtocolHeader for T
 where
+    T: Debug,
     T: property::Header,
     T: cbor_event::Deserialize + cbor_event::Serialize,
     <T as property::Header>::Id: ProtocolBlockId,
