@@ -231,10 +231,10 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Connect(e) => write!(f, "connection error"),
-            Error::Handshake(e) => write!(f, "failed to set up the protocol connection"),
-            Error::Inbound(e) => write!(f, "network input error"),
-            Error::Outbound(e) => write!(f, "network output error"),
+            Error::Connect(_) => write!(f, "connection error"),
+            Error::Handshake(_) => write!(f, "failed to set up the protocol connection"),
+            Error::Inbound(_) => write!(f, "network input error"),
+            Error::Outbound(_) => write!(f, "network output error"),
         }
     }
 }
@@ -368,6 +368,8 @@ where
     }
 }
 
+// To be used when UnaryRequest and StreamRequest are extended with more variants.
+#[allow(dead_code)]
 fn unexpected_response_error() -> core_client::Error {
     core_client::Error::new(core_client::ErrorKind::Rpc, "unexpected response")
 }
@@ -398,6 +400,7 @@ where
             Inbound::NothingExciting => {}
             Inbound::BlockHeaders(lwcid, response) => {
                 let request = self.unary_requests.remove(&lwcid);
+                #[allow(unreachable_patterns)]
                 match request {
                     None => {
                         // TODO: log the bogus response
@@ -417,6 +420,7 @@ where
             Inbound::Block(lwcid, response) => {
                 use hash_map::Entry::*;
 
+                #[allow(unreachable_patterns)]
                 match self.stream_requests.entry(lwcid) {
                     Vacant(_) => {
                         // TODO: log the bogus response
@@ -443,7 +447,6 @@ where
                     Some(StreamRequest::Blocks(mut chan, ..)) => {
                         chan.close().unwrap();
                     }
-                    _ => (),
                 };
             }
             _ => {}
