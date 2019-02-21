@@ -18,7 +18,8 @@ pub mod network_transport;
 pub mod protocol;
 
 pub use self::protocol::{
-    Accepting, AcceptingError, Connecting, ConnectingError, Connection, Inbound, InboundError,
-    InboundStream, Message, MessageType, Outbound, OutboundError, OutboundSink, ProtocolBlock,
-    ProtocolBlockDate, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId, Response,
+    Accepting, AcceptingError, CloseLightConnection, Connecting, ConnectingError, Connection,
+    Inbound, InboundError, InboundStream, Message, MessageType, NewLightConnection, Outbound,
+    OutboundError, OutboundSink, ProtocolBlock, ProtocolBlockDate, ProtocolBlockId, ProtocolHeader,
+    ProtocolTransactionId, Response,
 };
