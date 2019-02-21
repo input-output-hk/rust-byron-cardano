@@ -476,7 +476,6 @@ where
     PendingMessage(NewLightConnection<T, B, Tx>, Option<Message<B, Tx>>),
     Sending(sink::Send<OutboundSink<T, B, Tx>>, LightWeightConnectionId),
     ClosingLightConnection(CloseLightConnection<T, B, Tx>),
-    Closing(OutboundSink<T, B, Tx>),
     Closed,
 }
 
@@ -507,7 +506,6 @@ where
                     let sink = try_ready!(future.poll());
                     Ready(sink)
                 }
-                Closing(_) => panic!("outbound connection polled after closing"),
                 Closed => panic!("outbound connection polled after closing"),
                 Intermediate => unreachable!(),
             };
@@ -549,9 +547,15 @@ where
     fn close(&mut self) -> Poll<(), OutboundError> {
         use OutboundState::*;
 
+        // If closed already, return Ready,
+        // otherwise, get the sink reference out of the current state,
+        // so that we can call its close method.
+        // Note that if close is called repeatedly due to returning
+        // Async::NotReady, we simply delegate the closing work
+        // to the inner sink regardless of the operation that was in
+        // flight when close was first called.
         let sink = match self {
             Closed => return Ok(Async::Ready(())),
-            Closing(sink) => sink,
             Ready(sink) => sink,
             PendingMessage(future, _) => future.get_mut(),
             Sending(future, _) => future.get_mut(),
@@ -559,6 +563,10 @@ where
             Intermediate => unreachable!(),
         };
 
-        sink.close()
+        try_ready!(sink.close());
+
+        // Closing is done. Finalize the state and report completion.
+        *self = Closed;
+        Ok(Async::Ready(()))
     }
 }
