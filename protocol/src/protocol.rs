@@ -546,6 +546,11 @@ pub mod command {
     use packet;
     use std::io::{Cursor, Read, Write};
 
+    pub enum BlockStreamingFlag {
+        Continue,
+        Stop,
+    }
+
     pub trait Command<W: Read + Write> {
         type Output;
         fn command(&self, connection: &mut Connection<W>, id: LightId) -> Result<()>;
@@ -578,7 +583,7 @@ pub mod command {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(cardano::block::RawBlock) -> Result<()>,
+        F: FnMut(cardano::block::RawBlock) -> Result<BlockStreamingFlag>,
     {
         let id = connection.new_light_connection()?;
 
@@ -602,7 +607,9 @@ pub mod command {
                     let position = msg.as_ref().position() as usize;
                     let raw_block = msg.as_ref().get_ref()[position..].to_vec();
                     let rblk = cardano::block::RawBlock::from_dat(raw_block);
-                    got_block(rblk)?;
+                    if got_block(rblk)? == BlockStreamingFlag::Stop {
+                        break;
+                    }
                 }
                 1 => {
                     return Err(Error::ServerError(msg.text()?));

@@ -12,6 +12,7 @@ use std::mem;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use storage_units::packfile;
+use network::api::BlockReceivingFlag;
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
@@ -262,6 +263,7 @@ fn net_sync_to<A: Api>(
                     unreachable!();
                 }
             }
+            return BlockReceivingFlag::Continue;
         },
     )?;
 

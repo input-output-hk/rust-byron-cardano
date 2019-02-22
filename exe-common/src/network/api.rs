@@ -4,6 +4,12 @@ use cardano::{
 };
 use network::Result;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum BlockReceivingFlag {
+    Continue,
+    Stop,
+}
+
 /// Api to abstract the network interaction and do the
 /// necessary operations
 pub trait Api {
@@ -30,7 +36,7 @@ pub trait Api {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> ();
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag;
 
     fn send_transaction(&mut self, txaux: TxAux) -> Result<bool>;
 }

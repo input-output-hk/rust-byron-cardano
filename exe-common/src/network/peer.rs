@@ -76,7 +76,7 @@ impl Api for Peer {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag,
     {
         match self {
             Peer::Native(peer) => peer.get_blocks(from, inclusive, to, got_block),

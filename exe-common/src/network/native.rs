@@ -14,6 +14,7 @@ use std::{
 
 use network::api::{Api, BlockRef};
 use network::{Error, Result};
+use network::api::BlockReceivingFlag;
 
 /// native peer
 pub struct PeerPool {
@@ -92,7 +93,7 @@ impl Api for PeerPool {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag,
     {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
@@ -204,11 +205,13 @@ impl Api for OpenPeer {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag,
     {
         if inclusive {
             let rblk = self.get_block(&from.hash)?;
-            got_block(&from.hash, &rblk.decode()?, &rblk);
+            if got_block(&from.hash, &rblk.decode()?, &rblk) == BlockReceivingFlag::Stop {
+                return Ok(());
+            }
         }
 
         stream_blocks(
@@ -217,8 +220,10 @@ impl Api for OpenPeer {
             to.hash.clone(),
             &mut |rblk| {
                 let blk = rblk.decode()?;
-                got_block(&blk.header().compute_hash(), &blk, &rblk);
-                Ok(())
+                match got_block(&blk.header().compute_hash(), &blk, &rblk) {
+                    BlockReceivingFlag::Continue => Ok(BlockStreamingFlag::Continue),
+                    BlockReceivingFlag::Stop => Ok(BlockStreamingFlag::Stop),
+                }
             },
         )?;
 
