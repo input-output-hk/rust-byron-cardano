@@ -34,10 +34,7 @@ mod error;
 
 use error::{Error, ErrorKind};
 
-use chain_core::property;
-use network_core::server::{
-    block::BlockService, block::HeaderService, transaction::TransactionService, Node,
-};
+use network_core::server::{block::BlockService, transaction::TransactionService, Node};
 use protocol::{
     protocol::ProtocolMagic, Inbound, Message, ProtocolBlock, ProtocolBlockId, ProtocolHeader,
     ProtocolTransactionId,
@@ -76,9 +73,7 @@ where
     N: Node + Clone,
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
-    <<N as Node>::BlockService as BlockService>::Block:
-        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
-    <<N as Node>::HeaderService as HeaderService>::Header: ProtocolHeader,
+    <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
     <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
 {
     protocol::Connection::accept(stream)
@@ -101,9 +96,7 @@ where
     N: Node + Clone,
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
-    <<N as Node>::BlockService as BlockService>::Block:
-        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
-    <<N as Node>::HeaderService as HeaderService>::Header: ProtocolHeader,
+    <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
     <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
 {
     TcpStream::connect(&sockaddr)
@@ -135,9 +128,7 @@ where
     N: Node,
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
-    <<N as Node>::BlockService as BlockService>::Block:
-        property::HasHeader<Header = <<N as Node>::HeaderService as HeaderService>::Header>,
-    <<N as Node>::HeaderService as HeaderService>::Header: ProtocolHeader,
+    <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
     <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
 {
     use protocol::{protocol::BlockHeaders, Response};
@@ -177,11 +168,11 @@ where
                     future::Either::B(future::Either::A({
                         let mut service = server
                             .node
-                            .header_service()
+                            .block_service()
                             .expect("block service is not implemented");
                         match get_block_header.to {
-                            Some(to) => service.block_headers(&get_block_header.from, &to),
-                            None => service.block_headers_to_tip(&get_block_header.from),
+                            Some(to) => service.pull_headers_to(&get_block_header.from, &to),
+                            None => service.pull_headers_to_tip(&get_block_header.from),
                         }
                         .map_err(|err| err.to_string())
                         .and_then(move |headers| {
