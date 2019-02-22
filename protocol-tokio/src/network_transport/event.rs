@@ -28,6 +28,12 @@ impl LightWeightConnectionId {
     }
 }
 
+impl fmt::Display for LightWeightConnectionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 ///
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ControlHeader {

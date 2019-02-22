@@ -1,16 +1,20 @@
 use super::{
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
     nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId, Response,
 };
 use super::{BlockHeaders, GetBlockHeaders, GetBlocks};
-use bytes::Bytes;
+
 use chain_core::property;
+
+use bytes::Bytes;
 use futures::{stream::SplitStream, Async, Poll, Stream};
-use std::marker::PhantomData;
+use tokio_io::AsyncRead;
+
 use std::{
-    io,
+    error, fmt, io,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
-use tokio_io::AsyncRead;
 
 #[derive(Debug)]
 pub enum InboundError {
@@ -44,6 +48,54 @@ impl From<nt::DecodeEventError> for InboundError {
     }
 }
 
+impl fmt::Display for InboundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use InboundError::*;
+
+        match self {
+            EventParsingError(_) => write!(f, "error parsing CBOR"),
+            IoError(_) => write!(f, "I/O error"),
+            ConnectionTerminated => write!(f, "connection terminated"),
+            RemoteCreatedDuplicatedLightConnection(lwcid) => write!(
+                f,
+                "remote peer created a duplicated light connection {}",
+                lwcid
+            ),
+            RemoteLightConnectionIdUnknown(lwcid) => write!(
+                f,
+                "remote peer used an unknown light connection id {}",
+                lwcid
+            ),
+            RemoteLightConnectionIdNotLinkedToLocalClientId(lwcid) => write!(
+                f,
+                "remote light connection id {} is not linked to a local client id",
+                lwcid
+            ),
+            RemoteLightConnectionIdNotLinkedToKnownLocalClientId(lwcid, node_id) => write!(
+                f,
+                "remote light connection id {} is not linked to the client id {}",
+                lwcid, node_id
+            ),
+        }
+    }
+}
+
+impl error::Error for InboundError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use InboundError::*;
+
+        match self {
+            EventParsingError(e) => Some(e),
+            IoError(e) => Some(e),
+            ConnectionTerminated => None,
+            RemoteCreatedDuplicatedLightConnection(_) => None,
+            RemoteLightConnectionIdUnknown(_) => None,
+            RemoteLightConnectionIdNotLinkedToLocalClientId(_) => None,
+            RemoteLightConnectionIdNotLinkedToKnownLocalClientId(..) => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Inbound<B: property::Block + property::HasHeader, Tx: property::TransactionId> {
     NothingExciting,
@@ -71,18 +123,19 @@ pub enum Inbound<B: property::Block + property::HasHeader, Tx: property::Transac
     Data(nt::LightWeightConnectionId, Bytes),
 }
 
-pub struct InboundStream<T, B: property::Block, Tx: property::TransactionId> {
+pub struct InboundStream<T, B, Tx> {
     stream: SplitStream<nt::Connection<T>>,
     state: Arc<Mutex<ConnectionState>>,
     phantoms: PhantomData<(B, Tx)>,
 }
-impl<T: AsyncRead, B: property::Block + property::HasHeader, Tx: property::TransactionId> Stream
-    for InboundStream<T, B, Tx>
+
+impl<T, B, Tx> Stream for InboundStream<T, B, Tx>
 where
-    B: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Id: cbor_event::Deserialize + cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize + cbor_event::Serialize,
-    Tx: cbor_event::Deserialize + cbor_event::Serialize,
+    T: AsyncRead,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     type Item = Inbound<B, Tx>;
     type Error = InboundError;
@@ -97,19 +150,13 @@ where
         }
     }
 }
-impl<T, B: property::Block + property::HasHeader, Tx: property::TransactionId>
-    InboundStream<T, B, Tx>
+impl<T, B, Tx> InboundStream<T, B, Tx>
 where
-    <B as property::Block>::Id: std::marker::Sized,
-    B::Header: std::marker::Sized,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
-    Tx: cbor_event::Serialize,
+    T: AsyncRead,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
 {
     pub fn new(stream: SplitStream<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
         InboundStream {
