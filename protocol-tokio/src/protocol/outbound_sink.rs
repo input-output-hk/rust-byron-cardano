@@ -1,14 +1,19 @@
-use futures::{future, stream::SplitSink, Future, Poll, Sink, StartSend};
-use std::{
-    io,
-    sync::{Arc, Mutex},
+use super::{
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
+    nt, ConnectionState, KeepAlive, Message, NodeId,
 };
-use tokio_io::AsyncWrite;
-
-use super::{nt, ConnectionState, KeepAlive, LightWeightConnectionState, Message, NodeId};
-use std::marker::PhantomData;
 
 use chain_core::property;
+
+use futures::prelude::*;
+use futures::{sink, stream::SplitSink};
+use tokio_io::AsyncWrite;
+
+use std::{
+    error, fmt, io,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 pub type Outbound<B, Tx> = Message<B, Tx>;
 
@@ -28,11 +33,34 @@ impl From<io::Error> for OutboundError {
     }
 }
 
+impl fmt::Display for OutboundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use OutboundError::*;
+
+        match self {
+            IoError(_) => write!(f, "I/O error"),
+            Unknown => write!(f, "unknown error"),
+        }
+    }
+}
+
+impl error::Error for OutboundError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use OutboundError::*;
+
+        match self {
+            IoError(e) => Some(e),
+            Unknown => None,
+        }
+    }
+}
+
 pub struct OutboundSink<T, B, Tx> {
     sink: SplitSink<nt::Connection<T>>,
     state: Arc<Mutex<ConnectionState>>,
     phantoms: PhantomData<(B, Tx)>,
 }
+
 impl<T, B, Tx> OutboundSink<T, B, Tx> {
     fn get_next_light_id(&mut self) -> nt::LightWeightConnectionId {
         self.state.lock().unwrap().get_next_light_id()
@@ -42,17 +70,14 @@ impl<T, B, Tx> OutboundSink<T, B, Tx> {
         self.state.lock().unwrap().get_next_node_id()
     }
 }
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId>
-    OutboundSink<T, B, Tx>
+
+impl<T, B, Tx> OutboundSink<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     pub fn new(sink: SplitSink<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
         OutboundSink {
@@ -64,28 +89,10 @@ where
 
     /// create a new light weight connection with the remote peer
     ///
-    pub fn new_light_connection(
-        mut self,
-    ) -> impl Future<Item = (nt::LightWeightConnectionId, Self), Error = OutboundError> {
+    pub fn new_light_connection(mut self) -> NewLightConnection<T, B, Tx> {
         let lwcid = self.get_next_light_id();
         let node_id = self.get_next_node_id();
-
-        self.send(Message::CreateLightWeightConnectionId(lwcid))
-            .and_then(move |connection| connection.send(Message::CreateNodeId(lwcid, node_id)))
-            .and_then(move |connection| {
-                let light_weight_connection_state = LightWeightConnectionState::new(lwcid)
-                    .remote_initiated(false)
-                    .with_node_id(node_id);
-
-                connection
-                    .state
-                    .lock()
-                    .unwrap()
-                    .client_handles
-                    .insert(lwcid, light_weight_connection_state);
-
-                future::ok((lwcid, connection))
-            })
+        NewLightConnection::new(self, lwcid, node_id)
     }
 
     /// initialize a subscription from the given outbound halve.
@@ -107,17 +114,8 @@ where
     pub fn close_light_connection(
         self,
         lwcid: nt::LightWeightConnectionId,
-    ) -> impl Future<Item = Self, Error = OutboundError> {
-        self.send(Message::CloseConnection(lwcid))
-            .and_then(move |connection| {
-                connection
-                    .state
-                    .lock()
-                    .unwrap()
-                    .client_handles
-                    .remove(&lwcid);
-                future::ok(connection)
-            })
+    ) -> CloseLightConnection<T, B, Tx> {
+        CloseLightConnection::new(self, lwcid)
     }
 
     /// this function it to acknowledge the creation of the NodeId on the remote
@@ -143,17 +141,13 @@ where
     }
 }
 
-impl<T: AsyncWrite, B: property::Block + property::HasHeader, Tx: property::TransactionId> Sink
-    for OutboundSink<T, B, Tx>
+impl<T, B, Tx> Sink for OutboundSink<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     type SinkItem = Outbound<B, Tx>;
     type SinkError = OutboundError;
@@ -171,5 +165,155 @@ where
 
     fn close(&mut self) -> Poll<(), Self::SinkError> {
         self.sink.close().map_err(OutboundError::IoError)
+    }
+}
+
+pub struct NewLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    lwcid: nt::LightWeightConnectionId,
+    node_id: NodeId,
+    state: CreationState<T, B, Tx>,
+}
+
+impl<T, B, Tx> NewLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    fn new(
+        sink: OutboundSink<T, B, Tx>,
+        lwcid: nt::LightWeightConnectionId,
+        node_id: NodeId,
+    ) -> Self {
+        let send = sink.send(Message::CreateLightWeightConnectionId(lwcid));
+        let state = CreationState::CreatingConnectionId(send);
+        NewLightConnection {
+            lwcid,
+            node_id,
+            state,
+        }
+    }
+
+    pub fn connection_id(&self) -> nt::LightWeightConnectionId {
+        self.lwcid
+    }
+
+    pub fn get_mut(&mut self) -> &mut OutboundSink<T, B, Tx> {
+        use self::CreationState::*;
+        match &mut self.state {
+            CreatingConnectionId(send) => send.get_mut(),
+            CreatingNodeId(send) => send.get_mut(),
+        }
+    }
+}
+
+enum CreationState<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    CreatingConnectionId(sink::Send<OutboundSink<T, B, Tx>>),
+    CreatingNodeId(sink::Send<OutboundSink<T, B, Tx>>),
+}
+
+impl<T, B, Tx> Future for NewLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    type Item = (nt::LightWeightConnectionId, OutboundSink<T, B, Tx>);
+    type Error = OutboundError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let new_state = match self.state {
+                CreationState::CreatingConnectionId(ref mut send) => {
+                    let sink = try_ready!(send.poll());
+                    let send = sink.send(Message::CreateNodeId(self.lwcid, self.node_id));
+                    CreationState::CreatingNodeId(send)
+                }
+                CreationState::CreatingNodeId(ref mut send) => {
+                    let sink = try_ready!(send.poll());
+                    // Here we need to wire the acknowledged NodeId to our new created client LWCID
+                    sink.state
+                        .lock()
+                        .unwrap()
+                        .map_to_client
+                        .insert(self.node_id, self.lwcid);
+                    return Ok(Async::Ready((self.lwcid, sink)));
+                }
+            };
+            self.state = new_state;
+        }
+    }
+}
+
+pub struct CloseLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    lwcid: nt::LightWeightConnectionId,
+    send: sink::Send<OutboundSink<T, B, Tx>>,
+}
+
+impl<T, B, Tx> CloseLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    fn new(sink: OutboundSink<T, B, Tx>, lwcid: nt::LightWeightConnectionId) -> Self {
+        let send = sink.send(Message::CloseConnection(lwcid));
+        CloseLightConnection { lwcid, send }
+    }
+
+    pub fn get_mut(&mut self) -> &mut OutboundSink<T, B, Tx> {
+        self.send.get_mut()
+    }
+}
+
+impl<T, B, Tx> Future for CloseLightConnection<T, B, Tx>
+where
+    T: AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
+    type Item = OutboundSink<T, B, Tx>;
+    type Error = OutboundError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let sink = try_ready!(self.send.poll());
+            // Here we need to wire the acknowledged NodeId to our new created client LWCID
+            sink.state
+                .lock()
+                .unwrap()
+                .client_handles
+                .remove(&self.lwcid);
+            return Ok(Async::Ready(sink));
+        }
     }
 }

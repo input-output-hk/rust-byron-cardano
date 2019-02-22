@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{fmt, ops::Deref};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeId(u64);
@@ -23,5 +23,11 @@ impl Deref for NodeId {
     type Target = u64;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }

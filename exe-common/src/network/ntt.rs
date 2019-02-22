@@ -30,9 +30,15 @@ impl NetworkCore {
                 // FIXME: use default executor, or take
                 // executor argument before merge.
                 let mut rt = Runtime::new().unwrap();
-                rt.spawn(connection.map(|_| {
-                    println!("Exited");
-                }));
+                rt.spawn(
+                    connection
+                        .map(|_| {
+                            debug!("Exited");
+                        })
+                        .map_err(|e| {
+                            error!("NTT connection error: {:?}", e);
+                        }),
+                );
                 Ok(NetworkCore { handle, rt })
             }
             Err(_err) => unimplemented!(),

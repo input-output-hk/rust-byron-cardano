@@ -6,5 +6,8 @@
 
 extern crate protocol_tokio as protocol;
 
+#[macro_use]
+extern crate futures;
+
 pub mod client;
 pub mod server;

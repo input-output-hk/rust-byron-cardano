@@ -1,4 +1,5 @@
 mod accepting;
+mod chain_bounds;
 mod codec;
 mod connecting;
 mod inbound_stream;
@@ -17,13 +18,17 @@ use std::{
 use tokio_io::{AsyncRead, AsyncWrite};
 
 pub use self::accepting::{Accepting, AcceptingError};
+pub use self::chain_bounds::*;
 pub use self::codec::{
     BlockHeaders, GetBlockHeaders, GetBlocks, HandlerSpec, HandlerSpecs, Handshake, KeepAlive,
     Message, MessageType, NodeId, ProtocolMagic, Response,
 };
 pub use self::connecting::{Connecting, ConnectingError};
 pub use self::inbound_stream::{Inbound, InboundError, InboundStream};
-pub use self::outbound_sink::{Outbound, OutboundError, OutboundSink};
+pub use self::outbound_sink::{
+    CloseLightConnection, NewLightConnection, Outbound, OutboundError, OutboundSink,
+};
+
 use std::marker::PhantomData;
 
 /// the connection state, shared between the `ConnectionStream` and the `ConnectionSink`.
@@ -68,17 +73,19 @@ impl ConnectionState {
 ///
 /// Once established call `split` to get the inbound stream
 /// and the outbound sink and starts processing queries
-pub struct Connection<T, B: property::Block, Tx: property::TransactionId> {
+pub struct Connection<T, B, Tx> {
     connection: nt::Connection<T>,
     state: Arc<Mutex<ConnectionState>>,
     phantoms: PhantomData<(B, Tx)>,
 }
 
-impl<
-        T: AsyncRead + AsyncWrite,
-        B: property::Block + property::HasHeader,
-        Tx: property::TransactionId,
-    > Connection<T, B, Tx>
+impl<T, B, Tx> Connection<T, B, Tx>
+where
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     fn new(connection: nt::Connection<T>) -> Self {
         Connection {
@@ -107,17 +114,7 @@ impl<
         Accepting::new(inner)
     }
 
-    pub fn split(self) -> (OutboundSink<T, B, Tx>, InboundStream<T, B, Tx>)
-    where
-        B::Header: cbor_event::Serialize,
-        B::Header: cbor_event::Deserialize,
-        <B as property::Block>::Id: cbor_event::Serialize,
-        <B as property::Block>::Id: cbor_event::Deserialize,
-        B: cbor_event::Serialize,
-        B: cbor_event::Deserialize,
-        Tx: cbor_event::Serialize,
-        Tx: cbor_event::Deserialize,
-    {
+    pub fn split(self) -> (OutboundSink<T, B, Tx>, InboundStream<T, B, Tx>) {
         let state = self.state;
         let (sink, stream) = self.connection.split();
 

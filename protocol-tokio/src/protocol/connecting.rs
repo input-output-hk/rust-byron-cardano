@@ -12,7 +12,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use cbor_event::{self, de::Deserializer};
 
-use super::{nt, Connection, Handshake, Message, NodeId, ProtocolMagic};
+use super::{
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
+    nt, Connection, Handshake, Message, NodeId, ProtocolMagic,
+};
 
 use std::fmt;
 
@@ -49,20 +52,13 @@ impl<T: AsyncRead + AsyncWrite, B: property::Block, Tx: property::TransactionId>
     }
 }
 
-impl<
-        T: AsyncRead + AsyncWrite,
-        B: property::Block + property::HasHeader,
-        Tx: property::TransactionId,
-    > Future for Connecting<T, B, Tx>
+impl<T, B, Tx> Future for Connecting<T, B, Tx>
 where
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
-    Tx: cbor_event::Serialize,
+    T: AsyncRead + AsyncWrite,
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     type Item = Connection<T, B, Tx>;
     type Error = ConnectingError;

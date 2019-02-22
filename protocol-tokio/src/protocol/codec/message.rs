@@ -7,7 +7,10 @@ use cbor_event::{
     se::{self, Serializer},
 };
 
-use super::super::nt;
+use super::super::{
+    chain_bounds::{ProtocolBlock, ProtocolTransactionId},
+    nt,
+};
 use super::NodeId;
 use chain_core::property;
 
@@ -73,7 +76,7 @@ impl de::Deserialize for MessageType {
 pub type KeepAlive = bool;
 
 #[derive(Clone, Debug)]
-pub enum Message<B: property::Block + property::HasHeader, Tx: property::TransactionId> {
+pub enum Message<B: ProtocolBlock, Tx: ProtocolTransactionId> {
     CreateLightWeightConnectionId(nt::LightWeightConnectionId),
     CloseConnection(nt::LightWeightConnectionId),
     CloseEndPoint(nt::LightWeightConnectionId),
@@ -102,16 +105,12 @@ pub enum Message<B: property::Block + property::HasHeader, Tx: property::Transac
     Subscribe(nt::LightWeightConnectionId, KeepAlive),
 }
 
-impl<B: property::Block + property::HasHeader, Tx: property::TransactionId> Message<B, Tx>
+impl<B, Tx> Message<B, Tx>
 where
-    <B as property::Block>::Id: cbor_event::Deserialize,
-    <B as property::Block>::Id: cbor_event::Serialize,
-    B: cbor_event::Deserialize,
-    B: cbor_event::Serialize,
-    B::Header: cbor_event::Deserialize,
-    B::Header: cbor_event::Serialize,
-    Tx: cbor_event::Serialize,
-    Tx: cbor_event::Deserialize,
+    B: ProtocolBlock,
+    <B as property::Block>::Id: se::Serialize + de::Deserialize,
+    <B as property::HasHeader>::Header: se::Serialize + de::Deserialize,
+    Tx: ProtocolTransactionId,
 {
     pub fn to_nt_event(self) -> nt::Event {
         use self::nt::{ControlHeader::*, Event::*};
@@ -181,7 +180,7 @@ where
     }
 }
 
-fn decode_node_ack_or_syn<B: property::Block + property::HasHeader, Tx: property::TransactionId>(
+fn decode_node_ack_or_syn<B: ProtocolBlock, Tx: ProtocolTransactionId>(
     lwcid: nt::LightWeightConnectionId,
     bytes: &Bytes,
 ) -> Option<Message<B, Tx>> {
