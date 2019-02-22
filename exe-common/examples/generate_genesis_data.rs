@@ -97,10 +97,7 @@ fn main() {
         start_time: SystemTime::UNIX_EPOCH + Duration::from_secs(1548089245),
         slot_duration: Duration::from_millis(20000),
         protocol_magic,
-        fee_policy: fee::LinearFee::new(
-            fee::Milli::new(43, 946),
-            fee::Milli::integral(155381),
-        ),
+        fee_policy: fee::LinearFee::new(fee::Milli::new(43, 946), fee::Milli::integral(155381)),
         avvm_distr: BTreeMap::new(),
         non_avvm_balances,
         boot_stakeholders,
