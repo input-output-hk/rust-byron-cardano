@@ -1,4 +1,4 @@
-use cardano::block::{Block, BlockDate, BlockHeader, ChainState, EpochId, HeaderHash, RawBlock};
+use cardano::block::{Block, BlockDate, BlockHeader, ChainState, EpochId, HeaderHash, RawBlock, Error as BlockError};
 use cardano::config::GenesisData;
 use cardano::util::hex;
 use cardano_storage::{
@@ -196,14 +196,30 @@ fn net_sync_to<A: Api>(
         our_tip_is_genesis,
         &tip,
         &mut |block_hash, block, block_raw| {
+
+            // Clone current chain state before validation
+            let chain_state_before = chain_state.clone();
+
             let date = block.header().blockdate();
 
-            // Flush the previous epoch (if any). FIXME: shouldn't rely on
-            // 'date' here since the block hasn't been verified yet.
+            // Validate block and update current chain state
+            // FIXME: propagate errors
+            match chain_state.verify_block(block_hash, block) {
+                Ok(_) => {},
+                Err(BlockError::WrongPreviousBlock(actual, expected)) => {
+                    // TODO:: Rollback
+                    debug!("Detected fork: expected block is {} but actual block is {} at date {:?}",
+                            hex::encode(expected), hex::encode(actual), date);
+                    panic!("rollback");
+                },
+                Err(err) => panic!("Block {} ({}) failed to verify: {:?}", hex::encode(block_hash), date, err)
+            }
+
+            // Flush the previous epoch (if any)
 
             // Calculate if this is a start of a new epoch (including the very first one)
             // And if there's any previous date available (previous epochs)
-            let (is_new_epoch_start, is_prev_date_exists) = match chain_state.last_date {
+            let (is_new_epoch_start, is_prev_date_exists) = match chain_state_before.last_date {
                 None => (true, false),
                 Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true)
             };
@@ -217,7 +233,7 @@ fn net_sync_to<A: Api>(
                         &mut storage.write().unwrap(),
                         genesis_data,
                         epoch_writer_state,
-                        &chain_state,
+                        &chain_state_before,
                     )
                     .unwrap();
 
@@ -226,15 +242,10 @@ fn net_sync_to<A: Api>(
                     tag::write(
                         &storage.read().unwrap(),
                         &tag::HEAD,
-                        &chain_state.last_block.as_ref(),
+                        &chain_state_before.last_block.as_ref(),
                     );
                 }
             }
-
-            // FIXME: propagate errors
-            chain_state
-                .verify_block(block_hash, block)
-                .expect(&format!("Block {} ({}) failed to verify", block_hash, date));
 
             if date.get_epochid() >= first_unstable_epoch {
                 // This block is not part of a stable epoch yet and could
