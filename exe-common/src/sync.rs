@@ -228,9 +228,14 @@ fn net_sync_to<A: Api>(
                 // be rolled back. Therefore we can't pack this epoch
                 // yet. Instead we write this block to disk separately.
                 let block_hash = types::header_to_blockhash(&block_hash);
-                blob::write(storage, &block_hash, block_raw.as_ref()).unwrap();
-                // Add loose block to index
-                storage.add_loose_to_index(&block.header());
+                match storage.write() {
+                    Ok(mut storage) => {
+                        blob::write(&storage, &block_hash, block_raw.as_ref()).unwrap();
+                        // Add loose block to index
+                        storage.add_loose_to_index(&block.header());
+                    }
+                    Err(err) => panic!("Failed to acquire storage writer lock! {:?}", err),
+                }
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if date.is_boundary() {
