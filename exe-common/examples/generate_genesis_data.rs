@@ -98,8 +98,8 @@ fn main() {
         slot_duration: Duration::from_millis(20000),
         protocol_magic,
         fee_policy: fee::LinearFee::new(
-            fee::Milli::integral(43946000),
-            fee::Milli::integral(155381000000),
+            fee::Milli::new(43, 946),
+            fee::Milli::integral(155381),
         ),
         avvm_distr: BTreeMap::new(),
         non_avvm_balances,
