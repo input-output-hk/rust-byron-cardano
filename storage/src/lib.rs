@@ -115,6 +115,11 @@ pub struct LooseChainHeightEntry {
     date: BlockDate,
     hash: BlockHash,
 }
+impl LooseChainHeightEntry {
+    pub fn header_hash(&self) -> HeaderHash {
+        HeaderHash::new(&self.hash)
+    }
+}
 
 pub struct ChainHeightIdx {
     loose_idx: Vec<LooseChainHeightEntry>,
@@ -389,6 +394,26 @@ impl Storage {
             }
         }
         return Ok(None);
+    }
+
+    pub fn loose_index_tip(&self) -> Option<&LooseChainHeightEntry> {
+        self.chain_height_idx.loose_idx.first()
+    }
+
+    pub fn loose_index_len(&self) -> usize {
+        self.chain_height_idx.loose_idx.len()
+    }
+
+    pub fn loose_index_drop_from_head(&mut self, len: usize) -> Result<()> {
+        let read_idx = self.chain_height_idx.loose_idx.clone();
+        let size = read_idx.len();
+        if size < len {
+            return Err(Error::StorageError(StorageError::IndexQueryOutOfBound(
+                len, size,
+            )));
+        }
+        self.chain_height_idx.loose_idx = read_idx[len..].to_vec();
+        Ok(())
     }
 }
 

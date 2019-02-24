@@ -15,8 +15,8 @@ use network::{
     Peer, Result,
 };
 use protocol::Error::ServerError;
+use std::cmp::max;
 use std::mem;
-use std::mem::forget_unsized;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use storage_units::packfile;
@@ -308,13 +308,40 @@ fn net_sync_to<A: Api>(
 
     if is_rollback || blocks_response_is_rollback(blocks_response, &our_tip) {
         if let Some(last_date) = chain_state.last_date {
+            // Perform rollback
+            let mut new_tip_hash = None;
             if last_date.get_epochid() >= first_unstable_epoch {
                 // We are syncing along with the network and rollback is in loose blocks
-                // TODO: drop `max(K, len(loose))` loose blocks and retry
+                // drop `max(K, len(loose))` loose blocks and retry
+                match storage.write() {
+                    Ok(mut storage) => {
+                        let len = storage.loose_index_len();
+                        if len == 0 {
+                            panic!("Last block is from unstable epoch, but loose index len is 0!")
+                        }
+                        let drop = max(len, net_cfg.epoch_stability_depth);
+                        storage
+                            .loose_index_drop_from_head(drop)
+                            .expect("Failed to drop loose index head!");
+                        new_tip_hash = Some(if len > drop {
+                            storage.loose_index_tip().unwrap().header_hash()
+                        } else {
+                            // todo: read last block in epoch
+                            unimplemented!()
+                        })
+                    }
+                    Err(e) => panic!("Can't lock storage! {:?}", e),
+                }
             } else {
                 // Either we are syncing historical data and rollback is in old epoch
                 // Or we dropped all loose blocks and now latest tip is in packed epoch
                 // TODO: drop to previous epoch and retry
+                unimplemented!()
+            }
+            // Restore new chain state after the rollback
+            if let Some(tip) = new_tip_hash {
+                chain_state =
+                    chain_state::restore_chain_state(&storage.read().unwrap(), genesis_data, &tip)?;
             }
         } else {
             panic!("Rollback at the very chain start");

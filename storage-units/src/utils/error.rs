@@ -13,6 +13,8 @@ pub enum StorageError {
     VersionTooNew(magic::Version, magic::Version),
     InvalidDirectoryName(DirectoryNameError),
     LockError(lock::Error),
+    // Arguments: expected index size, actual index size
+    IndexQueryOutOfBound(usize, usize),
 }
 
 impl From<io::Error> for StorageError {
@@ -43,6 +45,11 @@ impl fmt::Display for StorageError {
             ),
             StorageError::InvalidDirectoryName(_) => write!(f, "Invalid Directory name"),
             StorageError::LockError(_) => write!(f, "Lock file error"),
+            StorageError::IndexQueryOutOfBound(exp, act) => write!(
+                f,
+                "Requested index is out-of-bound: expected = {}, actual = {}",
+                exp, act
+            ),
         }
     }
 }
@@ -57,6 +64,7 @@ impl error::Error for StorageError {
             StorageError::VersionTooNew(_, _) => None,
             StorageError::InvalidDirectoryName(ref err) => Some(err),
             StorageError::LockError(ref err) => Some(err),
+            StorageError::IndexQueryOutOfBound(_, _) => None,
         }
     }
 }
