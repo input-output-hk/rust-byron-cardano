@@ -210,13 +210,16 @@ fn net_sync_to<A: Api>(
             match chain_state.verify_block(block_hash, block) {
                 Ok(_) => {}
                 Err(BlockError::WrongPreviousBlock(actual, expected)) => {
-                    // TODO:: Rollback
                     debug!(
                         "Detected fork: expected block is {} but actual block is {} at date {:?}",
                         hex::encode(expected.as_hash_bytes()),
                         hex::encode(actual.as_hash_bytes()),
                         date
                     );
+                    // TODO:: Rollback
+                    // Possible cases:
+                    // - We are syncing along with the network and rollback is in loose blocks
+                    // - We are syncing historical data and rollback is in old epoch
                     panic!("rollback");
                 }
                 Err(err) => panic!(
