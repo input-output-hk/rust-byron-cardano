@@ -108,11 +108,10 @@ impl ChainState {
                 let epoch_id = blk.header.consensus.slot_id.epoch;
                 let epoch_with_ebb = match &self.last_boundary_block_epoch {
                     Some(last_ebb_epoch) => epoch_id == *last_ebb_epoch,
-                    _ => false
+                    _ => false,
                 };
 
                 if epoch_with_ebb {
-
                     // If epoch contains EBB - validate block using the leader-list
 
                     let slot_id = blk.header.consensus.slot_id.slotid as usize;
@@ -126,10 +125,10 @@ impl ChainState {
                     // Note: the block signature was already checked in
                     // verify_block, so here we only check the leader key
                     // against the genesis block.
-                    if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
+                    if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key)
+                    {
                         return Err(Error::WrongSlotLeader);
                     }
-
                 } else {
 
                     // TODO: validate OBFT leader

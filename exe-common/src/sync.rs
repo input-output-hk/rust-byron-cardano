@@ -204,7 +204,7 @@ fn net_sync_to<A: Api>(
             // And if there's any previous date available (previous epochs)
             let (is_new_epoch_start, is_prev_date_exists) = match chain_state.last_date {
                 None => (true, false),
-                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true)
+                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true),
             };
 
             if is_new_epoch_start && is_prev_date_exists {
