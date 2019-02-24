@@ -12,9 +12,8 @@ use futures::{Future, Stream};
 use hyper::Client;
 use tokio_core::reactor::Core;
 
-use network::api::{Api, BlockRef};
+use network::api::{Api, BlockReceivingFlag, BlockRef};
 use network::{Error, Result};
-use network::api::BlockReceivingFlag;
 
 // Time between get_tip calls. FIXME: make configurable?
 static NETWORK_REFRESH_FREQUENCY: Duration = Duration::from_secs(60 * 10);
@@ -186,7 +185,9 @@ impl Api for HermesEndPoint {
                     //assert!(from.date != hdr.get_blockdate() || from.hash == hdr.compute_hash());
 
                     if from.date <= hdr.blockdate() {
-                        if got_block(&hdr.compute_hash(), &block, &block_raw) == BlockReceivingFlag::Stop {
+                        if got_block(&hdr.compute_hash(), &block, &block_raw)
+                            == BlockReceivingFlag::Stop
+                        {
                             return Ok(());
                         }
                     }

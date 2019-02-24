@@ -1,7 +1,7 @@
 use futures::Future;
 use tokio::runtime::Runtime;
 
-use network::api::{Api, BlockRef, BlockReceivingFlag};
+use network::api::{Api, BlockReceivingFlag, BlockRef};
 use network::{Error, Result};
 
 //to_socket_addr

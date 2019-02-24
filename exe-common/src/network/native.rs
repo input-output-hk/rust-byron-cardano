@@ -12,9 +12,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use network::api::{Api, BlockRef};
+use network::api::{Api, BlockReceivingFlag, BlockRef};
 use network::{Error, Result};
-use network::api::BlockReceivingFlag;
 
 /// native peer
 pub struct PeerPool {

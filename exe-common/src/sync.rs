@@ -1,4 +1,6 @@
-use cardano::block::{Block, BlockDate, BlockHeader, ChainState, EpochId, HeaderHash, RawBlock, Error as BlockError};
+use cardano::block::{
+    Block, BlockDate, BlockHeader, ChainState, EpochId, Error as BlockError, HeaderHash, RawBlock,
+};
 use cardano::config::GenesisData;
 use cardano::util::hex;
 use cardano_storage::{
@@ -7,12 +9,14 @@ use cardano_storage::{
     pack, tag, types, Error, Storage,
 };
 use config::net;
-use network::{api::Api, api::BlockRef, Peer, Result};
+use network::{
+    api::{Api, BlockReceivingFlag, BlockRef},
+    Peer, Result,
+};
 use std::mem;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use storage_units::packfile;
-use network::api::BlockReceivingFlag;
 
 fn duration_print(d: Duration) -> String {
     format!("{}.{:03} seconds", d.as_secs(), d.subsec_millis())
@@ -196,7 +200,6 @@ fn net_sync_to<A: Api>(
         our_tip_is_genesis,
         &tip,
         &mut |block_hash, block, block_raw| {
-
             // Clone current chain state before validation
             let chain_state_before = chain_state.clone();
 
@@ -205,14 +208,23 @@ fn net_sync_to<A: Api>(
             // Validate block and update current chain state
             // FIXME: propagate errors
             match chain_state.verify_block(block_hash, block) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(BlockError::WrongPreviousBlock(actual, expected)) => {
                     // TODO:: Rollback
-                    debug!("Detected fork: expected block is {} but actual block is {} at date {:?}",
-                            hex::encode(expected.as_hash_bytes()), hex::encode(actual.as_hash_bytes()), date);
+                    debug!(
+                        "Detected fork: expected block is {} but actual block is {} at date {:?}",
+                        hex::encode(expected.as_hash_bytes()),
+                        hex::encode(actual.as_hash_bytes()),
+                        date
+                    );
                     panic!("rollback");
-                },
-                Err(err) => panic!("Block {} ({}) failed to verify: {:?}", hex::encode(block_hash.as_hash_bytes()), date, err)
+                }
+                Err(err) => panic!(
+                    "Block {} ({}) failed to verify: {:?}",
+                    hex::encode(block_hash.as_hash_bytes()),
+                    date,
+                    err
+                ),
             }
 
             // Flush the previous epoch (if any)
@@ -221,7 +233,7 @@ fn net_sync_to<A: Api>(
             // And if there's any previous date available (previous epochs)
             let (is_new_epoch_start, is_prev_date_exists) = match chain_state_before.last_date {
                 None => (true, false),
-                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true)
+                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true),
             };
 
             if is_new_epoch_start && is_prev_date_exists {
