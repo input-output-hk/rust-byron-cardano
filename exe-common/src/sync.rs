@@ -273,7 +273,14 @@ fn net_sync_to<A: Api>(
                 // be rolled back. Therefore we can't pack this epoch
                 // yet. Instead we write this block to disk separately.
                 let block_hash = types::header_to_blockhash(&block_hash);
-                blob::write(&storage.read().unwrap(), &block_hash, block_raw.as_ref()).unwrap();
+                match storage.write() {
+                    Ok(mut storage) => {
+                        blob::write(&storage, &block_hash, block_raw.as_ref()).unwrap();
+                        // Add loose block to index
+                        storage.add_loose_to_index(&block.header());
+                    }
+                    Err(err) => panic!("Failed to acquire storage writer lock! {:?}", err),
+                }
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
                 if is_new_epoch_start {
@@ -489,9 +496,10 @@ fn finish_epoch(
     assert_eq!(chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
     epoch::epoch_create(
-        &storage,
+        storage,
         &packhash,
         epoch_id,
+        index,
         Some((chain_state, genesis_data)),
     );
 
@@ -506,6 +514,15 @@ fn finish_epoch(
         debug!("removing blob {}", hash);
         blob::remove(&storage, &hash.clone().into());
     }
+
+    let diff = storage
+        .read_block(&types::header_to_blockhash(&chain_state.last_block))?
+        .decode()?
+        .header()
+        .difficulty();
+
+    // Drop this epoch from loose index
+    storage.drop_loose_index_before(diff);
 
     Ok(())
 }

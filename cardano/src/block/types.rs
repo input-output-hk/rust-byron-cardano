@@ -240,6 +240,11 @@ impl From<u64> for ChainDifficulty {
         ChainDifficulty(f)
     }
 }
+impl From<ChainDifficulty> for u64 {
+    fn from(cd: ChainDifficulty) -> Self {
+        cd.0
+    }
+}
 
 pub type EpochId = u64; // == EpochIndex
 pub type SlotId = u16; // == LocalSlotIndex
