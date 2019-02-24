@@ -156,7 +156,7 @@ fn net_sync_to<A: Api>(
             let block_raw = storage
                 .read()
                 .unwrap()
-                .read_block(&cur_hash.into())
+                .read_block(&cur_hash.clone().into())
                 .unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.header();
