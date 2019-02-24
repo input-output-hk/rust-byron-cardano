@@ -11,9 +11,12 @@ use cardano_storage::{
 use config::net;
 use network::{
     api::{Api, BlockReceivingFlag, BlockRef},
+    Error::ProtocolError,
     Peer, Result,
 };
+use protocol::Error::ServerError;
 use std::mem;
+use std::mem::forget_unsized;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use storage_units::packfile;
@@ -194,12 +197,17 @@ fn net_sync_to<A: Api>(
             &our_tip.hash
         },
     )?;
+    let mut is_rollback = false;
 
-    net.get_blocks(
+    let blocks_response = net.get_blocks(
         &our_tip,
         our_tip_is_genesis,
         &tip,
         &mut |block_hash, block, block_raw| {
+            if is_rollback {
+                return BlockReceivingFlag::Stop;
+            }
+
             // Clone current chain state before validation
             let chain_state_before = chain_state.clone();
 
@@ -211,16 +219,14 @@ fn net_sync_to<A: Api>(
                 Ok(_) => {}
                 Err(BlockError::WrongPreviousBlock(actual, expected)) => {
                     debug!(
-                        "Detected fork: expected block is {} but actual block is {} at date {:?}",
-                        hex::encode(expected.as_hash_bytes()),
-                        hex::encode(actual.as_hash_bytes()),
+                        "Detected fork after request with valid local tip: expected parent is {} but actual parent is {} at date {:?}",
+                        expected.as_hex(),
+                        actual.as_hex(),
                         date
                     );
-                    // TODO:: Rollback
-                    // Possible cases:
-                    // - We are syncing along with the network and rollback is in loose blocks
-                    // - We are syncing historical data and rollback is in old epoch
-                    panic!("rollback");
+                    chain_state = chain_state_before;
+                    is_rollback = true;
+                    return BlockReceivingFlag::Stop;
                 }
                 Err(err) => panic!(
                     "Block {} ({}) failed to verify: {:?}",
@@ -291,7 +297,22 @@ fn net_sync_to<A: Api>(
             }
             return BlockReceivingFlag::Continue;
         },
-    )?;
+    );
+
+    if is_rollback || blocks_response_is_rollback(blocks_response, &our_tip) {
+        if let Some(last_date) = chain_state.last_date {
+            if last_date.get_epochid() >= first_unstable_epoch {
+                // We are syncing along with the network and rollback is in loose blocks
+                // TODO: drop `max(K, len(loose))` loose blocks and retry
+            } else {
+                // Either we are syncing historical data and rollback is in old epoch
+                // Or we dropped all loose blocks and now latest tip is in packed epoch
+                // TODO: drop to previous epoch and retry
+            }
+        } else {
+            panic!("Rollback at the very chain start");
+        }
+    }
 
     // Update the tip tag to point to the most recent block.
     tag::write(
@@ -301,6 +322,24 @@ fn net_sync_to<A: Api>(
     );
 
     Ok(())
+}
+
+fn blocks_response_is_rollback(resp: Result<()>, our_tip: &BlockRef) -> bool {
+    match resp {
+        Ok(()) => false,
+        Err(e) => {
+            if let ProtocolError(ServerError(s)) = &e {
+                if s.contains("Failed to find lca") {
+                    warn!(
+                        "Detected fork: local tip is no longer part of the chain: {:?}",
+                        our_tip
+                    );
+                    return true;
+                }
+            }
+            panic!("`net.get_blocks` error: {:?}", e);
+        }
+    }
 }
 
 /// Synchronize the local blockchain stored in `storage` with the
