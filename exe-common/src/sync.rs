@@ -209,10 +209,10 @@ fn net_sync_to<A: Api>(
                 Err(BlockError::WrongPreviousBlock(actual, expected)) => {
                     // TODO:: Rollback
                     debug!("Detected fork: expected block is {} but actual block is {} at date {:?}",
-                            hex::encode(expected), hex::encode(actual), date);
+                            hex::encode(expected.as_hash_bytes()), hex::encode(actual.as_hash_bytes()), date);
                     panic!("rollback");
                 },
-                Err(err) => panic!("Block {} ({}) failed to verify: {:?}", hex::encode(block_hash), date, err)
+                Err(err) => panic!("Block {} ({}) failed to verify: {:?}", hex::encode(block_hash.as_hash_bytes()), date, err)
             }
 
             // Flush the previous epoch (if any)

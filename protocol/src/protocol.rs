@@ -546,6 +546,7 @@ pub mod command {
     use packet;
     use std::io::{Cursor, Read, Write};
 
+    #[derive(Debug, PartialEq)]
     pub enum BlockStreamingFlag {
         Continue,
         Stop,

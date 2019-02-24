@@ -1,7 +1,7 @@
 use futures::Future;
 use tokio::runtime::Runtime;
 
-use network::api::{Api, BlockRef};
+use network::api::{Api, BlockRef, BlockReceivingFlag};
 use network::{Error, Result};
 
 //to_socket_addr
@@ -70,7 +70,7 @@ impl Api for NetworkCore {
         _got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag,
     {
         unimplemented!("not yet ready")
     }
