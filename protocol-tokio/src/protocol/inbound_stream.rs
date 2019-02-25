@@ -155,8 +155,8 @@ where
     T: AsyncRead,
     B: ProtocolBlock,
     Tx: ProtocolTransactionId,
-    <B as property::Block>::Id: cbor_event::Serialize + cbor_event::Deserialize,
-    <B as property::HasHeader>::Header: cbor_event::Serialize + cbor_event::Deserialize,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
 {
     pub fn new(stream: SplitStream<nt::Connection<T>>, state: Arc<Mutex<ConnectionState>>) -> Self {
         InboundStream {
