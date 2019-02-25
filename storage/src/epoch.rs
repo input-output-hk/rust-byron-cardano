@@ -122,29 +122,21 @@ fn epoch_write_pack(
 
 pub fn epoch_read_pack(config: &StorageConfig, epochid: EpochId) -> Result<PackHash> {
     let mut ph = [0u8; super::HASH_SIZE];
-    let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    let mut file = fs::File::open(&pack_filepath)?;
-    file.read_exact(&mut ph)?;
+    read_bytes_at_offset(config, epochid, 0, &mut ph)?;
     Ok(ph)
 }
 
 pub fn epoch_read_chainstate_ref(config: &StorageConfig, epochid: EpochId) -> Result<HeaderHash> {
     let mut sz = [0u8; hash::HASH_SIZE];
-    let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    let mut file = fs::File::open(&pack_filepath)?;
     let start = super::HASH_SIZE as u64;
-    file.seek(SeekFrom::Start(start)).unwrap();
-    file.read_exact(&mut sz)?;
+    read_bytes_at_offset(config, epochid, start, &mut sz)?;
     Ok(HeaderHash::new(&sz))
 }
 
 pub fn epoch_read_size(config: &StorageConfig, epochid: EpochId) -> Result<serialize::Size> {
     let mut sz = [0u8; serialize::SIZE_SIZE];
-    let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    let mut file = fs::File::open(&pack_filepath)?;
     let start = 2 * super::HASH_SIZE as u64;
-    file.seek(SeekFrom::Start(start)).unwrap();
-    file.read_exact(&mut sz)?;
+    read_bytes_at_offset(config, epochid, start, &mut sz)?;
     Ok(serialize::read_size(&sz))
 }
 
@@ -162,6 +154,21 @@ pub fn epoch_read_block_offset(
     file.read_exact(&mut ph)?;
     let offset = indexfile::file_read_offset_at(&file, offset_offset);
     Ok((ph, offset))
+}
+
+fn read_bytes_at_offset(
+    config: &StorageConfig,
+    epochid: EpochId,
+    offset: u64,
+    buf: &mut [u8],
+) -> Result<()> {
+    let pack_filepath = config.get_epoch_pack_filepath(epochid);
+    let mut file = fs::File::open(&pack_filepath)?;
+    if offset > 0 {
+        file.seek(SeekFrom::Start(offset)).unwrap();
+    }
+    file.read_exact(buf)?;
+    Ok(())
 }
 
 pub fn epoch_open_packref(config: &StorageConfig, epochid: EpochId) -> Result<reffile::Reader> {
