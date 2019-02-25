@@ -78,6 +78,9 @@ impl Milli {
     pub fn to_integral_trunc(self) -> u64 {
         self.0 / 1000
     }
+    pub fn as_millis(self) -> u64 {
+        self.0
+    }
 }
 
 impl Add for Milli {
