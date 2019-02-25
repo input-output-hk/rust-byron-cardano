@@ -41,6 +41,9 @@ pub enum Error {
 
     RefPackUnexpectedBoundary(SlotId),
 
+    EpochNotFound(EpochId),
+    // tried to delete, current last epoch
+    CannotDeleteNonLastEpoch(EpochId, EpochId),
     BlockNotFound(BlockHash),
     BlockHeightNotFound(u64),
 
@@ -78,6 +81,8 @@ impl fmt::Display for Error {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
             Error::BlockError(_) => write!(f, "Block error"),
+            Error::EpochNotFound(hh) => write!(f, "Epoch {:?} not found", hh),
+            Error::CannotDeleteNonLastEpoch(exp, act) => write!(f, "Epoch {:?} cannot be deleted. Current last packed epoch: {:?}", exp, act),
             Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hex::encode(hh)),
             Error::BlockHeightNotFound(hh) => write!(f, "Block with height {:?} not found", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
@@ -95,6 +100,8 @@ impl error::Error for Error {
             Error::StorageError(ref err) => Some(err),
             Error::CborBlockError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
+            Error::EpochNotFound(_) => None,
+            Error::CannotDeleteNonLastEpoch(_, _) => None,
             Error::BlockNotFound(_) => None,
             Error::BlockHeightNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
@@ -417,6 +424,20 @@ impl Storage {
             )));
         }
         self.chain_height_idx.loose_idx = read_idx[len..].to_vec();
+        Ok(())
+    }
+
+    pub fn drop_packed_epoch(&mut self, epoch_id: EpochId) -> Result<()> {
+        let dir = self.config.get_epoch_dir(epoch_id);
+        let last_packed = (self.packed_epochs_len() - 1) as u64;
+        if epoch_id != last_packed {
+            return Err(Error::CannotDeleteNonLastEpoch(epoch_id, last_packed));
+        }
+        if !dir.exists() {
+            return Err(Error::EpochNotFound(epoch_id));
+        }
+        fs::remove_dir(dir)?;
+        self.chain_height_idx.packed_idx.pop();
         Ok(())
     }
 }
