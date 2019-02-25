@@ -404,6 +404,10 @@ impl Storage {
         self.chain_height_idx.loose_idx.len()
     }
 
+    pub fn packed_epochs_len(&self) -> usize {
+        self.chain_height_idx.packed_idx.len()
+    }
+
     pub fn loose_index_drop_from_head(&mut self, len: usize) -> Result<()> {
         let read_idx = self.chain_height_idx.loose_idx.clone();
         let size = read_idx.len();

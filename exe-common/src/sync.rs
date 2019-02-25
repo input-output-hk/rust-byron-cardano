@@ -323,12 +323,27 @@ fn net_sync_to<A: Api>(
                         storage
                             .loose_index_drop_from_head(drop)
                             .expect("Failed to drop loose index head!");
-                        new_tip_hash = Some(if len > drop {
+                        // Find new tip after rollback
+                        let tip = if len > drop {
+                            // New tip is last loose block
                             storage.loose_index_tip().unwrap().header_hash()
                         } else {
-                            // todo: read last block in epoch
-                            unimplemented!()
-                        })
+                            let epochs = storage.packed_epochs_len();
+                            if epochs == 0 {
+                                // If there are no packed epochs - new tip is genesis
+                                net_cfg.genesis.clone()
+                            } else {
+                                // New tip is last block of last packed epoch
+                                let epoch_id = (epochs - 1) as u64;
+                                epoch::epoch_read_chainstate_ref(&storage_config, epoch_id).expect(
+                                    &format!(
+                                        "Failed to read chainstate ref from epoch {}",
+                                        epoch_id,
+                                    ),
+                                )
+                            }
+                        };
+                        new_tip_hash = Some(tip);
                     }
                     Err(e) => panic!("Can't lock storage! {:?}", e),
                 }
@@ -339,10 +354,11 @@ fn net_sync_to<A: Api>(
                 unimplemented!()
             }
             // Restore new chain state after the rollback
-            if let Some(tip) = new_tip_hash {
-                chain_state =
-                    chain_state::restore_chain_state(&storage.read().unwrap(), genesis_data, &tip)?;
-            }
+            chain_state = chain_state::restore_chain_state(
+                &storage.read().unwrap(),
+                genesis_data,
+                &new_tip_hash.expect("No tip found after rollback processing!"),
+            )?;
         } else {
             panic!("Rollback at the very chain start");
         }
