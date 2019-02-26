@@ -1,12 +1,16 @@
 use crate::key::*;
 use chain_addr::Address;
 use chain_core::property;
+#[cfg(feature = "generic-serialization")]
+use serde_derive::Serialize;
 
 /// Unspent transaction value.
+#[cfg_attr(feature = "generic-serialization", derive(Serialize))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Value(pub u64);
 
 /// Unspent transaction pointer.
+#[cfg_attr(feature = "generic-serialization", derive(Serialize))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UtxoPointer {
     /// the transaction identifier where the unspent output is
@@ -53,6 +57,7 @@ impl Witness {
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
+#[cfg_attr(feature = "generic-serialization", derive(Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Output(pub Address, pub Value);
 

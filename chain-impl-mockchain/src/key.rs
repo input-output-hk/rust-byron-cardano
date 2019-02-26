@@ -4,6 +4,8 @@
 use cardano::hash;
 use cardano::redeem as crypto;
 use chain_core::property;
+#[cfg(feature = "generic-serialization")]
+use serde_derive::Serialize;
 
 /// Public key of the entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -121,6 +123,7 @@ where
 }
 
 /// Hash that is used as an address of the various components.
+#[cfg_attr(feature = "generic-serialization", derive(Serialize))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Hash(hash::Blake2b256);
 impl Hash {
