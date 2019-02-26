@@ -368,6 +368,16 @@ impl chain_core::property::HasTransaction for Block {
             Block::MainBlock(blk) => Box::new(blk.body.tx.iter()),
         }
     }
+
+    fn for_each_transaction<F>(&self, f: F)
+    where
+        F: FnMut(&Self::Transaction),
+    {
+        match self {
+            Block::BoundaryBlock(_) => {}
+            Block::MainBlock(blk) => blk.body.tx.iter().for_each(f),
+        }
+    }
 }
 
 // **************************************************************************
