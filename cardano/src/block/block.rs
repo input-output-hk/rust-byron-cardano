@@ -361,11 +361,11 @@ impl chain_core::property::Deserialize for Block {
 }
 
 impl chain_core::property::HasTransaction for Block {
-    type Transactions = [TxAux];
-    fn transactions(&self) -> &Self::Transactions {
+    type Transaction = TxAux;
+    fn transactions<'a>(&'a self) -> Box<Iterator<Item = &Self::Transaction> + 'a> {
         match self {
-            Block::BoundaryBlock(_) => &[],
-            Block::MainBlock(blk) => &blk.body.tx,
+            Block::BoundaryBlock(_) => Box::new([].iter()),
+            Block::MainBlock(blk) => Box::new(blk.body.tx.iter()),
         }
     }
 }
