@@ -4,6 +4,7 @@
 use cardano::hash;
 use cardano::redeem as crypto;
 use chain_core::property;
+use std::str::FromStr;
 
 /// Public key of the entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -128,6 +129,13 @@ impl Hash {
     pub fn hash_bytes(bytes: &[u8]) -> Self {
         Hash(hash::Blake2b256::new(bytes))
     }
+}
+
+impl FromStr for Hash {
+   type Err = hash::Error;
+   fn from_str(s: &str) -> Result<Self, Self::Err> {
+      Ok(Hash(hash::Blake2b256::from_str(s)?))
+   }
 }
 
 impl property::Serialize for PublicKey {
