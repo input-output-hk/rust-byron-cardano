@@ -110,7 +110,7 @@ impl fmt::Display for PublicKey {
 
 pub const PRIVATEKEY_SIZE: usize = 32;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
+#[derive(Clone)]
 pub struct PrivateKey([u8; PRIVATEKEY_SIZE]);
 impl fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
