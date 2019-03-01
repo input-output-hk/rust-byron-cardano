@@ -149,10 +149,11 @@ impl<T: Header> Future for TipFuture<T> {
     }
 }
 
-impl<T: Block + HasHeader, Tx> BlockService<T> for ClientHandle<T, Tx>
+impl<T: Block + HasHeader, Tx> BlockService for ClientHandle<T, Tx>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
+    type Block = T;
     type TipFuture = RequestFuture<T::Header>;
     type PullBlocksToTipStream = RequestStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
