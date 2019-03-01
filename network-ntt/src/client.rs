@@ -87,10 +87,10 @@ impl<T: Block + HasHeader> Future for PullBlocksToTip<T>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
-    type Item = BlockStream<T>;
+    type Item = RequestStream<T>;
     type Error = core_client::Error;
 
-    fn poll(&mut self) -> Poll<BlockStream<T>, Self::Error> {
+    fn poll(&mut self) -> Poll<RequestStream<T>, Self::Error> {
         use StreamRequest::Blocks;
 
         match self.tip_future.poll() {
@@ -99,7 +99,7 @@ where
                 self.command_channel
                     .unbounded_send(Command::Stream(Blocks(sender, self.from.clone(), tip)))
                     .unwrap();
-                let stream = BlockStream { channel: receiver };
+                let stream = RequestStream { channel: receiver };
                 Ok(Async::Ready(stream))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -108,11 +108,11 @@ where
     }
 }
 
-pub struct BlockStream<T> {
+pub struct RequestStream<T> {
     channel: mpsc::UnboundedReceiver<Result<T, core_client::Error>>,
 }
 
-impl<T: Block> Stream for BlockStream<T> {
+impl<T> Stream for RequestStream<T> {
     type Item = T;
     type Error = core_client::Error;
 
@@ -154,10 +154,12 @@ where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
     type TipFuture = RequestFuture<T::Header>;
-    type PullBlocksToTipStream = BlockStream<T>;
+    type PullBlocksToTipStream = RequestStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
-    type GetBlocksStream = BlockStream<T>;
-    type GetBlocksFuture = RequestFuture<BlockStream<T>>;
+    type GetBlocksStream = RequestStream<T>;
+    type GetBlocksFuture = RequestFuture<RequestStream<T>>;
+    type BlockSubscription = RequestStream<T::Header>;
+    type BlockSubscriptionFuture = RequestFuture<Self::BlockSubscription>;
 
     fn tip(&mut self) -> Self::TipFuture {
         use UnaryRequest::Tip;
@@ -181,6 +183,10 @@ where
             from: from[0].clone(),
             command_channel: self.channel.clone(),
         }
+    }
+
+    fn subscribe_to_blocks(&mut self) -> Self::BlockSubscriptionFuture {
+        unimplemented!()
     }
 }
 
