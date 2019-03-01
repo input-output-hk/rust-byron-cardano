@@ -1,6 +1,6 @@
 use chain_core::property::{Block, HasHeader, Header};
 
-use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
+use network_core::client::{self as core_client, block::BlockService};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
@@ -153,7 +153,7 @@ impl<T: Block + HasHeader, Tx> BlockService<T> for ClientHandle<T, Tx>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
-    type TipFuture = TipFuture<T::Header>;
+    type TipFuture = RequestFuture<T::Header>;
     type PullBlocksToTipStream = BlockStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
     type GetBlocksStream = BlockStream<T>;
@@ -166,7 +166,7 @@ where
         self.channel
             .unbounded_send(Command::Unary(Tip(source)))
             .unwrap();
-        TipFuture(RequestFuture(sink))
+        RequestFuture(sink)
     }
 
     fn pull_blocks_to_tip(&mut self, from: &[T::Id]) -> Self::PullBlocksToTipFuture {
@@ -181,25 +181,6 @@ where
             from: from[0].clone(),
             command_channel: self.channel.clone(),
         }
-    }
-}
-
-impl<T: Block, Tx> HeaderService<T> for ClientHandle<T, Tx>
-where
-    T: HasHeader,
-{
-    //type GetHeadersStream = Self::GetHeadersStream<T::Header>;
-    //type GetHeadersFuture = Self::GetHeaders<T::Header>;
-    type GetTipFuture = RequestFuture<T::Header>;
-
-    fn tip_header(&mut self) -> Self::GetTipFuture {
-        use UnaryRequest::Tip;
-
-        let (source, sink) = oneshot::channel();
-        self.channel
-            .unbounded_send(Command::Unary(Tip(source)))
-            .unwrap();
-        RequestFuture(sink)
     }
 }
 
