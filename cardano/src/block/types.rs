@@ -103,7 +103,11 @@ impl chain_core::property::Deserialize for HeaderHash {
     }
 }
 
-impl chain_core::property::BlockId for HeaderHash {}
+impl chain_core::property::BlockId for HeaderHash {
+    fn zero() -> HeaderHash {
+        HeaderHash(Blake2b256::from([0; Blake2b256::HASH_SIZE]))
+    }
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct BlockVersion {
