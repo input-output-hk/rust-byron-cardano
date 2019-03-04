@@ -19,9 +19,9 @@ pub enum BlockDate {
 }
 
 impl property::BlockDate for BlockDate {
-    fn from_epoch_slot_id(epoch: u64, slot_id: u64) -> Self {
+    fn from_epoch_slot_id(epoch: u32, slot_id: u32) -> Self {
         BlockDate::Normal(EpochSlotId {
-            epoch: epoch,
+            epoch: epoch as u64,
             slotid: slot_id as u16,
         })
     }
