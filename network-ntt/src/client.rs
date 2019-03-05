@@ -161,6 +161,7 @@ where
     type GetBlocksFuture = RequestFuture<RequestStream<T>>;
     type BlockSubscription = RequestStream<T::Header>;
     type BlockSubscriptionFuture = RequestFuture<Self::BlockSubscription>;
+    type AnnounceBlockFuture = RequestFuture<()>;
 
     fn tip(&mut self) -> Self::TipFuture {
         use UnaryRequest::Tip;
@@ -187,6 +188,10 @@ where
     }
 
     fn subscribe_to_blocks(&mut self) -> Self::BlockSubscriptionFuture {
+        unimplemented!()
+    }
+
+    fn announce_block(&mut self, _header: T::Header) -> Self::AnnounceBlockFuture {
         unimplemented!()
     }
 }
