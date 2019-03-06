@@ -1,7 +1,7 @@
 use chain_core::property::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct NodeId([u8; 16]);
+pub struct NodeId(pub [u8; 16]);
 
 pub enum NodeIdError {
     InvalidSize(usize),
@@ -22,4 +22,13 @@ impl NodeId {
     }
 }
 
-pub trait Gossip: Serialize + Deserialize {}
+pub trait Gossip: Serialize + Deserialize {
+    /// Type that represents NodeId in the gossip message.
+    type NodeId: Sized;
+    /// Information about the node that is kept in the gossip message.
+    type Node;
+
+    fn from_nodes<I>(iter: I) -> Self 
+    where
+        I: IntoIterator<Item = Self::Node>;
+}
