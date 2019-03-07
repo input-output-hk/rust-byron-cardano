@@ -12,7 +12,7 @@ use super::super::config::ProtocolMagic;
 use super::boundary;
 use super::date::BlockDate;
 use super::normal;
-use super::types::HeaderHash;
+use super::types::{BlockVersion, HeaderHash};
 use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
@@ -83,6 +83,7 @@ pub enum BlockHeader {
 impl chain_core::property::Header for BlockHeader {
     type Id = HeaderHash;
     type Date = BlockDate;
+    type Version = BlockVersion;
 
     fn id(&self) -> Self::Id {
         self.compute_hash()
@@ -92,6 +93,13 @@ impl chain_core::property::Header for BlockHeader {
         match self {
             BlockHeader::BoundaryBlockHeader(ref header) => header.consensus.epoch.into(),
             BlockHeader::MainBlockHeader(ref header) => header.consensus.slot_id.into(),
+        }
+    }
+
+    fn version(&self) -> Self::Version {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref header) => unimplemented!(),
+            BlockHeader::MainBlockHeader(ref header) => header.extra_data.block_version,
         }
     }
 }
@@ -313,6 +321,7 @@ impl fmt::Display for Block {
 impl chain_core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
+    type Version = BlockVersion;
 
     fn id(&self) -> Self::Id {
         self.header().compute_hash()
@@ -329,6 +338,13 @@ impl chain_core::property::Block for Block {
         match self {
             Block::MainBlock(ref block) => block.header.consensus.slot_id.into(),
             Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
+        }
+    }
+
+    fn version(&self) -> Self::Version {
+        match self {
+            Block::MainBlock(ref block) => block.header.extra_data.block_version,
+            Block::BoundaryBlock(ref block) => unimplemented!(),
         }
     }
 }
