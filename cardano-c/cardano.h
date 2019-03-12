@@ -14,6 +14,36 @@ typedef int cardano_result;
 /* BIP39 */
 /*********/
 
+/* bip39 error definitions */
+enum _bip39_config_error
+{
+    SUCCESS = 0,
+    INVALID_MNEMONIC = 1,
+    INVALID_CHECKSUM = 2
+};
+
+/* type for the API user */
+typedef enum _config_error cardano_bip39_error_t;
+
+/* Error descriptions */
+struct _errordesc {
+    int  code;
+    char *message;
+} errordesc[] = {
+    { SUCCESS, "No error" },
+    { INVALID_MNEMONIC, "Invalid mnemonic word" },
+    { INVALID_CHECKSUM, "Invalid checksum" },
+};
+
+typedef uint8_t* cardano_entropy;
+
+int cardano_entropy_from_mnemonics(
+    const char *mnemonics,
+    cardano_entropy *entropy,
+    uint32_t *entropy_size
+);
+void cardano_delete_entropy_array(uint8_t *entropy, size_t bytes);
+
 cardano_result cardano_bip39_encode(const char * const entropy_raw, unsigned long entropy_size, unsigned short *mnemonic_index, unsigned long mnemonic_size);
 
 /*********/
