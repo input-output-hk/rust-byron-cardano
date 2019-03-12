@@ -685,7 +685,6 @@ impl chain_core::property::Deserialize for TxAux {
 }
 
 impl chain_core::property::Transaction for Tx {
-    type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
     type Inputs = [TxoPointer];
@@ -697,12 +696,8 @@ impl chain_core::property::Transaction for Tx {
     fn outputs(&self) -> &Self::Outputs {
         &self.outputs
     }
-    fn id(&self) -> Self::Id {
-        Tx::id(self)
-    }
 }
 impl chain_core::property::Transaction for TxAux {
-    type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
     type Inputs = [TxoPointer];
@@ -713,9 +708,6 @@ impl chain_core::property::Transaction for TxAux {
     }
     fn outputs(&self) -> &Self::Outputs {
         &self.tx.outputs
-    }
-    fn id(&self) -> Self::Id {
-        self.tx.id()
     }
 }
 
