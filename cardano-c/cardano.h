@@ -15,15 +15,14 @@ typedef int cardano_result;
 /*********/
 
 /* bip39 error definitions */
-enum _bip39_config_error
+typedef enum _bip39_config_error
 {
     SUCCESS = 0,
     INVALID_MNEMONIC = 1,
-    INVALID_CHECKSUM = 2
-};
+    INVALID_CHECKSUM = 2,
+    INVALID_WORD_COUNT = 3
+} cardano_bip39_error_t;
 
-/* type for the API user */
-typedef enum _config_error cardano_bip39_error_t;
 
 /* Error descriptions */
 struct _errordesc {
@@ -33,16 +32,24 @@ struct _errordesc {
     { SUCCESS, "No error" },
     { INVALID_MNEMONIC, "Invalid mnemonic word" },
     { INVALID_CHECKSUM, "Invalid checksum" },
+    { INVALID_WORD_COUNT, "The word count should be one of: 9, 12, 15, 18, 21, 24"}
 };
 
 typedef uint8_t* cardano_entropy;
 
-int cardano_entropy_from_mnemonics(
+cardano_bip39_error_t cardano_entropy_from_english_mnemonics(
     const char *mnemonics,
     cardano_entropy *entropy,
     uint32_t *entropy_size
 );
-void cardano_delete_entropy_array(uint8_t *entropy, size_t bytes);
+cardano_bip39_error_t cardano_generate_random_entropy(
+    uint8_t number_of_words,
+    uint8_t (*random_generator)(),
+    cardano_entropy *entropy,
+    uint32_t *entropy_size
+);
+
+void cardano_delete_entropy_array(uint8_t *entropy, uint32_t bytes);
 
 cardano_result cardano_bip39_encode(const char * const entropy_raw, unsigned long entropy_size, unsigned short *mnemonic_index, unsigned long mnemonic_size);
 
