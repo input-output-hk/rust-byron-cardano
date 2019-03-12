@@ -6,7 +6,7 @@ void test_generate_entropy_from_mnemonics(void) {
 
     cardano_entropy entropy;
     uint32_t bytes;
-    int error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
+    cardano_bip39_error_t error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
 
     uint8_t expected[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, entropy, 16);
@@ -19,7 +19,7 @@ void test_generate_entropy_from_mnemonics_error_code_invalid_word(void) {
 
     cardano_entropy entropy;
     uint32_t bytes;
-    int error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
+    cardano_bip39_error_t error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
 
     TEST_ASSERT_EQUAL_HEX32(BIP39_INVALID_MNEMONIC, error);
 }
@@ -29,7 +29,7 @@ void test_generate_entropy_from_mnemonics_invalid_checksum(void) {
 
     cardano_entropy entropy;
     uint32_t bytes;
-    int error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
+    cardano_bip39_error_t error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
 
     TEST_ASSERT_EQUAL_HEX32(BIP39_INVALID_CHECKSUM, error);
 }

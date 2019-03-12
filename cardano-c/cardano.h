@@ -23,17 +23,6 @@ typedef enum _bip39_config_error
     BIP39_INVALID_WORD_COUNT = 3
 } cardano_bip39_error_t;
 
-/* Error descriptions */
-struct _errordesc {
-    int  code;
-    char *message;
-} errordesc[] = {
-    { BIP39_SUCCESS, "No error" },
-    { BIP39_INVALID_MNEMONIC, "Invalid mnemonic word" },
-    { BIP39_INVALID_CHECKSUM, "Invalid checksum" },
-    { BIP39_INVALID_WORD_COUNT, "The word count should be one of: 9, 12, 15, 18, 21, 24"}
-};
-
 typedef uint8_t* cardano_entropy;
 
 /*!
