@@ -15,13 +15,13 @@ void test_generate_entropy_from_mnemonics(void) {
 }
 
 void test_generate_entropy_from_mnemonics_error_code_invalid_word(void) {
-    static const char *mnemonics =  "termo abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    static const char *mnemonics =  "notaword abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
     cardano_entropy entropy;
     uint32_t bytes;
     int error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
 
-    TEST_ASSERT_EQUAL_HEX32(INVALID_MNEMONIC, error);
+    TEST_ASSERT_EQUAL_HEX32(BIP39_INVALID_MNEMONIC, error);
 }
 
 void test_generate_entropy_from_mnemonics_invalid_checksum(void) {
@@ -31,7 +31,7 @@ void test_generate_entropy_from_mnemonics_invalid_checksum(void) {
     uint32_t bytes;
     int error = cardano_entropy_from_english_mnemonics(mnemonics, &entropy, &bytes);
 
-    TEST_ASSERT_EQUAL_HEX32(INVALID_CHECKSUM, error);
+    TEST_ASSERT_EQUAL_HEX32(BIP39_INVALID_CHECKSUM, error);
 }
 
 uint8_t gen() {
@@ -42,7 +42,7 @@ void test_generate_entropy_from_random_generator(void) {
     const uint8_t NUMBER_OF_WORDS = 12; 
     cardano_entropy entropy;
     uint32_t bytes;
-    cardano_bip39_error_t error = cardano_generate_random_entropy(NUMBER_OF_WORDS, gen, &entropy, &bytes);
+    cardano_bip39_error_t error = cardano_entropy_from_random(NUMBER_OF_WORDS, gen, &entropy, &bytes);
 
     uint8_t expected[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
@@ -52,14 +52,13 @@ void test_generate_entropy_from_random_generator(void) {
     cardano_delete_entropy_array(entropy, bytes);
 }
 
-
 void test_generate_entropy_from_random_generator_word_count_error(void) {
     const uint8_t NUMBER_OF_WORDS = 13; 
     cardano_entropy entropy;
     uint32_t bytes;
-    cardano_bip39_error_t error = cardano_generate_random_entropy(NUMBER_OF_WORDS, gen, &entropy, &bytes);
+    cardano_bip39_error_t error = cardano_entropy_from_random(NUMBER_OF_WORDS, gen, &entropy, &bytes);
 
-    TEST_ASSERT_EQUAL_HEX32(INVALID_WORD_COUNT, error);
+    TEST_ASSERT_EQUAL_HEX32(BIP39_INVALID_WORD_COUNT, error);
 }
 
 int main(void) {

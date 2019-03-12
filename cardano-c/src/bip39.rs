@@ -60,7 +60,7 @@ pub extern "C" fn cardano_entropy_from_english_mnemonics(
 
 ///generate entropy from the given random generator
 #[no_mangle]
-pub extern "C" fn cardano_generate_random_entropy(
+pub extern "C" fn cardano_entropy_from_random(
     words: u8,
     gen: extern "C" fn() -> c_uchar,
     entropy_ptr: *mut *const c_uchar,
