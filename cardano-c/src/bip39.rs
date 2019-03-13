@@ -1,12 +1,12 @@
 use std::slice;
 
 use cardano::bip::bip39;
-use types::CardanoResult;
 use types::CardanoBIP39ErrorCode;
+use types::CardanoResult;
 
 use std::{
-    ptr,
     os::raw::{c_char, c_uchar, c_uint},
+    ptr,
 };
 
 use std::ffi::CStr;
@@ -34,14 +34,13 @@ pub extern "C" fn cardano_bip39_encode(
 pub extern "C" fn cardano_entropy_from_english_mnemonics(
     mnemonics: *const c_char,
     entropy_ptr: *mut *const c_uchar,
-    entropy_size: *mut c_uint 
+    entropy_size: *mut c_uint,
 ) -> CardanoBIP39ErrorCode {
-    let rust_string = unsafe { CStr::from_ptr(mnemonics) }.to_string_lossy(); 
+    let rust_string = unsafe { CStr::from_ptr(mnemonics) }.to_string_lossy();
 
     let dictionary = bip39::dictionary::ENGLISH;
 
-    let mnemonics = match bip39::Mnemonics::from_string(&dictionary, &rust_string)
-    {
+    let mnemonics = match bip39::Mnemonics::from_string(&dictionary, &rust_string) {
         Ok(m) => m,
         //The error happens when a word is not in the dictionary
         Err(_) => return CardanoBIP39ErrorCode::invalid_word(),
@@ -52,7 +51,7 @@ pub extern "C" fn cardano_entropy_from_english_mnemonics(
         //The error happens because the phrase doesn't have a valid checksum
         Err(_) => return CardanoBIP39ErrorCode::invalid_checksum(),
     };
-    
+
     out_return_vector(entropy.to_vec(), entropy_ptr, entropy_size);
 
     CardanoBIP39ErrorCode::success()
@@ -64,21 +63,21 @@ pub extern "C" fn cardano_entropy_from_random(
     words: u8,
     gen: extern "C" fn() -> c_uchar,
     entropy_ptr: *mut *const c_uchar,
-    entropy_size: *mut c_uint
-    ) -> CardanoBIP39ErrorCode {
+    entropy_size: *mut c_uint,
+) -> CardanoBIP39ErrorCode {
     let words = match bip39::Type::from_word_count(words as usize) {
         Ok(v) => v,
         Err(_) => return CardanoBIP39ErrorCode::invalid_word_count(),
     };
 
-    let entropy = bip39::Entropy::generate(words, || { gen() } ).to_vec();
+    let entropy = bip39::Entropy::generate(words, || gen()).to_vec();
 
     out_return_vector(entropy, entropy_ptr, entropy_size);
 
     CardanoBIP39ErrorCode::success()
 }
 
-///return C array as an out parameter, the memory must be then deallocated with cardano_delete_entropy_array 
+///return C array as an out parameter, the memory must be then deallocated with cardano_delete_entropy_array
 fn out_return_vector(mut to_return: Vec<u8>, out_pointer: *mut *const c_uchar, size: *mut c_uint) {
     //Make sure the capacity is the same as the length to make deallocation simpler
     to_return.shrink_to_fit();
@@ -86,7 +85,7 @@ fn out_return_vector(mut to_return: Vec<u8>, out_pointer: *mut *const c_uchar, s
     let pointer = to_return.as_mut_ptr();
     let length = to_return.len() as u32;
 
-    //To avoid running the destructor 
+    //To avoid running the destructor
     std::mem::forget(to_return);
 
     //Write the array length
