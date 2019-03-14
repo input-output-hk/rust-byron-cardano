@@ -124,3 +124,13 @@ pub extern "C" fn cardano_account_generate_addresses(
         })
         .count()
 }
+
+#[no_mangle]
+pub extern "C" fn cardano_account_delete_addresses(addresses_ptr: *mut *mut c_char, size: usize) {
+    for i in 0..size {
+        unsafe {
+            let ptr = addresses_ptr.offset(i as isize);
+            ffi::CString::from_raw(*ptr);
+        };
+    }
+}
