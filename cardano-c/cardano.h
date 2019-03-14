@@ -1,7 +1,7 @@
 /*! \file cardano.h
 */
 #ifndef CARDANO_RUST_H
-# define CARDANO_RUST_H
+#define CARDANO_RUST_H
 /* Basic Types */
 
 #ifdef __cplusplus
@@ -198,7 +198,7 @@ void cardano_account_delete(cardano_account *account);
 * \sa cardano_address_delete() 
 */
 unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
-void cardano_account_delete_addresses(char *addresses_ptr[], size_t length);
+void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long length);
 
 /****************/
 /* Transactions */
