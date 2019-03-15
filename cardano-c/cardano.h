@@ -136,8 +136,7 @@ void cardano_account_delete(cardano_account *account);
 
 /*!
 * \brief Generate addressess
-* The generated addresses are C strings in base58, the memory can be deallocated by converting to 
-* cardano_address objects with cardano_address_import_base58().
+* The generated addresses are C strings in base58
 * \param [in] account an account created with `cardano_account_create`
 * \param [in] internal !0 for external address, 0 for internal 
 * \param [in] from_index  
