@@ -14,6 +14,54 @@ typedef int cardano_result;
 /* BIP39 */
 /*********/
 
+/* bip39 error definitions */
+typedef enum _bip39_config_error
+{
+    BIP39_SUCCESS = 0,
+    BIP39_INVALID_MNEMONIC = 1,
+    BIP39_INVALID_CHECKSUM = 2,
+    BIP39_INVALID_WORD_COUNT = 3
+} cardano_bip39_error_t;
+
+typedef uint8_t* cardano_entropy;
+
+/*!
+* \brief get entropy array from the given english mnemonics 
+* \param [in] mnemonics a string consisting of 9, 12, 15, 18, 21 or 24 english words
+* \param [out] entropy the returned entropy array
+* \param [out] entropy_size the size of the the returned array
+* \returns BIP39_SUCCESS or either BIP39_INVALID_MNEMONIC or BIP39_INVALID_CHECKSUM 
+*/
+cardano_bip39_error_t cardano_entropy_from_english_mnemonics(
+    const char *mnemonics,
+    cardano_entropy *entropy,
+    uint32_t *entropy_size
+);
+
+/*!
+* \brief encode a entropy into its equivalent words represented by their index (0 to 2047) in the BIP39 dictionary
+* \param [in] number_of_words one of 9, 12, 15, 18, 21 or 24 representing the number of words of the equivalent mnemonic
+* \param [in] random_generator a function that generates random bytes  
+* \param [out] entropy the returned entropy array
+* \param [out] entropy_size the size of the the returned array
+* \returns BIP39_SUCCESS or BIP39_INVALID_WORD_COUNT 
+*/
+cardano_bip39_error_t cardano_entropy_from_random(
+    uint8_t number_of_words,
+    uint8_t (*random_generator)(),
+    cardano_entropy *entropy,
+    uint32_t *entropy_size
+);
+
+/*!
+* delete the allocated memory of entropy byte array
+* \param [in] entropy the entropy array
+* \param [in] entropy_size the length of the entropy array
+* \sa cardano_entropy_from_random()
+* \sa cardano_entropy_from_english_mnemonics()
+*/
+void cardano_delete_entropy_array(uint8_t *entropy, uint32_t entropy_size);
+
 cardano_result cardano_bip39_encode(const char * const entropy_raw, unsigned long entropy_size, unsigned short *mnemonic_index, unsigned long mnemonic_size);
 
 /*********/
