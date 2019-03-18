@@ -70,6 +70,10 @@ impl CardanoTransactionErrorCode {
     pub fn signatures_exceeded() -> Self {
         CardanoTransactionErrorCode(5)
     }
+
+    pub fn coin_out_of_bounds() -> Self {
+        CardanoTransactionErrorCode(6)
+    }
 }
 
 /// C pointer to an Extended Private Key

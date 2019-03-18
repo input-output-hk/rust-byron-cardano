@@ -287,7 +287,7 @@ void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, car
 * \param [in] value the cost 
 * \sa cardano_transaction_output_ptr_new()
 */
-cardano_result cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
+cardano_transaction_error_t cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
 
 /*!
 * \brief This associate all the leftover values, if any to an output with the specified address.

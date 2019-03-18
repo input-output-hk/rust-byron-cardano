@@ -72,14 +72,14 @@ pub extern "C" fn cardano_transaction_builder_add_input(
     tb: TransactionBuilderPtr,
     c_txo: TransactionOutputPointerPtr,
     value: u64,
-) -> CardanoResult {
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
     let txo = unsafe { c_txo.as_ref() }.expect("Not a NULL PTR");
     if let Ok(coin) = Coin::new(value) {
         builder.add_input(txo, coin);
-        CardanoResult::success()
+        CardanoTransactionErrorCode::success()
     } else {
-        CardanoResult::failure()
+        CardanoTransactionErrorCode::coin_out_of_bounds()
     }
 }
 
