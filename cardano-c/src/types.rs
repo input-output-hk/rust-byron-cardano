@@ -43,6 +43,23 @@ impl CardanoBIP39ErrorCode {
     }
 }
 
+#[repr(C)]
+pub struct CardanoTransactionErrorCode(c_int);
+
+impl CardanoTransactionErrorCode {
+    pub fn success() -> Self {
+        CardanoTransactionErrorCode(0)
+    }
+
+    pub fn no_outputs() -> Self {
+        CardanoTransactionErrorCode(1)
+    }
+
+    pub fn no_inputs() -> Self {
+        CardanoTransactionErrorCode(2)
+    }
+}
+
 /// C pointer to an Extended Private Key
 pub type XPrvPtr = *mut hdwallet::XPrv;
 

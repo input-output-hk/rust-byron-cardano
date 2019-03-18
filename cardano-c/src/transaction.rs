@@ -2,7 +2,7 @@ use cardano::coin::Coin;
 use cardano::config::ProtocolMagic;
 use cardano::fee::{self, LinearFee};
 use cardano::tx::{self, TxId, TxInWitness};
-use cardano::txbuild::{TxBuilder, TxFinalized};
+use cardano::txbuild::{Error, TxBuilder, TxFinalized};
 use cardano::txutils::OutputPolicy;
 use cardano::util::try_from_slice::TryFromSlice;
 use std::{ptr, slice};
@@ -116,13 +116,18 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
 #[no_mangle]
 pub extern "C" fn cardano_transaction_builder_finalize(
     tb: TransactionBuilderPtr,
-) -> TransactionPtr {
+    tx_out: *mut TransactionPtr,
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    if let Ok(tx) = builder.clone().make_tx() {
-        let b = Box::new(tx);
-        Box::into_raw(b)
-    } else {
-        ptr::null_mut()
+    match builder.clone().make_tx() {
+        Ok(tx) => {
+            let boxed = Box::new(tx);
+            unsafe { ptr::write(tx_out, Box::into_raw(boxed)) };
+            CardanoTransactionErrorCode::success()
+        }
+        Err(Error::TxInvalidNoInput) => CardanoTransactionErrorCode::no_inputs(),
+        Err(Error::TxInvalidNoOutput) => CardanoTransactionErrorCode::no_outputs(),
+        _ => panic!("Shouldn't happen"),
     }
 }
 

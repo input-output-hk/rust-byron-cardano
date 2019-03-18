@@ -204,6 +204,18 @@ void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long lengt
 /* Transactions */
 /****************/
 
+/* transaction error definitions */
+typedef enum _transaction_config_error
+{
+    TRANSACTION_SUCCESS = 0,
+    TRANSACTION_NO_INPUT = 1,
+    TRANSACTION_NO_OUTPUT = 2,
+    TRANSACTION_SIGNATURE_MISMATCH = 3,
+    TRANSACTION_OVER_LIMIT = 4,
+    TRANSACTION_SIGNATURES_EXCEEDED = 5,
+    TRANSACTION_COIN_OUT_OF_BOUNDS = 6,
+} cardano_transaction_error_t;
+
 typedef struct cardano_transaction_builder cardano_transaction_builder;
 typedef struct cardano_transaction_finalized cardano_transaction_finalized;
 /*!
@@ -305,7 +317,7 @@ uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 /*!
 * \brief Get a transaction object
 */
-cardano_transaction *cardano_transaction_builder_finalize(cardano_transaction_builder *tb);
+cardano_transaction_error_t *cardano_transaction_builder_finalize(cardano_transaction_builder *tb, cardano_transaction **tx);
 void cardano_transaction_delete(cardano_transaction *c_tx);
 
 /*!
