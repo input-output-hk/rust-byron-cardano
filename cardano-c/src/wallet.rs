@@ -9,7 +9,7 @@ use std::os::raw::c_char;
 use std::{ffi, ptr, slice};
 
 use address::ffi_address_to_base58;
-use types::{AccountPtr, WalletPtr};
+use types::{AccountPtr, CardanoResult, WalletPtr};
 
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
@@ -25,7 +25,8 @@ use types::{AccountPtr, WalletPtr};
 /// object. This function may fail if:
 ///
 /// - panic: if there is no more memory to allocate the object to return
-/// - panic or return 0 (nullptr or NULL) if the given seed_ptr is of invalid length
+/// - return `failure` if the given seed_ptr is of invalid length
+/// - return 'success' when not
 ///
 #[no_mangle]
 pub extern "C" fn cardano_wallet_new(
@@ -33,19 +34,21 @@ pub extern "C" fn cardano_wallet_new(
     entropy_size: usize,     /* entropy size */
     password_ptr: *const u8, /* password ptr */
     password_size: usize,    /* password size */
-) -> WalletPtr {
+    wallet_out: *mut WalletPtr,
+) -> CardanoResult {
     let entropy_slice = unsafe { slice::from_raw_parts(entropy_ptr, entropy_size) };
     let password = unsafe { slice::from_raw_parts(password_ptr, password_size) };
 
     let entropy = match bip::bip39::Entropy::from_slice(entropy_slice) {
-        Err(_) => return ptr::null_mut(),
+        Err(_) => return CardanoResult::failure(),
         Ok(e) => e,
     };
 
     let wallet = bip44::Wallet::from_entropy(&entropy, &password, hdwallet::DerivationScheme::V2);
 
     let wallet_box = Box::new(wallet);
-    Box::into_raw(wallet_box)
+    unsafe { ptr::write(wallet_out, Box::into_raw(wallet_box)) };
+    CardanoResult::success()
 }
 
 /// take ownership of the given pointer and free the associated data
