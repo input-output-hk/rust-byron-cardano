@@ -317,7 +317,7 @@ uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 /*!
 * \brief Get a transaction object
 */
-cardano_transaction_error_t *cardano_transaction_builder_finalize(cardano_transaction_builder *tb, cardano_transaction **tx);
+cardano_transaction_error_t cardano_transaction_builder_finalize(cardano_transaction_builder *tb, cardano_transaction **tx);
 void cardano_transaction_delete(cardano_transaction *c_tx);
 
 /*!
@@ -336,14 +336,14 @@ void cardano_transaction_finalized_delete(cardano_transaction_finalized *tf);
 * \param c_txid
 * \sa cardano_transaction_builder_new
 */
-cardano_result cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
+cardano_transaction_error_t cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
 
 /*!
 * \brief A finalized transaction with the vector of witnesses
 * \param tf a finalized transaction with witnesses
 * \sa cardano_transaction_finalized_add_witness()
 */
-cardano_signed_transaction *cardano_transaction_finalized_output(cardano_transaction_finalized *tf);
+cardano_transaction_error_t cardano_transaction_finalized_output(cardano_transaction_finalized *tf, cardano_signed_transaction **txaux);
 
 #ifdef __cplusplus
 }

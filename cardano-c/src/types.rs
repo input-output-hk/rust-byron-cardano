@@ -58,6 +58,18 @@ impl CardanoTransactionErrorCode {
     pub fn no_inputs() -> Self {
         CardanoTransactionErrorCode(2)
     }
+
+    pub fn signature_mismatch() -> Self {
+        CardanoTransactionErrorCode(3)
+    }
+
+    pub fn over_limit() -> Self {
+        CardanoTransactionErrorCode(4)
+    }
+
+    pub fn signatures_exceeded() -> Self {
+        CardanoTransactionErrorCode(5)
+    }
 }
 
 /// C pointer to an Extended Private Key
