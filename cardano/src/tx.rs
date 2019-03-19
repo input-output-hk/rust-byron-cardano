@@ -22,14 +22,12 @@ use crate::{
 };
 
 use cbor_event::{self, de::Deserializer, se::Serializer};
-
 use chain_core::property;
 
 // Transaction IDs are either a hash of the CBOR serialisation of a
 // given Tx, or a hash of a redeem address.
 pub type TxId = Blake2b256;
 
-// FIXME: This is dodgy because TxId is not currently a dedicated type.
 impl property::TransactionId for TxId {}
 
 pub fn redeem_pubkey_to_txid(
@@ -685,7 +683,6 @@ impl chain_core::property::Deserialize for TxAux {
 }
 
 impl chain_core::property::Transaction for Tx {
-    type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
     type Inputs = [TxoPointer];
@@ -697,12 +694,8 @@ impl chain_core::property::Transaction for Tx {
     fn outputs(&self) -> &Self::Outputs {
         &self.outputs
     }
-    fn id(&self) -> Self::Id {
-        Tx::id(self)
-    }
 }
 impl chain_core::property::Transaction for TxAux {
-    type Id = TxId;
     type Input = TxoPointer;
     type Output = TxOut;
     type Inputs = [TxoPointer];
@@ -713,9 +706,6 @@ impl chain_core::property::Transaction for TxAux {
     }
     fn outputs(&self) -> &Self::Outputs {
         &self.tx.outputs
-    }
-    fn id(&self) -> Self::Id {
-        self.tx.id()
     }
 }
 
