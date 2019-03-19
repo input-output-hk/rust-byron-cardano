@@ -80,10 +80,19 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+pub struct ChainLength(usize);
+
+impl chain_core::property::ChainLength for ChainLength {
+    fn next(&self) -> Self {
+        ChainLength(self.0 + 1)
+    }
+}
+
 impl chain_core::property::Header for BlockHeader {
     type Id = HeaderHash;
     type Date = BlockDate;
     type Version = BlockVersion;
+    type ChainLength = ChainLength;
 
     fn id(&self) -> Self::Id {
         self.compute_hash()
@@ -101,6 +110,10 @@ impl chain_core::property::Header for BlockHeader {
             BlockHeader::BoundaryBlockHeader(ref header) => unimplemented!(),
             BlockHeader::MainBlockHeader(ref header) => header.extra_data.block_version,
         }
+    }
+
+    fn chain_length(&self) -> Self::ChainLength {
+        unimplemented!()
     }
 }
 
@@ -322,6 +335,7 @@ impl chain_core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
     type Version = BlockVersion;
+    type ChainLength = ChainLength;
 
     fn id(&self) -> Self::Id {
         self.header().compute_hash()
@@ -346,6 +360,10 @@ impl chain_core::property::Block for Block {
             Block::MainBlock(ref block) => block.header.extra_data.block_version,
             Block::BoundaryBlock(ref block) => unimplemented!(),
         }
+    }
+
+    fn chain_length(&self) -> Self::ChainLength {
+        unimplemented!()
     }
 }
 
