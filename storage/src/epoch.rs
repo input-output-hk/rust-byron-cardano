@@ -171,31 +171,6 @@ fn read_bytes_at_offset(
     Ok(())
 }
 
-pub fn epoch_read_size(config: &StorageConfig, epochid: EpochId) -> Result<serialize::Size> {
-    let mut sz = [0u8; serialize::SIZE_SIZE];
-    let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    let mut file = fs::File::open(&pack_filepath)?;
-    file.seek(SeekFrom::Start(super::HASH_SIZE as u64)).unwrap();
-    file.read_exact(&mut sz)?;
-    Ok(serialize::read_size(&sz))
-}
-
-pub fn epoch_read_block_offset(
-    config: &StorageConfig,
-    epochid: EpochId,
-    block_index: u32,
-) -> Result<(hash::PackHash, serialize::Offset)> {
-    let offset_offset = super::HASH_SIZE as u64
-        + serialize::SIZE_SIZE as u64
-        + block_index as u64 * serialize::OFF_SIZE as u64;
-    let pack_filepath = config.get_epoch_pack_filepath(epochid);
-    let mut file = fs::File::open(&pack_filepath)?;
-    let mut ph = [0u8; super::HASH_SIZE];
-    file.read_exact(&mut ph)?;
-    let offset = indexfile::file_read_offset_at(&file, offset_offset);
-    Ok((ph, offset))
-}
-
 pub fn epoch_open_packref(config: &StorageConfig, epochid: EpochId) -> Result<reffile::Reader> {
     let path = config.get_epoch_refpack_filepath(epochid);
     let reader = reffile::Reader::open(path)?;
