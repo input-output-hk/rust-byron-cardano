@@ -1,9 +1,6 @@
 use chain_core::property::{Block, HasHeader, Header};
 
-use network_core::{
-    client::block::BlockService,
-    error as core_error,
-};
+use network_core::{client::block::BlockService, error as core_error};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
