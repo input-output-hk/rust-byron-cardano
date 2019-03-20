@@ -101,6 +101,14 @@ rustup target add aarch64-apple-ios # or any target below
 We will always aim to support the current stable version. However, it is
 likely that an older version of the Rust compiler is also supported.
 
+# Running the tests
+
+`./test.sh`
+
+You can optionally run the tests with Valgrind by setting the environment variable **VALGRIND** to *true*
+
+`VALGRIND=true ./test.sh`
+
 # License
 
 This project is licensed under either of the following licenses:
