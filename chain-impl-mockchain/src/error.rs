@@ -1,7 +1,8 @@
 //! Errors taht may happen in the ledger and mockchain.
 use crate::transaction::*;
+use chain_addr::Address;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Error {
     /// If the Ledger could not find the given input in the UTxO list it will
     /// report this error.
@@ -13,7 +14,7 @@ pub enum Error {
     /// the input here is the given input used twice,
     /// the output here is the output set in the first occurrence of the input, it
     /// will provide a bit of information to the user to figure out what went wrong
-    DoubleSpend(UtxoPointer, Output),
+    DoubleSpend(UtxoPointer, Output<Address>),
 
     /// This error will happen if the input was already set and is now replaced
     /// by another output.
@@ -23,11 +24,11 @@ pub enum Error {
     /// associated to this output.
     ///
     /// first the input in common, then the original output and finally the new output
-    InputWasAlreadySet(UtxoPointer, Output, Output),
+    InputWasAlreadySet(UtxoPointer, Output<Address>, Output<Address>),
 
     /// error occurs if the signature is invalid: either does not match the initial output
     /// or it is not cryptographically valid.
-    InvalidSignature(UtxoPointer, Output, Witness),
+    InvalidSignature(UtxoPointer, Output<Address>, Witness),
 
     /// error occurs when one of the witness does not sing entire
     /// transaction properly.
@@ -41,6 +42,9 @@ pub enum Error {
     /// First value represents number of inputs (required signatures)
     /// Send value represents actual number of singatures.
     NotEnoughSignatures(usize, usize),
+
+    /// Transaction output has a value of zero.
+    ZeroOutput(Output<Address>),
 }
 
 impl std::fmt::Display for Error {
@@ -63,6 +67,7 @@ impl std::fmt::Display for Error {
                 "Transaction has not enough signatures: {} out of {}",
                 actual, required
             ),
+            Error::ZeroOutput(_) => write!(f, "Transaction output has a value of zero"),
         }
     }
 }

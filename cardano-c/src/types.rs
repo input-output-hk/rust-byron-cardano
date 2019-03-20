@@ -18,6 +18,31 @@ impl CardanoResult {
     }
 }
 
+///Struct for representing the possible BIP39 error codes
+#[repr(C)]
+pub struct CardanoBIP39ErrorCode(c_int);
+
+impl CardanoBIP39ErrorCode {
+    pub fn success() -> Self {
+        CardanoBIP39ErrorCode(0)
+    }
+
+    ///Error representing a word not in the dictionary
+    pub fn invalid_word() -> Self {
+        CardanoBIP39ErrorCode(1)
+    }
+
+    ///Error representing that a mnemonic phrase checksum is incorrect
+    pub fn invalid_checksum() -> Self {
+        CardanoBIP39ErrorCode(2)
+    }
+
+    ///Error representing that the word count is not one of the supported ones
+    pub fn invalid_word_count() -> Self {
+        CardanoBIP39ErrorCode(3)
+    }
+}
+
 /// C pointer to an Extended Private Key
 pub type XPrvPtr = *mut hdwallet::XPrv;
 

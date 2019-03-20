@@ -3,7 +3,7 @@ extern crate cardano_storage;
 extern crate chain_storage;
 
 use cardano_storage::StorageConfig;
-use chain_core::property::Block;
+use chain_core::property::{Block, BlockId};
 use chain_storage::store::BlockStore;
 use std::env;
 use std::str::FromStr;
@@ -38,7 +38,9 @@ fn main() {
             .as_bytes(),
     ));
 
-    let mut store = chain_storage_sqlite::SQLiteBlockStore::new(genesis_hash, db_path);
+    // Test whether using BlockStore as a trait object works.
+    let mut store: Box<dyn BlockStore<Block = cardano::block::Block>> =
+        Box::new(chain_storage_sqlite::SQLiteBlockStore::new(db_path));
 
     /* Convert a chain using old-school storage to a SQLiteBlockStore. */
     let now = Instant::now();
@@ -50,7 +52,7 @@ fn main() {
         let (_raw_blk, blk) = res.unwrap();
         let hash = blk.id();
         chain_state.verify_block(&hash, &blk).unwrap();
-        store.put_block(blk).unwrap();
+        store.put_block(&blk).unwrap();
         //if n > 49900 { break; }
         if n % 10000 == 0 {
             println!(".");
@@ -116,7 +118,7 @@ fn main() {
     let now = Instant::now();
     let mut n = 0;
     for info in store
-        .iterate_range(&store.get_genesis_hash(), &tip_info.block_hash)
+        .iterate_range(&cardano::block::HeaderHash::zero(), &tip_info.block_hash)
         .unwrap()
     {
         n += 1;
@@ -132,7 +134,7 @@ fn main() {
     let now = Instant::now();
     let mut n = 0;
     for info in store
-        .iterate_range(&store.get_genesis_hash(), &tip_info.block_hash)
+        .iterate_range(&cardano::block::HeaderHash::zero(), &tip_info.block_hash)
         .unwrap()
     {
         let info = info.unwrap();

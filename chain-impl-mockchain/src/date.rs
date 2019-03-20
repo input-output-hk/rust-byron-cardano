@@ -7,12 +7,50 @@ use std::{error, fmt, num::ParseIntError, str};
 /// `SlotId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockDate {
-    pub epoch: u64,
-    pub slot_id: u64,
+    pub epoch: Epoch,
+    pub slot_id: SlotId,
+}
+
+pub type Epoch = u32;
+pub type SlotId = u32;
+
+pub const EPOCH_DURATION: SlotId = 100; // FIXME: remove, make configurable
+
+impl BlockDate {
+    pub fn first() -> BlockDate {
+        BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        }
+    }
+
+    /// Get the slot following this one.
+    pub fn next(&self) -> BlockDate {
+        assert!(self.slot_id < EPOCH_DURATION);
+        if self.slot_id + 1 == EPOCH_DURATION {
+            BlockDate {
+                epoch: self.epoch + 1,
+                slot_id: 0,
+            }
+        } else {
+            BlockDate {
+                epoch: self.epoch,
+                slot_id: self.slot_id + 1,
+            }
+        }
+    }
+
+    pub fn next_epoch(&self) -> BlockDate {
+        BlockDate {
+            epoch: self.epoch + 1,
+            slot_id: 0,
+        }
+    }
 }
 
 impl property::BlockDate for BlockDate {
-    fn from_epoch_slot_id(epoch: u64, slot_id: u64) -> Self {
+    fn from_epoch_slot_id(epoch: Epoch, slot_id: SlotId) -> Self {
+        assert!(slot_id < EPOCH_DURATION);
         BlockDate {
             epoch: epoch,
             slot_id: slot_id,
@@ -65,8 +103,8 @@ impl str::FromStr for BlockDate {
             None => return Err(BlockDateParseError::DotMissing),
             Some(pos) => (&s[..pos], &s[(pos + 1)..]),
         };
-        let epoch = str::parse::<u64>(ep).map_err(BlockDateParseError::BadEpochId)?;
-        let slot_id = str::parse::<u64>(sp).map_err(BlockDateParseError::BadSlotId)?;
+        let epoch = str::parse::<Epoch>(ep).map_err(BlockDateParseError::BadEpochId)?;
+        let slot_id = str::parse::<SlotId>(sp).map_err(BlockDateParseError::BadSlotId)?;
         Ok(BlockDate { epoch, slot_id })
     }
 }
@@ -74,6 +112,7 @@ impl str::FromStr for BlockDate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quickcheck::{Arbitrary, Gen};
     use std::error::Error;
 
     #[test]
@@ -111,6 +150,15 @@ mod tests {
             println!("{}: {}", err, err.source().unwrap());
         } else {
             panic!("unexpected error {:?}", err);
+        }
+    }
+
+    impl Arbitrary for BlockDate {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            BlockDate {
+                epoch: Arbitrary::arbitrary(g),
+                slot_id: Arbitrary::arbitrary(g),
+            }
         }
     }
 }

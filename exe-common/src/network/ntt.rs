@@ -5,7 +5,7 @@ use network::api::{Api, BlockReceivingFlag, BlockRef};
 use network::{Error, Result};
 
 //to_socket_addr
-use network_core::client::block::HeaderService;
+use network_core::client::block::BlockService;
 use network_ntt::client as ntt;
 use std::net::SocketAddr;
 use std::ops::Deref;
@@ -49,7 +49,7 @@ impl NetworkCore {
 impl Api for NetworkCore {
     fn get_tip(&mut self) -> Result<BlockHeader> {
         self.handle
-            .tip_header()
+            .tip()
             .map_err(|e| Error::from(std::io::Error::new(std::io::ErrorKind::Other, e)))
             .wait()
     }

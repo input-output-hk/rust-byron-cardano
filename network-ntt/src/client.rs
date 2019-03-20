@@ -1,6 +1,6 @@
 use chain_core::property::{Block, HasHeader, Header};
 
-use network_core::client::{self as core_client, block::BlockService, block::HeaderService};
+use network_core::client::{self as core_client, block::BlockService};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
@@ -87,10 +87,10 @@ impl<T: Block + HasHeader> Future for PullBlocksToTip<T>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
-    type Item = BlockStream<T>;
+    type Item = RequestStream<T>;
     type Error = core_client::Error;
 
-    fn poll(&mut self) -> Poll<BlockStream<T>, Self::Error> {
+    fn poll(&mut self) -> Poll<RequestStream<T>, Self::Error> {
         use StreamRequest::Blocks;
 
         match self.tip_future.poll() {
@@ -99,7 +99,7 @@ where
                 self.command_channel
                     .unbounded_send(Command::Stream(Blocks(sender, self.from.clone(), tip)))
                     .unwrap();
-                let stream = BlockStream { channel: receiver };
+                let stream = RequestStream { channel: receiver };
                 Ok(Async::Ready(stream))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -108,11 +108,11 @@ where
     }
 }
 
-pub struct BlockStream<T> {
+pub struct RequestStream<T> {
     channel: mpsc::UnboundedReceiver<Result<T, core_client::Error>>,
 }
 
-impl<T: Block> Stream for BlockStream<T> {
+impl<T> Stream for RequestStream<T> {
     type Item = T;
     type Error = core_client::Error;
 
@@ -149,15 +149,19 @@ impl<T: Header> Future for TipFuture<T> {
     }
 }
 
-impl<T: Block + HasHeader, Tx> BlockService<T> for ClientHandle<T, Tx>
+impl<T: Block + HasHeader, Tx> BlockService for ClientHandle<T, Tx>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
-    type TipFuture = TipFuture<T::Header>;
-    type PullBlocksToTipStream = BlockStream<T>;
+    type Block = T;
+    type TipFuture = RequestFuture<T::Header>;
+    type PullBlocksToTipStream = RequestStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
-    type GetBlocksStream = BlockStream<T>;
-    type GetBlocksFuture = RequestFuture<BlockStream<T>>;
+    type GetBlocksStream = RequestStream<T>;
+    type GetBlocksFuture = RequestFuture<RequestStream<T>>;
+    type BlockSubscription = RequestStream<T::Header>;
+    type BlockSubscriptionFuture = RequestFuture<Self::BlockSubscription>;
+    type AnnounceBlockFuture = RequestFuture<()>;
 
     fn tip(&mut self) -> Self::TipFuture {
         use UnaryRequest::Tip;
@@ -166,7 +170,7 @@ where
         self.channel
             .unbounded_send(Command::Unary(Tip(source)))
             .unwrap();
-        TipFuture(RequestFuture(sink))
+        RequestFuture(sink)
     }
 
     fn pull_blocks_to_tip(&mut self, from: &[T::Id]) -> Self::PullBlocksToTipFuture {
@@ -182,24 +186,13 @@ where
             command_channel: self.channel.clone(),
         }
     }
-}
 
-impl<T: Block, Tx> HeaderService<T> for ClientHandle<T, Tx>
-where
-    T: HasHeader,
-{
-    //type GetHeadersStream = Self::GetHeadersStream<T::Header>;
-    //type GetHeadersFuture = Self::GetHeaders<T::Header>;
-    type GetTipFuture = RequestFuture<T::Header>;
+    fn subscribe_to_blocks(&mut self) -> Self::BlockSubscriptionFuture {
+        unimplemented!()
+    }
 
-    fn tip_header(&mut self) -> Self::GetTipFuture {
-        use UnaryRequest::Tip;
-
-        let (source, sink) = oneshot::channel();
-        self.channel
-            .unbounded_send(Command::Unary(Tip(source)))
-            .unwrap();
-        RequestFuture(sink)
+    fn announce_block(&mut self, _header: T::Header) -> Self::AnnounceBlockFuture {
+        unimplemented!()
     }
 }
 

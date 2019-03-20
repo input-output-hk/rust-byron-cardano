@@ -1,83 +1,218 @@
-use crate::block::SignedBlock;
-use crate::key::PublicKey;
-use crate::update::LeaderSelectionDiff;
-use chain_core::property;
+use crate::{
+    block::{
+        Block, BlockVersion, Header, BLOCK_VERSION_CONSENSUS_BFT,
+        BLOCK_VERSION_CONSENSUS_GENESIS_PRAOS, BLOCK_VERSION_CONSENSUS_NONE,
+    },
+    state::State,
+};
+use chain_core::property::{self, LeaderSelection};
+use chain_crypto::algorithms::vrf::vrf::ProvenOutputSeed;
+use chain_crypto::{Curve25519_2HashDH, Ed25519Extended, FakeMMM, SecretKey};
 
 pub mod bft;
+pub mod genesis;
+pub mod none;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ErrorKind {
+    Failure,
+    NoLeaderForThisSlot,
+    IncompatibleBlockVersion,
+    IncompatibleLeadershipMode,
+    InvalidLeader,
+    InvalidLeaderSignature,
+    InvalidBlockMessage,
+    InvalidStateUpdate,
+}
 
 #[derive(Debug)]
-pub enum LeaderSelection {
-    BFT(bft::BftLeaderSelection<PublicKey>),
-    Genesis,
+pub struct Error {
+    kind: ErrorKind,
+    cause: Option<Box<dyn std::error::Error>>,
 }
 
-#[derive(PartialEq, Eq)]
-pub enum IsLeading {
-    Yes,
-    No,
+/// Verification type for when validating a block
+#[derive(Debug)]
+pub enum Verification {
+    Success,
+    Failure(Error),
 }
 
-impl From<bool> for IsLeading {
-    fn from(b: bool) -> Self {
-        if b {
-            IsLeading::Yes
-        } else {
-            IsLeading::No
+macro_rules! try_check {
+    ($x:expr) => {
+        if $x.failure() {
+            return $x;
         }
-    }
+    };
 }
 
-impl property::LeaderSelection for LeaderSelection {
-    type Update = LeaderSelectionDiff;
-    type Block = SignedBlock;
-    type Error = Error;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LeaderId {
+    None,
+    Bft(bft::LeaderId),
+    GenesisPraos(genesis::GenesisPraosLeader),
+}
 
-    fn diff(&self, input: &Self::Block) -> Result<Self::Update, Self::Error> {
-        let mut update = <Self::Update as property::Update>::empty();
+pub enum Leader {
+    None,
+    BftLeader(SecretKey<Ed25519Extended>),
+    GenesisPraos(
+        SecretKey<FakeMMM>,
+        SecretKey<Curve25519_2HashDH>,
+        ProvenOutputSeed,
+    ),
+}
 
+enum Inner {
+    None(none::NoLeadership),
+    Bft(bft::BftLeaderSelection),
+    GenesisPraos(genesis::GenesisLeaderSelection),
+}
+
+pub struct Leadership {
+    inner: Inner,
+}
+
+impl Inner {
+    #[inline]
+    fn verify_version(&self, block_version: &BlockVersion) -> Verification {
         match self {
-            LeaderSelection::BFT(ref bft) => {
-                update.bft = property::LeaderSelection::diff(bft, input).map_err(Error::Bft)?;
+            Inner::None(_) if block_version == &BLOCK_VERSION_CONSENSUS_NONE => {
+                Verification::Success
             }
-            LeaderSelection::Genesis => unimplemented!(),
+            Inner::Bft(_) if block_version == &BLOCK_VERSION_CONSENSUS_BFT => Verification::Success,
+            _ => Verification::Failure(Error::new(ErrorKind::IncompatibleBlockVersion)),
         }
-
-        Ok(update)
-    }
-    fn apply(&mut self, update: Self::Update) -> Result<(), Self::Error> {
-        match self {
-            LeaderSelection::BFT(ref mut bft) => {
-                property::LeaderSelection::apply(bft, update.bft).map_err(Error::Bft)?;
-            }
-            LeaderSelection::Genesis => unimplemented!(),
-        }
-        Ok(())
     }
 
     #[inline]
-    fn is_leader_at(
+    fn verify_leader(&self, block_header: &Header) -> Verification {
+        match self {
+            Inner::None(none) => none.verify(block_header),
+            Inner::Bft(bft) => bft.verify(block_header),
+            Inner::GenesisPraos(genesis_praos) => genesis_praos.verify(block_header),
+        }
+    }
+}
+
+impl Leadership {
+    pub fn new(state: &State) -> Self {
+        match *state.settings.block_version {
+            BLOCK_VERSION_CONSENSUS_NONE => Leadership {
+                inner: Inner::None(none::NoLeadership),
+            },
+            BLOCK_VERSION_CONSENSUS_BFT => Leadership {
+                inner: Inner::Bft(bft::BftLeaderSelection::new(state).unwrap()),
+            },
+            BLOCK_VERSION_CONSENSUS_GENESIS_PRAOS => Leadership {
+                inner: Inner::GenesisPraos(genesis::GenesisLeaderSelection::new(state)),
+            },
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn verify(&self, block_header: &Header) -> Verification {
+        try_check!(self.inner.verify_version(block_header.block_version()));
+
+        try_check!(self.inner.verify_leader(block_header));
+        Verification::Success
+    }
+}
+
+impl LeaderSelection for Leadership {
+    type Error = Error;
+    type LeaderId = LeaderId;
+    type Block = Block;
+    type State = State;
+
+    fn retrieve(state: &Self::State) -> Self {
+        Self::new(state)
+    }
+
+    /// return the ID of the leader of the blockchain at the given
+    /// date.
+    fn get_leader_at(
         &self,
         date: <Self::Block as property::Block>::Date,
-    ) -> Result<bool, Self::Error> {
-        match self {
-            LeaderSelection::BFT(ref bft) => {
-                property::LeaderSelection::is_leader_at(bft, date).map_err(Error::Bft)
-            }
-            LeaderSelection::Genesis => unimplemented!(),
+    ) -> Result<Self::LeaderId, Self::Error> {
+        match &self.inner {
+            Inner::None(none) => none.get_leader_at(date),
+            Inner::Bft(bft) => bft.get_leader_at(date).map(LeaderId::Bft),
+            Inner::GenesisPraos(genesis_praos) => genesis_praos
+                .get_leader_at(date)
+                .map(LeaderId::GenesisPraos),
         }
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    Bft(bft::Error),
+impl chain_core::property::LeaderId for LeaderId {}
+
+impl Verification {
+    #[inline]
+    pub fn into_error(self) -> Result<(), Error> {
+        match self {
+            Verification::Success => Ok(()),
+            Verification::Failure(err) => Err(err),
+        }
+    }
+    #[inline]
+    pub fn success(&self) -> bool {
+        match self {
+            Verification::Success => true,
+            _ => false,
+        }
+    }
+    #[inline]
+    pub fn failure(&self) -> bool {
+        !self.success()
+    }
 }
 
-impl std::fmt::Display for Error {
+impl Error {
+    pub fn new(kind: ErrorKind) -> Self {
+        Error {
+            kind: kind,
+            cause: None,
+        }
+    }
+
+    pub fn new_(kind: ErrorKind, cause: Box<dyn std::error::Error>) -> Self {
+        Error {
+            kind: kind,
+            cause: Some(cause),
+        }
+    }
+}
+
+impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::Bft(error) => error.fmt(f),
+            ErrorKind::Failure => write!(f, "The current state of the leader selection is invalid"),
+            ErrorKind::NoLeaderForThisSlot => write!(f, "No leader available for this block date"),
+            ErrorKind::IncompatibleBlockVersion => {
+                write!(f, "The block Version is incompatible with LeaderSelection.")
+            }
+            ErrorKind::IncompatibleLeadershipMode => {
+                write!(f, "Incompatible leadership mode (the proof is invalid)")
+            }
+            ErrorKind::InvalidLeader => write!(f, "Block has unexpected block leader"),
+            ErrorKind::InvalidLeaderSignature => write!(f, "Block signature is invalid"),
+            ErrorKind::InvalidBlockMessage => write!(f, "Invalid block message"),
+            ErrorKind::InvalidStateUpdate => write!(f, "Invalid State Update"),
         }
     }
 }
-impl std::error::Error for Error {}
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(cause) = &self.cause {
+            write!(f, "{}: {}", self.kind, cause)
+        } else {
+            write!(f, "{}", self.kind)
+        }
+    }
+}
+impl std::error::Error for Error {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        self.cause.as_ref().map(std::ops::Deref::deref)
+    }
+}

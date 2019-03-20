@@ -8,7 +8,7 @@ use cbor_event::{
 };
 
 use super::super::{
-    chain_bounds::{ProtocolBlock, ProtocolTransactionId},
+    chain_bounds::{ProtocolBlock, ProtocolBlockId, ProtocolHeader, ProtocolTransactionId},
     nt,
 };
 use super::NodeId;
@@ -76,7 +76,12 @@ impl de::Deserialize for MessageType {
 pub type KeepAlive = bool;
 
 #[derive(Clone, Debug)]
-pub enum Message<B: ProtocolBlock, Tx: ProtocolTransactionId> {
+pub enum Message<B, Tx>
+where
+    B: ProtocolBlock,
+    Tx: ProtocolTransactionId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+{
     CreateLightWeightConnectionId(nt::LightWeightConnectionId),
     CloseConnection(nt::LightWeightConnectionId),
     CloseEndPoint(nt::LightWeightConnectionId),
@@ -108,8 +113,8 @@ pub enum Message<B: ProtocolBlock, Tx: ProtocolTransactionId> {
 impl<B, Tx> Message<B, Tx>
 where
     B: ProtocolBlock,
-    <B as property::Block>::Id: se::Serialize + de::Deserialize,
-    <B as property::HasHeader>::Header: se::Serialize + de::Deserialize,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
     Tx: ProtocolTransactionId,
 {
     pub fn to_nt_event(self) -> nt::Event {
@@ -180,10 +185,16 @@ where
     }
 }
 
-fn decode_node_ack_or_syn<B: ProtocolBlock, Tx: ProtocolTransactionId>(
+fn decode_node_ack_or_syn<B, Tx>(
     lwcid: nt::LightWeightConnectionId,
     bytes: &Bytes,
-) -> Option<Message<B, Tx>> {
+) -> Option<Message<B, Tx>>
+where
+    B: ProtocolBlock,
+    <B as property::Block>::Id: ProtocolBlockId,
+    <B as property::HasHeader>::Header: ProtocolHeader,
+    Tx: ProtocolTransactionId,
+{
     use bytes::{Buf, IntoBuf};
     if bytes.len() != 9 {
         return None;

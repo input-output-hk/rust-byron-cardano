@@ -56,8 +56,8 @@ pub fn print(
                 + genesis_data.slot_duration.subsec_millis() as u64)
                 .to_string(),
             txFeePolicy: raw::TxFeePolicy {
-                summand: (genesis_data.fee_policy.constant.to_integral() * 1000).to_string(),
-                multiplier: (genesis_data.fee_policy.coefficient.to_integral() * 1000).to_string(),
+                summand: (genesis_data.fee_policy.constant.as_millis() * 1000000).to_string(),
+                multiplier: (genesis_data.fee_policy.coefficient.as_millis() * 1000000).to_string(),
             },
         },
     };

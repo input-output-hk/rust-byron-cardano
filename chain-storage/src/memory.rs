@@ -7,7 +7,6 @@ pub struct MemoryBlockStore<B>
 where
     B: Block,
 {
-    genesis_hash: B::Id,
     blocks: HashMap<B::Id, (Vec<u8>, BlockInfo<B::Id>)>,
     tags: HashMap<String, B::Id>,
 }
@@ -16,9 +15,8 @@ impl<B> MemoryBlockStore<B>
 where
     B: Block,
 {
-    pub fn new(genesis_hash: B::Id) -> Self {
+    pub fn new() -> Self {
         MemoryBlockStore {
-            genesis_hash,
             blocks: HashMap::new(),
             tags: HashMap::new(),
         }
@@ -31,7 +29,7 @@ where
 {
     type Block = B;
 
-    fn put_block_internal(&mut self, block: B, block_info: BlockInfo<B::Id>) -> Result<(), Error> {
+    fn put_block_internal(&mut self, block: &B, block_info: BlockInfo<B::Id>) -> Result<(), Error> {
         self.blocks.insert(
             block_info.block_hash.clone(),
             (block.serialize_as_vec().unwrap(), block_info),
@@ -69,7 +67,7 @@ where
         }
     }
 
-    fn get_genesis_hash(&self) -> B::Id {
-        self.genesis_hash.clone()
+    fn as_trait(&self) -> &BlockStore<Block = Self::Block> {
+        self as &BlockStore<Block = Self::Block>
     }
 }

@@ -18,7 +18,15 @@ if [ ! -f "${C_LIB_A}" ]; then
 	exit 2
 fi
 
-gcc -o test-cardano-c.$$ -I "${C_ROOT}" "${C_ROOT}test/test.c" "${PROJECT_ROOT}target/debug/libcardano_c.a" -lpthread -lm -ldl
+gcc -o test-cardano-c.$$ -I "${C_ROOT}" "${C_ROOT}test/test.c" "${C_ROOT}test/unity/unity.c" "${PROJECT_ROOT}target/debug/libcardano_c.a" -lpthread -lm -ldl
+echo "######################################################################"
+./test-cardano-c.$$
+echo ""
+echo "######################################################################"
+rm test-cardano-c.$$
+
+
+gcc -o test-cardano-c.$$ -I "${C_ROOT}" "${C_ROOT}test/test_bip39_entropy.c" "${C_ROOT}test/unity/unity.c" "${PROJECT_ROOT}target/debug/libcardano_c.a" -lpthread -lm -ldl
 echo "######################################################################"
 ./test-cardano-c.$$
 echo ""

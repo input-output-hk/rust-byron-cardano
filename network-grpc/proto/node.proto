@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+// gRPC protocol for a blockchain node
+package iohk.chain.node;
+
+// Request message for method Tip.
+message TipRequest {}
+
+// Response message for method Tip.
+message TipResponse {
+    // Serialized content of the tip block header.
+    bytes block_header = 1;
+}
+
+// Request to fetch the methods for blocks and headers.
+message BlockIds {
+    // The identifiers of blocks for loading.
+    repeated bytes id = 1;
+}
+
+// Request to fetch the methods for blocks and headers.
+message TransactionIds {
+    // The identifiers of blocks for loading.
+    repeated bytes id = 1;
+}
+
+// Request message for method PullBlocksToTip.
+message PullBlocksToTipRequest {
+    // The identifiers of blocks to consider as the
+    // starting point, in order of appearance.
+    repeated bytes from = 1;
+}
+
+// Representation of a block.
+message Block {
+    // The serialized content of the block.
+    bytes content = 1;
+}
+
+// Representation of a block header.
+message Header {
+    // The serialized content of the block header.
+    bytes content = 1;
+}
+
+// Representation of a transaction.
+message Transaction {
+    // The serialized content of the transaction.
+    bytes content = 1;
+}
+
+// Request message for method SubscribeToBlocks.
+message BlockSubscriptionRequest {}
+
+// Gossip message.
+message GossipMessage {
+    message NodeId {
+      bytes content = 1;
+    }
+
+    NodeId node_id = 1;
+    bytes content = 2;
+}
+
+message AnnounceBlockResponse {}
+
+message AnnounceTransactionResponse {}
+
+service Node {
+    rpc Tip (TipRequest) returns (TipResponse);
+    rpc GetBlocks (BlockIds) returns (stream Block) {
+        option idempotency_level = NO_SIDE_EFFECTS;
+    }
+    rpc GetHeaders (BlockIds) returns (stream Header) {
+        option idempotency_level = NO_SIDE_EFFECTS;
+    }
+    rpc Transactions (TransactionIds) returns (stream Transaction) {
+        option idempotency_level = NO_SIDE_EFFECTS;
+    }
+
+    // Establishes a subscription stream to receive information on new
+    // blocks created or accepted by the peer.
+    rpc SubscribeToBlocks (BlockSubscriptionRequest) returns (stream Header);
+
+    rpc PullBlocksToTip (PullBlocksToTipRequest) returns (stream Block);
+
+    rpc Gossip (GossipMessage) returns (GossipMessage);
+    rpc AnnounceBlock (Header) returns (AnnounceBlockResponse);
+    rpc AnnounceTransaction (TransactionIds) returns (AnnounceTransactionResponse);
+}
