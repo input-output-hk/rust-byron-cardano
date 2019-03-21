@@ -6,7 +6,7 @@ use cardano::util::hex;
 use cardano_storage::{
     blob, chain_state,
     epoch::{self, epoch_exists},
-    pack, tag, types, Error, Storage,
+    pack, tag, types, Error, Storage, StorageConfig,
 };
 use config::net;
 use network::{
@@ -309,75 +309,18 @@ fn net_sync_to<A: Api>(
     if is_rollback || blocks_response_is_rollback(blocks_response, &our_tip) {
         if let Some(last_date) = chain_state.last_date {
             // Perform rollback
-            let mut new_tip_hash = None;
-            if last_date.get_epochid() >= first_unstable_epoch {
-                // We are syncing along with the network and rollback is in loose blocks
-                // drop `max(K, len(loose))` loose blocks and retry
-                match storage.write() {
-                    Ok(mut storage) => {
-                        let len = storage.loose_index_len();
-                        if len == 0 {
-                            panic!("Last block is from unstable epoch, but loose index len is 0!")
-                        }
-                        let drop = max(len, net_cfg.epoch_stability_depth);
-                        storage
-                            .loose_index_drop_from_head(drop)
-                            .expect("Failed to drop loose index head!");
-                        // Find new tip after rollback
-                        let tip = if len > drop {
-                            // New tip is last loose block
-                            storage.loose_index_tip().unwrap().header_hash()
-                        } else {
-                            let epochs = storage.packed_epochs_len();
-                            if epochs == 0 {
-                                // If there are no packed epochs - new tip is genesis
-                                net_cfg.genesis.clone()
-                            } else {
-                                // New tip is last block of last packed epoch
-                                let epoch_id = (epochs - 1) as u64;
-                                epoch::epoch_read_chainstate_ref(&storage_config, epoch_id).expect(
-                                    &format!(
-                                        "Failed to read chainstate ref from epoch {}",
-                                        epoch_id,
-                                    ),
-                                )
-                            }
-                        };
-                        new_tip_hash = Some(tip);
-                    }
-                    Err(e) => panic!("Can't lock storage! {:?}", e),
-                }
-            } else {
-                // Either we are syncing historical data and rollback is in old epoch
-                // Or we dropped all loose blocks and now latest tip is in packed epoch
-                let current_epoch = last_date.get_epochid();
-                match storage.write() {
-                    Ok(mut storage) => {
-                        let last_packed_epoch = (storage.packed_epochs_len() - 1) as u64;
-                        if current_epoch == last_packed_epoch {
-                            // We are inside last packed epoch
-                            // Drop current epoch and roll back to previous one
-                            storage.drop_packed_epoch(current_epoch)?;
-                        }
-                    }
-                    Err(e) => panic!("Can't lock storage! {:?}", e),
-                }
-                let tip = if current_epoch == 0 {
-                    // If there are no packed epochs - new tip is genesis
-                    net_cfg.genesis.clone()
-                } else {
-                    // New tip is last block of last packed epoch
-                    epoch::epoch_read_chainstate_ref(&storage_config, current_epoch - 1).expect(
-                        &format!("Failed to read chainstate ref from epoch {}", current_epoch),
-                    )
-                };
-                new_tip_hash = Some(tip);
-            }
+            let mut new_tip_hash = perform_rollback(
+                &storage_config,
+                storage.clone(),
+                &net_cfg,
+                &last_date,
+                first_unstable_epoch,
+            )?;
             // Restore new chain state after the rollback
             chain_state = chain_state::restore_chain_state(
                 &storage.read().unwrap(),
                 genesis_data,
-                &new_tip_hash.expect("No tip found after rollback processing!"),
+                &new_tip_hash,
             )?;
         } else {
             panic!("Rollback at the very chain start");
@@ -409,6 +352,76 @@ fn blocks_response_is_rollback(resp: Result<()>, our_tip: &BlockRef) -> bool {
             }
             panic!("`net.get_blocks` error: {:?}", e);
         }
+    }
+}
+
+fn perform_rollback(
+    storage_config: &StorageConfig,
+    storage: Arc<RwLock<Storage>>,
+    net_cfg: &net::Config,
+    last_date: &BlockDate,
+    first_unstable_epoch: EpochId,
+) -> Result<HeaderHash> {
+    if last_date.get_epochid() >= first_unstable_epoch {
+        // We are syncing along with the network and rollback is in loose blocks
+        // drop `max(K, len(loose))` loose blocks and retry
+        match storage.write() {
+            Ok(mut storage) => {
+                let len = storage.loose_index_len();
+                if len == 0 {
+                    panic!("Last block is from unstable epoch, but loose index len is 0!")
+                }
+                let drop = max(len, net_cfg.epoch_stability_depth);
+                storage
+                    .loose_index_drop_from_head(drop)
+                    .expect("Failed to drop loose index head!");
+                // Find new tip after rollback
+                let tip = if len > drop {
+                    // New tip is last loose block
+                    storage.loose_index_tip().unwrap().header_hash()
+                } else {
+                    let epochs = storage.packed_epochs_len();
+                    if epochs == 0 {
+                        // If there are no packed epochs - new tip is genesis
+                        net_cfg.genesis.clone()
+                    } else {
+                        // New tip is last block of last packed epoch
+                        let epoch_id = (epochs - 1) as u64;
+                        epoch::epoch_read_chainstate_ref(&storage_config, epoch_id).expect(
+                            &format!("Failed to read chainstate ref from epoch {}", epoch_id,),
+                        )
+                    }
+                };
+                return Ok(tip);
+            }
+            Err(e) => panic!("Can't lock storage! {:?}", e),
+        }
+    } else {
+        // Either we are syncing historical data and rollback is in old epoch
+        // Or we dropped all loose blocks and now latest tip is in packed epoch
+        let current_epoch = last_date.get_epochid();
+        match storage.write() {
+            Ok(mut storage) => {
+                let last_packed_epoch = (storage.packed_epochs_len() - 1) as u64;
+                if current_epoch == last_packed_epoch {
+                    // We are inside last packed epoch
+                    // Drop current epoch and roll back to previous one
+                    storage.drop_packed_epoch(current_epoch)?;
+                }
+            }
+            Err(e) => panic!("Can't lock storage! {:?}", e),
+        }
+        let tip = if current_epoch == 0 {
+            // If there are no packed epochs - new tip is genesis
+            net_cfg.genesis.clone()
+        } else {
+            // New tip is last block of last packed epoch
+            epoch::epoch_read_chainstate_ref(&storage_config, current_epoch - 1).expect(&format!(
+                "Failed to read chainstate ref from epoch {}",
+                current_epoch
+            ))
+        };
+        return Ok(tip);
     }
 }
 
