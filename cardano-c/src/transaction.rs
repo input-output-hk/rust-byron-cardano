@@ -127,6 +127,11 @@ pub extern "C" fn cardano_transaction_builder_finalize(
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_transaction_delete(tx: TransactionPtr) {
+    unsafe { Box::from_raw(tx) };
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_transaction_finalized_new(
     c_tx: TransactionPtr,
 ) -> TransactionFinalizedPtr {
@@ -134,6 +139,11 @@ pub extern "C" fn cardano_transaction_finalized_new(
     let finalized = TxFinalized::new(tx.clone());
     let b = Box::new(finalized);
     Box::into_raw(b)
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_finalized_delete(c_txf: TransactionFinalizedPtr) {
+    unsafe { Box::from_raw(c_txf) };
 }
 
 #[no_mangle]

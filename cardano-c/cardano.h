@@ -1,7 +1,7 @@
 /*! \file cardano.h
 */
 #ifndef CARDANO_RUST_H
-# define CARDANO_RUST_H
+#define CARDANO_RUST_H
 /* Basic Types */
 
 #ifdef __cplusplus
@@ -13,7 +13,10 @@ extern "C" {
 /*!
 * Type used to represent failure and success
 */
-typedef int cardano_result;
+typedef enum _cardano_result {
+    CARDANO_RESULT_SUCCESS = 0,
+    CARDANO_RESULT_ERROR = 1
+} cardano_result;
 
 /*********/
 /* BIP39 */
@@ -195,6 +198,7 @@ void cardano_account_delete(cardano_account *account);
 * \sa cardano_address_delete() 
 */
 unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
+void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long length);
 
 /****************/
 /* Transactions */
@@ -256,14 +260,13 @@ cardano_transaction_builder * cardano_transaction_builder_new(void);
 */
 void cardano_transaction_builder_delete(cardano_transaction_builder *tb);
 
-
 /*!
 * \brief Add output to transaction
 * \param [in] tb the builder for the transaction
 * \param [in] txo created with `cardano_transaction_output_new`
 * \sa cardano_transaction_output_new()
 */
-void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoptr *txo);
+void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoutput *txo);
 
 /*!
 * \brief Add input to the transaction
@@ -303,11 +306,13 @@ uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 * \brief Get a transaction object
 */
 cardano_transaction *cardano_transaction_builder_finalize(cardano_transaction_builder *tb);
+void cardano_transaction_delete(cardano_transaction *c_tx);
 
 /*!
 * \brief Take a transaction and create a working area for adding witnesses
 */
 cardano_transaction_finalized * cardano_transaction_finalized_new(cardano_transaction *c_tx);
+void cardano_transaction_finalized_delete(cardano_transaction_finalized *tf);
 
 /*!
 * Add a witness associated with the next input.
