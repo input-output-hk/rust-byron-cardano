@@ -20,11 +20,12 @@ static uint8_t txid[32] = {0};
 
 void setUp()
 {
-    wallet = cardano_wallet_new(
+    cardano_result wallet_rc = cardano_wallet_new(
         static_wallet_entropy,
         sizeof(static_wallet_entropy),
         "password",
-        strlen("password"));
+        strlen("password"),
+        &wallet);
 
     account = cardano_account_create(wallet, "main", 0);
 
