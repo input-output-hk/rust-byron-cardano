@@ -188,3 +188,8 @@ pub extern "C" fn cardano_transaction_finalized_output(
         _ => panic!("Shouldn't happen"),
     }
 }
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr) {
+    unsafe { Box::from_raw(txaux) };
+}

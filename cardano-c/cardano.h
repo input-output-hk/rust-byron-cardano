@@ -350,6 +350,7 @@ cardano_transaction_error_t cardano_transaction_finalized_add_witness(cardano_tr
 * \sa cardano_transaction_finalized_add_witness()
 */
 cardano_transaction_error_t cardano_transaction_finalized_output(cardano_transaction_finalized *tf, cardano_signed_transaction **txaux);
+void cardano_transaction_signed_delete(cardano_signed_transaction *txaux);
 
 #ifdef __cplusplus
 }
