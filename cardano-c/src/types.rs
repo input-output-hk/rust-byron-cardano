@@ -51,26 +51,32 @@ impl CardanoTransactionErrorCode {
         CardanoTransactionErrorCode(0)
     }
 
+    ///Transaction has no outputs
     pub fn no_outputs() -> Self {
         CardanoTransactionErrorCode(1)
     }
 
+    ///Transaction has no inputs
     pub fn no_inputs() -> Self {
         CardanoTransactionErrorCode(2)
     }
 
+    ///Number of signatures does not match the number of witnesses
     pub fn signature_mismatch() -> Self {
         CardanoTransactionErrorCode(3)
     }
 
+    ///Transaction is too big
     pub fn over_limit() -> Self {
         CardanoTransactionErrorCode(4)
     }
 
+    ///Transaction has already enough signatures
     pub fn signatures_exceeded() -> Self {
         CardanoTransactionErrorCode(5)
     }
 
+    ///value is to big, max = 45000000000000000
     pub fn coin_out_of_bounds() -> Self {
         CardanoTransactionErrorCode(6)
     }

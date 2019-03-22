@@ -208,11 +208,15 @@ void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long lengt
 typedef enum _transaction_config_error
 {
     TRANSACTION_SUCCESS = 0,
-    TRANSACTION_NO_INPUT = 1,
-    TRANSACTION_NO_OUTPUT = 2,
+    TRANSACTION_NO_OUTPUT = 1,
+    TRANSACTION_NO_INPUT = 2,
+    //The number of signatures doesn't match the number of inputs
     TRANSACTION_SIGNATURE_MISMATCH = 3,
+    //The transaction is too big
     TRANSACTION_OVER_LIMIT = 4,
+    //The number of signatures is greater than the number of inputs
     TRANSACTION_SIGNATURES_EXCEEDED = 5,
+    //The given value is greater than the maximum allowed coin value
     TRANSACTION_COIN_OUT_OF_BOUNDS = 6,
 } cardano_transaction_error_t;
 
@@ -316,6 +320,7 @@ uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 
 /*!
 * \brief Get a transaction object
+* \returns TRANSACTION_SUCCESS | TRANSACTION_NO_INPUT | TRANSACTION_NO_OUTPUT
 */
 cardano_transaction_error_t cardano_transaction_builder_finalize(cardano_transaction_builder *tb, cardano_transaction **tx);
 void cardano_transaction_delete(cardano_transaction *c_tx);
@@ -335,6 +340,7 @@ void cardano_transaction_finalized_delete(cardano_transaction_finalized *tf);
 * \param protocol_magic
 * \param c_txid
 * \sa cardano_transaction_builder_new
+* \returns TRANSACTION_SUCCESS | TRANSACTION_SIGNATURES_EXCEEDED
 */
 cardano_transaction_error_t cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
 
