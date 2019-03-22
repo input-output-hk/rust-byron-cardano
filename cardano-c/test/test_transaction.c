@@ -57,7 +57,7 @@ void tearDown()
 void test_add_input_returns_success_with_valid_value()
 {
     cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
-    cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
 
     TEST_ASSERT_EQUAL(CARDANO_RESULT_SUCCESS, irc);
     cardano_transaction_output_ptr_delete(input);
@@ -67,9 +67,9 @@ void test_add_input_returns_error_with_big_value()
 {
     const uint64_t MAX_COIN = 45000000000000000;
     cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
-    cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, MAX_COIN + 1);
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, MAX_COIN + 1);
 
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_ERROR, irc);
+    TEST_ASSERT_EQUAL(TRANSACTION_COIN_OUT_OF_BOUNDS, irc);
     cardano_transaction_output_ptr_delete(input);
 }
 
@@ -82,22 +82,44 @@ void test_add_witness_returns_error_with_less_inputs()
     cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
     cardano_transaction_builder_add_output(txbuilder, output);
 
-    cardano_transaction *tx = cardano_transaction_builder_finalize(txbuilder);
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+
+    TEST_ASSERT_EQUAL(TRANSACTION_SUCCESS, tx_rc);
+
     cardano_transaction_finalized *tf = cardano_transaction_finalized_new(tx);
 
-    cardano_result rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+    cardano_transaction_error_t rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
 
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_SUCCESS, rc1);
+    TEST_ASSERT_EQUAL(TRANSACTION_SUCCESS, rc1);
 
-    cardano_result rc2 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+    cardano_transaction_error_t rc2 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
 
     //#witnesses > #inputs
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_ERROR, rc2);
+    TEST_ASSERT_EQUAL(TRANSACTION_SIGNATURES_EXCEEDED, rc2);
 
     cardano_transaction_output_ptr_delete(input);
     cardano_transaction_output_delete(output);
     cardano_transaction_delete(tx);
     cardano_transaction_finalized_delete(tf);
+}
+
+void test_builder_finalize_error_code_no_inputs() {
+    cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+    TEST_ASSERT_EQUAL(TRANSACTION_NO_INPUT, tx_rc);
+}
+
+void test_builder_finalize_error_code_no_outputs() {
+    cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
+    cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+    TEST_ASSERT_EQUAL(TRANSACTION_NO_OUTPUT, tx_rc);
 }
 
 int main(void)
@@ -106,5 +128,7 @@ int main(void)
     RUN_TEST(test_add_input_returns_success_with_valid_value);
     RUN_TEST(test_add_input_returns_error_with_big_value);
     RUN_TEST(test_add_witness_returns_error_with_less_inputs);
+    RUN_TEST(test_builder_finalize_error_code_no_inputs);
+    RUN_TEST(test_builder_finalize_error_code_no_outputs);
     return UNITY_END();
 }
