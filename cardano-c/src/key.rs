@@ -54,7 +54,9 @@ pub extern "C" fn cardano_xprv_to_bytes(c_xprv: XPrvPtr) -> *const u8 {
 
 #[no_mangle]
 pub extern "C" fn cardano_xprv_bytes_delete(bytes: *mut u8) {
-    let vector = unsafe { Vec::from_raw_parts(bytes, hdwallet::XPRV_SIZE, hdwallet::XPRV_SIZE) };
+    let mut vector =
+        unsafe { Vec::from_raw_parts(bytes, hdwallet::XPRV_SIZE, hdwallet::XPRV_SIZE) };
+    cardano::util::securemem::zero(&mut vector);
     std::mem::drop(vector)
 }
 
