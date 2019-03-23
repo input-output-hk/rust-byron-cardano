@@ -157,8 +157,9 @@ typedef struct cardano_account cardano_account;
 * \param [in] password_size The size of the password string
 * \returns pointer to the constructed wallet that must be freed with `cardano_wallet_delete`
 */
-cardano_wallet *cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned long entropy_size,
-                                   const char * const password_ptr, unsigned long password_size);
+cardano_result cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned long entropy_size,
+                                   const char * const password_ptr, unsigned long password_size,
+                                   cardano_wallet** wallet);
 /*!
 * Free the memory of a wallet allocated with `cardano_wallet_new`
 */
