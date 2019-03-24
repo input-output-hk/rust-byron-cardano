@@ -182,10 +182,8 @@ impl property::Deserialize for Block {
         while serialized_content_size > 0 {
             let (message, message_size) = Message::deserialize_with_size(&mut reader)?;
             contents.0.push(message);
-            dbg!(contents.0.len());
 
             serialized_content_size -= message_size as u32;
-            dbg!(serialized_content_size);
         }
 
         Ok(Block {
