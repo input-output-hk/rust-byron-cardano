@@ -119,11 +119,9 @@ pub struct Balance {
     value: u64,
 }
 
-#[no_mangle]
-pub extern "C" fn cardano_transaction_builder_get_balance(tb: TransactionBuilderPtr) -> Balance {
-    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    match builder.balance(&LinearFee::default()) {
-        Ok(v) => match v {
+impl From<CoinDiff> for Balance {
+    fn from(cd: CoinDiff) -> Self {
+        match cd {
             CoinDiff::Positive(i) => Balance {
                 sign: 1,
                 value: u64::from(i),
@@ -133,8 +131,27 @@ pub extern "C" fn cardano_transaction_builder_get_balance(tb: TransactionBuilder
                 value: u64::from(i),
             },
             CoinDiff::Zero => Balance { value: 0, sign: 0 },
-        },
-        Err(_) => panic!("idk"),
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_balance(tb: TransactionBuilderPtr) -> Balance {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    match builder.balance(&LinearFee::default()) {
+        Ok(coin_diff) => Balance::from(coin_diff),
+        Err(_) => panic!("Shouldn't happen"),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_balance_without_fees(
+    tb: TransactionBuilderPtr,
+) -> Balance {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    match builder.balance_without_fees() {
+        Ok(coin_diff) => Balance::from(coin_diff),
+        Err(_) => panic!("Shouldn't happen"),
     }
 }
 

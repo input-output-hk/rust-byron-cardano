@@ -340,7 +340,8 @@ typedef struct cardano_transaction_balance {
     uint64_t value;
 } cardano_transaction_balance_t;
 
-cardano_transaction_balance_t cardano_transaction_builder_get_balance(cardano_transaction_builder *tb);
+cardano_transaction_balance_t cardano_transaction_builder_balance(cardano_transaction_builder *tb);
+cardano_transaction_balance_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb);
 
 /*!
 * \brief Get a transaction object
