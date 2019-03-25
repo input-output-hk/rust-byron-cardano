@@ -13,7 +13,6 @@ use super::boundary;
 use super::date::BlockDate;
 use super::normal;
 use super::types::{BlockVersion, HeaderHash};
-use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
 
@@ -80,6 +79,7 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainLength(usize);
 
 impl chain_core::property::ChainLength for ChainLength {
