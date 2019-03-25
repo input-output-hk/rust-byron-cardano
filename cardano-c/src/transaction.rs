@@ -156,6 +156,38 @@ pub extern "C" fn cardano_transaction_builder_balance_without_fees(
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_transaction_builder_get_input_total(
+    tb: TransactionBuilderPtr,
+    out: *mut u64,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    match builder.get_input_total() {
+        Ok(number) => {
+            unsafe { ptr::write(out, u64::from(number)) };
+            CardanoTransactionErrorCode::success()
+        }
+        Err(Error::CoinError(_)) => CardanoTransactionErrorCode::coin_out_of_bounds(),
+        _ => panic!("Shouldn't happen"),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_get_output_total(
+    tb: TransactionBuilderPtr,
+    out: *mut u64,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    match builder.get_output_total() {
+        Ok(number) => {
+            unsafe { ptr::write(out, u64::from(number)) };
+            CardanoTransactionErrorCode::success()
+        }
+        Err(Error::CoinError(_)) => CardanoTransactionErrorCode::coin_out_of_bounds(),
+        _ => panic!("Shouldn't happen"),
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_transaction_builder_finalize(
     tb: TransactionBuilderPtr,
     tx_out: *mut TransactionPtr,

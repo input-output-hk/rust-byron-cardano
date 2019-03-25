@@ -230,6 +230,58 @@ void test_transaction_balance_without_fee() {
     cardano_transaction_output_delete(output);
 }
 
+void test_transaction_get_input_total() {
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    uint64_t input_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_input_total(txbuilder, &input_total);
+    TEST_ASSERT_EQUAL(1000, input_total);
+}
+
+void test_transaction_get_output_total() {
+    cardano_transaction_builder_add_output(txbuilder, output);
+    uint64_t output_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_output_total(txbuilder, &output_total);
+    TEST_ASSERT_EQUAL(1000, output_total);
+}
+
+void test_transaction_get_input_total_no_inputs() {
+    uint64_t input_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_input_total(txbuilder, &input_total);
+    TEST_ASSERT_EQUAL(0, input_total);
+}
+
+void test_transaction_get_output_total_no_outputs() {
+    uint64_t output_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_output_total(txbuilder, &output_total);
+    TEST_ASSERT_EQUAL(0, output_total);
+}
+
+void test_transaction_get_input_total_too_big()
+{
+    const uint64_t MAX_COIN = 45000000000000000;
+    cardano_transaction_error_t irc1 = cardano_transaction_builder_add_input(txbuilder, input, MAX_COIN);
+    cardano_transaction_error_t irc2 = cardano_transaction_builder_add_input(txbuilder, input, 1);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SUCCESS, irc1);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SUCCESS, irc2);
+
+    uint64_t input_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_input_total(txbuilder, &input_total);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS, rc);
+}
+
+void test_transaction_get_output_total_too_big()
+{
+    const uint64_t MAX_COIN = 45000000000000000;
+    cardano_txoutput *output1 = cardano_transaction_output_new(output_address, MAX_COIN);
+    cardano_txoutput *output2 = cardano_transaction_output_new(output_address, 1);
+
+    cardano_transaction_builder_add_output(txbuilder, output1);
+    cardano_transaction_builder_add_output(txbuilder, output2);
+    uint64_t output_total;
+    cardano_transaction_error_t rc = cardano_transaction_builder_get_output_total(txbuilder, &output_total);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS, rc);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -242,5 +294,11 @@ int main(void)
     RUN_TEST(test_transaction_finalized_output_success);
     RUN_TEST(test_transaction_builder_balance);
     RUN_TEST(test_transaction_balance_without_fee);
+    RUN_TEST(test_transaction_get_input_total);
+    RUN_TEST(test_transaction_get_input_total_no_inputs);
+    RUN_TEST(test_transaction_get_output_total);
+    RUN_TEST(test_transaction_get_output_total_no_outputs);
+    RUN_TEST(test_transaction_get_input_total_too_big);
+    RUN_TEST(test_transaction_get_output_total_too_big);
     return UNITY_END();
 }
