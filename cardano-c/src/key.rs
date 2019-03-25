@@ -27,7 +27,6 @@ pub extern "C" fn cardano_xprv_from_bytes(
     };
     match hdwallet::XPrv::from_bytes_verified(array) {
         Ok(r) => {
-            println!("ok");
             let xprv = Box::new(r);
             unsafe { ptr::write(xprv_out, Box::into_raw(xprv)) };
             CardanoResult::success()
