@@ -167,6 +167,40 @@ void test_transaction_finalized_output_success()
     cardano_transaction_signed_delete(txaux);
 }
 
+void test_transaction_builder_balance() {
+    cardano_txoptr *input1 = cardano_transaction_output_ptr_new(txid, 1);
+    cardano_txoptr *input2 = cardano_transaction_output_ptr_new(txid, 2);
+    cardano_txoptr *input3 = cardano_transaction_output_ptr_new(txid, 3);
+
+    cardano_result irc1 = cardano_transaction_builder_add_input(txbuilder, input1, 1000);
+
+    cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction_balance_t balance = cardano_transaction_builder_get_balance(txbuilder);
+    uint64_t fee = cardano_transaction_builder_fee(txbuilder);
+
+    TEST_ASSERT_EQUAL(fee, balance.value);
+    TEST_ASSERT_EQUAL(-1, balance.sign);
+
+    cardano_result irc2 = cardano_transaction_builder_add_input(txbuilder, input2, 174015);
+    cardano_transaction_balance_t new_balance = cardano_transaction_builder_get_balance(txbuilder);
+
+    TEST_ASSERT_EQUAL(0, new_balance.value);
+    TEST_ASSERT_EQUAL(0, new_balance.sign);
+
+    cardano_result irc3 = cardano_transaction_builder_add_input(txbuilder, input3, 174015);
+    cardano_transaction_balance_t balance3 = cardano_transaction_builder_get_balance(txbuilder);
+
+    TEST_ASSERT_EQUAL(166061, balance3.value);
+    TEST_ASSERT_EQUAL(1, balance3.sign);
+
+    cardano_transaction_output_ptr_delete(input1);
+    cardano_transaction_output_ptr_delete(input2);
+    cardano_transaction_output_ptr_delete(input3);
+    cardano_transaction_output_delete(output);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -177,5 +211,6 @@ int main(void)
     RUN_TEST(test_builder_finalize_error_code_no_outputs);
     RUN_TEST(test_transaction_finalized_output_error_code_signature_mismatch);
     RUN_TEST(test_transaction_finalized_output_success);
+    RUN_TEST(test_transaction_builder_balance);
     return UNITY_END();
 }

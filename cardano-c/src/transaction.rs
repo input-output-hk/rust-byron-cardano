@@ -1,4 +1,4 @@
-use cardano::coin::Coin;
+use cardano::coin::{Coin, CoinDiff};
 use cardano::config::ProtocolMagic;
 use cardano::fee::{self, LinearFee};
 use cardano::tx::{self, TxId, TxInWitness};
@@ -110,6 +110,31 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
     } else {
         // failed to calculate transaction fee, return zero
         u64::from(fee::Fee::new(Coin::zero()).to_coin())
+    }
+}
+
+#[repr(C)]
+pub struct Balance {
+    sign: i32,
+    value: u64,
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_get_balance(tb: TransactionBuilderPtr) -> Balance {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    match builder.balance(&LinearFee::default()) {
+        Ok(v) => match v {
+            CoinDiff::Positive(i) => Balance {
+                sign: 1,
+                value: u64::from(i),
+            },
+            CoinDiff::Negative(i) => Balance {
+                sign: -1,
+                value: u64::from(i),
+            },
+            CoinDiff::Zero => Balance { value: 0, sign: 0 },
+        },
+        Err(_) => panic!("idk"),
     }
 }
 

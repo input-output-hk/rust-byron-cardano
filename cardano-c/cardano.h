@@ -335,6 +335,13 @@ cardano_result cardano_transaction_builder_add_change_addr(cardano_transaction_b
 */
 uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 
+typedef struct cardano_transaction_balance {
+    int32_t sign;
+    uint64_t value;
+} cardano_transaction_balance_t;
+
+cardano_transaction_balance_t cardano_transaction_builder_get_balance(cardano_transaction_builder *tb);
+
 /*!
 * \brief Get a transaction object
 * \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_NO_INPUT | CARDANO_TRANSACTION_NO_OUTPUT
