@@ -11,6 +11,8 @@ cardano_account *account;
 cardano_address *input_address;
 cardano_address *output_address;
 cardano_transaction_builder *txbuilder;
+cardano_txoptr *input;
+cardano_txoutput *output;
 
 //Constants
 static uint32_t PROTOCOL_MAGIC = 1;
@@ -40,65 +42,129 @@ void setUp()
     cardano_account_delete_addresses(addresses, sizeof(addresses) / sizeof(char *));
 
     txbuilder = cardano_transaction_builder_new();
+    
+    input = cardano_transaction_output_ptr_new(txid, 1);
+    output = cardano_transaction_output_new(output_address, 1000);
 }
 
 void tearDown()
 {
-    cardano_account_delete(account);
+    cardano_transaction_output_delete(output);
+
+    cardano_transaction_output_ptr_delete(input);
 
     cardano_wallet_delete(wallet);
+
+    cardano_transaction_builder_delete(txbuilder);
 
     cardano_address_delete(input_address);
 
     cardano_address_delete(output_address);
 
-    cardano_transaction_builder_delete(txbuilder);
+    cardano_account_delete(account);
 }
 
 void test_add_input_returns_success_with_valid_value()
 {
-    cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
-    cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
 
     TEST_ASSERT_EQUAL(CARDANO_RESULT_SUCCESS, irc);
-    cardano_transaction_output_ptr_delete(input);
 }
 
 void test_add_input_returns_error_with_big_value()
 {
     const uint64_t MAX_COIN = 45000000000000000;
-    cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
-    cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, MAX_COIN + 1);
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, MAX_COIN + 1);
 
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_ERROR, irc);
-    cardano_transaction_output_ptr_delete(input);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS, irc);
 }
 
 void test_add_witness_returns_error_with_less_inputs()
 {
-    cardano_txoptr *input = cardano_transaction_output_ptr_new(txid, 1);
     cardano_result irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
 
     /* the builder finalize fails without outputs*/
-    cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
     cardano_transaction_builder_add_output(txbuilder, output);
 
-    cardano_transaction *tx = cardano_transaction_builder_finalize(txbuilder);
+    cardano_transaction *tx; cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SUCCESS, tx_rc);
+
     cardano_transaction_finalized *tf = cardano_transaction_finalized_new(tx);
 
-    cardano_result rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+    cardano_transaction_error_t rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
 
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_SUCCESS, rc1);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SUCCESS, rc1);
 
-    cardano_result rc2 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+    cardano_transaction_error_t rc2 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
 
     //#witnesses > #inputs
-    TEST_ASSERT_EQUAL(CARDANO_RESULT_ERROR, rc2);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SIGNATURES_EXCEEDED, rc2);
 
-    cardano_transaction_output_ptr_delete(input);
-    cardano_transaction_output_delete(output);
     cardano_transaction_delete(tx);
     cardano_transaction_finalized_delete(tf);
+}
+
+void test_builder_finalize_error_code_no_inputs()
+{
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_NO_INPUT, tx_rc);
+}
+
+void test_builder_finalize_error_code_no_outputs()
+{
+    cardano_transaction_error_t irc = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_NO_OUTPUT, tx_rc);
+}
+
+void test_transaction_finalized_output_error_code_signature_mismatch()
+{
+    cardano_transaction_error_t irc1 = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    cardano_transaction_error_t irc2 = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+
+    cardano_transaction_finalized *tf = cardano_transaction_finalized_new(tx);
+
+    cardano_transaction_error_t rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+
+    cardano_signed_transaction *txaux;
+    cardano_transaction_error_t rc = cardano_transaction_finalized_output(tf, &txaux);
+
+    //#inputs (2) > #witnesses (1)
+    TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_SIGNATURE_MISMATCH, rc);
+
+    cardano_transaction_delete(tx);
+    cardano_transaction_finalized_delete(tf);
+}
+
+void test_transaction_finalized_output_success()
+{
+    cardano_transaction_error_t irc1 = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+
+    cardano_transaction_finalized *tf = cardano_transaction_finalized_new(tx);
+
+    cardano_transaction_error_t rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+
+    cardano_signed_transaction *txaux;
+    cardano_transaction_error_t rc = cardano_transaction_finalized_output(tf, &txaux);
+
+    cardano_transaction_delete(tx);
+    cardano_transaction_finalized_delete(tf);
+    cardano_transaction_signed_delete(txaux);
 }
 
 int main(void)
@@ -107,5 +173,9 @@ int main(void)
     RUN_TEST(test_add_input_returns_success_with_valid_value);
     RUN_TEST(test_add_input_returns_error_with_big_value);
     RUN_TEST(test_add_witness_returns_error_with_less_inputs);
+    RUN_TEST(test_builder_finalize_error_code_no_inputs);
+    RUN_TEST(test_builder_finalize_error_code_no_outputs);
+    RUN_TEST(test_transaction_finalized_output_error_code_signature_mismatch);
+    RUN_TEST(test_transaction_finalized_output_success);
     return UNITY_END();
 }

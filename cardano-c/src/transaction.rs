@@ -2,7 +2,7 @@ use cardano::coin::Coin;
 use cardano::config::ProtocolMagic;
 use cardano::fee::{self, LinearFee};
 use cardano::tx::{self, TxId, TxInWitness};
-use cardano::txbuild::{TxBuilder, TxFinalized};
+use cardano::txbuild::{Error, TxBuilder, TxFinalized};
 use cardano::txutils::OutputPolicy;
 use cardano::util::try_from_slice::TryFromSlice;
 use std::{ptr, slice};
@@ -72,14 +72,14 @@ pub extern "C" fn cardano_transaction_builder_add_input(
     tb: TransactionBuilderPtr,
     c_txo: TransactionOutputPointerPtr,
     value: u64,
-) -> CardanoResult {
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
     let txo = unsafe { c_txo.as_ref() }.expect("Not a NULL PTR");
     if let Ok(coin) = Coin::new(value) {
         builder.add_input(txo, coin);
-        CardanoResult::success()
+        CardanoTransactionErrorCode::success()
     } else {
-        CardanoResult::failure()
+        CardanoTransactionErrorCode::coin_out_of_bounds()
     }
 }
 
@@ -116,13 +116,18 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
 #[no_mangle]
 pub extern "C" fn cardano_transaction_builder_finalize(
     tb: TransactionBuilderPtr,
-) -> TransactionPtr {
+    tx_out: *mut TransactionPtr,
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    if let Ok(tx) = builder.clone().make_tx() {
-        let b = Box::new(tx);
-        Box::into_raw(b)
-    } else {
-        ptr::null_mut()
+    match builder.clone().make_tx() {
+        Ok(tx) => {
+            let boxed = Box::new(tx);
+            unsafe { ptr::write(tx_out, Box::into_raw(boxed)) };
+            CardanoTransactionErrorCode::success()
+        }
+        Err(Error::TxInvalidNoInput) => CardanoTransactionErrorCode::no_inputs(),
+        Err(Error::TxInvalidNoOutput) => CardanoTransactionErrorCode::no_outputs(),
+        _ => panic!("Shouldn't happen"),
     }
 }
 
@@ -152,7 +157,7 @@ pub extern "C" fn cardano_transaction_finalized_add_witness(
     c_xprv: XPrvPtr,
     protocol_magic: ProtocolMagic,
     c_txid: *mut u8,
-) -> CardanoResult {
+) -> CardanoTransactionErrorCode {
     let tf = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
     let xprv = unsafe { c_xprv.as_ref() }.expect("Not a NULL PTR");
     let txid_slice = unsafe { slice::from_raw_parts(c_txid, TxId::HASH_SIZE) };
@@ -160,21 +165,31 @@ pub extern "C" fn cardano_transaction_finalized_add_witness(
 
     let witness = TxInWitness::new(protocol_magic, xprv, &txid);
     if let Ok(()) = tf.add_witness(witness) {
-        CardanoResult::success()
+        CardanoTransactionErrorCode::success()
     } else {
-        CardanoResult::failure()
+        CardanoTransactionErrorCode::signatures_exceeded()
     }
 }
 
 #[no_mangle]
 pub extern "C" fn cardano_transaction_finalized_output(
     tb: TransactionFinalizedPtr,
-) -> SignedTransactionPtr {
+    txaux_out: *mut SignedTransactionPtr,
+) -> CardanoTransactionErrorCode {
     let tf = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    if let Ok(txaux) = tf.clone().make_txaux() {
-        let b = Box::new(txaux);
-        Box::into_raw(b)
-    } else {
-        ptr::null_mut()
+    match tf.clone().make_txaux() {
+        Ok(txaux) => {
+            let boxed = Box::new(txaux);
+            unsafe { ptr::write(txaux_out, Box::into_raw(boxed)) };
+            CardanoTransactionErrorCode::success()
+        }
+        Err(Error::TxSignaturesMismatch) => CardanoTransactionErrorCode::signature_mismatch(),
+        Err(Error::TxOverLimit(_)) => CardanoTransactionErrorCode::over_limit(),
+        _ => panic!("Shouldn't happen"),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr) {
+    unsafe { Box::from_raw(txaux) };
 }
