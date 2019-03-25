@@ -114,8 +114,23 @@ cardano_xpub *cardano_xprv_delete(cardano_xprv *privkey);
 */
 cardano_xpub *cardano_xprv_to_xpub(cardano_xprv *privkey);
 
+/*!
+* Get the bytes representation of cardano_xprv
+* \sa cardano_xprv_bytes_delete
+*/
 uint8_t *cardano_xprv_to_bytes(cardano_xprv *privkey);
-cardano_xprv *cardano_xprv_from_bytes(uint8_t bytes[XPRV_SIZE]);
+
+/*!
+* Free the memory allocated with `cardano_xprv_to_bytes`
+*/
+void cardano_xprv_bytes_delete(uint8_t  *bytes);
+
+/*!
+* \brief Construct cardano_xprv from the given bytes
+* \returns 1 if the representation is invalid 0 otherwise
+* \sa cardano_xprv_delete
+*/
+cardano_result cardano_xprv_from_bytes(uint8_t *bytes, cardano_xprv **xprv_out);
 
 /*!
 * Free the associated memory
