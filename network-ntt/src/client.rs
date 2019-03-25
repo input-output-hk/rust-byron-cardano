@@ -186,7 +186,7 @@ where
         }
     }
 
-    fn subscription<Out>(&mut self, _outbound: Out) -> Self::BlockSubscriptionFuture
+    fn block_subscription<Out>(&mut self, _outbound: Out) -> Self::BlockSubscriptionFuture
     where
         Out: Stream<Item = T::Header>,
     {
