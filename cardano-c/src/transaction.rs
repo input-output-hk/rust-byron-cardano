@@ -1,4 +1,4 @@
-use cardano::coin::{Coin, CoinDiff};
+use cardano::coin::Coin;
 use cardano::config::ProtocolMagic;
 use cardano::fee::{self, LinearFee};
 use cardano::tx::{self, TxId, TxInWitness};
@@ -113,46 +113,41 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
     }
 }
 
-#[repr(C)]
-pub struct Balance {
-    sign: i32,
-    value: u64,
-}
-
-impl From<CoinDiff> for Balance {
-    fn from(cd: CoinDiff) -> Self {
-        match cd {
-            CoinDiff::Positive(i) => Balance {
-                sign: 1,
-                value: u64::from(i),
-            },
-            CoinDiff::Negative(i) => Balance {
-                sign: -1,
-                value: u64::from(i),
-            },
-            CoinDiff::Zero => Balance { value: 0, sign: 0 },
-        }
-    }
-}
-
 #[no_mangle]
-pub extern "C" fn cardano_transaction_builder_balance(tb: TransactionBuilderPtr) -> Balance {
+pub extern "C" fn cardano_transaction_builder_balance(
+    tb: TransactionBuilderPtr,
+    out: *mut *mut Balance,
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    match builder.balance(&LinearFee::default()) {
-        Ok(coin_diff) => Balance::from(coin_diff),
-        Err(_) => panic!("Shouldn't happen"),
-    }
+    let balance: Box<Balance> = match builder.balance(&LinearFee::default()) {
+        Ok(v) => Box::new(v.into()),
+        Err(e) => return e.into(),
+    };
+
+    unsafe { ptr::write(out, Box::into_raw(balance)) };
+
+    CardanoTransactionErrorCode::success()
 }
 
 #[no_mangle]
 pub extern "C" fn cardano_transaction_builder_balance_without_fees(
     tb: TransactionBuilderPtr,
-) -> Balance {
+    out: *mut *mut Balance,
+) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    match builder.balance_without_fees() {
-        Ok(coin_diff) => Balance::from(coin_diff),
-        Err(_) => panic!("Shouldn't happen"),
-    }
+    let balance: Box<Balance> = match builder.balance_without_fees() {
+        Ok(v) => Box::new(v.into()),
+        Err(e) => return e.into(),
+    };
+
+    unsafe { ptr::write(out, Box::into_raw(balance)) };
+
+    CardanoTransactionErrorCode::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_balance_delete(balance: *mut Balance) {
+    let _ = unsafe { Box::from_raw(balance) };
 }
 
 #[no_mangle]
@@ -161,14 +156,12 @@ pub extern "C" fn cardano_transaction_builder_get_input_total(
     out: *mut u64,
 ) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    match builder.get_input_total() {
-        Ok(number) => {
-            unsafe { ptr::write(out, u64::from(number)) };
-            CardanoTransactionErrorCode::success()
-        }
-        Err(Error::CoinError(_)) => CardanoTransactionErrorCode::coin_out_of_bounds(),
-        _ => panic!("Shouldn't happen"),
-    }
+    let result: u64 = match builder.get_input_total() {
+        Ok(number) => number.into(),
+        Err(e) => return e.into(),
+    };
+    unsafe { ptr::write(out, result) };
+    CardanoTransactionErrorCode::success()
 }
 
 #[no_mangle]
@@ -177,14 +170,12 @@ pub extern "C" fn cardano_transaction_builder_get_output_total(
     out: *mut u64,
 ) -> CardanoTransactionErrorCode {
     let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
-    match builder.get_output_total() {
-        Ok(number) => {
-            unsafe { ptr::write(out, u64::from(number)) };
-            CardanoTransactionErrorCode::success()
-        }
-        Err(Error::CoinError(_)) => CardanoTransactionErrorCode::coin_out_of_bounds(),
-        _ => panic!("Shouldn't happen"),
-    }
+    let result: u64 = match builder.get_output_total() {
+        Ok(number) => number.into(),
+        Err(e) => return e.into(),
+    };
+    unsafe { ptr::write(out, result) };
+    CardanoTransactionErrorCode::success()
 }
 
 #[no_mangle]

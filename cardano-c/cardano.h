@@ -340,8 +340,10 @@ typedef struct cardano_transaction_balance {
     uint64_t value;
 } cardano_transaction_balance_t;
 
-cardano_transaction_balance_t cardano_transaction_builder_balance(cardano_transaction_builder *tb);
-cardano_transaction_balance_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb);
+void cardano_transaction_balance_delete(cardano_transaction_balance_t *balance);
+
+cardano_transaction_error_t cardano_transaction_builder_balance(cardano_transaction_builder *tb, cardano_transaction_balance_t **out);
+cardano_transaction_error_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb, cardano_transaction_balance_t **out);
 cardano_transaction_error_t cardano_transaction_builder_get_input_total(cardano_transaction_builder *tb, uint64_t *output);
 cardano_transaction_error_t cardano_transaction_builder_get_output_total(cardano_transaction_builder *tb, uint64_t *output);
 
