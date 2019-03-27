@@ -103,11 +103,25 @@ likely that an older version of the Rust compiler is also supported.
 
 # Running the tests
 
-`./test.sh`
+```bash
+./test.sh
+```
 
 You can optionally run the tests with Valgrind by setting the environment variable **VALGRIND** to *true*
 
-`VALGRIND=true ./test.sh`
+```bash
+VALGRIND=true ./test.sh
+```
+
+# Documentation
+
+HTML documentation of the exposed functions can be generated with Doxygen by running
+
+```bash
+doxygen
+```
+
+The documentation is generated in the ./docs/html directory.
 
 # License
 
