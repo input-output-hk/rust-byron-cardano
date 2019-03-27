@@ -114,6 +114,71 @@ pub extern "C" fn cardano_transaction_builder_fee(tb: TransactionBuilderPtr) -> 
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_transaction_builder_balance(
+    tb: TransactionBuilderPtr,
+    out: *mut *mut Balance,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    let balance: Box<Balance> = match builder.balance(&LinearFee::default()) {
+        Ok(v) => Box::new(v.into()),
+        Err(e) => return e.into(),
+    };
+
+    unsafe { ptr::write(out, Box::into_raw(balance)) };
+
+    CardanoTransactionErrorCode::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_balance_without_fees(
+    tb: TransactionBuilderPtr,
+    out: *mut *mut Balance,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    let balance: Box<Balance> = match builder.balance_without_fees() {
+        Ok(v) => Box::new(v.into()),
+        Err(e) => return e.into(),
+    };
+
+    unsafe { ptr::write(out, Box::into_raw(balance)) };
+
+    CardanoTransactionErrorCode::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_balance_delete(balance: *mut Balance) {
+    let _ = unsafe { Box::from_raw(balance) };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_get_input_total(
+    tb: TransactionBuilderPtr,
+    out: *mut u64,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    let result: u64 = match builder.get_input_total() {
+        Ok(number) => number.into(),
+        Err(e) => return e.into(),
+    };
+    unsafe { ptr::write(out, result) };
+    CardanoTransactionErrorCode::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_builder_get_output_total(
+    tb: TransactionBuilderPtr,
+    out: *mut u64,
+) -> CardanoTransactionErrorCode {
+    let builder = unsafe { tb.as_mut() }.expect("Not a NULL PTR");
+    let result: u64 = match builder.get_output_total() {
+        Ok(number) => number.into(),
+        Err(e) => return e.into(),
+    };
+    unsafe { ptr::write(out, result) };
+    CardanoTransactionErrorCode::success()
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_transaction_builder_finalize(
     tb: TransactionBuilderPtr,
     tx_out: *mut TransactionPtr,

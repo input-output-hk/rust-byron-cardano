@@ -1,4 +1,5 @@
 use cardano::address;
+use cardano::coin::CoinDiff;
 use cardano::hdwallet;
 use cardano::tx;
 use cardano::txbuild;
@@ -79,6 +80,54 @@ impl CardanoTransactionErrorCode {
     ///value is to big, max = 45000000000000000
     pub fn coin_out_of_bounds() -> Self {
         CardanoTransactionErrorCode(6)
+    }
+}
+
+impl From<txbuild::Error> for CardanoTransactionErrorCode {
+    fn from(err: txbuild::Error) -> Self {
+        match err {
+            txbuild::Error::TxInvalidNoInput => Self::no_inputs(),
+            txbuild::Error::TxInvalidNoOutput => Self::no_outputs(),
+            txbuild::Error::TxNotEnoughTotalInput => unimplemented!(),
+            txbuild::Error::TxOverLimit(_) => Self::over_limit(),
+            txbuild::Error::TxOutputPolicyNotEnoughCoins(_) => unimplemented!(),
+            txbuild::Error::TxSignaturesExceeded => Self::signatures_exceeded(),
+            txbuild::Error::TxSignaturesMismatch => Self::signature_mismatch(),
+            txbuild::Error::CoinError(_) => Self::coin_out_of_bounds(),
+            txbuild::Error::FeeError(_) => unimplemented!(),
+        }
+    }
+}
+
+#[repr(C)]
+pub enum DiffType {
+    Positive,
+    Negative,
+    Zero,
+}
+
+#[repr(C)]
+pub struct Balance {
+    sign: DiffType,
+    value: u64,
+}
+
+impl From<CoinDiff> for Balance {
+    fn from(cd: CoinDiff) -> Self {
+        match cd {
+            CoinDiff::Positive(i) => Balance {
+                sign: DiffType::Positive,
+                value: i.into(),
+            },
+            CoinDiff::Negative(i) => Balance {
+                sign: DiffType::Negative,
+                value: i.into(),
+            },
+            CoinDiff::Zero => Balance {
+                sign: DiffType::Zero,
+                value: 0,
+            },
+        }
     }
 }
 
