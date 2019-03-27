@@ -179,26 +179,26 @@ void test_transaction_builder_balance() {
     cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
     cardano_transaction_builder_add_output(txbuilder, output);
 
-    cardano_transaction_balance_t *balance1; 
+    cardano_transaction_coin_diff_t *balance1; 
     cardano_transaction_error_t brc1 = cardano_transaction_builder_balance(txbuilder, &balance1);
     uint64_t fee = cardano_transaction_builder_fee(txbuilder);
 
     TEST_ASSERT_EQUAL(fee, (*balance1).value);
-    TEST_ASSERT_EQUAL(-1, (*balance1).sign);
+    TEST_ASSERT_EQUAL(DIFF_NEGATIVE, (*balance1).sign);
 
     cardano_result irc2 = cardano_transaction_builder_add_input(txbuilder, input2, 174015);
-    cardano_transaction_balance_t *balance2;
+    cardano_transaction_coin_diff_t *balance2;
     cardano_transaction_error_t brc2 = cardano_transaction_builder_balance(txbuilder, &balance2);
 
     TEST_ASSERT_EQUAL(0, (*balance2).value);
-    TEST_ASSERT_EQUAL(0, (*balance2).sign);
+    TEST_ASSERT_EQUAL(DIFF_ZERO, (*balance2).sign);
 
     cardano_result irc3 = cardano_transaction_builder_add_input(txbuilder, input3, 174015);
-    cardano_transaction_balance_t *balance3;
+    cardano_transaction_coin_diff_t *balance3;
     cardano_transaction_error_t brc3 = cardano_transaction_builder_balance(txbuilder, &balance3);
 
     TEST_ASSERT_EQUAL(166061, (*balance3).value);
-    TEST_ASSERT_EQUAL(1, (*balance3).sign);
+    TEST_ASSERT_EQUAL(DIFF_POSITIVE, (*balance3).sign);
 
     cardano_transaction_output_ptr_delete(input1);
     cardano_transaction_output_ptr_delete(input2);
@@ -218,7 +218,7 @@ void test_transaction_builder_balance_too_big() {
     cardano_result irc1 = cardano_transaction_builder_add_input(txbuilder, input1, MAX_COIN);
     cardano_result irc2 = cardano_transaction_builder_add_input(txbuilder, input1, 1);
 
-    cardano_transaction_balance_t *balance; 
+    cardano_transaction_coin_diff_t *balance; 
     cardano_transaction_error_t brc1 = cardano_transaction_builder_balance(txbuilder, &balance);
 
     TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS, brc1);
@@ -234,7 +234,7 @@ void test_transaction_builder_balance_without_fee_too_big() {
     cardano_result irc1 = cardano_transaction_builder_add_input(txbuilder, input1, MAX_COIN);
     cardano_result irc2 = cardano_transaction_builder_add_input(txbuilder, input1, 1);
 
-    cardano_transaction_balance_t *balance; 
+    cardano_transaction_coin_diff_t *balance; 
     cardano_transaction_error_t brc1 = cardano_transaction_builder_balance_without_fees(txbuilder, &balance);
 
     TEST_ASSERT_EQUAL(CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS, brc1);
@@ -250,25 +250,25 @@ void test_transaction_balance_without_fee() {
     cardano_txoutput *output = cardano_transaction_output_new(output_address, 1000);
 
     cardano_transaction_builder_add_output(txbuilder, output);
-    cardano_transaction_balance_t *balance1;
+    cardano_transaction_coin_diff_t *balance1;
     cardano_transaction_error_t rc1 = cardano_transaction_builder_balance_without_fees(txbuilder, &balance1);
 
     TEST_ASSERT_EQUAL(1000, (*balance1).value);
-    TEST_ASSERT_EQUAL(-1, (*balance1).sign);
+    TEST_ASSERT_EQUAL(DIFF_NEGATIVE, (*balance1).sign);
     
     cardano_result irc1 = cardano_transaction_builder_add_input(txbuilder, input1, 1000);
-    cardano_transaction_balance_t *balance2;
+    cardano_transaction_coin_diff_t *balance2;
     cardano_transaction_error_t rc2 = cardano_transaction_builder_balance_without_fees(txbuilder, &balance2);
 
     TEST_ASSERT_EQUAL(0, (*balance2).value);
-    TEST_ASSERT_EQUAL(0, (*balance2).sign);
+    TEST_ASSERT_EQUAL(DIFF_ZERO, (*balance2).sign);
 
     cardano_result irc2 = cardano_transaction_builder_add_input(txbuilder, input2, 1000);
-    cardano_transaction_balance_t *balance3;
+    cardano_transaction_coin_diff_t *balance3;
     cardano_transaction_error_t rc3 = cardano_transaction_builder_balance_without_fees(txbuilder, &balance3);
 
     TEST_ASSERT_EQUAL(1000, (*balance3).value);
-    TEST_ASSERT_EQUAL(1, (*balance3).sign);
+    TEST_ASSERT_EQUAL(DIFF_POSITIVE, (*balance3).sign);
 
     cardano_transaction_output_ptr_delete(input1);
     cardano_transaction_output_ptr_delete(input2);

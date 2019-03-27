@@ -100,8 +100,15 @@ impl From<txbuild::Error> for CardanoTransactionErrorCode {
 }
 
 #[repr(C)]
+pub enum DiffType {
+    Positive,
+    Negative,
+    Zero,
+}
+
+#[repr(C)]
 pub struct Balance {
-    sign: i32,
+    sign: DiffType,
     value: u64,
 }
 
@@ -109,14 +116,17 @@ impl From<CoinDiff> for Balance {
     fn from(cd: CoinDiff) -> Self {
         match cd {
             CoinDiff::Positive(i) => Balance {
-                sign: 1,
+                sign: DiffType::Positive,
                 value: i.into(),
             },
             CoinDiff::Negative(i) => Balance {
-                sign: -1,
+                sign: DiffType::Negative,
                 value: i.into(),
             },
-            CoinDiff::Zero => Balance { value: 0, sign: 0 },
+            CoinDiff::Zero => Balance {
+                sign: DiffType::Zero,
+                value: 0,
+            },
         }
     }
 }

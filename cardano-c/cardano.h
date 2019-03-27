@@ -336,48 +336,58 @@ cardano_result cardano_transaction_builder_add_change_addr(cardano_transaction_b
 uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 
 /*!
+* struct for representing the sign in cardano_transaction_coin_diff_t
+* \sa cardano_transaction_coin_diff
+*/
+typedef enum difference_type {
+    DIFF_POSITIVE,
+    DIFF_NEGATIVE,
+    DIFF_ZERO,
+} difference_type_t;
+
+/*!
 * struct for repressenting a balance returned with cardano_transaction_builder_balance and cardano_transaction_builder_balance_without_fees
 * \sa cardano_transaction_builder_balance() cardano_transaction_builder_balance_without_fees()
 */
-typedef struct cardano_transaction_balance {
-    int32_t sign;
+typedef struct cardano_transaction_coin_diff {
+    difference_type_t sign;
     uint64_t value;
-} cardano_transaction_balance_t;
+} cardano_transaction_coin_diff_t;
 
 /*!
 * \brief Deallocate the memory allocated with `cardano_transaction_builder_balance` and `cardano_transaction_builder_balance_without_fees`
 * \sa cardano_transaction_builder_balance() cardano_transaction_builder_balance_without_fees()
 */
-void cardano_transaction_balance_delete(cardano_transaction_balance_t *balance);
+void cardano_transaction_balance_delete(cardano_transaction_coin_diff_t *balance);
 
 /*!
 * Try to return the differential between the outputs (including fees) and the inputs
 * \param [in] tb the builder for the transaction
-* \param [out] out a pointer to a cardano_transaction_balance_t where: 
-*   - (sign == 0) means we have a balanced transaction where inputs === outputs
-*   - (sign == -1) means (outputs+fees) > inputs. More inputs required.
-*   - (sign == 1) means inputs > (outputs+fees). 
+* \param [out] out a pointer to a cardano_transaction_coin_diff_t where: 
+*   - (sign == DIFF_ZERO) means we have a balanced transaction where inputs === outputs
+*   - (sign == DIFF_NEGATIVE) means (outputs+fees) > inputs. More inputs required.
+*   - (sign == DIFF_POSITIVE) means inputs > (outputs+fees). 
 *   .
 * and the value field indicates the quantity (in -1 and 1 cases)
 * Excessive input goes to larger fee.
 * \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
 * \sa cardano_transaction_balance_delete()
 */
-cardano_transaction_error_t cardano_transaction_builder_balance(cardano_transaction_builder *tb, cardano_transaction_balance_t **out);
+cardano_transaction_error_t cardano_transaction_builder_balance(cardano_transaction_builder *tb, cardano_transaction_coin_diff_t **out);
 
 /*!
 * Try to return the differential between the outputs (excluding fees) and the inputs
 * \param [in] tb the builder for the transaction
-* \param [out] out a pointer to a cardano_transaction_balance_t where:
-*   - (sign == 0) means we have a balanced transaction where inputs === outputs
-*   - (sign == -1) means (outputs) > inputs. More inputs required.
-*   - (sign == 1) means inputs > (outputs). 
+* \param [out] out a pointer to a cardano_transaction_coin_diff_t where:
+*   - (sign == DIFF_ZERO) means we have a balanced transaction where inputs === outputs
+*   - (sign == DIFF_NEGATIVE) means (outputs) > inputs. More inputs required.
+*   - (sign == DIFF_POSITIVE) means inputs > (outputs). 
 *   .
 * and the value field indicates the quantity (in -1 and 1 cases)
 * \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
 * \sa cardano_transaction_balance_delete()
 */
-cardano_transaction_error_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb, cardano_transaction_balance_t **out);
+cardano_transaction_error_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb, cardano_transaction_coin_diff_t **out);
 
 /*!
 * Try to return the sum of the inputs
