@@ -98,6 +98,13 @@ impl chain_core::property::Header for BlockHeader {
         self.compute_hash()
     }
 
+    fn parent_id(&self) -> Self::Id {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref header) => header.previous_header.clone(),
+            BlockHeader::MainBlockHeader(ref header) => header.previous_header.clone(),
+        }
+    }
+
     fn date(&self) -> Self::Date {
         match self {
             BlockHeader::BoundaryBlockHeader(ref header) => header.consensus.epoch.into(),
