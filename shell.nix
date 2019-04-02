@@ -5,7 +5,7 @@
 with pkgs;
 
 stdenv.mkDerivation {
-  name = "rust-carano";
+  name = "rust-cardano";
 
   src = null;
 
