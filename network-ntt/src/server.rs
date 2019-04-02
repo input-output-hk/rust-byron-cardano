@@ -116,7 +116,7 @@ where
 /// So we see the high-level framed protocol, with the messages
 /// types that has the semantics for our application.
 pub fn run_connection<N, T>(
-    server: Server<N>,
+    mut server: Server<N>,
     connection: protocol::Connection<
         T,
         <<N as Node>::BlockService as BlockService>::Block,
@@ -166,7 +166,7 @@ where
                     let sink2 = sink_tx.clone();
                     let sink3 = sink_tx.clone();
                     future::Either::B(future::Either::A({
-                        let mut service = server
+                        let service = server
                             .node
                             .block_service()
                             .expect("block service is not implemented");
