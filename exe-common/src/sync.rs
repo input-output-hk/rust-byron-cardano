@@ -381,7 +381,8 @@ fn perform_rollback(
                     // New tip is last loose block
                     storage.loose_index_tip().unwrap().header_hash()
                 } else {
-                    restore_previous_tip_for_epoch(storage.packed_epochs_len(), net_cfg, storage_config);
+                    let epochs = storage.packed_epochs_len() as u64;
+                    restore_previous_tip_for_epoch(epochs, net_cfg, storage_config)
                 };
                 return Ok(tip);
             }
