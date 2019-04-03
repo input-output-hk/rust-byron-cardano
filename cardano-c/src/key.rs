@@ -1,9 +1,5 @@
 use cardano::hdwallet;
-use std::{
-    ffi,
-    os::raw::{c_char, c_int},
-    ptr, slice,
-};
+use std::{ptr, slice};
 use types::{CardanoResult, XPrvPtr, XPubPtr};
 
 #[no_mangle]
