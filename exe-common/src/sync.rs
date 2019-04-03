@@ -15,7 +15,7 @@ use network::{
     Peer, Result,
 };
 use protocol::Error::ServerError;
-use std::cmp::max;
+use std::cmp::min;
 use std::mem;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
@@ -364,14 +364,15 @@ fn perform_rollback(
 ) -> Result<HeaderHash> {
     if last_date.get_epochid() >= first_unstable_epoch {
         // We are syncing along with the network and rollback is in loose blocks
-        // drop `max(K, len(loose))` loose blocks and retry
+        // drop `min(K, len(loose))` loose blocks and retry
         match storage.write() {
             Ok(mut storage) => {
                 let len = storage.loose_index_len();
                 if len == 0 {
                     panic!("Last block is from unstable epoch, but loose index len is 0!")
                 }
-                let drop = max(len, net_cfg.epoch_stability_depth);
+                // We drop either whole index, or just stability tail
+                let drop = min(len, net_cfg.epoch_stability_depth);
                 storage
                     .loose_index_drop_from_head(drop)
                     .expect("Failed to drop loose index head!");
@@ -380,17 +381,7 @@ fn perform_rollback(
                     // New tip is last loose block
                     storage.loose_index_tip().unwrap().header_hash()
                 } else {
-                    let epochs = storage.packed_epochs_len();
-                    if epochs == 0 {
-                        // If there are no packed epochs - new tip is genesis
-                        net_cfg.genesis.clone()
-                    } else {
-                        // New tip is last block of last packed epoch
-                        let epoch_id = (epochs - 1) as u64;
-                        epoch::epoch_read_chainstate_ref(&storage_config, epoch_id).expect(
-                            &format!("Failed to read chainstate ref from epoch {}", epoch_id,),
-                        )
-                    }
+                    restore_previous_tip_for_epoch(storage.packed_epochs_len(), net_cfg, storage_config);
                 };
                 return Ok(tip);
             }
@@ -407,21 +398,34 @@ fn perform_rollback(
                     // We are inside last packed epoch
                     // Drop current epoch and roll back to previous one
                     storage.drop_packed_epoch(current_epoch)?;
+                } else {
+                    panic!(
+                        "Rollback while in a stable epoch, but current epoch does not match last packed epoch! (current_epoch={}, last_packed_epoch={})",
+                        current_epoch,
+                        last_packed_epoch,
+                    );
                 }
             }
             Err(e) => panic!("Can't lock storage! {:?}", e),
         }
-        let tip = if current_epoch == 0 {
-            // If there are no packed epochs - new tip is genesis
-            net_cfg.genesis.clone()
-        } else {
-            // New tip is last block of last packed epoch
-            epoch::epoch_read_chainstate_ref(&storage_config, current_epoch - 1).expect(&format!(
-                "Failed to read chainstate ref from epoch {}",
-                current_epoch
-            ))
-        };
-        return Ok(tip);
+        return Ok(restore_previous_tip_for_epoch(current_epoch, net_cfg, storage_config));
+    }
+}
+
+fn restore_previous_tip_for_epoch(
+    epoch: u64,
+    net_cfg: &net::Config,
+    storage_config: &StorageConfig,
+) -> HeaderHash {
+    if epoch == 0 {
+        // If there are no packed epochs - new tip is genesis
+        net_cfg.genesis.clone()
+    } else {
+        // New tip is last block of last packed epoch
+        let prev_epoch = (epoch - 1) as u64;
+        epoch::epoch_read_chainstate_ref(&storage_config, prev_epoch).expect(
+            &format!("Failed to read chainstate ref from epoch {}", prev_epoch),
+        )
     }
 }
 
