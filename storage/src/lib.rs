@@ -26,7 +26,7 @@ use storage_units::utils::tmpfile::*;
 use storage_units::utils::{magic, serialize};
 use types::*;
 
-use cardano::block::block::BlockHeaderView;
+use cardano::block::block::{BlockHeaderView, BlockHeader};
 use cardano::block::types::ChainDifficulty;
 use cardano::util::hex;
 use pack::{packreader_block_next, packreader_init};
@@ -137,6 +137,7 @@ pub struct Storage {
     pub config: StorageConfig,
     lookups: HashMap<PackHash, indexfile::Lookup>,
     chain_height_idx: ChainHeightIdx,
+    pub net_tip: Option<BlockHeader>,
 }
 
 macro_rules! try_open {
@@ -181,6 +182,7 @@ impl Storage {
                 loose_idx: vec![],
                 packed_idx: vec![],
             },
+            net_tip: None,
         };
 
         if let Some(hash) = tag::read_hash(&storage, &tag::HEAD) {

@@ -256,6 +256,13 @@ impl BlockHeader {
         let v = cbor!(self).unwrap();
         HeaderHash::new(&v[..])
     }
+
+    pub fn difficulty(&self) -> ChainDifficulty {
+        match self {
+            BlockHeader::BoundaryBlockHeader(h) => h.consensus.chain_difficulty,
+            BlockHeader::MainBlockHeader(h) => h.consensus.chain_difficulty,
+        }
+    }
 }
 
 impl fmt::Display for BlockHeader {
