@@ -19,9 +19,9 @@ pub enum BlockDate {
 }
 
 impl property::BlockDate for BlockDate {
-    fn from_epoch_slot_id(epoch: u64, slot_id: u64) -> Self {
+    fn from_epoch_slot_id(epoch: u32, slot_id: u32) -> Self {
         BlockDate::Normal(EpochSlotId {
-            epoch: epoch,
+            epoch: epoch as u64,
             slotid: slot_id as u16,
         })
     }
@@ -64,6 +64,15 @@ impl BlockDate {
             &BlockDate::Boundary(e) => e,
             &BlockDate::Normal(ref s) => s.epoch,
         }
+    }
+    pub fn slotid(&self) -> Option<SlotId> {
+        match self {
+            &BlockDate::Boundary(_) => None,
+            &BlockDate::Normal(ref s) => Some(s.slotid),
+        }
+    }
+    pub fn epoch_and_slot(&self) -> (EpochId, Option<SlotId>) {
+        (self.get_epochid(), self.slotid())
     }
     pub fn next(&self) -> Self {
         match self {

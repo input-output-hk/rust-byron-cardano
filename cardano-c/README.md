@@ -101,6 +101,28 @@ rustup target add aarch64-apple-ios # or any target below
 We will always aim to support the current stable version. However, it is
 likely that an older version of the Rust compiler is also supported.
 
+# Running the tests
+
+```bash
+./test.sh
+```
+
+You can optionally run the tests with Valgrind by setting the environment variable **VALGRIND** to *true*
+
+```bash
+VALGRIND=true ./test.sh
+```
+
+# Documentation
+
+HTML documentation of the exposed functions can be generated with Doxygen by running
+
+```bash
+doxygen
+```
+
+The documentation is generated in the ./docs/html directory.
+
 # License
 
 This project is licensed under either of the following licenses:

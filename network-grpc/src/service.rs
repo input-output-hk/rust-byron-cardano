@@ -1,39 +1,26 @@
-use crate::gen;
+use crate::{
+    convert::{deserialize_vec, error_from_grpc, error_into_grpc, FromProtobuf, IntoProtobuf},
+    gen,
+};
 
-use chain_core::property::{Block, Deserialize, Header, Serialize, Transaction, TransactionId};
-use network_core::server::{self, block::BlockService, transaction::TransactionService, Node};
+use network_core::{
+    error as core_error,
+    server::{block::BlockService, content::ContentService, gossip::GossipService, Node},
+};
 
 use futures::prelude::*;
-use tower_grpc::Error::Grpc as GrpcError;
-use tower_grpc::{self, Code, Request, Status};
+use tower_grpc::{self, Code, Request, Status, Streaming};
 
-use std::{error, marker::PhantomData, mem};
+use std::{marker::PhantomData, mem};
 
-pub struct NodeService<T: Node> {
-    block_service: Option<T::BlockService>,
-    tx_service: Option<T::TransactionService>,
+#[derive(Clone, Debug)]
+pub struct NodeService<T> {
+    inner: T,
 }
 
 impl<T: Node> NodeService<T> {
     pub fn new(node: T) -> Self {
-        NodeService {
-            block_service: node.block_service(),
-            tx_service: node.transaction_service(),
-        }
-    }
-}
-
-impl<T> Clone for NodeService<T>
-where
-    T: Node,
-    T::BlockService: Clone,
-    T::TransactionService: Clone,
-{
-    fn clone(&self) -> Self {
-        NodeService {
-            block_service: self.block_service.clone(),
-            tx_service: self.tx_service.clone(),
-        }
+        NodeService { inner: node }
     }
 }
 
@@ -46,7 +33,7 @@ pub enum ResponseFuture<T, F> {
 impl<T, F> ResponseFuture<T, F>
 where
     F: Future,
-    F::Item: IntoResponse<T>,
+    F::Item: IntoProtobuf<T>,
 {
     fn new(future: F) -> Self {
         ResponseFuture::Pending(future)
@@ -59,65 +46,53 @@ impl<T, F> ResponseFuture<T, F> {
     }
 
     fn unimplemented() -> Self {
-        ResponseFuture::Failed(Status::with_code(Code::Unimplemented))
+        ResponseFuture::Failed(Status::new(Code::Unimplemented, "not implemented"))
     }
-}
-
-fn convert_error<E: error::Error>(e: E) -> tower_grpc::Error {
-    let status = Status::with_code_and_message(Code::Unknown, format!("{}", e));
-    GrpcError(status)
-}
-
-pub trait IntoResponse<T> {
-    fn into_response(self) -> Result<T, tower_grpc::Error>;
 }
 
 fn poll_and_convert_response<T, F>(
     future: &mut F,
-) -> Poll<tower_grpc::Response<T>, tower_grpc::Error>
+) -> Poll<tower_grpc::Response<T>, tower_grpc::Status>
 where
-    F: Future,
-    F::Item: IntoResponse<T>,
-    F::Error: error::Error,
+    F: Future<Error = core_error::Error>,
+    F::Item: IntoProtobuf<T>,
 {
     match future.poll() {
         Ok(Async::NotReady) => Ok(Async::NotReady),
         Ok(Async::Ready(res)) => {
-            let item = res.into_response()?;
+            let item = res.into_message()?;
             let response = tower_grpc::Response::new(item);
             Ok(Async::Ready(response))
         }
-        Err(e) => Err(convert_error(e)),
+        Err(e) => Err(error_into_grpc(e)),
     }
 }
 
-fn poll_and_convert_stream<T, S>(stream: &mut S) -> Poll<Option<T>, tower_grpc::Error>
+fn poll_and_convert_stream<T, S>(stream: &mut S) -> Poll<Option<T>, tower_grpc::Status>
 where
-    S: Stream,
-    S::Item: IntoResponse<T>,
-    S::Error: error::Error,
+    S: Stream<Error = core_error::Error>,
+    S::Item: IntoProtobuf<T>,
 {
     match stream.poll() {
         Ok(Async::NotReady) => Ok(Async::NotReady),
         Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
         Ok(Async::Ready(Some(item))) => {
-            let item = item.into_response()?;
+            let item = item.into_message()?;
             Ok(Async::Ready(Some(item)))
         }
-        Err(e) => Err(convert_error(e)),
+        Err(e) => Err(error_into_grpc(e)),
     }
 }
 
 impl<T, F> Future for ResponseFuture<T, F>
 where
-    F: Future,
-    F::Item: IntoResponse<T>,
-    F::Error: error::Error,
+    F: Future<Error = core_error::Error>,
+    F::Item: IntoProtobuf<T>,
 {
     type Item = tower_grpc::Response<T>;
-    type Error = tower_grpc::Error;
+    type Error = tower_grpc::Status;
 
-    fn poll(&mut self) -> Poll<Self::Item, tower_grpc::Error> {
+    fn poll(&mut self) -> Poll<Self::Item, tower_grpc::Status> {
         if let ResponseFuture::Pending(f) = self {
             let res = poll_and_convert_response(f);
             if let Ok(Async::NotReady) = res {
@@ -128,7 +103,7 @@ where
         } else {
             match mem::replace(self, ResponseFuture::Finished(PhantomData)) {
                 ResponseFuture::Pending(_) => unreachable!(),
-                ResponseFuture::Failed(status) => Err(GrpcError(status)),
+                ResponseFuture::Failed(status) => Err(status),
                 ResponseFuture::Finished(_) => panic!("polled a finished response"),
             }
         }
@@ -143,7 +118,7 @@ pub struct ResponseStream<T, S> {
 impl<T, S> ResponseStream<T, S>
 where
     S: Stream,
-    S::Item: IntoResponse<T>,
+    S::Item: IntoProtobuf<T>,
 {
     pub fn new(stream: S) -> Self {
         ResponseStream {
@@ -155,130 +130,79 @@ where
 
 impl<T, S> Stream for ResponseStream<T, S>
 where
-    S: Stream,
-    S::Item: IntoResponse<T>,
-    S::Error: error::Error,
+    S: Stream<Error = core_error::Error>,
+    S::Item: IntoProtobuf<T>,
 {
     type Item = T;
-    type Error = tower_grpc::Error;
+    type Error = tower_grpc::Status;
 
-    fn poll(&mut self) -> Poll<Option<T>, tower_grpc::Error> {
+    fn poll(&mut self) -> Poll<Option<T>, tower_grpc::Status> {
         poll_and_convert_stream(&mut self.inner)
     }
 }
 
-fn deserialize_vec<H: Deserialize>(pb: &[Vec<u8>]) -> Result<Vec<H>, tower_grpc::Error> {
-    match pb.iter().map(|v| H::deserialize(&mut &v[..])).collect() {
-        Ok(v) => Ok(v),
-        Err(e) => {
-            // FIXME: log the error
-            // (preferably with tower facilities outside of this implementation)
-            let status = Status::with_code_and_message(Code::InvalidArgument, format!("{}", e));
-            Err(GrpcError(status))
-        }
-    }
-}
-
-fn serialize_to_bytes<T>(obj: T) -> Result<Vec<u8>, tower_grpc::Error>
-where
-    T: Serialize,
-{
-    let mut bytes = Vec::new();
-    match obj.serialize(&mut bytes) {
-        Ok(()) => Ok(bytes),
-        Err(_e) => {
-            // FIXME: log the error
-            let status = Status::with_code(Code::Unknown);
-            Err(GrpcError(status))
-        }
-    }
-}
-
-impl<S, T> IntoResponse<ResponseStream<T, S>> for S
+impl<S, T> IntoProtobuf<ResponseStream<T, S>> for S
 where
     S: Stream,
-    S::Item: IntoResponse<T>,
+    S::Item: IntoProtobuf<T>,
 {
-    fn into_response(self) -> Result<ResponseStream<T, S>, tower_grpc::Error> {
+    fn into_message(self) -> Result<ResponseStream<T, S>, tower_grpc::Status> {
         let stream = ResponseStream::new(self);
         Ok(stream)
     }
 }
 
-impl<H> IntoResponse<gen::node::TipResponse> for H
-where
-    H: Header + Serialize,
-{
-    fn into_response(self) -> Result<gen::node::TipResponse, tower_grpc::Error> {
-        let block_header = serialize_to_bytes(self)?;
-        Ok(gen::node::TipResponse { block_header })
+pub struct RequestStream<T, S> {
+    inner: S,
+    _phantom: PhantomData<T>,
+}
+
+impl<T, S> RequestStream<T, S> {
+    fn new(inner: S) -> Self {
+        RequestStream {
+            inner,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<B> IntoResponse<gen::node::Block> for B
+impl<T, S> Stream for RequestStream<T, S>
 where
-    B: Block + Serialize,
+    S: Stream<Error = tower_grpc::Status>,
+    T: FromProtobuf<S::Item>,
 {
-    fn into_response(self) -> Result<gen::node::Block, tower_grpc::Error> {
-        let content = serialize_to_bytes(self)?;
-        Ok(gen::node::Block { content })
-    }
-}
+    type Item = T;
+    type Error = core_error::Error;
 
-impl<H> IntoResponse<gen::node::Header> for H
-where
-    H: Header + Serialize,
-{
-    fn into_response(self) -> Result<gen::node::Header, tower_grpc::Error> {
-        let content = serialize_to_bytes(self)?;
-        Ok(gen::node::Header { content })
-    }
-}
-
-impl<T> IntoResponse<gen::node::Transaction> for T
-where
-    T: Transaction + Serialize,
-{
-    fn into_response(self) -> Result<gen::node::Transaction, tower_grpc::Error> {
-        let content = serialize_to_bytes(self)?;
-        Ok(gen::node::Transaction { content })
-    }
-}
-
-impl<I> IntoResponse<gen::node::ProposeTransactionsResponse>
-    for server::transaction::ProposeTransactionsResponse<I>
-where
-    I: TransactionId + Serialize,
-{
-    fn into_response(self) -> Result<gen::node::ProposeTransactionsResponse, tower_grpc::Error> {
-        unimplemented!();
-    }
-}
-
-impl<I> IntoResponse<gen::node::RecordTransactionResponse>
-    for server::transaction::RecordTransactionResponse<I>
-where
-    I: TransactionId + Serialize,
-{
-    fn into_response(self) -> Result<gen::node::RecordTransactionResponse, tower_grpc::Error> {
-        unimplemented!();
+    fn poll(&mut self) -> Poll<Option<T>, core_error::Error> {
+        match self.inner.poll() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::Ready(Some(msg))) => {
+                let item = T::from_message(msg)?;
+                Ok(Async::Ready(Some(item)))
+            }
+            Err(e) => Err(error_from_grpc(e)),
+        }
     }
 }
 
 macro_rules! try_get_service {
-    ($opt_member:expr) => {
-        match $opt_member {
+    ($opt_ref:expr) => {
+        match $opt_ref {
             None => return ResponseFuture::unimplemented(),
-            Some(ref mut service) => service,
+            Some(service) => service,
         }
     };
 }
 
 impl<T> gen::node::server::Node for NodeService<T>
 where
-    T: Node,
-    <T as Node>::BlockService: Clone,
-    <T as Node>::TransactionService: Clone,
+    T: Node + Clone,
+    <T::BlockService as BlockService>::Header: Send + 'static,
+    <T::ContentService as ContentService>::Message: Send + 'static,
+    <T::GossipService as GossipService>::Node: Send + 'static,
+    <T::GossipService as GossipService>::NodeId: Send + 'static,
 {
     type TipFuture = ResponseFuture<
         gen::node::TipResponse,
@@ -308,111 +232,115 @@ where
         Self::PullBlocksToTipStream,
         <<T as Node>::BlockService as BlockService>::PullBlocksFuture,
     >;
-    type SubscribeToBlocksStream = ResponseStream<
+    type GetMessagesStream = ResponseStream<
+        gen::node::Message,
+        <<T as Node>::ContentService as ContentService>::GetMessagesStream,
+    >;
+    type GetMessagesFuture = ResponseFuture<
+        Self::GetMessagesStream,
+        <<T as Node>::ContentService as ContentService>::GetMessagesFuture,
+    >;
+    type BlockSubscriptionStream = ResponseStream<
         gen::node::Header,
         <<T as Node>::BlockService as BlockService>::BlockSubscription,
     >;
-    type SubscribeToBlocksFuture = ResponseFuture<
-        Self::SubscribeToBlocksStream,
+    type BlockSubscriptionFuture = ResponseFuture<
+        Self::BlockSubscriptionStream,
         <<T as Node>::BlockService as BlockService>::BlockSubscriptionFuture,
     >;
-    type ProposeTransactionsFuture = ResponseFuture<
-        gen::node::ProposeTransactionsResponse,
-        <<T as Node>::TransactionService as TransactionService>::ProposeTransactionsFuture,
+    type MessageSubscriptionStream = ResponseStream<
+        gen::node::Message,
+        <<T as Node>::ContentService as ContentService>::MessageSubscription,
     >;
-    type RecordTransactionFuture = ResponseFuture<
-        gen::node::RecordTransactionResponse,
-        <<T as Node>::TransactionService as TransactionService>::RecordTransactionFuture,
+    type MessageSubscriptionFuture = ResponseFuture<
+        Self::MessageSubscriptionStream,
+        <<T as Node>::ContentService as ContentService>::MessageSubscriptionFuture,
     >;
-    type TransactionsStream = ResponseStream<
-        gen::node::Transaction,
-        <<T as Node>::TransactionService as TransactionService>::GetTransactionsStream,
+    type GossipSubscriptionStream = ResponseStream<
+        gen::node::Gossip,
+        <<T as Node>::GossipService as GossipService>::GossipSubscription,
     >;
-    type TransactionsFuture = ResponseFuture<
-        Self::TransactionsStream,
-        <<T as Node>::TransactionService as TransactionService>::GetTransactionsFuture,
+    type GossipSubscriptionFuture = ResponseFuture<
+        Self::GossipSubscriptionStream,
+        <<T as Node>::GossipService as GossipService>::GossipSubscriptionFuture,
     >;
 
     fn tip(&mut self, _request: Request<gen::node::TipRequest>) -> Self::TipFuture {
-        let service = try_get_service!(self.block_service);
+        let service = try_get_service!(self.inner.block_service());
         ResponseFuture::new(service.tip())
     }
 
     fn get_blocks(&mut self, req: Request<gen::node::BlockIds>) -> Self::GetBlocksFuture {
-        let service = try_get_service!(self.block_service);
+        let service = try_get_service!(self.inner.block_service());
         let block_ids = match deserialize_vec(&req.get_ref().id) {
             Ok(block_ids) => block_ids,
-            Err(GrpcError(status)) => {
-                return ResponseFuture::error(status);
+            Err(e) => {
+                return ResponseFuture::error(error_into_grpc(e));
             }
-            Err(e) => panic!("unexpected error {:?}", e),
         };
         ResponseFuture::new(service.get_blocks(&block_ids))
     }
 
     fn get_headers(&mut self, req: Request<gen::node::BlockIds>) -> Self::GetHeadersFuture {
-        let service = try_get_service!(self.block_service);
+        let service = try_get_service!(self.inner.block_service());
         let block_ids = match deserialize_vec(&req.get_ref().id) {
             Ok(block_ids) => block_ids,
-            Err(GrpcError(status)) => {
-                return ResponseFuture::error(status);
+            Err(e) => {
+                return ResponseFuture::error(error_into_grpc(e));
             }
-            Err(e) => panic!("unexpected error {:?}", e),
         };
         ResponseFuture::new(service.get_headers(&block_ids))
-    }
-
-    fn subscribe_to_blocks(
-        &mut self,
-        _req: Request<gen::node::BlockSubscriptionRequest>,
-    ) -> Self::SubscribeToBlocksFuture {
-        let service = try_get_service!(self.block_service);
-        ResponseFuture::new(service.subscribe())
     }
 
     fn pull_blocks_to_tip(
         &mut self,
         req: Request<gen::node::PullBlocksToTipRequest>,
     ) -> Self::PullBlocksToTipFuture {
-        let service = try_get_service!(self.block_service);
+        let service = try_get_service!(self.inner.block_service());
         let block_ids = match deserialize_vec(&req.get_ref().from) {
             Ok(block_ids) => block_ids,
-            Err(GrpcError(status)) => {
-                return ResponseFuture::error(status);
+            Err(e) => {
+                return ResponseFuture::error(error_into_grpc(e));
             }
-            Err(e) => panic!("unexpected error {:?}", e),
         };
         ResponseFuture::new(service.pull_blocks_to_tip(&block_ids))
     }
 
-    fn propose_transactions(
-        &mut self,
-        _request: Request<gen::node::ProposeTransactionsRequest>,
-    ) -> Self::ProposeTransactionsFuture {
-        let _service = try_get_service!(self.tx_service);
-        unimplemented!()
-    }
-
-    fn record_transaction(
-        &mut self,
-        _request: Request<gen::node::RecordTransactionRequest>,
-    ) -> Self::RecordTransactionFuture {
-        let _service = try_get_service!(self.tx_service);
-        unimplemented!()
-    }
-
-    fn transactions(
-        &mut self,
-        req: Request<gen::node::TransactionIds>,
-    ) -> Self::TransactionsFuture {
-        let service = try_get_service!(self.tx_service);
+    fn get_messages(&mut self, req: Request<gen::node::MessageIds>) -> Self::GetMessagesFuture {
+        let service = try_get_service!(self.inner.content_service());
         let tx_ids = match deserialize_vec(&req.get_ref().id) {
             Ok(tx_ids) => tx_ids,
-            Err(GrpcError(status)) => {
-                return ResponseFuture::error(status);
+            Err(e) => {
+                return ResponseFuture::error(error_into_grpc(e));
             }
-            Err(e) => panic!("unexpected error {:?}", e),
         };
-        ResponseFuture::new(service.get_transactions(&tx_ids))
+        ResponseFuture::new(service.get_messages(&tx_ids))
+    }
+
+    fn block_subscription(
+        &mut self,
+        request: Request<Streaming<gen::node::Header>>,
+    ) -> Self::BlockSubscriptionFuture {
+        let service = try_get_service!(self.inner.block_service());
+        let stream = RequestStream::new(request.into_inner());
+        ResponseFuture::new(service.block_subscription(stream))
+    }
+
+    fn message_subscription(
+        &mut self,
+        request: Request<Streaming<gen::node::Message>>,
+    ) -> Self::MessageSubscriptionFuture {
+        let service = try_get_service!(self.inner.content_service());
+        let stream = RequestStream::new(request.into_inner());
+        ResponseFuture::new(service.message_subscription(stream))
+    }
+
+    fn gossip_subscription(
+        &mut self,
+        request: Request<Streaming<gen::node::Gossip>>,
+    ) -> Self::GossipSubscriptionFuture {
+        let service = try_get_service!(self.inner.gossip_service());
+        let stream = RequestStream::new(request.into_inner());
+        ResponseFuture::new(service.gossip_subscription(stream))
     }
 }

@@ -1,0 +1,24 @@
+[package]
+name = "chain-crypto"
+version = "0.1.0"
+authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+keywords = [ "Crypto", "VRF", "Ed25519", "MMM" ]
+
+[dependencies]
+bech32 = "0.6"
+cryptoxide = "0.1"
+curve25519-dalek = "1"
+sha2 = "^0.8"
+digest = "^0.8"
+generic-array = "^0.12"
+rand = "0.6"
+ed25519-bip32 = { path = "../ed25519-bip32" }
+
+[dev-dependencies]
+quickcheck = "0.8"
+rand_chacha = "0.1"
+
+[features]
+with-bench = []

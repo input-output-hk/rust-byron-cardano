@@ -1,21 +1,24 @@
-use crate::gen::{self, node::client as gen_client};
+use crate::{
+    convert::serialize_to_vec,
+    gen::{self, node::client as gen_client},
+};
 
-use chain_core::property::{self, Deserialize, FromStr, HasHeader, Serialize};
-use network_core::client::{self as core_client, block::BlockService};
+use chain_core::property;
+use network_core::{
+    client::{block::BlockService, gossip::GossipService},
+    error as core_error,
+    gossip::{Gossip, Node},
+};
 
 use futures::future::Executor;
 use tokio::io;
 use tokio::prelude::*;
-use tower_grpc::{BoxBody, Request, Streaming};
+use tower::MakeService;
+use tower_add_origin::{self, AddOrigin};
+use tower_grpc::{codegen::server::tower::Service, BoxBody, Request, Streaming};
 use tower_h2::client::{Background, Connect, ConnectError, Connection};
-use tower_service::Service;
-use tower_util::MakeService;
 
-use std::{
-    error,
-    fmt::{self, Debug},
-    marker::PhantomData,
-};
+use std::{error, fmt, marker::PhantomData};
 
 /// Traits setting additional bounds for blockchain entities
 /// that need to be satisfied for the protocol implementation.
@@ -27,7 +30,7 @@ use std::{
 pub mod chain_bounds {
     use chain_core::property;
 
-    pub trait BlockId: property::BlockId
+    pub trait BlockId: property::BlockId + property::Deserialize
     // Alas, bounds on associated types of the supertrait do not have
     // the desired effect:
     // https://github.com/rust-lang/rust/issues/32722
@@ -53,31 +56,53 @@ pub mod chain_bounds {
     {
     }
 
-    pub trait Block: property::Block + property::Deserialize {}
+    pub trait Block: property::Block + property::HasHeader + property::Deserialize {}
 
     impl<T> Block for T
     where
-        T: property::Block + property::Deserialize,
+        T: property::Block + property::HasHeader + property::Deserialize,
         <T as property::Block>::Id: BlockId,
         <T as property::Block>::Date: BlockDate,
+        <T as property::HasHeader>::Header: Header,
     {
     }
+}
+
+/// A trait that fixes the types of protocol entities and the bounds
+/// these entities need to satisfy for the protocol implementation.
+pub trait ProtocolConfig {
+    type BlockId: chain_bounds::BlockId;
+    type BlockDate: chain_bounds::BlockDate;
+    type Header: chain_bounds::Header + property::Header<Id = Self::BlockId, Date = Self::BlockDate>;
+    type Block: chain_bounds::Block
+        + property::Block<Id = Self::BlockId, Date = Self::BlockDate>
+        + property::HasHeader<Header = Self::Header>;
+    type Node: Node;
 }
 
 /// gRPC client for blockchain node.
 ///
 /// This type encapsulates the gRPC protocol client that can
 /// make connections and perform requests towards other blockchain nodes.
-pub struct Client<S, E> {
-    node: gen_client::Node<Connection<S, E, BoxBody>>,
+pub struct Client<C, S, E>
+where
+    C: ProtocolConfig,
+{
+    node: gen_client::Node<AddOrigin<Connection<S, E, BoxBody>>>,
+    _phantom: PhantomData<(C::Block)>,
 }
 
-impl<S, E> Client<S, E>
+impl<C, S, E> Client<C, S, E>
 where
+    C: ProtocolConfig,
     S: AsyncRead + AsyncWrite,
     E: Executor<Background<S, BoxBody>> + Clone,
 {
-    pub fn connect<P>(peer: P, executor: E) -> impl Future<Item = Self, Error = Error>
+    pub fn connect<P>(
+        peer: P,
+        executor: E,
+        uri: http::Uri,
+    ) -> impl Future<Item = Self, Error = Error>
     where
         P: Service<(), Response = S, Error = io::Error> + 'static,
     {
@@ -86,10 +111,13 @@ where
             .make_service(())
             .map_err(|e| Error::Connect(e))
             .map(|conn| {
-                // TODO: add origin URL with add_origin middleware from tower-http
-
+                let conn = tower_add_origin::Builder::new()
+                    .uri(uri)
+                    .build(conn)
+                    .unwrap();
                 Client {
                     node: gen_client::Node::new(conn),
+                    _phantom: PhantomData,
                 }
             })
     }
@@ -100,13 +128,6 @@ type GrpcFuture<R> = tower_grpc::client::unary::ResponseFuture<
     tower_h2::client::ResponseFuture,
     tower_h2::RecvBody,
 >;
-
-type GrpcStreamFuture<R> =
-    tower_grpc::client::server_streaming::ResponseFuture<R, tower_h2::client::ResponseFuture>;
-
-type GrpcError = tower_grpc::Error<tower_h2::client::Error>;
-
-type GrpcStreamError = tower_grpc::Error<()>;
 
 pub struct ResponseFuture<T, R> {
     state: unary_future::State<T, R>,
@@ -120,52 +141,52 @@ impl<T, R> ResponseFuture<T, R> {
     }
 }
 
-pub struct ResponseStreamFuture<T, R> {
-    state: stream_future::State<T, R>,
+pub struct ResponseStreamFuture<T, F> {
+    state: stream_future::State<T, F>,
 }
 
-impl<T, R> ResponseStreamFuture<T, R> {
-    fn new(future: GrpcStreamFuture<R>) -> Self {
+impl<T, F> ResponseStreamFuture<T, F> {
+    fn new(future: F) -> Self {
         ResponseStreamFuture {
             state: stream_future::State::Pending(future),
         }
     }
 }
 
+pub type ServerStreamFuture<T, R> = ResponseStreamFuture<
+    T,
+    tower_grpc::client::server_streaming::ResponseFuture<R, tower_h2::client::ResponseFuture>,
+>;
+
+pub type BidiStreamFuture<T, R> = ResponseStreamFuture<
+    T,
+    tower_grpc::client::streaming::ResponseFuture<R, tower_h2::client::ResponseFuture>,
+>;
+
 pub struct ResponseStream<T, R> {
     inner: Streaming<R, tower_h2::RecvBody>,
     _phantom: PhantomData<T>,
 }
 
-fn convert_error<T>(e: tower_grpc::Error<T>) -> core_client::Error
-where
-    T: Debug + Send + Sync + 'static,
-{
-    core_client::Error::new(core_client::ErrorKind::Rpc, e)
-}
-
-pub trait FromResponse<T>: Sized {
-    fn from_response(response: T) -> Result<Self, core_client::Error>;
-}
-
 mod unary_future {
-    use super::{convert_error, core_client, FromResponse, GrpcError, GrpcFuture, ResponseFuture};
+    use super::{core_error, GrpcFuture, ResponseFuture};
+    use crate::convert::{error_from_grpc, FromProtobuf};
     use futures::prelude::*;
     use std::marker::PhantomData;
-    use tower_grpc::Response;
+    use tower_grpc::{Response, Status};
 
-    fn poll_and_convert_response<T, R, F>(future: &mut F) -> Poll<T, core_client::Error>
+    fn poll_and_convert_response<T, R, F>(future: &mut F) -> Poll<T, core_error::Error>
     where
-        F: Future<Item = Response<R>, Error = GrpcError>,
-        T: FromResponse<R>,
+        T: FromProtobuf<R>,
+        F: Future<Item = Response<R>, Error = Status>,
     {
         match future.poll() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(res)) => {
-                let item = T::from_response(res.into_inner())?;
+                let item = T::from_message(res.into_inner())?;
                 Ok(Async::Ready(item))
             }
-            Err(e) => Err(convert_error(e)),
+            Err(e) => Err(error_from_grpc(e)),
         }
     }
 
@@ -177,12 +198,12 @@ mod unary_future {
     impl<T, R> Future for ResponseFuture<T, R>
     where
         R: prost::Message + Default,
-        T: FromResponse<R>,
+        T: FromProtobuf<R>,
     {
         type Item = T;
-        type Error = core_client::Error;
+        type Error = core_error::Error;
 
-        fn poll(&mut self) -> Poll<T, core_client::Error> {
+        fn poll(&mut self) -> Poll<T, core_error::Error> {
             if let State::Pending(ref mut f) = self.state {
                 let res = poll_and_convert_response(f);
                 if let Ok(Async::NotReady) = res {
@@ -201,19 +222,17 @@ mod unary_future {
 }
 
 mod stream_future {
-    use super::{
-        convert_error, core_client, GrpcError, GrpcStreamFuture, ResponseStream,
-        ResponseStreamFuture,
-    };
+    use super::{core_error, ResponseStream, ResponseStreamFuture};
+    use crate::convert::error_from_grpc;
     use futures::prelude::*;
     use std::marker::PhantomData;
-    use tower_grpc::{Response, Streaming};
+    use tower_grpc::{Response, Status, Streaming};
 
     fn poll_and_convert_response<T, R, F>(
         future: &mut F,
-    ) -> Poll<ResponseStream<T, R>, core_client::Error>
+    ) -> Poll<ResponseStream<T, R>, core_error::Error>
     where
-        F: Future<Item = Response<Streaming<R, tower_h2::RecvBody>>, Error = GrpcError>,
+        F: Future<Item = Response<Streaming<R, tower_h2::RecvBody>>, Error = Status>,
     {
         match future.poll() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -224,23 +243,23 @@ mod stream_future {
                 };
                 Ok(Async::Ready(stream))
             }
-            Err(e) => Err(convert_error(e)),
+            Err(e) => Err(error_from_grpc(e)),
         }
     }
 
-    pub enum State<T, R> {
-        Pending(GrpcStreamFuture<R>),
+    pub enum State<T, F> {
+        Pending(F),
         Finished(PhantomData<T>),
     }
 
-    impl<T, R> Future for ResponseStreamFuture<T, R>
+    impl<T, R, F> Future for ResponseStreamFuture<T, F>
     where
-        R: prost::Message + Default,
+        F: Future<Item = Response<Streaming<R, tower_h2::RecvBody>>, Error = Status>,
     {
         type Item = ResponseStream<T, R>;
-        type Error = core_client::Error;
+        type Error = core_error::Error;
 
-        fn poll(&mut self) -> Poll<ResponseStream<T, R>, core_client::Error> {
+        fn poll(&mut self) -> Poll<ResponseStream<T, R>, core_error::Error> {
             if let State::Pending(ref mut f) = self.state {
                 let res = poll_and_convert_response(f);
                 if let Ok(Async::NotReady) = res {
@@ -258,106 +277,112 @@ mod stream_future {
     }
 }
 
-mod stream {
-    use super::{convert_error, core_client, FromResponse, GrpcStreamError, ResponseStream};
+mod response_stream {
+    use super::{core_error, ResponseStream};
+    use crate::convert::{error_from_grpc, FromProtobuf};
     use futures::prelude::*;
+    use tower_grpc::Status;
 
-    fn poll_and_convert_item<T, S, R>(stream: &mut S) -> Poll<Option<T>, core_client::Error>
+    fn poll_and_convert_item<T, S, R>(stream: &mut S) -> Poll<Option<T>, core_error::Error>
     where
-        S: Stream<Item = R, Error = GrpcStreamError>,
-        T: FromResponse<R>,
+        S: Stream<Item = R, Error = Status>,
+        T: FromProtobuf<R>,
     {
         match stream.poll() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::Ready(Some(item))) => {
-                let item = T::from_response(item)?;
+                let item = T::from_message(item)?;
                 Ok(Async::Ready(Some(item)))
             }
-            Err(e) => Err(convert_error(e)),
+            Err(e) => Err(error_from_grpc(e)),
         }
     }
 
     impl<T, R> Stream for ResponseStream<T, R>
     where
         R: prost::Message + Default,
-        T: FromResponse<R>,
+        T: FromProtobuf<R>,
     {
         type Item = T;
-        type Error = core_client::Error;
+        type Error = core_error::Error;
 
-        fn poll(&mut self) -> Poll<Option<T>, core_client::Error> {
+        fn poll(&mut self) -> Poll<Option<T>, core_error::Error> {
             poll_and_convert_item(&mut self.inner)
         }
     }
 }
 
-fn deserialize_bytes<T>(mut buf: &[u8]) -> Result<T, core_client::Error>
-where
-    T: Deserialize,
-{
-    T::deserialize(&mut buf).map_err(|e| core_client::Error::new(core_client::ErrorKind::Format, e))
+pub struct RequestStream<S, R> {
+    inner: S,
+    _phantom: PhantomData<R>,
 }
 
-fn serialize_to_vec<T>(values: &[T]) -> Vec<Vec<u8>>
+impl<S, R> RequestStream<S, R>
 where
-    T: Serialize,
+    S: Stream,
 {
-    values
-        .iter()
-        .map(|x| {
-            let mut v = Vec::new();
-            x.serialize(&mut v).unwrap();
-            v
-        })
-        .collect()
-}
-
-impl<H> FromResponse<gen::node::TipResponse> for H
-where
-    H: chain_bounds::Header,
-{
-    fn from_response(res: gen::node::TipResponse) -> Result<Self, core_client::Error> {
-        let block_header = deserialize_bytes(&res.block_header)?;
-        Ok(block_header)
+    fn new(inner: S) -> Self {
+        RequestStream {
+            inner,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<T> FromResponse<gen::node::Block> for T
-where
-    T: chain_bounds::Block,
-{
-    fn from_response(res: gen::node::Block) -> Result<T, core_client::Error> {
-        let block = deserialize_bytes(&res.content)?;
-        Ok(block)
+mod request_stream {
+    use super::RequestStream;
+    use crate::convert::IntoProtobuf;
+    use futures::prelude::*;
+    use tower_grpc::{Code, Status};
+
+    fn poll_and_convert_item<S, R>(stream: &mut S) -> Poll<Option<R>, Status>
+    where
+        S: Stream,
+        S::Item: IntoProtobuf<R>,
+    {
+        match stream.poll() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::Ready(Some(item))) => {
+                let item = item.into_message()?;
+                Ok(Async::Ready(Some(item)))
+            }
+            Err(_) => Err(Status::new(Code::Unknown, "request stream failure")),
+        }
+    }
+
+    impl<S, R> Stream for RequestStream<S, R>
+    where
+        S: Stream,
+        S::Item: IntoProtobuf<R>,
+    {
+        type Item = R;
+        type Error = Status;
+
+        fn poll(&mut self) -> Poll<Option<R>, Status> {
+            poll_and_convert_item(&mut self.inner)
+        }
     }
 }
 
-impl<T> FromResponse<gen::node::Header> for T
+impl<C, S, E> BlockService for Client<C, S, E>
 where
-    T: chain_bounds::Header,
-{
-    fn from_response(res: gen::node::Header) -> Result<T, core_client::Error> {
-        let block = deserialize_bytes(&res.content)?;
-        Ok(block)
-    }
-}
-
-impl<T, S, E> BlockService<T> for Client<S, E>
-where
-    T: chain_bounds::Block + HasHeader,
+    C: ProtocolConfig,
     S: AsyncRead + AsyncWrite,
     E: Executor<Background<S, BoxBody>> + Clone,
-    <T as property::Block>::Date: FromStr,
-    <T::Header as property::Header>::Date: FromStr,
 {
-    type TipFuture = ResponseFuture<T::Header, gen::node::TipResponse>;
+    type Block = C::Block;
+    type TipFuture = ResponseFuture<C::Header, gen::node::TipResponse>;
 
-    type PullBlocksToTipStream = ResponseStream<T, gen::node::Block>;
-    type PullBlocksToTipFuture = ResponseStreamFuture<T, gen::node::Block>;
+    type PullBlocksToTipStream = ResponseStream<C::Block, gen::node::Block>;
+    type PullBlocksToTipFuture = ServerStreamFuture<C::Block, gen::node::Block>;
 
-    type GetBlocksStream = ResponseStream<T, gen::node::Block>;
-    type GetBlocksFuture = ResponseStreamFuture<T, gen::node::Block>;
+    type GetBlocksStream = ResponseStream<C::Block, gen::node::Block>;
+    type GetBlocksFuture = ServerStreamFuture<C::Block, gen::node::Block>;
+
+    type BlockSubscription = ResponseStream<C::Header, gen::node::Header>;
+    type BlockSubscriptionFuture = BidiStreamFuture<C::Header, gen::node::Header>;
 
     fn tip(&mut self) -> Self::TipFuture {
         let req = gen::node::TipRequest {};
@@ -365,20 +390,40 @@ where
         ResponseFuture::new(future)
     }
 
-    fn pull_blocks_to_tip(&mut self, from: &[T::Id]) -> Self::PullBlocksToTipFuture {
-        let from = serialize_to_vec(from);
+    fn pull_blocks_to_tip(&mut self, from: &[C::BlockId]) -> Self::PullBlocksToTipFuture {
+        let from = serialize_to_vec(from).unwrap();
         let req = gen::node::PullBlocksToTipRequest { from };
         let future = self.node.pull_blocks_to_tip(Request::new(req));
-        ResponseStreamFuture::new(future)
+        ServerStreamFuture::new(future)
     }
 
-    type BlockSubscription = ResponseStream<T::Header, gen::node::Header>;
-    type BlockSubscriptionFuture = ResponseStreamFuture<T::Header, gen::node::Header>;
+    fn block_subscription<Out>(&mut self, outbound: Out) -> Self::BlockSubscriptionFuture
+    where
+        Out: Stream<Item = C::Header> + Send + 'static,
+    {
+        let req = RequestStream::new(outbound);
+        let future = self.node.block_subscription(Request::new(req));
+        BidiStreamFuture::new(future)
+    }
+}
 
-    fn subscribe_to_blocks(&mut self) -> Self::BlockSubscriptionFuture {
-        let req = gen::node::BlockSubscriptionRequest {};
-        let future = self.node.subscribe_to_blocks(Request::new(req));
-        ResponseStreamFuture::new(future)
+impl<C, S, E> GossipService for Client<C, S, E>
+where
+    C: ProtocolConfig,
+    S: AsyncRead + AsyncWrite,
+    E: Executor<Background<S, BoxBody>> + Clone,
+{
+    type Node = C::Node;
+    type GossipSubscription = ResponseStream<Gossip<C::Node>, gen::node::Gossip>;
+    type GossipSubscriptionFuture = BidiStreamFuture<Gossip<C::Node>, gen::node::Gossip>;
+
+    fn gossip_subscription<Out>(&mut self, outbound: Out) -> Self::GossipSubscriptionFuture
+    where
+        Out: Stream<Item = Gossip<C::Node>> + Send + 'static,
+    {
+        let req = RequestStream::new(outbound);
+        let future = self.node.gossip_subscription(Request::new(req));
+        BidiStreamFuture::new(future)
     }
 }
 

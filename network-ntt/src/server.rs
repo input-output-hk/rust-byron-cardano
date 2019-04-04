@@ -34,7 +34,7 @@ mod error;
 
 use error::{Error, ErrorKind};
 
-use network_core::server::{block::BlockService, transaction::TransactionService, Node};
+use network_core::server::{block::BlockService, content::ContentService, Node};
 use protocol::{
     protocol::ProtocolMagic, Inbound, Message, ProtocolBlock, ProtocolBlockId, ProtocolHeader,
     ProtocolTransactionId,
@@ -74,7 +74,7 @@ where
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
     <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
-    <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
+    <<N as Node>::ContentService as ContentService>::MessageId: ProtocolTransactionId,
 {
     protocol::Connection::accept(stream)
         .map_err(move |err| Error::new(ErrorKind::Handshake, err))
@@ -97,7 +97,7 @@ where
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
     <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
-    <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
+    <<N as Node>::ContentService as ContentService>::MessageId: ProtocolTransactionId,
 {
     TcpStream::connect(&sockaddr)
         .map_err(move |err| Error::new(ErrorKind::Connect, err))
@@ -116,11 +116,11 @@ where
 /// So we see the high-level framed protocol, with the messages
 /// types that has the semantics for our application.
 pub fn run_connection<N, T>(
-    server: Server<N>,
+    mut server: Server<N>,
     connection: protocol::Connection<
         T,
         <<N as Node>::BlockService as BlockService>::Block,
-        <<N as Node>::TransactionService as TransactionService>::TransactionId,
+        <<N as Node>::ContentService as ContentService>::MessageId,
     >,
 ) -> impl future::Future<Item = (), Error = Error>
 where
@@ -129,7 +129,7 @@ where
     <<N as Node>::BlockService as BlockService>::Block: ProtocolBlock,
     <<N as Node>::BlockService as BlockService>::BlockId: ProtocolBlockId,
     <<N as Node>::BlockService as BlockService>::Header: ProtocolHeader,
-    <<N as Node>::TransactionService as TransactionService>::TransactionId: ProtocolTransactionId,
+    <<N as Node>::ContentService as ContentService>::MessageId: ProtocolTransactionId,
 {
     use protocol::{protocol::BlockHeaders, Response};
 
@@ -166,7 +166,7 @@ where
                     let sink2 = sink_tx.clone();
                     let sink3 = sink_tx.clone();
                     future::Either::B(future::Either::A({
-                        let mut service = server
+                        let service = server
                             .node
                             .block_service()
                             .expect("block service is not implemented");
@@ -236,7 +236,7 @@ where
                     future::Either::B(future::Either::B(future::Either::B(
                         server
                             .node
-                            .transaction_service()
+                            .content_service()
                             .unwrap()
                             .propose_transactions(&vec![tx])
                             .then(|_| Ok(())), // FIXME handle the error

@@ -25,9 +25,9 @@
 use bech32::{Bech32, FromBase32, ToBase32};
 use std::string::ToString;
 
-// temporary re-use just to define
-use cardano::redeem::{self, PublicKey};
+use chain_crypto::{Ed25519Extended, PublicKey, PublicKeyError};
 
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property::{self, Serialize as PropertySerialize};
 
 #[cfg(feature = "generic-serialization")]
@@ -51,9 +51,9 @@ pub enum Discrimination {
 /// * Account address : an ed25519 stake public key
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Kind {
-    Single(PublicKey),
-    Group(PublicKey, PublicKey),
-    Account(PublicKey),
+    Single(PublicKey<Ed25519Extended>),
+    Group(PublicKey<Ed25519Extended>, PublicKey<Ed25519Extended>),
+    Account(PublicKey<Ed25519Extended>),
 }
 
 /// Kind Type of an address
@@ -94,6 +94,15 @@ impl KindType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Address(pub Discrimination, pub Kind);
 
+impl Address {
+    pub fn discrimination(&self) -> Discrimination {
+        self.0
+    }
+    pub fn kind(&self) -> &Kind {
+        &self.1
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     EmptyAddress,
@@ -118,8 +127,8 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 
-impl From<redeem::Error> for Error {
-    fn from(_: redeem::Error) -> Error {
+impl From<PublicKeyError> for Error {
+    fn from(_: PublicKeyError) -> Error {
         Error::InvalidAddress
     }
 }
@@ -130,27 +139,25 @@ impl From<bech32::Error> for Error {
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
-
 impl Address {
     /// Try to convert from_bytes
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         is_valid_data(bytes)?;
 
         let discr = get_discrimination_value(bytes[0]);
         let kind = match get_kind_value(bytes[0]) {
             ADDR_KIND_SINGLE => {
-                let spending = PublicKey::from_slice(&bytes[1..])?;
+                let spending = PublicKey::from_binary(&bytes[1..])?;
                 Kind::Single(spending)
             }
             ADDR_KIND_GROUP => {
-                let spending = PublicKey::from_slice(&bytes[1..33])?;
-                let group = PublicKey::from_slice(&bytes[33..])?;
+                let spending = PublicKey::from_binary(&bytes[1..33])?;
+                let group = PublicKey::from_binary(&bytes[33..])?;
 
                 Kind::Group(spending, group)
             }
             ADDR_KIND_ACCOUNT => {
-                let stake_key = PublicKey::from_slice(&bytes[1..])?;
+                let stake_key = PublicKey::from_binary(&bytes[1..])?;
                 Kind::Account(stake_key)
             }
             _ => unreachable!(),
@@ -200,11 +207,11 @@ impl Address {
         unsafe { String::from_utf8_unchecked(out) }
     }
 
-    pub fn public_key<'a>(&'a self) -> &'a PublicKey {
+    pub fn public_key<'a>(&'a self) -> Option<&'a PublicKey<Ed25519Extended>> {
         match self.1 {
-            Kind::Single(ref pk) => pk,
-            Kind::Group(ref pk, _) => pk,
-            Kind::Account(ref pk) => pk,
+            Kind::Single(ref pk) => Some(pk),
+            Kind::Group(ref pk, _) => Some(pk),
+            Kind::Account(ref pk) => Some(pk),
         }
     }
 }
@@ -221,7 +228,7 @@ fn get_discrimination_value(first_byte: u8) -> Discrimination {
     }
 }
 
-fn is_valid_data(bytes: &[u8]) -> Result<(Discrimination, KindType)> {
+fn is_valid_data(bytes: &[u8]) -> Result<(Discrimination, KindType), Error> {
     if bytes.len() == 0 {
         return Err(Error::EmptyAddress);
     }
@@ -274,7 +281,7 @@ impl AddressReadable {
     }
 
     /// Validate from a String to create a valid AddressReadable
-    pub fn from_string(s: &str) -> Result<Self> {
+    pub fn from_string(s: &str) -> Result<Self, Error> {
         use std::str::FromStr;
         let r = Bech32::from_str(s)?;
         let expected_discrimination = if r.hrp() == Self::PRODUCTION_PREFIX {
@@ -329,7 +336,7 @@ impl std::str::FromStr for AddressReadable {
 impl PropertySerialize for Address {
     type Error = std::io::Error;
 
-    fn serialize<W: std::io::Write>(&self, writer: W) -> std::result::Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
         use std::io::Write;
         let mut codec = Codec::from(writer);
@@ -339,7 +346,7 @@ impl PropertySerialize for Address {
             Discrimination::Test => self.to_kind_value() | 0b1000_0000,
         };
         codec.put_u8(first_byte)?;
-        match self.1 {
+        match &self.1 {
             Kind::Single(spend) => codec.write_all(spend.as_ref())?,
             Kind::Group(spend, group) => {
                 codec.write_all(spend.as_ref())?;
@@ -351,7 +358,7 @@ impl PropertySerialize for Address {
         Ok(())
     }
 
-    fn serialize_as_vec(&self) -> std::result::Result<Vec<u8>, Self::Error> {
+    fn serialize_as_vec(&self) -> Result<Vec<u8>, Self::Error> {
         let mut data = Vec::with_capacity(self.to_size());
         self.serialize(&mut data)?;
         Ok(data)
@@ -360,7 +367,7 @@ impl PropertySerialize for Address {
 impl property::Deserialize for Address {
     type Error = std::io::Error;
 
-    fn deserialize<R: std::io::BufRead>(reader: R) -> std::result::Result<Self, Self::Error> {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         use chain_core::packer::*;
         use std::io::Read;
         let mut codec = Codec::from(reader);
@@ -373,25 +380,72 @@ impl property::Deserialize for Address {
             ADDR_KIND_SINGLE => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_bytes(bytes);
+                let spending = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
+                })?;
                 Kind::Single(spending)
             }
             ADDR_KIND_GROUP => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_bytes(bytes);
+                let spending = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
+                })?;
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let group = PublicKey::from_bytes(bytes);
+                let group = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
+                })?;
                 Kind::Group(spending, group)
             }
             ADDR_KIND_ACCOUNT => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let stake_key = PublicKey::from_bytes(bytes);
+                let stake_key = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
+                })?;
                 Kind::Account(stake_key)
             }
             _ => unreachable!(),
+        };
+        Ok(Address(discr, kind))
+    }
+}
+
+fn chain_crypto_err(e: chain_crypto::PublicKeyError) -> ReadError {
+    match e {
+        PublicKeyError::SizeInvalid => {
+            ReadError::StructureInvalid("publickey size invalid".to_string())
+        }
+        PublicKeyError::StructureInvalid => {
+            ReadError::StructureInvalid("publickey structure invalid".to_string())
+        }
+    }
+}
+
+impl Readable for Address {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        let byte = buf.get_u8()?;
+        let discr = get_discrimination_value(byte);
+        let kind = match get_kind_value(byte) {
+            ADDR_KIND_SINGLE => {
+                let bytes = <[u8; 32]>::read(buf)?;
+                let spending = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                Kind::Single(spending)
+            }
+            ADDR_KIND_GROUP => {
+                let bytes = <[u8; 32]>::read(buf)?;
+                let spending = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                let bytes = <[u8; 32]>::read(buf)?;
+                let group = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                Kind::Group(spending, group)
+            }
+            ADDR_KIND_ACCOUNT => {
+                let bytes = <[u8; 32]>::read(buf)?;
+                let stake_key = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                Kind::Account(stake_key)
+            }
+            n => return Err(ReadError::UnknownTag(n as u32)),
         };
         Ok(Address(discr, kind))
     }
@@ -402,12 +456,19 @@ pub mod testing {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
 
-    fn arbitrary_public_key<G: Gen>(g: &mut G) -> PublicKey {
-        let mut bytes = [0; cardano::redeem::PUBLICKEY_SIZE];
+    fn arbitrary_public_key<G: Gen>(g: &mut G) -> PublicKey<Ed25519Extended> {
+        let mut bytes = [0; 32];
         for byte in bytes.iter_mut() {
             *byte = u8::arbitrary(g);
         }
-        PublicKey::from_bytes(bytes)
+        PublicKey::from_binary(&bytes).unwrap()
+    }
+    fn arbitrary_extended_public_key<G: Gen>(g: &mut G) -> PublicKey<Ed25519Extended> {
+        let mut bytes = [0; 32];
+        for byte in bytes.iter_mut() {
+            *byte = u8::arbitrary(g);
+        }
+        PublicKey::from_binary(&bytes).unwrap()
     }
 
     impl Arbitrary for KindType {
@@ -429,8 +490,11 @@ pub mod testing {
                 Discrimination::Production
             };
             let kind = match KindType::arbitrary(g) {
-                KindType::Single => Kind::Single(arbitrary_public_key(g)),
-                KindType::Group => Kind::Group(arbitrary_public_key(g), arbitrary_public_key(g)),
+                KindType::Single => Kind::Single(arbitrary_extended_public_key(g)),
+                KindType::Group => Kind::Group(
+                    arbitrary_extended_public_key(g),
+                    arbitrary_extended_public_key(g),
+                ),
                 KindType::Account => Kind::Account(arbitrary_public_key(g)),
             };
             Address(discrimination, kind)
@@ -470,19 +534,27 @@ mod test {
 
     #[test]
     fn unit_tests() {
-        let fake_spendingkey = PublicKey::from_slice(&[
+        let fake_spendingkey: PublicKey<Ed25519Extended> = PublicKey::from_binary(&[
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
             25, 26, 27, 28, 29, 30, 31, 32,
         ])
         .unwrap();
-        let fake_groupkey = PublicKey::from_slice(&[
+        let fake_groupkey: PublicKey<Ed25519Extended> = PublicKey::from_binary(&[
+            41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
+            63, 64, 65, 66, 67, 68, 69, 70, 71, 72,
+        ])
+        .unwrap();
+        let fake_accountkey: PublicKey<Ed25519Extended> = PublicKey::from_binary(&[
             41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
             63, 64, 65, 66, 67, 68, 69, 70, 71, 72,
         ])
         .unwrap();
 
         {
-            let addr = Address(Discrimination::Production, Kind::Single(fake_spendingkey));
+            let addr = Address(
+                Discrimination::Production,
+                Kind::Single(fake_spendingkey.clone()),
+            );
             property_serialize_deserialize(&addr);
             property_readable(&addr);
             expected_base32(
@@ -498,7 +570,7 @@ mod test {
         {
             let addr = Address(
                 Discrimination::Production,
-                Kind::Group(fake_spendingkey, fake_groupkey),
+                Kind::Group(fake_spendingkey.clone(), fake_groupkey.clone()),
             );
             property_serialize_deserialize(&addr);
             property_readable(&addr);
@@ -509,25 +581,25 @@ mod test {
         {
             let addr = Address(
                 Discrimination::Test,
-                Kind::Group(fake_groupkey, fake_spendingkey),
+                Kind::Group(fake_spendingkey.clone(), fake_groupkey.clone()),
             );
             property_serialize_deserialize(&addr);
             property_readable(&addr);
-            expected_bech32(&addr, "ta1ss5j52ev95hz7vp3xgengdfkxuurjw3m8s7nu06qg9pyx3z9ger5sqgzqvzq2ps8pqys5zcvp58q7yq3zgf3g9gkzuvpjxsmrsw3u8eqx5x7xh");
-            expected_base32(&addr, "qqusukzmfuxc6mbrgiztinjwg44dsor3hq6t4p2aifbegrcfizduqaicamcakbqhbaequcymbuha6earcijrifiwc4mbsgq3dqor4hza");
+            expected_bech32(&addr, "ta1ssqsyqcyq5rqwzqfpg9scrgwpugpzysnzs23v9ccrydpk8qarc0jq2f29vkz6t30xqcnyve5x5mrwwpe8ganc0f78aqyzsjrg3z5v36ge5qsky");
+            expected_base32(&addr, "qqaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypsakjkfmwc2lrpgaytemzugu3doobzhi5typj6h5aecqsdircumr2i");
         }
 
         {
-            let addr = Address(Discrimination::Test, Kind::Account(fake_spendingkey));
+            let addr = Address(Discrimination::Test, Kind::Account(fake_accountkey));
             property_serialize_deserialize(&addr);
             property_readable(&addr);
             expected_base32(
                 &addr,
-                "quaqeayeaudaocajbifqydiob4ibceqtcqkrmfyydenbwha5dypsa",
+                "quusukzmfuxc6mbrgiztinjwg44dsor3hq6t4p2aifbegrcfizduq",
             );
             expected_bech32(
                 &addr,
-                "ta1s5qsyqcyq5rqwzqfpg9scrgwpugpzysnzs23v9ccrydpk8qarc0jqrycrjr",
+                "ta1s55j52ev95hz7vp3xgengdfkxuurjw3m8s7nu06qg9pyx3z9ger5s28ezm6",
             );
         }
     }

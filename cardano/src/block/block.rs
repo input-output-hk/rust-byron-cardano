@@ -12,7 +12,7 @@ use super::super::config::ProtocolMagic;
 use super::boundary;
 use super::date::BlockDate;
 use super::normal;
-use super::types::HeaderHash;
+use super::types::{BlockVersion, ChainDifficulty, HeaderHash};
 use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
@@ -80,12 +80,30 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ChainLength(usize);
+
+impl chain_core::property::ChainLength for ChainLength {
+    fn next(&self) -> Self {
+        ChainLength(self.0 + 1)
+    }
+}
+
 impl chain_core::property::Header for BlockHeader {
     type Id = HeaderHash;
     type Date = BlockDate;
+    type Version = BlockVersion;
+    type ChainLength = ChainLength;
 
     fn id(&self) -> Self::Id {
         self.compute_hash()
+    }
+
+    fn parent_id(&self) -> Self::Id {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref header) => header.previous_header.clone(),
+            BlockHeader::MainBlockHeader(ref header) => header.previous_header.clone(),
+        }
     }
 
     fn date(&self) -> Self::Date {
@@ -93,6 +111,17 @@ impl chain_core::property::Header for BlockHeader {
             BlockHeader::BoundaryBlockHeader(ref header) => header.consensus.epoch.into(),
             BlockHeader::MainBlockHeader(ref header) => header.consensus.slot_id.into(),
         }
+    }
+
+    fn version(&self) -> Self::Version {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref _header) => unimplemented!(),
+            BlockHeader::MainBlockHeader(ref header) => header.extra_data.block_version,
+        }
+    }
+
+    fn chain_length(&self) -> Self::ChainLength {
+        unimplemented!()
     }
 }
 
@@ -175,6 +204,13 @@ impl<'a> BlockHeaderView<'a> {
     /// Computes the hash of the block header data.
     pub fn compute_hash(&self) -> HeaderHash {
         HeaderHash::new(&self.to_cbor())
+    }
+
+    pub fn difficulty(&self) -> ChainDifficulty {
+        match self {
+            BlockHeaderView::Boundary(h) => h.consensus.chain_difficulty,
+            BlockHeaderView::Normal(h) => h.consensus.chain_difficulty,
+        }
     }
 }
 
@@ -313,6 +349,8 @@ impl fmt::Display for Block {
 impl chain_core::property::Block for Block {
     type Id = HeaderHash;
     type Date = BlockDate;
+    type Version = BlockVersion;
+    type ChainLength = ChainLength;
 
     fn id(&self) -> Self::Id {
         self.header().compute_hash()
@@ -330,6 +368,17 @@ impl chain_core::property::Block for Block {
             Block::MainBlock(ref block) => block.header.consensus.slot_id.into(),
             Block::BoundaryBlock(ref block) => block.header.consensus.epoch.into(),
         }
+    }
+
+    fn version(&self) -> Self::Version {
+        match self {
+            Block::MainBlock(ref block) => block.header.extra_data.block_version,
+            Block::BoundaryBlock(ref _block) => unimplemented!(),
+        }
+    }
+
+    fn chain_length(&self) -> Self::ChainLength {
+        unimplemented!()
     }
 }
 
@@ -357,26 +406,6 @@ impl chain_core::property::Deserialize for Block {
 
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
         Deserialize::deserialize(&mut Deserializer::from(reader))
-    }
-}
-
-impl chain_core::property::HasTransaction for Block {
-    type Transaction = TxAux;
-    fn transactions<'a>(&'a self) -> Box<Iterator<Item = &Self::Transaction> + 'a> {
-        match self {
-            Block::BoundaryBlock(_) => Box::new([].iter()),
-            Block::MainBlock(blk) => Box::new(blk.body.tx.iter()),
-        }
-    }
-
-    fn for_each_transaction<F>(&self, f: F)
-    where
-        F: FnMut(&Self::Transaction),
-    {
-        match self {
-            Block::BoundaryBlock(_) => {}
-            Block::MainBlock(blk) => blk.body.tx.iter().for_each(f),
-        }
     }
 }
 

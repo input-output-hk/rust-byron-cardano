@@ -5,10 +5,10 @@ use chain_core::property::{Block, BlockId};
 pub struct BlockInfo<Id: BlockId> {
     pub block_hash: Id,
 
-    /// Distance to the genesis hash (a.k.a chain length). I.e. a
-    /// block whose parent is the genesis hash has depth 1, its
-    /// children have depth 2, and so on. Note that there is no block
-    /// with depth 0 because there is no block with the genesis hash.
+    /// Length of the chain. I.e. a block whose parent is the zero
+    /// hash has depth 1, its children have depth 2, and so on. Note
+    /// that there is no block with depth 0 because there is no block
+    /// with the zero hash.
     pub depth: u64,
 
     /// One or more ancestors of this block. Must include at least the
@@ -36,13 +36,11 @@ pub struct BackLink<Id: BlockId> {
     pub block_hash: Id,
 }
 
-pub trait BlockStore: std::marker::Sized {
+pub trait BlockStore {
     type Block: Block;
 
-    fn get_genesis_hash(&self) -> <Self::Block as Block>::Id;
-
     /// Write a block to the store. The parent of the block must exist
-    /// (unless it's the genesis hash).
+    /// (unless it's the zero hash).
     ///
     /// The default implementation computes a BlockInfo structure with
     /// back_links set to ensure O(lg n) seek time in
@@ -63,7 +61,7 @@ pub trait BlockStore: std::marker::Sized {
             block_hash: parent_hash.clone(),
         }];
 
-        let depth = if parent_hash == self.get_genesis_hash() {
+        let depth = if parent_hash == <Self::Block as Block>::Id::zero() {
             1
         } else {
             let parent_info = self.get_block_info(&parent_hash)?;
@@ -114,13 +112,10 @@ pub trait BlockStore: std::marker::Sized {
 
     /// Check whether a block exists.
     fn block_exists(&self, block_hash: &<Self::Block as Block>::Id) -> Result<bool, Error> {
-        if block_hash == &self.get_genesis_hash() {
-            return Ok(true);
-        }
         match self.get_block_info(block_hash) {
             Ok(_) => Ok(true),
             Err(Error::BlockNotFound) => Ok(false),
-            //Err(err) => Err(err)
+            Err(err) => Err(err),
         }
     }
 
@@ -140,17 +135,17 @@ pub trait BlockStore: std::marker::Sized {
         block_hash: &<Self::Block as Block>::Id,
         distance: u64,
     ) -> Result<BlockInfo<<Self::Block as Block>::Id>, Error> {
-        self.get_path_to_nth_ancestor(block_hash, distance, |_| {})
+        self.get_path_to_nth_ancestor(block_hash, distance, Box::new(|_| {}))
     }
 
     /// Like get_nth_ancestor(), but calls the closure 'callback' with
     /// each intermediate block encountered while travelling from
     /// 'block_hash' to its n'th ancestor.
-    fn get_path_to_nth_ancestor<F: FnMut(&BlockInfo<<Self::Block as Block>::Id>)>(
-        &self,
+    fn get_path_to_nth_ancestor<'a>(
+        &'a self,
         block_hash: &<Self::Block as Block>::Id,
         distance: u64,
-        mut callback: F,
+        mut callback: Box<'a + FnMut(&BlockInfo<<Self::Block as Block>::Id>)>,
     ) -> Result<BlockInfo<<Self::Block as Block>::Id>, Error> {
         let mut cur_block_info = self.get_block_info(block_hash)?;
 
@@ -200,7 +195,7 @@ pub trait BlockStore: std::marker::Sized {
 
         let descendent = self.get_block_info(&descendent)?;
 
-        if ancestor == &self.get_genesis_hash() {
+        if ancestor == &<Self::Block as Block>::Id::zero() {
             return Ok(Some(descendent.depth));
         }
 
@@ -226,19 +221,19 @@ pub trait BlockStore: std::marker::Sized {
 
     /// Return an iterator that yields block info for the blocks in
     /// the half-open range `(from, to]`. `from` must be an ancestor
-    /// of `to` and may be the genesis hash.
-    fn iterate_range(
-        &self,
+    /// of `to` and may be the zero hash.
+    fn iterate_range<'store>(
+        &'store self,
         from: &<Self::Block as Block>::Id,
         to: &<Self::Block as Block>::Id,
-    ) -> Result<BlockIterator<Self>, Error> {
+    ) -> Result<BlockIterator<'store, Self::Block>, Error> {
         // FIXME: put blocks loaded by is_ancestor into pending_infos.
         match self.is_ancestor(from, to)? {
-            None => panic!(), // FIXME: return error
+            None => Err(Error::CannotIterate),
             Some(distance) => {
                 let to_info = self.get_block_info(&to)?;
                 Ok(BlockIterator {
-                    store: &self,
+                    store: self.as_trait(),
                     to_depth: to_info.depth,
                     cur_depth: to_info.depth - distance,
                     pending_infos: vec![to_info],
@@ -246,23 +241,20 @@ pub trait BlockStore: std::marker::Sized {
             }
         }
     }
+
+    // See https://stackoverflow.com/questions/42121299/provided-method-casting-self-to-trait-object
+    fn as_trait(&self) -> &BlockStore<Block = Self::Block>;
 }
 
-pub struct BlockIterator<'store, S>
-where
-    S: BlockStore + 'store,
-{
-    store: &'store S,
+pub struct BlockIterator<'store, B: Block> {
+    store: &'store BlockStore<Block = B>,
     to_depth: u64,
     cur_depth: u64,
-    pending_infos: Vec<BlockInfo<<S::Block as Block>::Id>>,
+    pending_infos: Vec<BlockInfo<B::Id>>,
 }
 
-impl<'store, S> Iterator for BlockIterator<'store, S>
-where
-    S: BlockStore + 'store,
-{
-    type Item = Result<BlockInfo<<S::Block as Block>::Id>, Error>;
+impl<'store, B: Block> Iterator for BlockIterator<'store, B> {
+    type Item = Result<BlockInfo<B::Id>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur_depth >= self.to_depth {
@@ -285,9 +277,9 @@ where
                 Some(self.store.get_path_to_nth_ancestor(
                     &parent,
                     depth - self.cur_depth - 1,
-                    |new_info| {
+                    Box::new(|new_info| {
                         self.pending_infos.push(new_info.clone());
-                    },
+                    }),
                 ))
             }
         }

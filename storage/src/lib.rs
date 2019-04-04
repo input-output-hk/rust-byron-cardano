@@ -18,13 +18,17 @@ use std::{fs, io, result};
 pub use config::StorageConfig;
 
 use cardano::block::{Block, BlockDate, EpochId, HeaderHash, RawBlock, SlotId};
-use std::{collections::BTreeMap, error, fmt};
+use std::collections::HashMap;
+use std::{error, fmt};
 
 use storage_units::utils::error::StorageError;
-use storage_units::utils::magic;
 use storage_units::utils::tmpfile::*;
+use storage_units::utils::{magic, serialize};
 use types::*;
 
+use cardano::block::block::BlockHeaderView;
+use cardano::block::types::ChainDifficulty;
+use cardano::util::hex;
 use pack::{packreader_block_next, packreader_init};
 use std::cmp::Ordering;
 use storage_units::{indexfile, packfile, reffile};
@@ -38,6 +42,7 @@ pub enum Error {
     RefPackUnexpectedBoundary(SlotId),
 
     BlockNotFound(BlockHash),
+    BlockHeightNotFound(u64),
 
     // ** Epoch pack assumption errors
     EpochExpectingBoundary,
@@ -73,7 +78,8 @@ impl fmt::Display for Error {
             Error::StorageError(_) => write!(f, "Storage error"),
             Error::CborBlockError(_) => write!(f, "Encoding error"),
             Error::BlockError(_) => write!(f, "Block error"),
-            Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hh),
+            Error::BlockNotFound(hh) => write!(f, "Block {:?} not found", hex::encode(hh)),
+            Error::BlockHeightNotFound(hh) => write!(f, "Block with height {:?} not found", hh),
             Error::RefPackUnexpectedBoundary(sid) => write!(f, "Ref pack has an unexpected Boundary `{}`", sid),
             Error::EpochExpectingBoundary => write!(f, "Expected a boundary block"),
             Error::EpochError(eeid, reid) => write!(f, "Expected block in epoch {} but is in epoch {}", eeid, reid),
@@ -90,6 +96,7 @@ impl error::Error for Error {
             Error::CborBlockError(ref err) => Some(err),
             Error::BlockError(ref err) => Some(err),
             Error::BlockNotFound(_) => None,
+            Error::BlockHeightNotFound(_) => None,
             Error::RefPackUnexpectedBoundary(_) => None,
             Error::EpochExpectingBoundary => None,
             Error::EpochError(_, _) => None,
@@ -102,9 +109,22 @@ impl error::Error for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
+#[derive(Debug, Clone)]
+pub struct LooseChainHeightEntry {
+    difficulty: ChainDifficulty,
+    date: BlockDate,
+    hash: BlockHash,
+}
+
+pub struct ChainHeightIdx {
+    loose_idx: Vec<LooseChainHeightEntry>,
+    packed_idx: Vec<u32>,
+}
+
 pub struct Storage {
     pub config: StorageConfig,
-    lookups: BTreeMap<PackHash, indexfile::Lookup>,
+    lookups: HashMap<PackHash, indexfile::Lookup>,
+    chain_height_idx: ChainHeightIdx,
 }
 
 macro_rules! try_open {
@@ -127,7 +147,7 @@ macro_rules! try_open {
 
 impl Storage {
     pub fn init(cfg: &StorageConfig) -> Result<Self> {
-        let mut lookups = BTreeMap::new();
+        let mut lookups = HashMap::new();
 
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Blob))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::Index))?;
@@ -137,21 +157,57 @@ impl Storage {
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::RefPack))?;
         fs::create_dir_all(cfg.get_filetype_dir(StorageFileType::ChainState))?;
 
-        let packhashes = cfg.list_indexes();
-        for p in packhashes.iter() {
-            match pack::read_index_fanout(&cfg, p) {
-                Err(_) => {}
-                Ok(lookup) => {
-                    lookups.insert(*p, lookup);
-                }
-            }
+        for p in cfg.list_indexes() {
+            let l = pack::read_index_fanout(&cfg, &p)?;
+            lookups.insert(p, l);
         }
 
-        let storage = Storage {
+        let mut storage = Storage {
             config: cfg.clone(),
             lookups: lookups,
+            chain_height_idx: ChainHeightIdx {
+                loose_idx: vec![],
+                packed_idx: vec![],
+            },
         };
+
+        if let Some(hash) = tag::read_hash(&storage, &tag::HEAD) {
+            storage.build_chain_height_idx(hash)?;
+        }
+
         Ok(storage)
+    }
+
+    fn build_chain_height_idx(&mut self, tip: HeaderHash) -> Result<()> {
+        self.chain_height_idx.packed_idx = self.config.list_epochs_heights()?;
+        self.build_loose_index(tip);
+        Ok(())
+    }
+
+    fn build_loose_index(&mut self, tip: HeaderHash) {
+        let mut cur_hash: HeaderHash = tip;
+        let mut prev_diff: Option<u64> = None;
+        loop {
+            let blockhash = types::header_to_blockhash(&cur_hash);
+            let path = self.config.get_blob_filepath(&blockhash);
+            if path.exists() {
+                let block = self.read_block(&blockhash).unwrap().decode().unwrap();
+                let header = block.header();
+                let entry = Storage::create_loose_index_entry(&header);
+                let new_tip_diff = u64::from(entry.difficulty);
+                if let Some(prev_tip_diff) = prev_diff {
+                    // Here we are going bavkward in history, so check next height is lower
+                    assert!((new_tip_diff < prev_tip_diff) & (prev_tip_diff - new_tip_diff == 1));
+                }
+                prev_diff = Some(new_tip_diff);
+                // Here we append elements to the end,
+                // because we are iterating from newer block to older
+                self.chain_height_idx.loose_idx.push(entry);
+                cur_hash = header.previous_header();
+                continue;
+            }
+            break;
+        }
     }
 
     /// Returns an iterator over blocks in the given block range.
@@ -191,6 +247,33 @@ impl Storage {
         Err(Error::BlockNotFound(hash.clone()))
     }
 
+    pub fn block_location_by_height(&self, height: u64) -> Result<BlockLocation> {
+        if let Some(e) = self.get_from_loose_index(ChainDifficulty::from(height))? {
+            debug!(
+                "Search in loose index by height {:?} returned ({:?}, {:?}, {:?})",
+                height,
+                e.difficulty,
+                e.date,
+                hex::encode(&e.hash)
+            );
+            return Ok(BlockLocation::Loose(e.hash));
+        } else {
+            // Search height in packed epochs
+            let mut h = height;
+            for (epoch_id, epoch_size) in self.chain_height_idx.packed_idx.iter().enumerate() {
+                let total = *epoch_size as u64;
+                if h < total {
+                    let epoch_id = epoch_id as u64;
+                    let (packref, ofs) =
+                        epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                    return Ok(BlockLocation::Offset(packref, ofs));
+                }
+                h -= total;
+            }
+            return Err(Error::BlockHeightNotFound(height));
+        }
+    }
+
     pub fn block_exists(&self, hash: &BlockHash) -> Result<bool> {
         match self.block_location(hash) {
             Ok(_) => Ok(true),
@@ -211,15 +294,17 @@ impl Storage {
                     let mut idx_file =
                         try_open!(indexfile::ReaderNoLookup::init, &idx_filepath, "index file");
                     let pack_offset = idx_file.resolve_index_offset(lookup, *iofs);
-                    let pack_filepath = self.config.get_pack_filepath(packref);
-                    let mut pack_file =
-                        try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
-                    let rblk = pack_file
-                        .block_at_offset(pack_offset)
-                        .and_then(|x| Ok(RawBlock(x)))?;
-                    Ok(rblk)
+                    self.read_block_at(&BlockLocation::Offset(*packref, pack_offset))
                 }
             },
+            BlockLocation::Offset(ref packref, ref offset) => {
+                let pack_filepath = self.config.get_pack_filepath(packref);
+                let mut pack_file = try_open!(packfile::Seeker::init, &pack_filepath, "pack file");
+                let rblk = pack_file
+                    .block_at_offset(*offset)
+                    .and_then(|x| Ok(RawBlock(x)))?;
+                Ok(rblk)
+            }
         }
     }
 
@@ -237,6 +322,73 @@ impl Storage {
 
     pub fn add_lookup(&mut self, packhash: PackHash, lookup: indexfile::Lookup) {
         self.lookups.insert(packhash, lookup);
+    }
+
+    pub fn add_loose_to_index(&mut self, header: &BlockHeaderView) {
+        if let Some(idx_tip) = self.chain_height_idx.loose_idx.get(0) {
+            let new_diff = u64::from(header.difficulty());
+            let prev_diff = u64::from(idx_tip.difficulty);
+            // Assert new proposed idx tip has higher chain height
+            assert!((new_diff > prev_diff) & (new_diff - prev_diff == 1));
+        }
+        // Here we insert elements to the start, because index is going from newer to older
+        self.chain_height_idx
+            .loose_idx
+            .insert(0, Storage::create_loose_index_entry(header));
+    }
+
+    pub fn add_pack_to_index(&mut self, epoch_id: u64, epoch_size: serialize::Size) {
+        let idx_len = self.chain_height_idx.packed_idx.len() as u64;
+        assert!((epoch_id <= idx_len) | (idx_len - epoch_id <= 1));
+        if epoch_id < idx_len {
+            self.chain_height_idx.packed_idx[epoch_id as usize] = epoch_size;
+        } else {
+            self.chain_height_idx.packed_idx.push(epoch_size);
+        }
+    }
+
+    fn create_loose_index_entry(header: &BlockHeaderView) -> LooseChainHeightEntry {
+        LooseChainHeightEntry {
+            difficulty: header.difficulty(),
+            date: header.blockdate(),
+            hash: types::header_to_blockhash(&header.compute_hash()),
+        }
+    }
+
+    pub fn drop_loose_index_before(&mut self, diff: ChainDifficulty) {
+        let read_idx = self.chain_height_idx.loose_idx.clone();
+        if let Some(ref idx_tip) = read_idx.first() {
+            let drop_diff = u64::from(diff);
+            let tip_diff = u64::from(idx_tip.difficulty);
+            if tip_diff > drop_diff {
+                let drop_after = (tip_diff - drop_diff) as usize;
+                if read_idx.len() > drop_after {
+                    self.chain_height_idx.loose_idx = read_idx[0..drop_after].to_vec();
+                }
+            }
+        }
+    }
+
+    /// Returns:
+    /// - Ok of Some entry - if found in loose index
+    /// - Ok of None - if requested height is low enough to not be in the index already
+    /// - Err of `BlockHeightNotFound` - if requested height is too large and out of index bounds
+    pub fn get_from_loose_index(
+        &self,
+        height: ChainDifficulty,
+    ) -> Result<Option<&LooseChainHeightEntry>> {
+        if let Some(ref idx_tip) = self.chain_height_idx.loose_idx.first() {
+            let find_diff = u64::from(height);
+            let tip_diff = u64::from(idx_tip.difficulty);
+            if find_diff > tip_diff {
+                return Err(Error::BlockHeightNotFound(find_diff));
+            }
+            let idx = (tip_diff - find_diff) as usize;
+            if self.chain_height_idx.loose_idx.len() > idx {
+                return Ok(Some(&(self.chain_height_idx.loose_idx[idx])));
+            }
+        }
+        return Ok(None);
     }
 }
 
@@ -294,6 +446,7 @@ pub mod blob {
 #[derive(Clone, Debug)]
 pub enum BlockLocation {
     Packed(PackHash, indexfile::IndexOffset),
+    Offset(PackHash, serialize::Offset),
     Loose(BlockHash),
 }
 
