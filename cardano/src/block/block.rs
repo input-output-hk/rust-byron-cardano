@@ -12,7 +12,8 @@ use super::super::config::ProtocolMagic;
 use super::boundary;
 use super::date::BlockDate;
 use super::normal;
-use super::types::{BlockVersion, HeaderHash};
+use super::types::{BlockVersion, ChainDifficulty, HeaderHash};
+use crate::tx::TxAux;
 use cbor_event::{self, de::Deserialize, de::Deserializer, se::Serializer};
 use chain_core;
 
@@ -203,6 +204,13 @@ impl<'a> BlockHeaderView<'a> {
     /// Computes the hash of the block header data.
     pub fn compute_hash(&self) -> HeaderHash {
         HeaderHash::new(&self.to_cbor())
+    }
+
+    pub fn difficulty(&self) -> ChainDifficulty {
+        match self {
+            BlockHeaderView::Boundary(h) => h.consensus.chain_difficulty,
+            BlockHeaderView::Normal(h) => h.consensus.chain_difficulty,
+        }
     }
 }
 

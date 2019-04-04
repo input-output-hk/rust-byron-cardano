@@ -91,6 +91,11 @@ impl Fanout {
         FanoutTotal(self.0[255])
     }
 }
+impl From<FanoutTotal> for u32 {
+    fn from(ft: FanoutTotal) -> Self {
+        ft.0
+    }
+}
 
 pub struct Bloom(Vec<u8>);
 
@@ -193,11 +198,8 @@ impl Index {
             tmpfile.write_all(&hash[..])?;
         }
 
-        for &(_, ofs) in sorted.iter() {
-            let mut buf = [0u8; OFF_SIZE];
-            write_offset(&mut buf, ofs);
-            tmpfile.write_all(&buf[..])?;
-        }
+        write_offsets_to_file(tmpfile, sorted.iter().map(|(_, b)| b))?;
+
         Ok(Lookup {
             params: params,
             fanout: fanout,
@@ -233,10 +235,27 @@ impl Lookup {
     }
 }
 
+pub fn write_offsets_to_file<'a, I: Iterator<Item = &'a Offset>>(
+    tmpfile: &mut TmpFile,
+    offsets: I,
+) -> Result<()> {
+    for ofs in offsets {
+        let mut buf = [0u8; OFF_SIZE];
+        write_offset(&mut buf, *ofs);
+        tmpfile.write_all(&buf[..])?;
+    }
+    Ok(())
+}
+
 fn file_read_offset(mut file: &fs::File) -> Offset {
     let mut buf = [0u8; OFF_SIZE];
     file.read_exact(&mut buf).unwrap();
     read_offset(&buf)
+}
+
+pub fn file_read_offset_at(mut file: &fs::File, ofs: u64) -> Offset {
+    file.seek(SeekFrom::Start(ofs)).unwrap();
+    file_read_offset(file)
 }
 
 fn file_read_hash(mut file: &fs::File) -> BlockHash {
@@ -274,8 +293,7 @@ impl ReaderNoLookup<fs::File> {
         let FanoutTotal(total) = lookup.fanout.get_total();
         let ofs_base = offset_offsets(lookup.params.bloom_size, total);
         let ofs = ofs_base + OFF_SIZE as u64 * index_offset as u64;
-        self.handle.seek(SeekFrom::Start(ofs)).unwrap();
-        file_read_offset(&mut self.handle)
+        file_read_offset_at(&mut self.handle, ofs)
     }
 }
 
