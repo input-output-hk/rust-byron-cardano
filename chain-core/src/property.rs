@@ -44,7 +44,7 @@ pub trait BlockDate: Eq + Ord + Clone {
     fn from_epoch_slot_id(epoch: u32, slot_id: u32) -> Self;
 }
 
-pub trait ChainLength {
+pub trait ChainLength: Eq + Ord + Clone + Debug {
     fn next(&self) -> Self;
 }
 
@@ -67,6 +67,10 @@ pub trait Header: Serialize + Deserialize {
 
     /// Retrieves the block's header id.
     fn id(&self) -> Self::Id;
+
+    /// get the parent block identifier (the previous block in the
+    /// blockchain).
+    fn parent_id(&self) -> Self::Id;
 
     /// Retrieves the block's date.
     fn date(&self) -> Self::Date;
@@ -338,6 +342,7 @@ impl<T: Serialize> Serialize for &T {
 
 #[cfg(feature = "property-test-api")]
 pub mod testing {
+    use super::super::mempack::{ReadBuf, Readable};
     use super::*;
     use quickcheck::{Arbitrary, TestResult};
 
@@ -352,10 +357,30 @@ pub mod testing {
             Err(error) => return TestResult::error(format!("serialization: {}", error)),
             Ok(v) => v,
         };
-        let decoded_t = match T::deserialize(&mut &vec[..]) {
+        let decoded_t = match T::deserialize(&vec[..]) {
             Err(error) => return TestResult::error(format!("deserialization: {}", error)),
             Ok(v) => v,
         };
         TestResult::from_bool(decoded_t == t)
     }
+
+    /// test that any arbitrary given object can serialize and deserialize
+    /// back into itself (i.e. it is a bijection,  or a one to one match
+    /// between the serialized bytes and the object)
+    pub fn serialization_bijection_r<T>(t: T) -> TestResult
+    where
+        T: Arbitrary + Serialize + Readable + Eq,
+    {
+        let vec = match t.serialize_as_vec() {
+            Err(error) => return TestResult::error(format!("serialization: {}", error)),
+            Ok(v) => v,
+        };
+        let mut buf = ReadBuf::from(&vec);
+        let decoded_t = match T::read(&mut buf) {
+            Err(error) => return TestResult::error(format!("deserialization: {:?}", error)),
+            Ok(v) => v,
+        };
+        TestResult::from_bool(decoded_t == t)
+    }
+
 }

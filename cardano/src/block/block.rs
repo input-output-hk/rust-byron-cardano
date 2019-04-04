@@ -80,6 +80,7 @@ pub enum BlockHeader {
     MainBlockHeader(normal::BlockHeader),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainLength(usize);
 
 impl chain_core::property::ChainLength for ChainLength {
@@ -98,6 +99,13 @@ impl chain_core::property::Header for BlockHeader {
         self.compute_hash()
     }
 
+    fn parent_id(&self) -> Self::Id {
+        match self {
+            BlockHeader::BoundaryBlockHeader(ref header) => header.previous_header.clone(),
+            BlockHeader::MainBlockHeader(ref header) => header.previous_header.clone(),
+        }
+    }
+
     fn date(&self) -> Self::Date {
         match self {
             BlockHeader::BoundaryBlockHeader(ref header) => header.consensus.epoch.into(),
@@ -107,7 +115,7 @@ impl chain_core::property::Header for BlockHeader {
 
     fn version(&self) -> Self::Version {
         match self {
-            BlockHeader::BoundaryBlockHeader(ref header) => unimplemented!(),
+            BlockHeader::BoundaryBlockHeader(ref _header) => unimplemented!(),
             BlockHeader::MainBlockHeader(ref header) => header.extra_data.block_version,
         }
     }
@@ -365,7 +373,7 @@ impl chain_core::property::Block for Block {
     fn version(&self) -> Self::Version {
         match self {
             Block::MainBlock(ref block) => block.header.extra_data.block_version,
-            Block::BoundaryBlock(ref block) => unimplemented!(),
+            Block::BoundaryBlock(ref _block) => unimplemented!(),
         }
     }
 

@@ -1,17 +1,15 @@
 //! module to provide some handy interfaces atop the hashes so we have
 //! the common interfaces for the project to work with.
 
-use std::{
-    error, fmt,
-    hash::{Hash, Hasher},
-    result,
-    str::FromStr,
-};
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use std::{error, fmt, result};
 
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 use cryptoxide::sha3::Sha3;
 
+use crate::bech32::{self, Bech32};
 use crate::hex;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -63,7 +61,7 @@ macro_rules! define_blake2b_new {
     };
 }
 macro_rules! define_hash_object {
-    ($hash_ty:ty, $constructor:expr, $hash_size:ident) => {
+    ($hash_ty:ty, $constructor:expr, $hash_size:ident, $bech32_hrp:expr) => {
         impl $hash_ty {
             pub const HASH_SIZE: usize = $hash_size;
 
@@ -120,6 +118,18 @@ macro_rules! define_hash_object {
                 f.write_str(")")
             }
         }
+        impl Bech32 for $hash_ty {
+            const BECH32_HRP: &'static str = $bech32_hrp;
+
+            fn try_from_bech32_str(bech32_str: &str) -> bech32::Result<Self> {
+                let bytes = bech32::try_from_bech32_to_bytes::<Self>(bech32_str)?;
+                Self::try_from_slice(&bytes).map_err(bech32::Error::data_invalid)
+            }
+
+            fn to_bech32_str(&self) -> String {
+                bech32::to_bech32_from_bytes::<Self>(self.as_ref())
+            }
+        }
     };
 }
 
@@ -129,18 +139,18 @@ pub const HASH_SIZE_256: usize = 32;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Blake2b224([u8; HASH_SIZE_224]);
-define_hash_object!(Blake2b224, Blake2b224, HASH_SIZE_224);
+define_hash_object!(Blake2b224, Blake2b224, HASH_SIZE_224, "blake2b224");
 define_blake2b_new!(Blake2b224);
 
 /// Blake2b 256 bits
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Blake2b256([u8; HASH_SIZE_256]);
-define_hash_object!(Blake2b256, Blake2b256, HASH_SIZE_256);
+define_hash_object!(Blake2b256, Blake2b256, HASH_SIZE_256, "blake2b256");
 define_blake2b_new!(Blake2b256);
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct Sha3_256([u8; HASH_SIZE_256]);
-define_hash_object!(Sha3_256, Sha3_256, HASH_SIZE_256);
+define_hash_object!(Sha3_256, Sha3_256, HASH_SIZE_256, "sha3256");
 impl Sha3_256 {
     pub fn new(buf: &[u8]) -> Self {
         let mut sh3 = Sha3::sha3_256();

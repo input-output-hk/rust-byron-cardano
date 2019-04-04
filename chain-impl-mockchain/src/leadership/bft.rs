@@ -2,8 +2,9 @@ use crate::block::{BlockDate, Header, Proof};
 use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::{
     leadership::{Error, ErrorKind, Verification},
-    state::State,
+    ledger::Ledger,
 };
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 use chain_crypto::{Ed25519Extended, PublicKey, SecretKey};
 use std::sync::Arc;
@@ -30,13 +31,13 @@ pub struct BftLeaderSelection {
 
 impl BftLeaderSelection {
     /// Create a new BFT leadership
-    pub fn new(state: &State) -> Option<Self> {
-        if state.settings.bft_leaders.len() == 0 {
+    pub fn new(ledger: &Ledger) -> Option<Self> {
+        if ledger.settings.bft_leaders.len() == 0 {
             return None;
         }
 
         Some(BftLeaderSelection {
-            leaders: Arc::clone(&state.settings.bft_leaders),
+            leaders: Arc::clone(&ledger.settings.bft_leaders),
         })
     }
 
@@ -74,6 +75,12 @@ impl BftLeaderSelection {
     }
 }
 
+impl LeaderId {
+    pub fn as_public_key(&self) -> &PublicKey<SIGNING_ALGORITHM> {
+        &self.0
+    }
+}
+
 impl property::Serialize for LeaderId {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -81,9 +88,8 @@ impl property::Serialize for LeaderId {
     }
 }
 
-impl property::Deserialize for LeaderId {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
+impl Readable for LeaderId {
+    fn read<'a>(reader: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
         deserialize_public_key(reader).map(LeaderId)
     }
 }

@@ -2,10 +2,11 @@ use super::transaction::*;
 use crate::account;
 use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
-    SpendingPublicKey, SpendingSecretKey, SpendingSignature,
+    AccountSecretKey, AccountSignature, SpendingPublicKey, SpendingSecretKey, SpendingSignature,
 };
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
-use chain_crypto::{Ed25519Bip32, PublicKey, Verification};
+use chain_crypto::{Ed25519Bip32, PublicKey, Signature, Verification};
 
 /// Structure that proofs that certain user agrees with
 /// some data. This structure is used to sign `Transaction`
@@ -17,8 +18,25 @@ use chain_crypto::{Ed25519Bip32, PublicKey, Verification};
 pub enum Witness {
     Utxo(SpendingSignature<TransactionId>),
     Account(SpendingSignature<TransactionIdSpendingCounter>),
-    OldUtxo(PublicKey<Ed25519Bip32>, SpendingSignature<TransactionId>),
+    OldUtxo(
+        PublicKey<Ed25519Bip32>,
+        Signature<TransactionId, Ed25519Bip32>,
+    ),
 }
+
+impl PartialEq for Witness {
+    fn eq(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Witness::Utxo(s1), Witness::Utxo(s2)) => s1.as_ref() == s2.as_ref(),
+            (Witness::Account(s1), Witness::Account(s2)) => s1.as_ref() == s2.as_ref(),
+            (Witness::OldUtxo(p1, s1), Witness::OldUtxo(p2, s2)) => {
+                s1.as_ref() == s2.as_ref() && p1 == p2
+            }
+            (_, _) => false,
+        }
+    }
+}
+impl Eq for Witness {}
 
 pub struct TransactionIdSpendingCounter(Vec<u8>);
 
@@ -43,8 +61,19 @@ impl AsRef<[u8]> for TransactionIdSpendingCounter {
 
 impl Witness {
     /// Creates new `Witness` value.
-    pub fn new(transaction_id: &TransactionId, secret_key: &SpendingSecretKey) -> Self {
+    pub fn new_utxo(transaction_id: &TransactionId, secret_key: &SpendingSecretKey) -> Self {
         Witness::Utxo(SpendingSignature::generate(secret_key, transaction_id))
+    }
+
+    pub fn new_account(
+        transaction_id: &TransactionId,
+        spending_counter: &account::SpendingCounter,
+        secret_key: &AccountSecretKey,
+    ) -> Self {
+        Witness::Account(AccountSignature::generate(
+            secret_key,
+            &TransactionIdSpendingCounter::new(transaction_id, spending_counter),
+        ))
     }
 
     /// Verify the given `TransactionId` using the witness.
@@ -91,22 +120,17 @@ impl property::Serialize for Witness {
     }
 }
 
-impl property::Deserialize for Witness {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        let mut codec = Codec::from(reader);
-
-        match codec.get_u8()? {
+impl Readable for Witness {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        match buf.get_u8()? {
             WITNESS_TAG_OLDUTXO => {
-                let xpub = deserialize_public_key(&mut codec)?;
-                let sig = deserialize_signature(&mut codec)?;
+                let xpub = deserialize_public_key(buf)?;
+                let sig = deserialize_signature(buf)?;
                 Ok(Witness::OldUtxo(xpub, sig))
             }
-            WITNESS_TAG_UTXO => deserialize_signature(codec.into_inner()).map(Witness::Utxo),
-            WITNESS_TAG_ACCOUNT => deserialize_signature(codec.into_inner()).map(Witness::Account),
-            _ => unimplemented!(),
+            WITNESS_TAG_UTXO => deserialize_signature(buf).map(Witness::Utxo),
+            WITNESS_TAG_ACCOUNT => deserialize_signature(buf).map(Witness::Account),
+            i => Err(ReadError::UnknownTag(i as u32)),
         }
     }
 }
@@ -153,7 +177,7 @@ pub mod test {
         /// ```
         fn prop_witness_verifies_own_tx(sk: TransactionSigningKey, tx:TransactionId) -> bool {
             let pk = sk.0.to_public();
-            let witness = Witness::new(&tx, &sk.0);
+            let witness = Witness::new_utxo(&tx, &sk.0);
             witness.verify_utxo(&pk, &tx) == Verification::Success
         }
     }

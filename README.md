@@ -3,7 +3,11 @@
 [![Gitter chat](https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/input-output-hk/Cardano-Rust)
 
 # Rust implementation of Cardano primitives, helpers, and related applications
-Cardano Rust is a modular toolbox of Cardano’s cryptographic primitives, a library of wallet functions and a future alternative Cardano node implementation written in Rust. It can be used by any third-party to build wallet applications and interact with the Cardano blockchain. 
+
+Cardano Rust is a modular toolbox of Cardano’s cryptographic primitives, a
+library of wallet functions and a future alternative Cardano node
+implementation written in Rust. It can be used by any third-party to build
+wallet applications and interact with the Cardano blockchain.
 
 ## Related repositories
 

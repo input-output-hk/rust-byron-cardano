@@ -2,6 +2,7 @@ use super::transaction::TransactionId;
 use super::utxo::UtxoPointer;
 use crate::account;
 use crate::value::*;
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 use chain_crypto::PublicKey;
 
@@ -18,12 +19,25 @@ pub struct Input {
     input_ptr: [u8; INPUT_PTR_SIZE],
 }
 
+pub enum InputType {
+    Utxo,
+    Account,
+}
+
 pub enum InputEnum {
     AccountInput(account::Identifier, Value),
     UtxoInput(UtxoPointer),
 }
 
 impl Input {
+    pub fn get_type(&self) -> InputType {
+        if self.index_or_account == 0xff {
+            InputType::Account
+        } else {
+            InputType::Utxo
+        }
+    }
+
     pub fn from_utxo(utxo_pointer: UtxoPointer) -> Self {
         let mut input_ptr = [0u8; INPUT_PTR_SIZE];
         input_ptr.clone_from_slice(utxo_pointer.transaction_id.as_ref());
@@ -46,16 +60,17 @@ impl Input {
     }
 
     pub fn to_enum(&self) -> InputEnum {
-        if self.index_or_account == 0xff {
-            let pk =
-                PublicKey::from_bytes(&self.input_ptr).expect("internal error in publickey type");
-            InputEnum::AccountInput(pk.into(), self.value)
-        } else {
-            InputEnum::UtxoInput(UtxoPointer::new(
+        match self.get_type() {
+            InputType::Account => {
+                let pk = PublicKey::from_bytes(&self.input_ptr)
+                    .expect("internal error in publickey type");
+                InputEnum::AccountInput(pk.into(), self.value)
+            }
+            InputType::Utxo => InputEnum::UtxoInput(UtxoPointer::new(
                 TransactionId::from_bytes(self.input_ptr.clone()),
                 self.index_or_account,
                 self.value,
-            ))
+            )),
         }
     }
 
@@ -100,10 +115,31 @@ impl property::Deserialize for Input {
     }
 }
 
+impl Readable for Input {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        let index_or_account = buf.get_u8()?;
+        let value = Value::read(buf)?;
+        let input_ptr = <[u8; INPUT_PTR_SIZE]>::read(buf)?;
+        Ok(Input {
+            index_or_account: index_or_account,
+            value: value,
+            input_ptr: input_ptr,
+        })
+    }
+}
+
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Output<Address> {
     pub address: Address,
     pub value: Value,
+}
+
+impl<Address: Readable> Readable for Output<Address> {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        let address = Address::read(buf)?;
+        let value = Value::read(buf)?;
+        Ok(Output { address, value })
+    }
 }

@@ -1,11 +1,11 @@
-{ nixpkgs ? fetchTarball https://github.com/NixOS/nixpkgs/archive/7fff567ee99c1f343ecdd82fef2e35fb6f50e423.tar.gz
+{ nixpkgs ? fetchTarball https://github.com/NixOS/nixpkgs/archive/8d3e91077ba074e2c947a152ee8ab7be885c42ab.tar.gz
 , pkgs ? import nixpkgs {}
 }:
 
 with pkgs;
 
 stdenv.mkDerivation {
-  name = "rust-carano";
+  name = "rust-cardano";
 
   src = null;
 
