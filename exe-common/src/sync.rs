@@ -454,6 +454,11 @@ pub fn net_sync<A: Api>(
     let mut tip_header = net.get_tip()?;
 
     loop {
+
+        storage.write()
+            .expect("Failed to write net-tip into storage!")
+            .net_tip = Some(tip_header.clone());
+
         net_sync_to(net, net_cfg, genesis_data, storage.clone(), &tip_header)?;
 
         if sync_once {
