@@ -156,14 +156,18 @@ fn net_sync_to<A: Api>(
             let block_raw = storage
                 .read()
                 .unwrap()
-                .read_block(&cur_hash.into())
+                .read_block(&cur_hash.clone().into())
                 .unwrap();
             let block = block_raw.decode().unwrap();
             let hdr = block.header();
             let blockdate = hdr.blockdate();
-            assert!(blockdate.get_epochid() == first_unstable_epoch);
-            cur_hash = hdr.previous_header();
-            if blockdate.is_boundary() {
+            let from_this_epoch = blockdate.get_epochid() == first_unstable_epoch;
+            // switch to previous block if still in this epoch
+            if from_this_epoch {
+                cur_hash = hdr.previous_header();
+            }
+            // terminate if EBB or there isn't one and already another epoch
+            if blockdate.is_boundary() || !from_this_epoch {
                 break;
             }
         }
@@ -195,7 +199,15 @@ fn net_sync_to<A: Api>(
 
             // Flush the previous epoch (if any). FIXME: shouldn't rely on
             // 'date' here since the block hasn't been verified yet.
-            if date.is_boundary() {
+
+            // Calculate if this is a start of a new epoch (including the very first one)
+            // And if there's any previous date available (previous epochs)
+            let (is_new_epoch_start, is_prev_date_exists) = match chain_state.last_date {
+                None => (true, false),
+                Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true),
+            };
+
+            if is_new_epoch_start && is_prev_date_exists {
                 let mut writer_state = None;
                 mem::swap(&mut writer_state, &mut epoch_writer_state);
 
@@ -238,7 +250,7 @@ fn net_sync_to<A: Api>(
                 }
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
-                if date.is_boundary() {
+                if is_new_epoch_start {
                     epoch_writer_state = Some(EpochWriterState {
                         epoch_id: date.get_epochid(),
                         writer: pack::packwriter_init(&storage_config).unwrap(),
@@ -376,10 +388,16 @@ fn get_unpacked_blocks_in_epoch(
             let hdr = block.header();
             (hdr.blockdate(), hdr.previous_header())
         };
-        assert!(blockdate.get_epochid() == epoch_id);
-        blocks.push((cur_hash, block_raw, block));
-        cur_hash = prev_hash;
-        if blockdate.is_boundary() {
+        // Only add block and switch to previous block
+        // if currently viewed block is still from the current epoch
+        let from_this_epoch = blockdate.get_epochid() == epoch_id;
+        if from_this_epoch {
+            blocks.push((cur_hash, block_raw, block));
+            cur_hash = prev_hash;
+        }
+        // Terminate if current block is EBB
+        // or if there isn't one and we already jumped to previous epoch
+        if blockdate.is_boundary() || !from_this_epoch {
             break;
         }
     }

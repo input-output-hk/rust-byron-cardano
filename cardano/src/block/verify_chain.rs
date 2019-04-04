@@ -14,19 +14,33 @@ impl ChainState {
 
         add_error(&mut res, self.do_verify(block_hash, blk));
 
+        match blk {
+            Block::BoundaryBlock(blk) => {
+                self.last_boundary_block = Some(block_hash.clone());
+                self.last_boundary_block_epoch = Some(blk.header.consensus.epoch);
+                self.slot_leaders = blk.body.slot_leaders.clone();
+            }
+            Block::MainBlock(blk) => {
+                if self.last_boundary_block.is_some() {
+                    let block_epoch = blk.header.consensus.slot_id.epoch;
+                    let local_epoch = self.last_date.map(|d| d.get_epochid()).unwrap_or(0);
+                    if block_epoch > local_epoch {
+                        // We are in OBFT and switched epochs without EBB
+                        // Remove last boundary block state
+
+                        // TODO: should cleanup EBB state here?
+                        //self.last_boundary_block = None;
+                        //self.last_boundary_block_epoch = None;
+                        //self.slot_leaders = vec![];
+                    }
+                }
+            }
+        };
+
         self.last_block = block_hash.clone();
         self.last_date = Some(blk.header().blockdate());
         // FIXME: count boundary blocks as part of the chain length?
         self.chain_length += 1;
-
-        match blk {
-            Block::BoundaryBlock(blk) => {
-                self.last_boundary_block = Some(block_hash.clone());
-                self.slot_leaders = blk.body.slot_leaders.clone();
-            }
-
-            Block::MainBlock(_) => {}
-        };
 
         // Update the utxos from the transactions.
         if let Block::MainBlock(blk) = blk {
@@ -65,12 +79,16 @@ impl ChainState {
                     return Err(Error::BlockDateInPast);
                 }
 
-                // If this is a genesis block, it should be the next
-                // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid()
-                    != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 })
-                {
-                    return Err(Error::BlockDateInFuture);
+                // New date should be this or next epoch, not further
+                if date.get_epochid() > last_date.get_epochid() {
+                    if date.get_epochid() > last_date.get_epochid() + 1 {
+                        return Err(Error::BlockDateInFuture);
+                    }
+                    // First next-epoch block supposed to be EBB,
+                    // unless we are in OBFT era
+                    if !date.is_boundary() {
+                        // TODO: validate we are in OBFT?
+                    }
                 }
             }
 
@@ -87,19 +105,33 @@ impl ChainState {
             Block::BoundaryBlock(_) => {}
 
             Block::MainBlock(blk) => {
-                let slot_id = blk.header.consensus.slot_id.slotid as usize;
+                let epoch_id = blk.header.consensus.slot_id.epoch;
+                let epoch_with_ebb = match &self.last_boundary_block_epoch {
+                    Some(last_ebb_epoch) => epoch_id == *last_ebb_epoch,
+                    _ => false,
+                };
 
-                if slot_id >= self.slot_leaders.len() {
-                    return Err(Error::NonExistentSlot);
-                }
+                if epoch_with_ebb {
+                    // If epoch contains EBB - validate block using the leader-list
 
-                let slot_leader = &self.slot_leaders[slot_id];
+                    let slot_id = blk.header.consensus.slot_id.slotid as usize;
 
-                // Note: the block signature was already checked in
-                // verify_block, so here we only check the leader key
-                // against the genesis block.
-                if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
-                    return Err(Error::WrongSlotLeader);
+                    if slot_id >= self.slot_leaders.len() {
+                        return Err(Error::NonExistentSlot);
+                    }
+
+                    let slot_leader = &self.slot_leaders[slot_id];
+
+                    // Note: the block signature was already checked in
+                    // verify_block, so here we only check the leader key
+                    // against the genesis block.
+                    if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key)
+                    {
+                        return Err(Error::WrongSlotLeader);
+                    }
+                } else {
+
+                    // TODO: validate OBFT leader
                 }
             }
         };

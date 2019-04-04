@@ -99,6 +99,7 @@ pub fn write_chain_state_delta<W: Write>(
             BlockDate::Boundary(_) => 0u16,
             BlockDate::Normal(s) => s.slotid + 1,
         })?
+        // TODO: make sure to process potential None for last EBB
         .serialize(&chain_state.last_boundary_block.as_ref().unwrap())?
         .serialize(&chain_state.chain_length)?
         .serialize(&chain_state.nr_transactions)?
@@ -126,16 +127,18 @@ pub fn read_chain_state(
     // from the boundary block.
     if let Some(last_boundary_block) = &chain_state.last_boundary_block {
         let hash = last_boundary_block.as_hash_bytes();
-        chain_state.slot_leaders = match storage.read_block(hash).unwrap().decode()? {
+        let (leaders, epoch) = match storage.read_block(hash).unwrap().decode()? {
             Block::BoundaryBlock(blk) => {
                 assert_eq!(
                     blk.header.consensus.epoch,
                     chain_state.last_date.unwrap().get_epochid()
                 );
-                blk.body.slot_leaders.clone()
+                (blk.body.slot_leaders.clone(), blk.header.consensus.epoch)
             }
             _ => panic!("unexpected non-boundary block"),
         };
+        chain_state.slot_leaders = leaders;
+        chain_state.last_boundary_block_epoch = Some(epoch);
     }
 
     Ok(chain_state)
@@ -185,6 +188,8 @@ pub struct ChainStateFile {
     pub parent: HeaderHash,
     pub last_block: HeaderHash,
     pub last_date: BlockDate,
+    // TODO: might be None, if after OBFT
+    // Or keep the last one forever?
     pub last_boundary_block: HeaderHash,
     pub chain_length: u64,
     pub nr_transactions: u64,
