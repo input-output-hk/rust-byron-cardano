@@ -1,4 +1,5 @@
 use cardano::address;
+use cardano::coin::CoinDiff;
 use cardano::hdwallet;
 use cardano::tx;
 use cardano::txbuild;
@@ -40,6 +41,93 @@ impl CardanoBIP39ErrorCode {
     ///Error representing that the word count is not one of the supported ones
     pub fn invalid_word_count() -> Self {
         CardanoBIP39ErrorCode(3)
+    }
+}
+
+#[repr(C)]
+pub struct CardanoTransactionErrorCode(c_int);
+
+impl CardanoTransactionErrorCode {
+    pub fn success() -> Self {
+        CardanoTransactionErrorCode(0)
+    }
+
+    ///Transaction has no outputs
+    pub fn no_outputs() -> Self {
+        CardanoTransactionErrorCode(1)
+    }
+
+    ///Transaction has no inputs
+    pub fn no_inputs() -> Self {
+        CardanoTransactionErrorCode(2)
+    }
+
+    ///Number of signatures does not match the number of witnesses
+    pub fn signature_mismatch() -> Self {
+        CardanoTransactionErrorCode(3)
+    }
+
+    ///Transaction is too big
+    pub fn over_limit() -> Self {
+        CardanoTransactionErrorCode(4)
+    }
+
+    ///Transaction has already enough signatures
+    pub fn signatures_exceeded() -> Self {
+        CardanoTransactionErrorCode(5)
+    }
+
+    ///value is to big, max = 45000000000000000
+    pub fn coin_out_of_bounds() -> Self {
+        CardanoTransactionErrorCode(6)
+    }
+}
+
+impl From<txbuild::Error> for CardanoTransactionErrorCode {
+    fn from(err: txbuild::Error) -> Self {
+        match err {
+            txbuild::Error::TxInvalidNoInput => Self::no_inputs(),
+            txbuild::Error::TxInvalidNoOutput => Self::no_outputs(),
+            txbuild::Error::TxNotEnoughTotalInput => unimplemented!(),
+            txbuild::Error::TxOverLimit(_) => Self::over_limit(),
+            txbuild::Error::TxOutputPolicyNotEnoughCoins(_) => unimplemented!(),
+            txbuild::Error::TxSignaturesExceeded => Self::signatures_exceeded(),
+            txbuild::Error::TxSignaturesMismatch => Self::signature_mismatch(),
+            txbuild::Error::CoinError(_) => Self::coin_out_of_bounds(),
+            txbuild::Error::FeeError(_) => unimplemented!(),
+        }
+    }
+}
+
+#[repr(C)]
+pub enum DiffType {
+    Positive,
+    Negative,
+    Zero,
+}
+
+#[repr(C)]
+pub struct Balance {
+    sign: DiffType,
+    value: u64,
+}
+
+impl From<CoinDiff> for Balance {
+    fn from(cd: CoinDiff) -> Self {
+        match cd {
+            CoinDiff::Positive(i) => Balance {
+                sign: DiffType::Positive,
+                value: i.into(),
+            },
+            CoinDiff::Negative(i) => Balance {
+                sign: DiffType::Negative,
+                value: i.into(),
+            },
+            CoinDiff::Zero => Balance {
+                sign: DiffType::Zero,
+                value: 0,
+            },
+        }
     }
 }
 

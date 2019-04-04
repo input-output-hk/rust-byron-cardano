@@ -1,6 +1,5 @@
 use crate::certificate as cert;
 use crate::fee::FeeAlgorithm;
-use crate::key::SpendingSecretKey;
 use crate::transaction as tx;
 use crate::value::{Value, ValueError};
 use chain_addr::Address;
@@ -45,24 +44,35 @@ pub enum OutputPolicy {
 }
 
 #[derive(Clone)]
-/// Transacion builder is helper to generate well
-/// formed transaction in for the blockchain.
-pub struct TransactionBuilder<Address> {
-    tx: tx::Transaction<Address>,
-    cert: Option<cert::Certificate>,
+/// Transaction builder is an object to construct
+/// a transaction with iterative steps (inputs, outputs)
+pub struct TransactionBuilder<Address, Extra> {
+    tx: tx::Transaction<Address, Extra>,
 }
 
-impl TransactionBuilder<Address> {
-    /// Create new transaction builder.
-    pub fn new() -> TransactionBuilder<Address> {
+impl TransactionBuilder<Address, tx::NoExtra> {
+    pub fn new() -> Self {
         TransactionBuilder {
             tx: tx::Transaction {
                 inputs: vec![],
                 outputs: vec![],
+                extra: tx::NoExtra,
             },
-            cert: None,
         }
     }
+
+    pub fn set_certificate(
+        self,
+        certificate: cert::Certificate,
+    ) -> TransactionBuilder<Address, cert::Certificate> {
+        TransactionBuilder {
+            tx: self.tx.replace_extra(certificate),
+        }
+    }
+}
+
+impl<Extra: Clone> TransactionBuilder<Address, Extra> {
+    /// Create new transaction builder.
 
     /// Add additional input.
     ///
@@ -78,20 +88,16 @@ impl TransactionBuilder<Address> {
         self.tx.outputs.push(tx::Output { address, value })
     }
 
-    pub fn set_certificate(&mut self, certificate: cert::Certificate) {
-        self.cert = Some(certificate);
-    }
-
     pub fn estimate_fee<F: FeeAlgorithm>(&self, fee_algorithm: F) -> Result<Value, ValueError> {
         fee_algorithm
-            .calculate_for(&self.tx, &self.cert)
+            .calculate_for(&self.tx)
             .ok_or(ValueError::Overflow)
     }
 
     /// Get balance including current feee.
     pub fn get_balance<F: FeeAlgorithm>(&self, fee_algorithm: F) -> Result<Balance, ValueError> {
         let fee = fee_algorithm
-            .calculate_for(&self.tx, &self.cert)
+            .calculate_for(&self.tx)
             .ok_or(ValueError::Overflow)?;
         balance(&self.tx, fee)
     }
@@ -99,6 +105,12 @@ impl TransactionBuilder<Address> {
     /// Get transaction balance without fee included.
     pub fn get_balance_without_fee(&self) -> Result<Balance, ValueError> {
         balance(&self.tx, Value(0))
+    }
+
+    /// Create transaction finalizer without performing any
+    /// checks or output balancing.
+    pub fn unchecked_finalize(self) -> tx::Transaction<Address, Extra> {
+        self.tx
     }
 
     /// We finalize the transaction by passing fee rule and return
@@ -109,7 +121,7 @@ impl TransactionBuilder<Address> {
         mut self,
         fee_algorithm: F,
         policy: OutputPolicy,
-    ) -> Result<(Balance, TransactionFinalizer), Error> {
+    ) -> Result<(Balance, tx::Transaction<Address, Extra>), Error> {
         if self.tx.inputs.len() == 0 {
             return Err(Error::TxInvalidNoInput);
         }
@@ -119,23 +131,20 @@ impl TransactionBuilder<Address> {
         // calculate initial fee, maybe we can fit it without any
         // additional calculations.
         let fee = fee_algorithm
-            .calculate_for(&self.tx, &self.cert)
+            .calculate_for(&self.tx)
             .ok_or(Error::MathErr(ValueError::Overflow))?;
         let pos = match balance(&self.tx, fee) {
             Ok(Balance::Negative(_)) => return Err(Error::TxNotEnoughTotalInput),
             Ok(Balance::Positive(v)) => v,
             Ok(Balance::Zero) => {
-                return Ok((Balance::Zero, TransactionFinalizer::new(self.tx, self.cert)));
+                return Ok((Balance::Zero, self.tx));
             }
             Err(err) => return Err(Error::MathErr(err)),
         };
         // we have more money in the inputs then fee and outputs
         // so we need to return some money back to us.
         match policy {
-            OutputPolicy::Forget => {
-                let tx = TransactionFinalizer::new(self.tx, self.cert);
-                Ok((Balance::Positive(pos), tx))
-            }
+            OutputPolicy::Forget => Ok((Balance::Positive(pos), self.tx)),
             // We will try to find the best matching value, for
             // this reason we will try to reduce the set using
             // value estimated by the current fee.
@@ -155,17 +164,14 @@ impl TransactionBuilder<Address> {
                     value: Value(0),
                 });
                 let fee = fee_algorithm
-                    .calculate_for(&tx, &self.cert)
+                    .calculate_for(&tx)
                     .ok_or(Error::MathErr(ValueError::Overflow))?;
                 match balance(&tx, fee) {
                     Ok(Balance::Positive(value)) => {
                         self.tx.outputs.push(tx::Output { address, value });
-                        Ok((Balance::Zero, TransactionFinalizer::new(self.tx, self.cert)))
+                        Ok((Balance::Zero, self.tx))
                     }
-                    _ => Ok((
-                        Balance::Positive(pos),
-                        TransactionFinalizer::new(self.tx, self.cert),
-                    )),
+                    _ => Ok((Balance::Positive(pos), self.tx)),
                 }
             }
         }
@@ -182,7 +188,7 @@ pub enum Balance {
     Zero,
 }
 
-fn balance(tx: &tx::Transaction<Address>, fee: Value) -> Result<Balance, ValueError> {
+fn balance<Extra>(tx: &tx::Transaction<Address, Extra>, fee: Value) -> Result<Balance, ValueError> {
     let inputs = Value::sum(tx.inputs.iter().map(|i| i.value))?;
     let outputs = Value::sum(tx.outputs.iter().map(|o| o.value))?;
     let z = (outputs + fee)?;
@@ -196,51 +202,99 @@ fn balance(tx: &tx::Transaction<Address>, fee: Value) -> Result<Balance, ValueEr
 }
 
 pub enum TransactionFinalizer {
-    Type1(tx::SignedTransaction<Address>),
-    Type2(tx::SignedCertificateTransaction<Address>),
+    Type1(
+        tx::Transaction<Address, tx::NoExtra>,
+        Vec<Option<tx::Witness>>,
+    ),
+    Type2(
+        tx::Transaction<Address, cert::Certificate>,
+        Vec<Option<tx::Witness>>,
+    ),
 }
 
 pub enum GeneratedTransaction {
-    Type1(tx::SignedTransaction<Address>),
-    Type2(tx::SignedCertificateTransaction<Address>),
+    Type1(tx::AuthenticatedTransaction<Address, tx::NoExtra>),
+    Type2(tx::AuthenticatedTransaction<Address, cert::Certificate>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildError {
+    WitnessOutOfBound(usize, usize),
+    WitnessMismatch(usize),
+    MissingWitnessAt(usize),
+}
+
+fn set_witness<Address, Extra>(
+    transaction: &tx::Transaction<Address, Extra>,
+    witnesses: &mut Vec<Option<tx::Witness>>,
+    index: usize,
+    witness: tx::Witness,
+) -> Result<(), BuildError> {
+    if index >= witnesses.len() {
+        return Err(BuildError::WitnessOutOfBound(index, witnesses.len()));
+    }
+
+    match (transaction.inputs[index].get_type(), &witness) {
+        (tx::InputType::Utxo, tx::Witness::OldUtxo(_, _)) => (),
+        (tx::InputType::Utxo, tx::Witness::Utxo(_)) => (),
+        (tx::InputType::Account, tx::Witness::Account(_)) => (),
+        (_, _) => return Err(BuildError::WitnessMismatch(index)),
+    };
+
+    witnesses[index] = Some(witness);
+    Ok(())
+}
+
+fn get_full_witnesses(witnesses: Vec<Option<tx::Witness>>) -> Result<Vec<tx::Witness>, BuildError> {
+    let mut v = Vec::new();
+    for (i, w) in witnesses.iter().enumerate() {
+        match w {
+            None => return Err(BuildError::MissingWitnessAt(i)),
+            Some(w) => v.push(w.clone()),
+        }
+    }
+    Ok(v)
 }
 
 impl TransactionFinalizer {
-    fn new(transaction: tx::Transaction<Address>, certificate: Option<cert::Certificate>) -> Self {
-        match certificate {
-            Some(certificate) => TransactionFinalizer::Type2(tx::SignedCertificateTransaction {
-                transaction: tx::CertificateTransaction {
-                    transaction,
-                    certificate,
-                },
-                witnesses: vec![],
-            }),
-            None => TransactionFinalizer::Type1(tx::SignedTransaction {
-                transaction,
-                witnesses: vec![],
-            }),
+    pub fn new_trans(transaction: tx::Transaction<Address, tx::NoExtra>) -> Self {
+        let nb_inputs = transaction.inputs.len();
+        TransactionFinalizer::Type1(transaction, vec![None; nb_inputs])
+    }
+
+    pub fn new_cert(transaction: tx::Transaction<Address, cert::Certificate>) -> Self {
+        let nb_inputs = transaction.inputs.len();
+        TransactionFinalizer::Type2(transaction, vec![None; nb_inputs])
+    }
+
+    pub fn set_witness(&mut self, index: usize, witness: tx::Witness) -> Result<(), BuildError> {
+        match self {
+            TransactionFinalizer::Type1(ref t, ref mut w) => set_witness(t, w, index, witness),
+            TransactionFinalizer::Type2(ref t, ref mut w) => set_witness(t, w, index, witness),
         }
     }
 
-    /// Sign transaction.
-    pub fn sign(&mut self, pk: &SpendingSecretKey) {
-        // TODO: check if signature is required.
-        // TODO: check if signature matches address.
-        let id = match &self {
-            TransactionFinalizer::Type1(t) => t.transaction.hash(),
-            TransactionFinalizer::Type2(t) => t.transaction.hash(),
-        };
-        let witness = tx::Witness::new(&id, pk);
+    pub fn get_txid(&self) -> tx::TransactionId {
         match self {
-            TransactionFinalizer::Type1(t) => t.witnesses.push(witness),
-            TransactionFinalizer::Type2(t) => t.witnesses.push(witness),
+            TransactionFinalizer::Type1(t, _) => t.hash(),
+            TransactionFinalizer::Type2(t, _) => t.hash(),
         }
     }
 
-    pub fn build(self) -> GeneratedTransaction {
+    pub fn build(self) -> Result<GeneratedTransaction, BuildError> {
         match self {
-            TransactionFinalizer::Type1(t) => GeneratedTransaction::Type1(t),
-            TransactionFinalizer::Type2(t) => GeneratedTransaction::Type2(t),
+            TransactionFinalizer::Type1(t, witnesses) => {
+                Ok(GeneratedTransaction::Type1(tx::AuthenticatedTransaction {
+                    transaction: t,
+                    witnesses: get_full_witnesses(witnesses)?,
+                }))
+            }
+            TransactionFinalizer::Type2(t, witnesses) => {
+                Ok(GeneratedTransaction::Type2(tx::AuthenticatedTransaction {
+                    transaction: t,
+                    witnesses: get_full_witnesses(witnesses)?,
+                }))
+            }
         }
     }
 }

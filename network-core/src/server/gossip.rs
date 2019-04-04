@@ -1,72 +1,36 @@
 ///! Gossip service abstraction.
-use crate::error::Code as ErrorCode;
-
-use super::super::gossip::{self, Gossip};
+use crate::{
+    error::Error,
+    gossip::{Gossip, Node, NodeId},
+};
 
 use futures::prelude::*;
-
-use std::{error, fmt};
 
 /// Intreface for the node discovery service implementation
 /// in the p2p network.
 pub trait GossipService {
-    /// Gossip message content.
-    type Message: Gossip;
+    /// Network node identifier.
+    type NodeId: NodeId;
 
-    type MessageFuture: Future<Item = (gossip::NodeId, Self::Message), Error = GossipError>;
+    /// Gossip message describing a network node.
+    type Node: Node<Id = Self::NodeId>;
 
-    /// Record and process gossip event.
-    fn record_gossip(
-        &mut self,
-        node_id: gossip::NodeId,
-        gossip: &Self::Message,
-    ) -> Self::MessageFuture;
-}
+    /// The type of an asynchronous stream that retrieves node gossip
+    /// messages from a peer.
+    type GossipSubscription: Stream<Item = Gossip<Self::Node>, Error = Error>;
 
-#[derive(Debug)]
-pub struct GossipError {
-    code: ErrorCode,
-    cause: Option<Box<dyn error::Error + Send + Sync>>,
-}
+    /// The type of asynchronous futures returned by method `gossip_subscription`.
+    ///
+    /// The future resolves to a stream that will be used by the protocol
+    /// implementation to produce a server-streamed response.
+    type GossipSubscriptionFuture: Future<Item = Self::GossipSubscription, Error = Error>;
 
-impl GossipError {
-    pub fn failed<E>(cause: E) -> Self
+    // Establishes a bidirectional subscription for node gossip messages,
+    // taking an asynchronous stream that provides the inbound announcements.
+    //
+    // Returns a future that resolves to an asynchronous subscription stream
+    // that receives node gossip messages sent by the peer.
+    fn gossip_subscription<In>(&mut self, inbound: In) -> Self::GossipSubscriptionFuture
     where
-        E: Into<Box<dyn error::Error + Send + Sync>>,
-    {
-        GossipError {
-            code: ErrorCode::Failed,
-            cause: Some(cause.into()),
-        }
-    }
-
-    pub fn with_code_and_cause<E>(code: ErrorCode, cause: E) -> Self
-    where
-        E: Into<Box<dyn error::Error + Send + Sync>>,
-    {
-        GossipError {
-            code,
-            cause: Some(cause.into()),
-        }
-    }
-
-    pub fn code(&self) -> ErrorCode {
-        self.code
-    }
-}
-
-impl error::Error for GossipError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        if let Some(err) = &self.cause {
-            Some(&**err)
-        } else {
-            None
-        }
-    }
-}
-
-impl fmt::Display for GossipError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "gossip service error: {}", self.code)
-    }
+        In: Stream<Item = Gossip<Self::Node>, Error = Error> + Send + 'static;
 }

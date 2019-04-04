@@ -1,18 +1,19 @@
+use crate::transaction::TransactionId;
 use crate::value::Value;
 
 use cardano::address::{AddrType, ExtendedAddr, SpendingData};
 use cardano::hdwallet::XPub;
 
 pub use cardano::address::Addr as OldAddress;
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
+use chain_core::property::Serialize;
 use chain_crypto::{Ed25519Bip32, PublicKey};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UtxoDeclaration {
-    pub addrs: Vec<(OldAddressBytes, Value)>,
+    pub addrs: Vec<(OldAddress, Value)>,
 }
-
-type OldAddressBytes = Vec<u8>;
 
 pub fn oldaddress_from_xpub(address: &OldAddress, xpub: &PublicKey<Ed25519Bip32>) -> bool {
     match XPub::from_slice(xpub.as_ref()) {
@@ -29,22 +30,28 @@ pub fn oldaddress_from_xpub(address: &OldAddress, xpub: &PublicKey<Ed25519Bip32>
     }
 }
 
-impl property::Deserialize for UtxoDeclaration {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        use std::io::Read;
-        let mut codec = Codec::from(reader);
-        let nb_entries = codec.get_u8()?;
-        // FIXME add proper error
-        assert!(nb_entries < 0xff);
-        let mut addrs = Vec::with_capacity(nb_entries as usize);
+impl UtxoDeclaration {
+    pub fn hash(&self) -> TransactionId {
+        let v = self.serialize_as_vec().unwrap();
+        TransactionId::hash_bytes(&v[..])
+    }
+}
+
+impl Readable for UtxoDeclaration {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        use cardano::util::try_from_slice::TryFromSlice;
+
+        let nb_entries = buf.get_u8()? as usize;
+        if nb_entries >= 0xff {
+            return Err(ReadError::StructureInvalid("nb entries".to_string()));
+        }
+
+        let mut addrs = Vec::with_capacity(nb_entries);
         for _ in 0..nb_entries {
-            let value = Value::deserialize(&mut codec)?;
-            let addr_size = codec.get_u16()? as usize;
-            let mut addr_buf = vec![0u8; addr_size];
-            codec.read_exact(&mut addr_buf)?;
-            addrs.push((addr_buf, value))
+            let value = Value::read(buf)?;
+            let addr_size = buf.get_u16()? as usize;
+            let addr = OldAddress::try_from_slice(buf.get_slice(addr_size)?).unwrap();
+            addrs.push((addr, value))
         }
 
         Ok(UtxoDeclaration { addrs: addrs })
@@ -63,8 +70,9 @@ impl property::Serialize for UtxoDeclaration {
         codec.put_u8(self.addrs.len() as u8)?;
         for (b, v) in &self.addrs {
             v.serialize(&mut codec)?;
-            codec.put_u16(b.len() as u16)?;
-            codec.write_all(&b)?;
+            let bs = b.as_ref();
+            codec.put_u16(bs.len() as u16)?;
+            codec.write_all(bs)?;
         }
         Ok(())
     }
@@ -73,6 +81,10 @@ impl property::Serialize for UtxoDeclaration {
 #[cfg(test)]
 mod test {
     use super::*;
+    use cardano::address::ExtendedAddr;
+    use cardano::config::NetworkMagic;
+    use cardano::hdwallet::XPub;
+    use cardano::hdwallet::XPUB_SIZE;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for UtxoDeclaration {
@@ -82,7 +94,17 @@ mod test {
             let mut addrs = Vec::with_capacity(nb);
             for _ in 0..nb {
                 let value = Arbitrary::arbitrary(g);
-                let addr = vec![Arbitrary::arbitrary(g), 1u8];
+
+                let xpub = {
+                    let mut buf = [0u8; XPUB_SIZE];
+                    for o in buf.iter_mut() {
+                        *o = u8::arbitrary(g)
+                    }
+                    XPub::from_slice(&buf).unwrap()
+                };
+                let ea = ExtendedAddr::new_simple(xpub, NetworkMagic::NoMagic);
+                let addr = ea.to_address();
+
                 addrs.push((addr, value))
             }
 

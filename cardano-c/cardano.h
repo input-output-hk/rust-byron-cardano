@@ -1,7 +1,7 @@
 /*! \file cardano.h
 */
 #ifndef CARDANO_RUST_H
-# define CARDANO_RUST_H
+#define CARDANO_RUST_H
 /* Basic Types */
 
 #ifdef __cplusplus
@@ -13,7 +13,10 @@ extern "C" {
 /*!
 * Type used to represent failure and success
 */
-typedef int cardano_result;
+typedef enum _cardano_result {
+    CARDANO_RESULT_SUCCESS = 0,
+    CARDANO_RESULT_ERROR = 1
+} cardano_result;
 
 /*********/
 /* BIP39 */
@@ -111,8 +114,23 @@ cardano_xpub *cardano_xprv_delete(cardano_xprv *privkey);
 */
 cardano_xpub *cardano_xprv_to_xpub(cardano_xprv *privkey);
 
+/*!
+* Get the bytes representation of cardano_xprv
+* \sa cardano_xprv_bytes_delete
+*/
 uint8_t *cardano_xprv_to_bytes(cardano_xprv *privkey);
-cardano_xprv *cardano_xprv_from_bytes(uint8_t bytes[XPRV_SIZE]);
+
+/*!
+* Free the memory allocated with `cardano_xprv_to_bytes`
+*/
+void cardano_xprv_bytes_delete(uint8_t  *bytes);
+
+/*!
+* \brief Construct cardano_xprv from the given bytes
+* \returns 1 if the representation is invalid 0 otherwise
+* \sa cardano_xprv_delete
+*/
+cardano_result cardano_xprv_from_bytes(uint8_t *bytes, cardano_xprv **xprv_out);
 
 /*!
 * Free the associated memory
@@ -154,8 +172,9 @@ typedef struct cardano_account cardano_account;
 * \param [in] password_size The size of the password string
 * \returns pointer to the constructed wallet that must be freed with `cardano_wallet_delete`
 */
-cardano_wallet *cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned long entropy_size,
-                                   const char * const password_ptr, unsigned long password_size);
+cardano_result cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned long entropy_size,
+                                   const char * const password_ptr, unsigned long password_size,
+                                   cardano_wallet** wallet);
 /*!
 * Free the memory of a wallet allocated with `cardano_wallet_new`
 */
@@ -195,10 +214,27 @@ void cardano_account_delete(cardano_account *account);
 * \sa cardano_address_delete() 
 */
 unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
+void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long length);
 
 /****************/
 /* Transactions */
 /****************/
+
+/* transaction error definitions */
+typedef enum _transaction_config_error
+{
+    CARDANO_TRANSACTION_SUCCESS = 0,
+    CARDANO_TRANSACTION_NO_OUTPUT = 1,
+    CARDANO_TRANSACTION_NO_INPUT = 2,
+    /*!The number of signatures doesn't match the number of inputs*/
+    CARDANO_TRANSACTION_SIGNATURE_MISMATCH = 3,
+    /*!The transaction is too big*/
+    CARDANO_TRANSACTION_OVER_LIMIT = 4,
+    /*!The number of signatures is greater than the number of inputs*/
+    CARDANO_TRANSACTION_SIGNATURES_EXCEEDED = 5,
+    /*!The given value is greater than the maximum allowed coin value*/
+    CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS = 6,
+} cardano_transaction_error_t;
 
 typedef struct cardano_transaction_builder cardano_transaction_builder;
 typedef struct cardano_transaction_finalized cardano_transaction_finalized;
@@ -256,14 +292,13 @@ cardano_transaction_builder * cardano_transaction_builder_new(void);
 */
 void cardano_transaction_builder_delete(cardano_transaction_builder *tb);
 
-
 /*!
 * \brief Add output to transaction
 * \param [in] tb the builder for the transaction
 * \param [in] txo created with `cardano_transaction_output_new`
 * \sa cardano_transaction_output_new()
 */
-void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoptr *txo);
+void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, cardano_txoutput *txo);
 
 /*!
 * \brief Add input to the transaction
@@ -271,8 +306,9 @@ void cardano_transaction_builder_add_output(cardano_transaction_builder *tb, car
 * \param [in] c_txo created with `cardano_transaction_output_ptr_new`
 * \param [in] value the cost 
 * \sa cardano_transaction_output_ptr_new()
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS
 */
-cardano_result cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
+cardano_transaction_error_t cardano_transaction_builder_add_input(cardano_transaction_builder *tb, cardano_txoptr *c_txo, uint64_t value);
 
 /*!
 * \brief This associate all the leftover values, if any to an output with the specified address.
@@ -300,14 +336,87 @@ cardano_result cardano_transaction_builder_add_change_addr(cardano_transaction_b
 uint64_t cardano_transaction_builder_fee(cardano_transaction_builder *tb);
 
 /*!
-* \brief Get a transaction object
+* struct for representing the sign in cardano_transaction_coin_diff_t
+* \sa cardano_transaction_coin_diff
 */
-cardano_transaction *cardano_transaction_builder_finalize(cardano_transaction_builder *tb);
+typedef enum difference_type {
+    DIFF_POSITIVE,
+    DIFF_NEGATIVE,
+    DIFF_ZERO,
+} difference_type_t;
+
+/*!
+* struct for repressenting a balance returned with cardano_transaction_builder_balance and cardano_transaction_builder_balance_without_fees
+* \sa cardano_transaction_builder_balance() cardano_transaction_builder_balance_without_fees()
+*/
+typedef struct cardano_transaction_coin_diff {
+    difference_type_t sign;
+    uint64_t value;
+} cardano_transaction_coin_diff_t;
+
+/*!
+* \brief Deallocate the memory allocated with `cardano_transaction_builder_balance` and `cardano_transaction_builder_balance_without_fees`
+* \sa cardano_transaction_builder_balance() cardano_transaction_builder_balance_without_fees()
+*/
+void cardano_transaction_balance_delete(cardano_transaction_coin_diff_t *balance);
+
+/*!
+* Try to return the differential between the outputs (including fees) and the inputs
+* \param [in] tb the builder for the transaction
+* \param [out] out a pointer to a cardano_transaction_coin_diff_t where: 
+*   - (sign == DIFF_ZERO) means we have a balanced transaction where inputs === outputs
+*   - (sign == DIFF_NEGATIVE) means (outputs+fees) > inputs. More inputs required.
+*   - (sign == DIFF_POSITIVE) means inputs > (outputs+fees). 
+*   .
+* and the value field indicates the quantity (in -1 and 1 cases)
+* Excessive input goes to larger fee.
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
+* \sa cardano_transaction_balance_delete()
+*/
+cardano_transaction_error_t cardano_transaction_builder_balance(cardano_transaction_builder *tb, cardano_transaction_coin_diff_t **out);
+
+/*!
+* Try to return the differential between the outputs (excluding fees) and the inputs
+* \param [in] tb the builder for the transaction
+* \param [out] out a pointer to a cardano_transaction_coin_diff_t where:
+*   - (sign == DIFF_ZERO) means we have a balanced transaction where inputs === outputs
+*   - (sign == DIFF_NEGATIVE) means (outputs) > inputs. More inputs required.
+*   - (sign == DIFF_POSITIVE) means inputs > (outputs). 
+*   .
+* and the value field indicates the quantity (in -1 and 1 cases)
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
+* \sa cardano_transaction_balance_delete()
+*/
+cardano_transaction_error_t cardano_transaction_builder_balance_without_fees(cardano_transaction_builder *tb, cardano_transaction_coin_diff_t **out);
+
+/*!
+* Try to return the sum of the inputs
+* \param [in] tb the builder for the transaction
+* \param [out] output the sum
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
+*/
+cardano_transaction_error_t cardano_transaction_builder_get_input_total(cardano_transaction_builder *tb, uint64_t *output);
+
+/*!
+* Try to return the sum of the outputs
+* \param [in] tb the builder for the transaction
+* \param [out] output the sum
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_COIN_OUT_OF_BOUNDS if the total is too big
+*/
+cardano_transaction_error_t cardano_transaction_builder_get_output_total(cardano_transaction_builder *tb, uint64_t *output);
+
+/*!
+* \brief Get a transaction object
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_NO_INPUT | CARDANO_TRANSACTION_NO_OUTPUT
+*/
+cardano_transaction_error_t cardano_transaction_builder_finalize(cardano_transaction_builder *tb, cardano_transaction **tx);
+void cardano_transaction_delete(cardano_transaction *c_tx);
 
 /*!
 * \brief Take a transaction and create a working area for adding witnesses
 */
 cardano_transaction_finalized * cardano_transaction_finalized_new(cardano_transaction *c_tx);
+void cardano_transaction_finalized_delete(cardano_transaction_finalized *tf);
 
 /*!
 * Add a witness associated with the next input.
@@ -318,15 +427,18 @@ cardano_transaction_finalized * cardano_transaction_finalized_new(cardano_transa
 * \param protocol_magic
 * \param c_txid
 * \sa cardano_transaction_builder_new
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_SIGNATURES_EXCEEDED
 */
-cardano_result cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
+cardano_transaction_error_t cardano_transaction_finalized_add_witness(cardano_transaction_finalized *tf, uint8_t c_xprv[96], uint32_t protocol_magic, uint8_t c_txid[32]);
 
 /*!
 * \brief A finalized transaction with the vector of witnesses
 * \param tf a finalized transaction with witnesses
 * \sa cardano_transaction_finalized_add_witness()
+* \returns CARDANO_TRANSACTION_SUCCESS | CARDANO_TRANSACTION_SIGNATURE_MISMATCH | CARDANO_TRANSACTION_OVER_LIMIT
 */
-cardano_signed_transaction *cardano_transaction_finalized_output(cardano_transaction_finalized *tf);
+cardano_transaction_error_t cardano_transaction_finalized_output(cardano_transaction_finalized *tf, cardano_signed_transaction **txaux);
+void cardano_transaction_signed_delete(cardano_signed_transaction *txaux);
 
 #ifdef __cplusplus
 }

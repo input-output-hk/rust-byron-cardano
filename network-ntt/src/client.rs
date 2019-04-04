@@ -1,6 +1,6 @@
 use chain_core::property::{Block, HasHeader, Header};
 
-use network_core::client::{self as core_client, block::BlockService};
+use network_core::{client::block::BlockService, error as core_error};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
@@ -61,18 +61,18 @@ where
 }
 
 /// Internal message that is used to load reply from the client.
-pub struct RequestFuture<T>(oneshot::Receiver<Result<T, core_client::Error>>);
+pub struct RequestFuture<T>(oneshot::Receiver<Result<T, core_error::Error>>);
 
 impl<T> Future for RequestFuture<T> {
     type Item = T;
-    type Error = core_client::Error;
+    type Error = core_error::Error;
 
     fn poll(&mut self) -> Poll<T, Self::Error> {
         match self.0.poll() {
             Ok(Async::Ready(Ok(x))) => Ok(Async::Ready(x)),
             Ok(Async::Ready(Err(x))) => Err(x),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, e)),
+            Err(e) => Err(core_error::Error::new(core_error::Code::Internal, e)),
         }
     }
 }
@@ -88,7 +88,7 @@ where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
 {
     type Item = RequestStream<T>;
-    type Error = core_client::Error;
+    type Error = core_error::Error;
 
     fn poll(&mut self) -> Poll<RequestStream<T>, Self::Error> {
         use StreamRequest::Blocks;
@@ -103,18 +103,18 @@ where
                 Ok(Async::Ready(stream))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, e)),
+            Err(e) => Err(e),
         }
     }
 }
 
 pub struct RequestStream<T> {
-    channel: mpsc::UnboundedReceiver<Result<T, core_client::Error>>,
+    channel: mpsc::UnboundedReceiver<Result<T, core_error::Error>>,
 }
 
 impl<T> Stream for RequestStream<T> {
     type Item = T;
-    type Error = core_client::Error;
+    type Error = core_error::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.channel.poll() {
@@ -122,8 +122,8 @@ impl<T> Stream for RequestStream<T> {
             Ok(Async::Ready(Some(Ok(block)))) => Ok(Async::Ready(Some(block))),
             Ok(Async::Ready(Some(Err(err)))) => Err(err),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(_) => Err(core_client::Error::new(
-                core_client::ErrorKind::Rpc,
+            Err(_) => Err(core_error::Error::new(
+                core_error::Code::Internal,
                 "error reading from unbounded channel",
             )),
         }
@@ -134,7 +134,7 @@ pub struct TipFuture<T>(RequestFuture<T>);
 
 impl<T: Header> Future for TipFuture<T> {
     type Item = (T::Id, T::Date);
-    type Error = core_client::Error;
+    type Error = core_error::Error;
 
     fn poll(&mut self) -> Poll<(T::Id, T::Date), Self::Error> {
         match self.0.poll() {
@@ -144,7 +144,7 @@ impl<T: Header> Future for TipFuture<T> {
                 Ok(Async::Ready((id, date)))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, e)),
+            Err(e) => Err(e),
         }
     }
 }
@@ -161,7 +161,6 @@ where
     type GetBlocksFuture = RequestFuture<RequestStream<T>>;
     type BlockSubscription = RequestStream<T::Header>;
     type BlockSubscriptionFuture = RequestFuture<Self::BlockSubscription>;
-    type AnnounceBlockFuture = RequestFuture<()>;
 
     fn tip(&mut self) -> Self::TipFuture {
         use UnaryRequest::Tip;
@@ -187,11 +186,10 @@ where
         }
     }
 
-    fn subscribe_to_blocks(&mut self) -> Self::BlockSubscriptionFuture {
-        unimplemented!()
-    }
-
-    fn announce_block(&mut self, _header: T::Header) -> Self::AnnounceBlockFuture {
+    fn block_subscription<Out>(&mut self, _outbound: Out) -> Self::BlockSubscriptionFuture
+    where
+        Out: Stream<Item = T::Header>,
+    {
         unimplemented!()
     }
 }
@@ -202,12 +200,12 @@ enum Command<B: Block + HasHeader> {
 }
 
 enum UnaryRequest<B: Block + HasHeader> {
-    Tip(oneshot::Sender<Result<B::Header, core_client::Error>>),
+    Tip(oneshot::Sender<Result<B::Header, core_error::Error>>),
 }
 
 enum StreamRequest<B: Block + HasHeader> {
     Blocks(
-        mpsc::UnboundedSender<Result<B, core_client::Error>>,
+        mpsc::UnboundedSender<Result<B, core_error::Error>>,
         B::Id,
         B::Id,
     ),
@@ -363,20 +361,20 @@ where
 
 // To be used when UnaryRequest and StreamRequest are extended with more variants.
 #[allow(dead_code)]
-fn unexpected_response_error() -> core_client::Error {
-    core_client::Error::new(core_client::ErrorKind::Rpc, "unexpected response")
+fn unexpected_response_error() -> core_error::Error {
+    core_error::Error::new(core_error::Code::Unimplemented, "unexpected response")
 }
 
 fn convert_response<P, Q, F>(
     response: Response<P, String>,
     conversion: F,
-) -> Result<Q, core_client::Error>
+) -> Result<Q, core_error::Error>
 where
     F: FnOnce(P) -> Q,
 {
     match response {
         Response::Ok(x) => Ok(conversion(x)),
-        Response::Err(err) => Err(core_client::Error::new(core_client::ErrorKind::Rpc, err)),
+        Response::Err(err) => Err(core_error::Error::new(core_error::Code::Unknown, err)),
     }
 }
 
