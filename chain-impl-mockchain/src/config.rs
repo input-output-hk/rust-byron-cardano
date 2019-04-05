@@ -4,12 +4,18 @@ use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::packer::Codec;
 use chain_core::property;
 use num_traits::FromPrimitive;
+#[cfg(feature = "generic-serialization")]
+use serde_derive::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Write};
-use std::str::FromStr;
 
 /// Seconds elapsed since 1-Jan-1970 (unix time)
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "generic-serialization",
+    derive(serde_derive::Serialize, serde_derive::Deserialize),
+    serde(transparent)
+)]
 pub struct Block0Date(pub u64);
 
 /// Possible errors
@@ -18,7 +24,6 @@ pub enum Error {
     InvalidTag,
     SizeInvalid,
     StructureInvalid,
-    UnknownString(String),
 }
 
 impl Display for Error {
@@ -27,7 +32,6 @@ impl Display for Error {
             Error::InvalidTag => write!(f, "Invalid config parameter tag"),
             Error::SizeInvalid => write!(f, "Invalid config parameter size"),
             Error::StructureInvalid => write!(f, "Invalid config parameter structure"),
-            Error::UnknownString(s) => write!(f, "Invalid config parameter string '{}'", s),
         }
     }
 }
@@ -41,9 +45,13 @@ impl Into<ReadError> for Error {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum ConfigParam {
+    #[cfg_attr(feature = "generic-serialization", serde(rename = "block0-date"))]
     Block0Date(Block0Date),
+    #[cfg_attr(feature = "generic-serialization", serde(rename = "discrimination"))]
     Discrimination(Discrimination),
+    #[cfg_attr(feature = "generic-serialization", serde(rename = "block0-consensus"))]
     ConsensusVersion(ConsensusVersion),
 }
 
@@ -86,81 +94,29 @@ impl property::Serialize for ConfigParam {
     }
 }
 
-#[cfg(feature = "generic-serialization")]
-mod serde_impl {
-    use super::*;
-    use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
-
-    impl<'de> Deserialize<'de> for ConfigParam {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            let (tag, value) = <(String, String)>::deserialize(deserializer)?;
-            match &*tag {
-                Block0Date::NAME => Block0Date::from_cfg_str(&value).map(ConfigParam::Block0Date),
-                Discrimination::NAME => {
-                    Discrimination::from_cfg_str(&value).map(ConfigParam::Discrimination)
-                }
-                ConsensusVersion::NAME => {
-                    ConsensusVersion::from_cfg_str(&value).map(ConfigParam::ConsensusVersion)
-                }
-                _ => Err(Error::InvalidTag),
-            }
-            .map_err(D::Error::custom)
-        }
-    }
-
-    impl Serialize for ConfigParam {
-        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            match self {
-                ConfigParam::Block0Date(data) => (Block0Date::NAME, data.to_cfg_string()),
-                ConfigParam::Discrimination(data) => (Discrimination::NAME, data.to_cfg_string()),
-                ConfigParam::ConsensusVersion(data) => {
-                    (ConsensusVersion::NAME, data.to_cfg_string())
-                }
-            }
-            .serialize(serializer)
-        }
-    }
-}
-
 trait ConfigParamVariant: Clone + Eq + PartialEq {
     const TAG: Tag;
-    const NAME: &'static str;
 
     fn to_payload(&self) -> Vec<u8>;
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error>;
-
-    fn to_cfg_string(&self) -> String;
-    fn from_cfg_str(s: &str) -> Result<Self, Error>;
 }
 
 impl ConfigParamVariant for Block0Date {
     const TAG: Tag = Tag::new(1);
-    const NAME: &'static str = "block0-date";
 
     fn to_payload(&self) -> Vec<u8> {
-        let mut out = Vec::new();
-        out.extend_from_slice(&self.0.to_be_bytes());
-        out
+        self.0.to_be_bytes().to_vec()
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        if payload.len() != 8 {
+        let mut bytes = 0u64.to_ne_bytes();
+        if payload.len() != bytes.len() {
             return Err(Error::SizeInvalid);
         };
-        let mut bytes = [0u8; 8];
         bytes.copy_from_slice(payload);
-        let v = u64::from_be_bytes(bytes);
-        Ok(Block0Date(v))
-    }
-
-    fn to_cfg_string(&self) -> String {
-        format!("{}", self.0).to_string()
-    }
-
-    fn from_cfg_str(s: &str) -> Result<Self, Error> {
-        let v = u64::from_str(s).map_err(|_| Error::UnknownString(s.to_string()))?;
-        Ok(Block0Date(v))
+        let date = u64::from_be_bytes(bytes);
+        Ok(Block0Date(date))
     }
 }
 
@@ -169,7 +125,6 @@ const VAL_TEST: u8 = 2;
 
 impl ConfigParamVariant for Discrimination {
     const TAG: Tag = Tag::new(2);
-    const NAME: &'static str = "discrimination";
 
     fn to_payload(&self) -> Vec<u8> {
         match self {
@@ -188,26 +143,10 @@ impl ConfigParamVariant for Discrimination {
             _ => Err(Error::StructureInvalid),
         }
     }
-
-    fn to_cfg_string(&self) -> String {
-        match self {
-            Discrimination::Production => "production".to_string(),
-            Discrimination::Test => "test".to_string(),
-        }
-    }
-
-    fn from_cfg_str(s: &str) -> Result<Self, Error> {
-        match s {
-            "production" => Ok(Discrimination::Production),
-            "test" => Ok(Discrimination::Test),
-            _ => Err(Error::UnknownString(s.to_string())),
-        }
-    }
 }
 
 impl ConfigParamVariant for ConsensusVersion {
     const TAG: Tag = Tag::new(3);
-    const NAME: &'static str = "block0-consensus";
 
     fn to_payload(&self) -> Vec<u8> {
         (*self as u16).to_be_bytes().to_vec()
@@ -221,14 +160,6 @@ impl ConfigParamVariant for ConsensusVersion {
         bytes.copy_from_slice(payload);
         let integer = u16::from_be_bytes(bytes);
         ConsensusVersion::from_u16(integer).ok_or(Error::StructureInvalid)
-    }
-
-    fn to_cfg_string(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn from_cfg_str(s: &str) -> Result<Self, Error> {
-        s.parse().map_err(|_| Error::UnknownString(s.to_string()))
     }
 }
 

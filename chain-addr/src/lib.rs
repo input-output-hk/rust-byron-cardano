@@ -37,6 +37,11 @@ use chain_crypto::{Ed25519Extended, PublicKey, PublicKeyError};
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property::{self, Serialize as PropertySerialize};
 
+#[cfg(feature = "generic-serialization")]
+use serde::Serializer as SerdeSerializer;
+#[cfg(feature = "generic-serialization")]
+use serde_derive::{Deserialize, Serialize};
+
 cfg_if! {
    if #[cfg(test)] {
         mod testing;
@@ -49,6 +54,11 @@ cfg_if! {
 // production and testing setting, so that
 // one type of address is not used in another setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "generic-serialization",
+    derive(Deserialize, Serialize),
+    serde(rename_all = "lowercase")
+)]
 pub enum Discrimination {
     Production,
     Test,

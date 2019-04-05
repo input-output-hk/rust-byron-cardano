@@ -1,9 +1,11 @@
 use lazy_static::lazy_static;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+#[cfg(feature = "generic-serialization")]
+use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter, EnumString, IntoStaticStr};
+use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnyBlockVersion {
@@ -70,24 +72,12 @@ impl BlockVersion {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Display,
-    EnumString,
-    FromPrimitive,
-    IntoStaticStr,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-)]
+#[derive(Debug, Clone, Copy, FromPrimitive, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Deserialize, Serialize))]
 pub enum ConsensusVersion {
-    #[strum(to_string = "bft")]
+    #[cfg_attr(feature = "generic-serialization", serde(rename = "bft"))]
     Bft = 1,
-    #[strum(to_string = "genesis")]
+    #[cfg_attr(feature = "generic-serialization", serde(rename = "genesis"))]
     GenesisPraos = 2,
 }
 
