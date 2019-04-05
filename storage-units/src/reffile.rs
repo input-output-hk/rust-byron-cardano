@@ -60,18 +60,6 @@ impl Reader {
 #[derive(Debug, Clone)]
 pub struct Lookup(Vec<BlockHash>);
 
-impl ::std::ops::Deref for Lookup {
-    type Target = Vec<BlockHash>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl ::std::ops::DerefMut for Lookup {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl From<Vec<BlockHash>> for Lookup {
     fn from(other: Vec<BlockHash>) -> Self {
         Lookup(other)
@@ -113,7 +101,7 @@ impl Lookup {
 
     pub fn write<W: io::Write>(&self, writer: &mut W) -> Result<()> {
         magic::write_header(writer, FILE_TYPE, VERSION)?;
-        for bh in self.iter() {
+        for bh in self.0.iter() {
             writer.write_all(&bh[..])?;
         }
         Ok(())

@@ -195,7 +195,7 @@ mod test {
             let num_inputs = <usize as Arbitrary>::arbitrary(g) % MAX_NUM_INPUTS;
             for _ in 0..num_inputs {
                 let value: Wrapper<(_, _)> = Arbitrary::arbitrary(g);
-                let value: (XPrv, Input<()>) = value.unwrap();
+                let value: (XPrv, Input<()>) = value.into_inner();
 
                 // here we check that the total inputs never overflow the
                 // total number of coins
@@ -225,7 +225,7 @@ mod test {
             let mut outputs = Vec::new();
             for _ in 0..num_outputs {
                 let value = <Wrapper<(XPrv, TxOut)> as Arbitrary>::arbitrary(g);
-                let value = value.unwrap();
+                let value = value.into_inner();
 
                 // make sure that the generated total output does not exceed
                 // the total Ada
@@ -238,7 +238,7 @@ mod test {
             let change_address: Wrapper<(_, ExtendedAddr)> = Arbitrary::arbitrary(g);
             Outputs {
                 outputs,
-                change_address: change_address.unwrap().1,
+                change_address: change_address.into_inner().1,
             }
         }
     }
@@ -267,7 +267,7 @@ mod test {
         let private_keys = value.1.private_keys;
         let outputs = value.2.outputs;
         let change_address = value.2.change_address;
-        let protocol_magic = *value.0;
+        let protocol_magic = value.0.into_inner();
 
         // run the input selection algorithm
 

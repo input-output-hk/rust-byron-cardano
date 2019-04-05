@@ -220,11 +220,11 @@ mod test {
 
         // test the cbor serialization/deserialization
         fn coin_cbor_serialization(coin: Wrapper<Coin>) -> bool {
-            let bytes = cbor!(*coin).unwrap();
+            let bytes = cbor!(coin.into_inner()).unwrap();
             let cursor = std::io::Cursor::new(bytes);
             let coin2 = Deserializer::from(cursor).deserialize_complete().unwrap();
 
-            *coin == coin2
+            coin.into_inner() == coin2
         }
     }
 }

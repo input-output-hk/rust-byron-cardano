@@ -48,17 +48,19 @@ impl fmt::Display for ProtocolMagic {
         write!(f, "{}", self.0)
     }
 }
-impl ::std::ops::Deref for ProtocolMagic {
-    type Target = u32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+
 impl From<u32> for ProtocolMagic {
     fn from(v: u32) -> Self {
         ProtocolMagic(v)
     }
 }
+
+impl Into<u32> for ProtocolMagic {
+    fn into(self) -> u32 {
+        self.0
+    }
+}
+
 impl Default for ProtocolMagic {
     fn default() -> Self {
         ProtocolMagic::from(764824073)
@@ -88,7 +90,8 @@ pub enum NetworkMagic {
 
 impl From<ProtocolMagic> for NetworkMagic {
     fn from(pm: ProtocolMagic) -> Self {
-        NetworkMagic::from(*pm)
+        let magic: u32 = pm.into();
+        NetworkMagic::from(magic)
     }
 }
 
@@ -97,7 +100,8 @@ impl From<u32> for NetworkMagic {
         // FIXME: is there a better way to determine whether to emit
         // NetworkMagic? There is a requiresNetworkMagic field in
         // lib/configuration.yaml, but not in the genesis data.
-        if pm == *ProtocolMagic::default() || pm == 633343913 {
+        let dafault_magic: u32 = ProtocolMagic::default().into();
+        if pm == dafault_magic || pm == 633343913 {
             NetworkMagic::NoMagic
         } else {
             NetworkMagic::Magic(pm)

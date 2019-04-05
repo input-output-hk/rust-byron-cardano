@@ -419,36 +419,26 @@ impl cbor_event::de::Deserialize for Tx {
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
-pub struct TxWitness(Vec<TxInWitness>);
+pub struct TxWitness(pub Vec<TxInWitness>);
 
 impl TxWitness {
     pub fn new() -> Self {
         TxWitness(Vec::new())
     }
 }
+
 impl From<Vec<TxInWitness>> for TxWitness {
     fn from(v: Vec<TxInWitness>) -> Self {
         TxWitness(v)
     }
 }
+
 impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
     fn from_iter<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = TxInWitness>,
     {
         TxWitness(Vec::from_iter(iter))
-    }
-}
-impl ::std::ops::Deref for TxWitness {
-    type Target = Vec<TxInWitness>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ::std::ops::DerefMut for TxWitness {
-    fn deref_mut(&mut self) -> &mut Vec<TxInWitness> {
-        &mut self.0
     }
 }
 
@@ -492,19 +482,12 @@ impl TxWitnesses {
     }
 }
 
-impl ::std::ops::Deref for TxWitnesses {
-    type Target = Vec<TxWitness>;
-    fn deref(&self) -> &Self::Target {
-        &self.in_witnesses
-    }
-}
-
 impl cbor_event::se::Serialize for TxWitnesses {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
     ) -> cbor_event::Result<&'se mut Serializer<W>> {
-        cbor_event::se::serialize_indefinite_array(self.iter(), serializer)
+        cbor_event::se::serialize_indefinite_array(self.in_witnesses.iter(), serializer)
     }
 }
 
@@ -542,7 +525,7 @@ impl cbor_event::se::Serialize for TxAux {
         &self,
         serializer: &'se mut Serializer<W>,
     ) -> cbor_event::Result<&'se mut Serializer<W>> {
-        txaux_serialize(&self.tx, &self.witness, serializer)
+        txaux_serialize(&self.tx, &self.witness.0, serializer)
     }
 }
 

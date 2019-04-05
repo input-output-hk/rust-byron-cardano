@@ -125,7 +125,7 @@ impl ChainState {
         // verify::verify_block().
         let mut input_amount = coin::Coin::zero();
         let mut nr_redeems = 0;
-        for (txin, in_witness) in tx.inputs.iter().zip(txaux.witness.iter()) {
+        for (txin, in_witness) in tx.inputs.iter().zip(txaux.witness.0.iter()) {
             match self.utxos.remove(&txin) {
                 None => {
                     add_error(&mut res, Err(Error::MissingUtxo));

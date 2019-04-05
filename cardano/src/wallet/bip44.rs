@@ -5,7 +5,7 @@ use config::{NetworkMagic, ProtocolMagic};
 /// BIP44 derivation scheme and address model
 ///
 use hdwallet::{DerivationIndex, DerivationScheme, Result, XPrv, XPub, XPRV_SIZE};
-use std::{collections::BTreeMap, ops::Deref};
+use std::collections::BTreeMap;
 use tx::{TxId, TxInWitness};
 
 use super::keygen;
@@ -23,6 +23,7 @@ pub struct Wallet {
     accounts: BTreeMap<String, Account<XPrv>>,
     derivation_scheme: DerivationScheme,
 }
+
 impl Wallet {
     /// load a wallet from a cached root key
     ///
@@ -104,12 +105,7 @@ impl Wallet {
         self.derivation_scheme
     }
 }
-impl Deref for Wallet {
-    type Target = RootLevel<XPrv>;
-    fn deref(&self) -> &Self::Target {
-        &self.cached_root_key
-    }
-}
+
 impl scheme::Wallet for Wallet {
     type Account = Account<XPrv>;
     type Accounts = BTreeMap<String, Self::Account>;
@@ -139,7 +135,7 @@ impl scheme::Wallet for Wallet {
         let mut witnesses = vec![];
 
         for addressing in addresses {
-            let key = self
+            let index = self
                 .cached_root_key
                 .account(
                     self.derivation_scheme,
@@ -148,7 +144,7 @@ impl scheme::Wallet for Wallet {
                 .change(self.derivation_scheme, addressing.address_type())
                 .index(self.derivation_scheme, addressing.index.get_scheme_value());
 
-            let tx_witness = TxInWitness::new_extended_pk(protocol_magic, &key, txid);
+            let tx_witness = TxInWitness::new_extended_pk(protocol_magic, index.get_key(), txid);
             witnesses.push(tx_witness);
         }
         witnesses
@@ -203,7 +199,7 @@ impl Account<XPrv> {
     ///                           .filter(|(idx, _)| idx % 2 == 0)
     ///                           .take(20)
     /// {
-    ///   let address = ExtendedAddr::new_simple(*xprv.public(), NetworkMagic::from(1234));
+    ///   let address = ExtendedAddr::new_simple(xprv.get_key().public(), NetworkMagic::from(1234));
     ///   println!("address index {}: {}", idx, address);
     /// }
     ///
@@ -246,7 +242,7 @@ impl Account<XPub> {
     ///                           .take(10)
     ///                           .enumerate()
     /// {
-    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap(), NetworkMagic::from(1234));
+    ///   let address = ExtendedAddr::new_simple(*xpub.unwrap().get_key(), NetworkMagic::from(1234));
     ///   println!("address index {}: {}", idx, address);
     /// }
     ///
@@ -266,18 +262,7 @@ impl Account<XPub> {
         })
     }
 }
-impl Deref for Account<XPrv> {
-    type Target = AccountLevel<XPrv>;
-    fn deref(&self) -> &Self::Target {
-        &self.cached_root_key
-    }
-}
-impl Deref for Account<XPub> {
-    type Target = AccountLevel<XPub>;
-    fn deref(&self) -> &Self::Target {
-        &self.cached_root_key
-    }
-}
+
 impl scheme::Account for Account<XPub> {
     type Addressing = (bip44::AddrType, u32);
 
@@ -388,12 +373,7 @@ impl RootLevel<XPrv> {
         )
     }
 }
-impl<T> Deref for RootLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
+
 impl From<XPrv> for RootLevel<XPrv> {
     fn from(xprv: XPrv) -> Self {
         RootLevel(xprv)
@@ -451,15 +431,10 @@ impl From<XPub> for AccountLevel<XPub> {
         AccountLevel(xpub)
     }
 }
-impl<T> Deref for AccountLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeLevel<T>(T);
+
 impl ChangeLevel<XPrv> {
     pub fn index(
         &self,
@@ -472,11 +447,13 @@ impl ChangeLevel<XPrv> {
         ChangeLevel::from(self.0.public())
     }
 }
+
 impl From<XPrv> for ChangeLevel<XPrv> {
     fn from(xprv: XPrv) -> Self {
         ChangeLevel(xprv)
     }
 }
+
 impl ChangeLevel<XPub> {
     pub fn index(
         &self,
@@ -486,38 +463,36 @@ impl ChangeLevel<XPub> {
         Ok(IndexLevel::from(self.0.derive(derivation_scheme, index)?))
     }
 }
+
 impl From<XPub> for ChangeLevel<XPub> {
     fn from(xpub: XPub) -> Self {
         ChangeLevel(xpub)
     }
 }
-impl<T> Deref for ChangeLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexLevel<T>(T);
+
+impl<T> IndexLevel<T> {
+    pub fn get_key(&self) -> &T {
         &self.0
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexLevel<T>(T);
 impl IndexLevel<XPrv> {
     pub fn public(&self) -> IndexLevel<XPub> {
         IndexLevel::from(self.0.public())
     }
 }
+
 impl From<XPrv> for IndexLevel<XPrv> {
     fn from(xprv: XPrv) -> Self {
         IndexLevel(xprv)
     }
 }
+
 impl From<XPub> for IndexLevel<XPub> {
     fn from(xpub: XPub) -> Self {
         IndexLevel(xpub)
-    }
-}
-impl<T> Deref for IndexLevel<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &self.0
     }
 }

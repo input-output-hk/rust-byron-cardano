@@ -291,15 +291,15 @@ impl Verify for tx::TxAux {
         // TODO: check address attributes?
 
         // verify transaction witnesses
-        if self.tx.inputs.len() < self.witness.len() {
+        if self.tx.inputs.len() < self.witness.0.len() {
             return Err(Error::UnexpectedWitnesses);
         }
 
-        if self.tx.inputs.len() > self.witness.len() {
+        if self.tx.inputs.len() > self.witness.0.len() {
             return Err(Error::MissingWitnesses);
         }
 
-        self.witness.iter().try_for_each(|in_witness| {
+        self.witness.0.iter().try_for_each(|in_witness| {
             if !in_witness.verify_tx(protocol_magic, &self.tx) {
                 return Err(Error::BadTxWitness);
             }
@@ -307,7 +307,7 @@ impl Verify for tx::TxAux {
         })?;
 
         // verify that txids of redeem inputs correspond to the redeem pubkey
-        for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.iter()) {
+        for (txin, in_witness) in self.tx.inputs.iter().zip(self.witness.0.iter()) {
             if let tx::TxInWitness::RedeemWitness(pubkey, _) = in_witness {
                 if tx::redeem_pubkey_to_txid(&pubkey, protocol_magic).0 != txin.id {
                     return Err(Error::WrongRedeemTxId);
@@ -323,18 +323,18 @@ impl Verify for VssCertificates {
     fn verify(&self, protocol_magic: ProtocolMagic) -> Result<(), Error> {
         // check that there are no duplicate VSS keys
         let mut vss_keys = BTreeSet::new();
-        if !self.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
+        if !self.0.iter().all(|x| vss_keys.insert(x.vss_key.clone())) {
             return Err(Error::DuplicateVSSKeys);
         }
 
         // check that there are no duplicate signing keys
         let mut signing_keys = HashSet::new();
-        if !self.iter().all(|x| signing_keys.insert(x.signing_key)) {
+        if !self.0.iter().all(|x| signing_keys.insert(x.signing_key)) {
             return Err(Error::DuplicateSigningKeys);
         }
 
         // verify every certificate's signature
-        for vss_cert in self.iter() {
+        for vss_cert in self.0.iter() {
             let mut buf = vec![];
             buf.push(tags::SigningTag::VssCert as u8);
             se::Serializer::new(&mut buf)
@@ -503,8 +503,8 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                let input = mblk.body.tx[0].tx.inputs[0].clone();
-                mblk.body.tx[0].tx.inputs.push(input);
+                let input = mblk.body.tx.txaux[0].tx.inputs[0].clone();
+                mblk.body.tx.txaux[0].tx.inputs.push(input);
             }
             expect_error(&verify_block(&hash, &blk), Error::DuplicateInputs);
         }
@@ -513,7 +513,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(123).unwrap();
+                mblk.body.tx.txaux[0].tx.outputs[0].value = coin::Coin::new(123).unwrap();
             }
             expect_error(&verify_block(&hash, &blk), Error::BadTxWitness);
         }
@@ -522,7 +522,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].tx.outputs[0].value = coin::Coin::new(0).unwrap();
+                mblk.body.tx.txaux[0].tx.outputs[0].value = coin::Coin::new(0).unwrap();
             }
             expect_error(&verify_block(&hash, &blk), Error::ZeroCoin);
         }
@@ -531,7 +531,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].tx.outputs[0].address.addr_type = address::AddrType::ATRedeem;
+                mblk.body.tx.txaux[0].tx.outputs[0].address.addr_type = address::AddrType::ATRedeem;
             }
             expect_error(&verify_block(&hash, &blk), Error::RedeemOutput);
         }
@@ -540,7 +540,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].witness.clear();
+                mblk.body.tx.txaux[0].witness.0.clear();
             }
             expect_error(&verify_block(&hash, &blk), Error::MissingWitnesses);
         }
@@ -549,8 +549,8 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                let in_witness = mblk.body.tx[0].witness[0].clone();
-                mblk.body.tx[0].witness.push(in_witness);
+                let in_witness = mblk.body.tx.txaux[0].witness.0[0].clone();
+                mblk.body.tx.txaux[0].witness.0.push(in_witness);
             }
             expect_error(&verify_block(&hash, &blk), Error::UnexpectedWitnesses);
         }
@@ -559,7 +559,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].tx.inputs.clear();
+                mblk.body.tx.txaux[0].tx.inputs.clear();
             }
             expect_error(&verify_block(&hash, &blk), Error::NoInputs);
         }
@@ -568,7 +568,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx[0].tx.outputs.clear();
+                mblk.body.tx.txaux[0].tx.outputs.clear();
             }
             expect_error(&verify_block(&hash, &blk), Error::NoOutputs);
         }
@@ -577,7 +577,7 @@ mod tests {
         {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
-                mblk.body.tx.pop();
+                mblk.body.tx.txaux.pop();
             }
             expect_error(&verify_block(&hash, &blk), Error::WrongTxProof);
         }
@@ -587,7 +587,7 @@ mod tests {
             let mut blk = blk.clone();
             if let Block::MainBlock(mblk) = &mut blk {
                 // remove a tx
-                mblk.body.tx.pop();
+                mblk.body.tx.txaux.pop();
                 // update the Merkle root
                 let mut txs = vec![];
                 for txaux in mblk.body.tx.iter() {
@@ -616,7 +616,7 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 match &mut mblk.body.ssc {
                     normal::SscPayload::CommitmentsPayload(_, vss_certs) => {
-                        vss_certs[0].expiry_epoch = 123;
+                        vss_certs.0[0].expiry_epoch = 123;
                     }
                     _ => panic!(),
                 }
@@ -630,8 +630,8 @@ mod tests {
             if let Block::MainBlock(mblk) = &mut blk {
                 match &mut mblk.body.ssc {
                     normal::SscPayload::CommitmentsPayload(_, vss_certs) => {
-                        let cert = vss_certs[0].clone();
-                        vss_certs.push(cert);
+                        let cert = vss_certs.0[0].clone();
+                        vss_certs.0.push(cert);
                     }
                     _ => panic!(),
                 }

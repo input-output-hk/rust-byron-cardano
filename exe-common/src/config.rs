@@ -6,7 +6,6 @@ pub mod net {
     use std::{
         fmt,
         fs::{self, File},
-        ops::{Deref, DerefMut},
         path::Path,
         str::FromStr,
     };
@@ -162,17 +161,7 @@ pub mod net {
             &self.1
         }
     }
-    impl Deref for NamedPeer {
-        type Target = Peer;
-        fn deref(&self) -> &Self::Target {
-            &self.1
-        }
-    }
-    impl DerefMut for NamedPeer {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.1
-        }
-    }
+
     impl serde::Serialize for NamedPeer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
@@ -234,17 +223,17 @@ pub mod net {
         }
 
         pub fn natives<'a>(&'a self) -> Vec<&'a str> {
-            self.iter()
+            self.0
+                .iter()
                 .filter_map(|np| np.peer().get_native())
                 .collect()
         }
-    }
-    impl Deref for Peers {
-        type Target = Vec<NamedPeer>;
-        fn deref(&self) -> &Self::Target {
+
+        pub fn get_peers(&self) -> &[NamedPeer] {
             &self.0
         }
     }
+
     impl ::std::iter::FromIterator<NamedPeer> for Peers {
         fn from_iter<I>(iter: I) -> Self
         where

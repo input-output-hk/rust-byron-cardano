@@ -52,7 +52,7 @@ pub extern "C" fn cardano_entropy_from_english_mnemonics(
         Err(_) => return CardanoBIP39ErrorCode::invalid_checksum(),
     };
 
-    out_return_vector(entropy.to_vec(), entropy_ptr, entropy_size);
+    out_return_vector(entropy.as_ref().to_vec(), entropy_ptr, entropy_size);
 
     CardanoBIP39ErrorCode::success()
 }
@@ -70,7 +70,7 @@ pub extern "C" fn cardano_entropy_from_random(
         Err(_) => return CardanoBIP39ErrorCode::invalid_word_count(),
     };
 
-    let entropy = bip39::Entropy::generate(words, || gen()).to_vec();
+    let entropy = bip39::Entropy::generate(words, || gen()).as_ref().to_vec();
 
     out_return_vector(entropy, entropy_ptr, entropy_size);
 

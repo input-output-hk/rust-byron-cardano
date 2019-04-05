@@ -115,7 +115,8 @@ pub extern "C" fn cardano_account_generate_addresses(
         .take(num_indices)
         .enumerate()
         .map(|(idx, xpub)| {
-            let address = address::ExtendedAddr::new_simple(*xpub.unwrap(), protocol_magic.into());
+            let address =
+                address::ExtendedAddr::new_simple(*xpub.unwrap().get_key(), protocol_magic.into());
             let c_address = ffi_address_to_base58(&address);
             // make sure the ptr is stored at the right place with alignments and all
             unsafe {

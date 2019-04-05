@@ -16,7 +16,6 @@ use cryptoxide::sha2::Sha512;
 use std::{
     fmt,
     io::{BufRead, Write},
-    ops::Deref,
 };
 
 use cbor_event::{
@@ -87,17 +86,13 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Path(Vec<u32>);
-impl Deref for Path {
-    type Target = [u32];
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
+
 impl AsRef<[u32]> for Path {
     fn as_ref(&self) -> &[u32] {
         self.0.as_ref()
     }
 }
+
 impl Path {
     pub fn new(v: Vec<u32>) -> Self {
         Path(v)
@@ -111,6 +106,7 @@ impl Path {
         cbor!(self).expect("Serialize the given Path in cbor")
     }
 }
+
 impl cbor_event::se::Serialize for Path {
     fn serialize<'se, W: Write>(
         &self,
@@ -119,6 +115,7 @@ impl cbor_event::se::Serialize for Path {
         se::serialize_indefinite_array(self.0.iter(), serializer)
     }
 }
+
 impl cbor_event::Deserialize for Path {
     fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         Ok(Path(reader.deserialize()?))
@@ -219,11 +216,13 @@ impl Drop for HDKey {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct HDAddressPayload(Vec<u8>);
+
 impl AsRef<[u8]> for HDAddressPayload {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
+
 impl HDAddressPayload {
     pub fn from_vec(v: Vec<u8>) -> Self {
         HDAddressPayload(v)
@@ -235,6 +234,7 @@ impl HDAddressPayload {
         self.0.len()
     }
 }
+
 impl cbor_event::se::Serialize for HDAddressPayload {
     fn serialize<'se, W: Write>(
         &self,
@@ -243,6 +243,7 @@ impl cbor_event::se::Serialize for HDAddressPayload {
         se::serialize_cbor_in_cbor(self.0.as_slice(), serializer)
     }
 }
+
 impl cbor_event::de::Deserialize for HDAddressPayload {
     fn deserialize<R: BufRead>(reader: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let inner_cbor = reader.bytes()?;
@@ -251,12 +252,7 @@ impl cbor_event::de::Deserialize for HDAddressPayload {
         Ok(HDAddressPayload::from_bytes(&mut inner_cbor.bytes()?))
     }
 }
-impl Deref for HDAddressPayload {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref()
-    }
-}
+
 impl fmt::Debug for HDAddressPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))

@@ -1,26 +1,22 @@
 use quickcheck::{Arbitrary, Gen};
-use std::ops::Deref;
 
 use super::super::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Wrapper<A>(A);
+
 impl<A> Wrapper<A> {
-    pub fn unwrap(self) -> A {
+    pub fn into_inner(self) -> A {
         self.0
     }
 }
-impl<A> Deref for Wrapper<A> {
-    type Target = A;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+
 impl<A> AsRef<A> for Wrapper<A> {
     fn as_ref(&self) -> &A {
         &self.0
     }
 }
+
 impl<A> From<A> for Wrapper<A> {
     fn from(a: A) -> Self {
         Wrapper(a)
@@ -64,7 +60,7 @@ impl Arbitrary for Wrapper<hdwallet::Seed> {
 impl Arbitrary for Wrapper<hdwallet::XPrv> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let seed: Wrapper<_> = Arbitrary::arbitrary(g);
-        Wrapper(hdwallet::XPrv::generate_from_seed(&seed))
+        Wrapper(hdwallet::XPrv::generate_from_seed(&seed.into_inner()))
     }
 }
 
@@ -75,12 +71,12 @@ impl Arbitrary for Wrapper<(hdwallet::XPrv, address::ExtendedAddr)> {
         let attributes = address::Attributes {
             derivation_path: None,
             stake_distribution: address::StakeDistribution::BootstrapEraDistr,
-            network_magic: *network_magic,
+            network_magic: network_magic.into_inner(),
         };
         let addr_type = address::AddrType::ATPubKey;
         let addr = address::HashedSpendingData::new(
             addr_type,
-            &address::SpendingData::PubKeyASD(xprv.public()),
+            &address::SpendingData::PubKeyASD(xprv.clone().into_inner().public()),
             &attributes,
         );
         let address = address::ExtendedAddr {
@@ -88,7 +84,7 @@ impl Arbitrary for Wrapper<(hdwallet::XPrv, address::ExtendedAddr)> {
             attributes: attributes,
             addr_type: addr_type,
         };
-        Wrapper((xprv.unwrap(), address))
+        Wrapper((xprv.into_inner(), address))
     }
 }
 
@@ -109,7 +105,7 @@ impl Arbitrary for Wrapper<tx::TxoPointer> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let txid: Wrapper<tx::TxId> = Arbitrary::arbitrary(g);
         Wrapper(tx::TxoPointer {
-            id: txid.unwrap(),
+            id: txid.into_inner(),
             index: Arbitrary::arbitrary(g),
         })
     }
@@ -119,12 +115,12 @@ impl Arbitrary for Wrapper<(hdwallet::XPrv, tx::TxOut)> {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let address: Wrapper<(hdwallet::XPrv, address::ExtendedAddr)> = Arbitrary::arbitrary(g);
         let value: Wrapper<coin::Coin> = Arbitrary::arbitrary(g);
-        let (xprv, address) = address.unwrap();
+        let (xprv, address) = address.into_inner();
         Wrapper((
             xprv,
             tx::TxOut {
                 address: address,
-                value: value.unwrap(),
+                value: value.into_inner(),
             },
         ))
     }
@@ -135,11 +131,11 @@ impl<A: Arbitrary> Arbitrary for Wrapper<(hdwallet::XPrv, txutils::Input<A>)> {
         let value: Wrapper<(hdwallet::XPrv, tx::TxOut)> = Arbitrary::arbitrary(g);
         let ptr: Wrapper<tx::TxoPointer> = Arbitrary::arbitrary(g);
         let addressing: A = Arbitrary::arbitrary(g);
-        let (xprv, txout) = value.unwrap();
+        let (xprv, txout) = value.into_inner();
         Wrapper((
             xprv,
             txutils::Input {
-                ptr: ptr.unwrap(),
+                ptr: ptr.into_inner(),
                 value: txout,
                 addressing: addressing,
             },

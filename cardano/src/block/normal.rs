@@ -36,7 +36,7 @@ impl BodyProof {
 
     pub fn generate_from_body(body: &Body) -> Self {
         BodyProof {
-            tx: tx::TxProof::generate(&body.tx),
+            tx: tx::TxProof::generate(&body.tx.txaux),
             mpc: SscProof::generate(&body.ssc),
             delegation: DlgProof::generate(&body.delegation),
             update: update::UpdateProof::generate(&body.update),
@@ -104,8 +104,9 @@ impl cbor_event::de::Deserialize for DlgProof {
 
 #[derive(Debug, Clone)]
 pub struct TxPayload {
-    txaux: Vec<tx::TxAux>,
+    pub txaux: Vec<tx::TxAux>,
 }
+
 impl fmt::Display for TxPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.txaux.is_empty() {
@@ -117,6 +118,7 @@ impl fmt::Display for TxPayload {
         write!(f, "")
     }
 }
+
 impl TxPayload {
     pub fn new(txaux: Vec<tx::TxAux>) -> Self {
         TxPayload { txaux: txaux }
@@ -128,6 +130,7 @@ impl TxPayload {
         self.txaux.iter()
     }
 }
+
 impl IntoIterator for TxPayload {
     type Item = <Vec<tx::TxAux> as IntoIterator>::Item;
     type IntoIter = <Vec<tx::TxAux> as IntoIterator>::IntoIter;
@@ -135,17 +138,7 @@ impl IntoIterator for TxPayload {
         self.txaux.into_iter()
     }
 }
-impl ::std::ops::Deref for TxPayload {
-    type Target = Vec<tx::TxAux>;
-    fn deref(&self) -> &Self::Target {
-        &self.txaux
-    }
-}
-impl ::std::ops::DerefMut for TxPayload {
-    fn deref_mut(&mut self) -> &mut Vec<tx::TxAux> {
-        &mut self.txaux
-    }
-}
+
 impl cbor_event::se::Serialize for TxPayload {
     fn serialize<'se, W: Write>(
         &self,
@@ -154,6 +147,7 @@ impl cbor_event::se::Serialize for TxPayload {
         cbor_event::se::serialize_indefinite_array(self.txaux.iter(), serializer)
     }
 }
+
 impl cbor_event::de::Deserialize for TxPayload {
     fn deserialize<R: BufRead>(raw: &mut Deserializer<R>) -> cbor_event::Result<Self> {
         let num_inputs = raw.array()?;
@@ -543,7 +537,8 @@ impl cbor_event::de::Deserialize for DecShare {
 // BTreeMap<StakeholderId, VssCertificate> see
 // https://github.com/input-output-hk/cardano-sl/blob/005076eb3434444a505c0fb150ea98e56e8bb3d9/core/src/Pos/Core/Ssc/VssCertificatesMap.hs#L36-L44
 #[derive(Debug, Clone)]
-pub struct VssCertificates(Vec<VssCertificate>);
+pub struct VssCertificates(pub Vec<VssCertificate>);
+
 impl VssCertificates {
     pub fn new(vss_certs: Vec<VssCertificate>) -> Self {
         VssCertificates(vss_certs)
@@ -572,25 +567,12 @@ impl VssCertificates {
     }
 }
 
-impl ::std::ops::Deref for VssCertificates {
-    type Target = Vec<VssCertificate>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ::std::ops::DerefMut for VssCertificates {
-    fn deref_mut(&mut self) -> &mut Vec<VssCertificate> {
-        &mut self.0
-    }
-}
-
 impl cbor_event::se::Serialize for VssCertificates {
     fn serialize<'se, W: Write>(
         &self,
         serializer: &'se mut Serializer<W>,
     ) -> cbor_event::Result<&'se mut Serializer<W>> {
-        cbor_event::se::serialize_fixed_array(self.iter(), serializer.write_set_tag()?)
+        cbor_event::se::serialize_fixed_array(self.0.iter(), serializer.write_set_tag()?)
     }
 }
 impl cbor_event::de::Deserialize for VssCertificates {

@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::{error, fmt, ops::Deref, str::FromStr};
+use std::{error, fmt, str::FromStr};
 
 /// Directory name with pre-validated content to avoid invalid names or names
 /// we cannot use in the context of the command line interface.
@@ -59,12 +59,7 @@ impl fmt::Display for DirectoryName {
         self.0.fmt(f)
     }
 }
-impl Deref for DirectoryName {
-    type Target = <String as Deref>::Target;
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
+
 impl AsRef<str> for DirectoryName {
     fn as_ref(&self) -> &str {
         self.0.as_ref()

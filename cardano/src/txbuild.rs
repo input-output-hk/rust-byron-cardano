@@ -300,18 +300,18 @@ impl TxFinalized {
     /// otherwise protocol level mismatch will happen, and the
     /// transaction will be rejected
     pub fn add_witness(&mut self, witness: TxInWitness) -> Result<()> {
-        if self.witnesses.len() >= self.tx.inputs.len() {
+        if self.witnesses.0.len() >= self.tx.inputs.len() {
             return Err(Error::TxSignaturesExceeded);
         }
-        self.witnesses.push(witness);
+        self.witnesses.0.push(witness);
         Ok(())
     }
 
     pub fn make_txaux(self) -> Result<TxAux> {
-        if self.witnesses.len() != self.tx.inputs.len() {
+        if self.witnesses.0.len() != self.tx.inputs.len() {
             return Err(Error::TxSignaturesMismatch);
         }
-        let sz = txaux_serialize_size(&self.tx, &(*self.witnesses));
+        let sz = txaux_serialize_size(&self.tx, &self.witnesses.0);
         if sz > TX_SIZE_LIMIT {
             return Err(Error::TxOverLimit(sz));
         }

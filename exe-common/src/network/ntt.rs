@@ -8,7 +8,6 @@ use network::{Error, Result};
 use network_core::client::block::BlockService;
 use network_ntt::client as ntt;
 use std::net::SocketAddr;
-use std::ops::Deref;
 
 use cardano::{
     block::{Block, BlockHeader, HeaderHash, RawBlock},
@@ -22,9 +21,10 @@ pub struct NetworkCore {
 }
 
 impl NetworkCore {
-    pub fn new(sockaddr: SocketAddr, magic: ProtocolMagic) -> Result<Self> {
+    pub fn new(sockaddr: SocketAddr, proto_magic: ProtocolMagic) -> Result<Self> {
         trace!("New network core: {}", sockaddr);
-        let connecting = ntt::connect(sockaddr, ntt::ProtocolMagic::from(*magic.deref()));
+        let magic: u32 = proto_magic.into();
+        let connecting = ntt::connect(sockaddr, ntt::ProtocolMagic::from(magic));
         match connecting.wait() {
             Ok((connection, handle)) => {
                 // FIXME: use default executor, or take

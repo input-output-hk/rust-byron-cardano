@@ -129,13 +129,13 @@ where
             Message::CreateNodeId(lwcid, node_id) => {
                 let mut bytes = BytesMut::with_capacity(9);
                 bytes.put_u8(0x53);
-                bytes.put_u64_be(*node_id);
+                bytes.put_u64_be(node_id.into());
                 Data(lwcid, bytes.freeze())
             }
             Message::AckNodeId(lwcid, node_id) => {
                 let mut bytes = BytesMut::with_capacity(9);
                 bytes.put_u8(0x41);
-                bytes.put_u64_be(*node_id);
+                bytes.put_u64_be(node_id.into());
                 Data(lwcid, bytes.freeze())
             }
             Message::Bytes(lwcid, bytes) => Data(lwcid, bytes),

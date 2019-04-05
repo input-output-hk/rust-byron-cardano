@@ -44,7 +44,7 @@ pub fn print(
             .collect(),
         protocolConsts: raw::ProtocolConsts {
             k: genesis_data.epoch_stability_depth,
-            protocolMagic: *genesis_data.protocol_magic,
+            protocolMagic: genesis_data.protocol_magic.into(),
         },
         startTime: genesis_data
             .start_time

@@ -62,12 +62,9 @@ impl GCRoot {
 
         GCRoot { hash, roots }
     }
-}
 
-impl std::ops::Deref for GCRoot {
-    type Target = BlockId;
-    fn deref(&self) -> &Self::Target {
-        &self.hash
+    pub fn get_hash(&self) -> BlockId {
+        self.hash
     }
 }
 
@@ -109,7 +106,7 @@ impl<State> Multiverse<State> {
 
     pub fn get_from_root(&self, root: &GCRoot) -> &State {
         assert!(Arc::ptr_eq(&root.roots, &self.roots));
-        self.get(&*root).unwrap()
+        self.get(&root.get_hash()).unwrap()
     }
 
     /// Return the number of states stored in memory.

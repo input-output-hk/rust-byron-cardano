@@ -51,7 +51,7 @@
 use cryptoxide::hmac::Hmac;
 use cryptoxide::pbkdf2::pbkdf2;
 use cryptoxide::sha2::Sha512;
-use std::{error, fmt, ops::Deref, result, str};
+use std::{error, fmt, result, str};
 use util::{hex, securemem};
 
 /// Error regarding BIP39 operations
@@ -352,16 +352,19 @@ impl Entropy {
         Mnemonics::from_mnemonics(words).unwrap()
     }
 }
+
 impl fmt::Display for Entropy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
+
 impl fmt::Debug for Entropy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
+
 impl AsRef<[u8]> for Entropy {
     fn as_ref(&self) -> &[u8] {
         match self {
@@ -374,12 +377,7 @@ impl AsRef<[u8]> for Entropy {
         }
     }
 }
-impl Deref for Entropy {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
+
 impl Drop for Entropy {
     fn drop(&mut self) {
         match self {
@@ -480,32 +478,31 @@ impl Seed {
         Self::from_bytes(result)
     }
 }
+
 impl PartialEq for Seed {
     fn eq(&self, other: &Self) -> bool {
         self.0.as_ref() == other.0.as_ref()
     }
 }
+
 impl fmt::Debug for Seed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
+
 impl fmt::Display for Seed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", hex::encode(self.as_ref()))
     }
 }
+
 impl AsRef<[u8]> for Seed {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
-impl Deref for Seed {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
+
 impl Drop for Seed {
     fn drop(&mut self) {
         self.0.copy_from_slice(&[0; SEED_SIZE][..]);
@@ -520,6 +517,7 @@ impl Drop for Seed {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct MnemonicString(String);
+
 impl MnemonicString {
     /// create a `MnemonicString` from the given `String`. This function
     /// will validate the mnemonic phrase against the given [`Language`]
@@ -550,12 +548,7 @@ impl MnemonicString {
         Ok(MnemonicString(s))
     }
 }
-impl Deref for MnemonicString {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
-    }
-}
+
 impl fmt::Display for MnemonicString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)

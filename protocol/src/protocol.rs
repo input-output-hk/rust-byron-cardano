@@ -525,9 +525,9 @@ impl<T: Write + Read> Connection<T> {
         let mut de = Deserializer::from(Cursor::new(msg));
         let mut headers = cardano::block::BlockHeaders::deserialize(&mut de)?;
 
-        info!("received {} asynchronous headers", headers.len());
+        info!("received {} asynchronous headers", headers.0.len());
 
-        if let Some(latest_test) = headers.pop() {
+        if let Some(latest_test) = headers.0.pop() {
             self.latest_tip = Some(latest_test);
         }
 

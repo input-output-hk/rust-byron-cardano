@@ -7,10 +7,7 @@ use mstream::{MStream, MetricStart, MetricStats};
 use protocol;
 use protocol::command::*;
 use rand;
-use std::{
-    net::{SocketAddr, ToSocketAddrs},
-    ops::{Deref, DerefMut},
-};
+use std::net::{SocketAddr, ToSocketAddrs};
 
 use network::api::{Api, BlockRef};
 use network::{Error, Result};
@@ -66,21 +63,21 @@ impl Api for PeerPool {
     fn get_tip(&mut self) -> Result<BlockHeader> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
-            Some(conn) => conn.get_tip(),
+            Some(conn) => conn.get_peer_mut().get_tip(),
         }
     }
 
     fn wait_for_new_tip(&mut self, prev_tip: &HeaderHash) -> Result<BlockHeader> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
-            Some(conn) => conn.wait_for_new_tip(prev_tip),
+            Some(conn) => conn.get_peer_mut().wait_for_new_tip(prev_tip),
         }
     }
 
     fn get_block(&mut self, hash: &HeaderHash) -> Result<RawBlock> {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
-            Some(conn) => conn.get_block(hash),
+            Some(conn) => conn.get_peer_mut().get_block(hash),
         }
     }
 
@@ -96,34 +93,30 @@ impl Api for PeerPool {
     {
         match self.connections.get_mut(0) {
             None => panic!("We expect at lease one connection on any native peer"),
-            Some(conn) => conn.get_blocks(from, inclusive, to, got_block),
+            Some(conn) => conn
+                .get_peer_mut()
+                .get_blocks(from, inclusive, to, got_block),
         }
     }
 
     fn send_transaction(&mut self, txaux: TxAux) -> Result<bool> {
         let mut sent = false;
         for connection in self.connections.iter_mut() {
-            sent |= connection.send_transaction(txaux.clone())?;
+            sent |= connection.get_peer_mut().send_transaction(txaux.clone())?;
         }
         Ok(sent)
     }
 }
 
 pub struct Connection(pub SocketAddr, pub OpenPeer);
+
 impl Connection {
     pub fn new(sockaddr: SocketAddr, protocol_magic: ProtocolMagic) -> Result<Self> {
         let network = OpenPeer::new(protocol_magic, &sockaddr)?;
         Ok(Connection(sockaddr, network))
     }
-}
-impl Deref for Connection {
-    type Target = OpenPeer;
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-impl DerefMut for Connection {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+
+    pub fn get_peer_mut(&mut self) -> &mut OpenPeer {
         &mut self.1
     }
 }

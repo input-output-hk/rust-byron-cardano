@@ -1,7 +1,6 @@
 //! Abstraction of either boundary or normal blocks
 //!
 //! The main types are `Header` and `Block`
-use std::ops::{Deref, DerefMut};
 use std::{
     fmt,
     io::{BufRead, Cursor, Write},
@@ -148,19 +147,6 @@ impl<'a> From<BlockHeaderView<'a>> for BlockHeader {
 /// MsgBlocks.
 #[derive(Debug, Clone)]
 pub struct BlockHeaders(pub Vec<BlockHeader>);
-
-impl Deref for BlockHeaders {
-    type Target = Vec<BlockHeader>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for BlockHeaders {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 impl<'a> BlockHeaderView<'a> {
     /// Returns the hash of the previous block.

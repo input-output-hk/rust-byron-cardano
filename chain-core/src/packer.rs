@@ -177,16 +177,3 @@ impl<I> From<I> for Codec<I> {
         Codec(inner)
     }
 }
-impl<I: std::io::Write> std::ops::Deref for Buffered<I> {
-    type Target = Codec<Vec<u8>>;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-impl<I: std::io::Write> std::ops::DerefMut for Buffered<I> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.1
-    }
-}

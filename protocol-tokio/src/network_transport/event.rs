@@ -1,16 +1,11 @@
-use std::{error, fmt, io, ops::Deref};
+use std::{error, fmt, io};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut, IntoBuf};
 use tokio_codec as codec;
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct LightWeightConnectionId(u32);
-impl Deref for LightWeightConnectionId {
-    type Target = u32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+
 impl LightWeightConnectionId {
     const FIRST_NON_RESERVED_LIGHTWEIGHT_CONNECTION_ID: u32 = 1024;
 
@@ -25,6 +20,12 @@ impl LightWeightConnectionId {
         let current = *self;
         self.0 += 1;
         current
+    }
+}
+
+impl Into<u32> for LightWeightConnectionId {
+    fn into(self) -> u32 {
+        self.0
     }
 }
 
@@ -242,11 +243,11 @@ impl codec::Encoder for EventCodec {
             Event::Control(ch, lwcid) => {
                 dst.reserve(8);
                 dst.put_u32_be(ch.into());
-                dst.put_u32_be(*lwcid);
+                dst.put_u32_be(lwcid.into());
             }
             Event::Data(lwcid, bytes) => {
                 dst.reserve(8 + bytes.len());
-                dst.put_u32_be(*lwcid);
+                dst.put_u32_be(lwcid.into());
                 dst.put_u32_be(bytes.len() as u32);
                 dst.put(bytes);
             }

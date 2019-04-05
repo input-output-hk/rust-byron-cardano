@@ -426,8 +426,8 @@ fn finish_epoch(
 }
 
 pub fn get_peer(blockchain: &str, cfg: &net::Config, native: bool) -> Peer {
-    for peer in cfg.peers.iter() {
-        if (native && peer.is_native()) || (!native && peer.is_http()) {
+    for peer in cfg.peers.get_peers().iter() {
+        if (native && peer.peer().is_native()) || (!native && peer.peer().is_http()) {
             return Peer::new(
                 String::from(blockchain),
                 peer.name().to_owned(),
