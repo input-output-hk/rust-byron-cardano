@@ -36,8 +36,9 @@ typedef uint8_t* cardano_entropy;
 /*!
 * \brief get entropy array from the given english mnemonics 
 * \param [in] mnemonics a string consisting of 9, 12, 15, 18, 21 or 24 english words
-* \param [out] entropy the returned entropy array
+* \param [out] entropy the returned entropy array, use `cardano_delete_entropy_array` to release the memory
 * \param [out] entropy_size the size of the the returned array
+* \sa cardano_delete_entropy_array()
 * \returns BIP39_SUCCESS or either BIP39_INVALID_MNEMONIC or BIP39_INVALID_CHECKSUM 
 */
 cardano_bip39_error_t cardano_entropy_from_english_mnemonics(
@@ -170,7 +171,8 @@ typedef struct cardano_account cardano_account;
 * \param [in] entropy_size The former size of the entropy array
 * \param [in] password_ptr  A string with the password
 * \param [in] password_size The size of the password string
-* \returns pointer to the constructed wallet that must be freed with `cardano_wallet_delete`
+* \param [out] wallet pointer to the created cardano_wallet that must be freed with `cardano_wallet_delete`
+* \returns CARDANO_RESULT_SUCCESS | CARDANO_RESULT_ERROR if the entropy is of an invalid size
 */
 cardano_result cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned long entropy_size,
                                    const char * const password_ptr, unsigned long password_size,
