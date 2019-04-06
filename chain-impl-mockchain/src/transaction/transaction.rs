@@ -9,6 +9,7 @@ use chain_core::property;
 pub type TransactionId = Hash;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct NoExtra;
 
 impl property::Serialize for NoExtra {
@@ -33,6 +34,7 @@ impl Readable for NoExtra {
 /// Transaction, transaction maps old unspent tokens into the
 /// set of the new addresses.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Transaction<OutAddress, Extra> {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output<OutAddress>>,

@@ -7,7 +7,6 @@ use chain_crypto as crypto;
 use chain_crypto::{
     AsymmetricKey, KeyEvolvingSignatureAlgorithm, SigningAlgorithm, VerificationAlgorithm,
 };
-
 use std::str::FromStr;
 
 pub type SpendingPublicKey = crypto::PublicKey<crypto::Ed25519Extended>;
@@ -62,7 +61,7 @@ where
 {
     let mut bytes = vec![0u8; A::PUBLIC_KEY_SIZE];
     read_mut_slice(buf, &mut bytes[..])?;
-    crypto::PublicKey::from_bytes(&bytes).map_err(chain_crypto_pub_err)
+    crypto::PublicKey::from_binary(&bytes).map_err(chain_crypto_pub_err)
 }
 #[inline]
 pub fn deserialize_signature<'a, A, T>(
@@ -73,7 +72,7 @@ where
 {
     let mut bytes = vec![0u8; A::SIGNATURE_SIZE];
     read_mut_slice(buf, &mut bytes[..])?;
-    crypto::Signature::from_bytes(&bytes).map_err(chain_crypto_sig_err)
+    crypto::Signature::from_binary(&bytes).map_err(chain_crypto_sig_err)
 }
 
 pub fn make_signature<T, A>(
@@ -128,6 +127,7 @@ where
 }
 
 /// A serializable type T with a signature.
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Signed<T, A: SigningAlgorithm> {
     pub data: T,
     pub sig: crypto::Signature<T, A>,
@@ -192,6 +192,7 @@ impl<T: Clone, A: SigningAlgorithm> Clone for Signed<T, A> {
 
 /// Hash that is used as an address of the various components.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Hash(crypto::Blake2b256);
 impl Hash {
     pub fn hash_bytes(bytes: &[u8]) -> Self {
@@ -264,39 +265,26 @@ pub mod test {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
 
-    pub fn arbitrary_secret_key<A, G>(g: &mut G) -> crypto::SecretKey<A>
-    where
-        A: AsymmetricKey,
-        G: Gen,
-    {
-        use rand_chacha::ChaChaRng;
-        use rand_core::SeedableRng;
-        let mut seed = [0; 32];
-        for byte in seed.iter_mut() {
-            *byte = Arbitrary::arbitrary(g);
-        }
-        let mut rng = ChaChaRng::from_seed(seed);
-        crypto::SecretKey::generate(&mut rng)
-    }
-
     impl Arbitrary for Hash {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let bytes: Vec<u8> = Arbitrary::arbitrary(g);
-            Hash::hash_bytes(&bytes)
+            Hash(Arbitrary::arbitrary(g))
         }
     }
 
-    impl<A: SigningAlgorithm + 'static, T: property::Serialize + Arbitrary> Arbitrary for Signed<T, A>
+    impl<T, A> Arbitrary for Signed<T, A>
     where
-        A::Signature: Send,
+        T: Arbitrary,
+        A: 'static + SigningAlgorithm,
+        chain_crypto::Signature<T, A>: Arbitrary + SigningAlgorithm,
     {
         fn arbitrary<G>(g: &mut G) -> Self
         where
             G: Gen,
         {
-            let sk = arbitrary_secret_key(g);
-            let data = T::arbitrary(g);
-            Signed::new(&sk, data)
+            Signed {
+                sig: Arbitrary::arbitrary(g),
+                data: Arbitrary::arbitrary(g),
+            }
         }
     }
 }

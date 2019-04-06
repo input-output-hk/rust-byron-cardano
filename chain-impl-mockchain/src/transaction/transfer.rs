@@ -13,6 +13,7 @@ const INPUT_PTR_SIZE: usize = 32;
 ///
 /// This uniquely refer to a specific source of value.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Input {
     index_or_account: u8,
     pub value: Value,
@@ -62,7 +63,7 @@ impl Input {
     pub fn to_enum(&self) -> InputEnum {
         match self.get_type() {
             InputType::Account => {
-                let pk = PublicKey::from_bytes(&self.input_ptr)
+                let pk = PublicKey::from_binary(&self.input_ptr)
                     .expect("internal error in publickey type");
                 InputEnum::AccountInput(pk.into(), self.value)
             }
@@ -131,6 +132,7 @@ impl Readable for Input {
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Output<Address> {
     pub address: Address,
     pub value: Value,

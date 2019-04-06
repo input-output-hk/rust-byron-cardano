@@ -15,6 +15,7 @@ use chain_crypto::{Ed25519Bip32, PublicKey, Signature, Verification};
 /// It's important that witness works with opaque structures
 /// and may not know the contents of the internal transaction.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Witness {
     Utxo(SpendingSignature<TransactionId>),
     Account(SpendingSignature<TransactionIdSpendingCounter>),

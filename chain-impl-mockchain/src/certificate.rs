@@ -7,7 +7,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone)]
-pub struct SignatureRaw(Vec<u8>);
+pub struct SignatureRaw(pub(crate) Vec<u8>);
 
 impl property::Serialize for SignatureRaw {
     type Error = std::io::Error;
@@ -29,6 +29,7 @@ impl Readable for SignatureRaw {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Certificate {
     pub content: CertificateContent,
     pub signatures: Vec<SignatureRaw>,
@@ -109,6 +110,7 @@ where
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum CertificateContent {
     StakeKeyRegistration(StakeKeyRegistration),
     StakeKeyDeregistration(StakeKeyDeregistration),
@@ -193,6 +195,7 @@ impl Readable for Certificate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakeKeyRegistration {
     pub stake_key_id: StakeKeyId,
 }
@@ -229,6 +232,7 @@ impl Readable for StakeKeyRegistration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakeKeyDeregistration {
     pub stake_key_id: StakeKeyId,
 }
@@ -265,6 +269,7 @@ impl Readable for StakeKeyDeregistration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakeDelegation {
     pub stake_key_id: StakeKeyId,
     pub pool_id: StakePoolId,
@@ -321,6 +326,7 @@ impl HasStakeKeyIds for StakePoolInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakePoolRetirement {
     pub pool_id: StakePoolId,
     // TODO: add epoch when the retirement will take effect

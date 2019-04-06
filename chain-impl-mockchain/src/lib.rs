@@ -2,6 +2,13 @@
 #[macro_use]
 extern crate quickcheck;
 
+#[cfg(feature = "generic-serialization")]
+#[macro_use]
+extern crate serde_derive;
+
+#[cfg(feature = "generic-serialization")]
+mod serde;
+
 pub mod account;
 pub mod block;
 pub mod certificate;
@@ -23,6 +30,3 @@ pub mod transaction;
 pub mod txbuilder;
 pub mod utxo;
 pub mod value;
-
-#[cfg(test)]
-mod tests {}

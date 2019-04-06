@@ -11,6 +11,7 @@ use chain_core::property::Serialize;
 use chain_crypto::{Ed25519Bip32, PublicKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct UtxoDeclaration {
     pub addrs: Vec<(OldAddress, Value)>,
 }

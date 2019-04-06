@@ -16,6 +16,7 @@ pub use witness::*;
 /// Each transaction must be signed in order to be executed
 /// by the ledger. `SignedTransaction` represents such a transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct AuthenticatedTransaction<OutAddress, Extra> {
     pub transaction: Transaction<OutAddress, Extra>,
     pub witnesses: Vec<Witness>,

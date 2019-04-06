@@ -18,6 +18,7 @@ use crate::{
 
 /// All possible messages recordable in the content
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum Message {
     Initial(InitialEnts),
     OldUtxoDeclaration(legacy::UtxoDeclaration),

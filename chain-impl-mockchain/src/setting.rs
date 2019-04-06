@@ -13,6 +13,7 @@ use num_traits::FromPrimitive;
 // epoch boundary.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct UpdateProposal {
     pub max_number_of_transactions_per_block: Option<u32>,
     pub bootstrap_key_slots_percentage: Option<u8>,

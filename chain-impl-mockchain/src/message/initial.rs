@@ -5,7 +5,7 @@ use chain_core::property;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "generic-serialization",
-    derive(serde_derive::Serialize, serde_derive::Deserialize),
+    derive(Serialize, Deserialize),
     serde(transparent)
 )]
 pub struct InitialEnts(Vec<ConfigParam>);

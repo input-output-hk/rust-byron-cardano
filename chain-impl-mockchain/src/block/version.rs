@@ -84,6 +84,7 @@ impl BlockVersion {
     Ord,
     Hash,
 )]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub enum ConsensusVersion {
     #[strum(to_string = "bft")]
     Bft = 1,

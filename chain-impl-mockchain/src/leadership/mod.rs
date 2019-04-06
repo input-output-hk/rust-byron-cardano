@@ -43,16 +43,19 @@ macro_rules! try_check {
     };
 }
 
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct BftLeader {
     pub sig_key: SecretKey<Ed25519Extended>,
 }
 
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct GenesisLeader {
     pub node_id: StakePoolId,
     pub sig_key: SecretKey<FakeMMM>,
     pub vrf_key: SecretKey<Curve25519_2HashDH>,
 }
 
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct Leader {
     pub bft_leader: Option<BftLeader>,
     pub genesis_leader: Option<GenesisLeader>,

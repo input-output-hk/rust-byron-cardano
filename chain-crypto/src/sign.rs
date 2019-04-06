@@ -29,6 +29,7 @@ pub trait VerificationAlgorithm: key::AsymmetricKey {
     type Signature: AsRef<[u8]> + Clone;
 
     const SIGNATURE_SIZE: usize;
+    const SIGNATURE_BECH32_HRP: &'static str;
 
     fn verify_bytes(pubkey: &Self::Public, signature: &Self::Signature, msg: &[u8])
         -> Verification;
@@ -67,7 +68,7 @@ impl fmt::Display for SignatureError {
 impl std::error::Error for SignatureError {}
 
 impl<A: VerificationAlgorithm, T> Signature<T, A> {
-    pub fn from_bytes(sig: &[u8]) -> Result<Self, SignatureError> {
+    pub fn from_binary(sig: &[u8]) -> Result<Self, SignatureError> {
         Ok(Signature {
             signdata: A::signature_from_bytes(sig)?,
             phantom: PhantomData,
@@ -121,11 +122,11 @@ impl<T, A: VerificationAlgorithm> AsRef<[u8]> for Signature<T, A> {
 }
 
 impl<T, A: VerificationAlgorithm> Bech32 for Signature<T, A> {
-    const BECH32_HRP: &'static str = A::SECRET_BECH32_HRP;
+    const BECH32_HRP: &'static str = A::SIGNATURE_BECH32_HRP;
 
     fn try_from_bech32_str(bech32_str: &str) -> Result<Self, bech32::Error> {
         let bytes = bech32::try_from_bech32_to_bytes::<Self>(bech32_str)?;
-        Self::from_bytes(&bytes).map_err(bech32::Error::data_invalid)
+        Self::from_binary(&bytes).map_err(bech32::Error::data_invalid)
     }
 
     fn to_bech32_str(&self) -> String {
@@ -161,5 +162,21 @@ pub(crate) mod test {
 
         let signature = Signature::generate(&sk, &data);
         signature.verify(&pk_random, &data) == Verification::Failed
+    }
+
+    use quickcheck::{Arbitrary, Gen};
+
+    impl<T, A> Arbitrary for Signature<T, A>
+    where
+        A: VerificationAlgorithm + 'static,
+        A::Signature: Send,
+        T: Send + 'static,
+    {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let bytes: Vec<_> = std::iter::repeat_with(|| u8::arbitrary(g))
+                .take(A::SIGNATURE_SIZE)
+                .collect();
+            Signature::from_binary(&bytes).unwrap()
+        }
     }
 }

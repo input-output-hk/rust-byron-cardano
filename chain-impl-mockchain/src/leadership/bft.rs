@@ -18,6 +18,7 @@ pub type SIGNING_ALGORITHM = Ed25519Extended;
 pub type SigningKey = SecretKey<SIGNING_ALGORITHM>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct LeaderId(pub(crate) PublicKey<SIGNING_ALGORITHM>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

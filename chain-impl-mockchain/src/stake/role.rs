@@ -6,14 +6,17 @@ use chain_crypto::{Ed25519Extended, PublicKey, SecretKey};
 
 /// Information related to a stake key
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakeKeyInfo {
     pub(crate) pool: Option<StakePoolId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakePoolId(Hash);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakePoolInfo {
     pub serial: u128,
     pub owners: Vec<StakeKeyId>,
@@ -34,6 +37,7 @@ impl StakePoolInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct StakeKeyId(pub(crate) PublicKey<Ed25519Extended>);
 
 impl From<PublicKey<Ed25519Extended>> for StakeKeyId {
@@ -138,7 +142,7 @@ mod test {
 
     impl Arbitrary for StakeKeyId {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            StakeKeyId::from(&crate::key::test::arbitrary_secret_key(g))
+            StakeKeyId::from(&Arbitrary::arbitrary(g))
         }
     }
 
