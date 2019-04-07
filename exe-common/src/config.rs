@@ -342,6 +342,28 @@ pub mod net {
             }
         }
 
+        pub fn obft_testnet() -> Self {
+            let mut peers = Peers::new();
+            peers.push(
+                "iohk-hosts".to_string(),
+                Peer::native("52.198.165.239:3000".to_string()),
+            );
+            Config {
+                genesis: HeaderHash::from_str(
+                    &"76e385401cfa1debca27985eec09c07526f27afde46f9b3276bcc8914a8b032b",
+                )
+                .unwrap(),
+                genesis_prev: HeaderHash::from_str(
+                    &"00b8e1f18bf7cd70c06a5e463a931402e16203f19936fb76f3dea7e81eafc635",
+                )
+                .unwrap(),
+                epoch_start: 0,
+                epoch_stability_depth: DEFAULT_EPOCH_STABILITY_DEPTH,
+                protocol_magic: ProtocolMagic::from(170987650),
+                peers: peers,
+            }
+        }
+
         pub fn from_file<P: AsRef<Path>>(p: P) -> Option<Self> {
             let path = p.as_ref();
             if !path.is_file() {

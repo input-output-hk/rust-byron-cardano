@@ -23,6 +23,13 @@ pub fn get_genesis_data(genesis_prev: &HeaderHash) -> Result<&str, HeaderHash> {
         Ok(include_str!(
             "../../genesis/c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323.json"
         ))
+    } else if genesis_prev
+        == &HeaderHash::from_str("00b8e1f18bf7cd70c06a5e463a931402e16203f19936fb76f3dea7e81eafc635")
+            .unwrap()
+    {
+        Ok(include_str!(
+            "../../genesis/00b8e1f18bf7cd70c06a5e463a931402e16203f19936fb76f3dea7e81eafc635.json"
+        ))
     } else {
         Err(genesis_prev.clone())
     }
