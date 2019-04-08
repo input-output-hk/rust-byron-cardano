@@ -93,7 +93,7 @@ impl ChainState {
             }
 
             None => {
-                if date != BlockDate::Boundary(0) {
+                if date.get_epochid() != 0 {
                     // FIXME: use epoch_start
                     return Err(Error::BlockDateInFuture);
                 }
