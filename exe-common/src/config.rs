@@ -350,11 +350,11 @@ pub mod net {
             );
             Config {
                 genesis: HeaderHash::from_str(
-                    &"7d8ad7be39890eb4198b99c0a7e965e2734318a0b8b7483428efcc1b4ac38783",
+                    &"e84e0a4b9003ed9c320fda1cdc0404e9f7f6b0516e1978aeef2964a3bd6404b0",
                 )
                 .unwrap(),
                 genesis_prev: HeaderHash::from_str(
-                    &"e84e0a4b9003ed9c320fda1cdc0404e9f7f6b0516e1978aeef2964a3bd6404b0",
+                    &"791f4256e14c67b9035c3b80a0826adf719d3636c18eef16c98b84b833723d51",
                 )
                 .unwrap(),
                 epoch_start: 0,
