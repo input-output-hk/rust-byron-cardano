@@ -10,4 +10,5 @@ extern crate protocol_tokio as protocol;
 extern crate futures;
 
 pub mod client;
+pub mod gossip;
 pub mod server;

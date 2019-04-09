@@ -1,6 +1,11 @@
+use super::gossip::NodeId;
+
 use chain_core::property::{Block, HasHeader, Header};
 
-use network_core::{client::block::BlockService, error as core_error};
+use network_core::{
+    client::{block::BlockService, P2pService},
+    error as core_error,
+};
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
     network_transport::LightWeightConnectionId,
@@ -149,6 +154,13 @@ impl<T: Header> Future for TipFuture<T> {
     }
 }
 
+impl<T, Tx> P2pService for ClientHandle<T, Tx>
+where
+    T: Block + HasHeader,
+{
+    type NodeId = NodeId;
+}
+
 impl<T: Block + HasHeader, Tx> BlockService for ClientHandle<T, Tx>
 where
     T::Header: Header<Id = <T as Block>::Id, Date = <T as Block>::Date>,
@@ -160,7 +172,7 @@ where
     type GetBlocksStream = RequestStream<T>;
     type GetBlocksFuture = RequestFuture<RequestStream<T>>;
     type BlockSubscription = RequestStream<T::Header>;
-    type BlockSubscriptionFuture = RequestFuture<Self::BlockSubscription>;
+    type BlockSubscriptionFuture = RequestFuture<(Self::BlockSubscription, NodeId)>;
 
     fn tip(&mut self) -> Self::TipFuture {
         use UnaryRequest::Tip;
