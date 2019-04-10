@@ -115,7 +115,7 @@ VALGRIND=true ./test.sh
 
 # Documentation
 
-Latest documentation generated from master: https://hydra.iohk.io/job/Cardano/cardano-rust/docs.cardano-c/latest
+Latest documentation generated from master: https://hydra.iohk.io/job/Cardano/rust-cardano/docs.cardano-c/latest
 
 HTML documentation of the exposed functions can be generated with Doxygen by running
 
