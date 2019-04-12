@@ -1,10 +1,11 @@
 use cardano::address;
+use cardano::block;
 use cardano::coin::CoinDiff;
 use cardano::hdwallet;
 use cardano::tx;
 use cardano::txbuild;
 use cardano::wallet::bip44;
-use std::os::raw::c_int;
+use std::os::raw::{c_char, c_int};
 
 /// C result type, where 0 is success and !0 is failure
 #[repr(C)]
@@ -166,3 +167,6 @@ pub type TransactionBuilderPtr = *mut txbuild::TxBuilder;
 
 /// C pointer to a Transaction finalized;
 pub type TransactionFinalizedPtr = *mut txbuild::TxFinalized;
+
+/// C pointer to a Block;
+pub type BlockPtr = *mut block::Block;

@@ -442,6 +442,53 @@ cardano_transaction_error_t cardano_transaction_finalized_add_witness(cardano_tr
 cardano_transaction_error_t cardano_transaction_finalized_output(cardano_transaction_finalized *tf, cardano_signed_transaction **txaux);
 void cardano_transaction_signed_delete(cardano_signed_transaction *txaux);
 
+/****************/
+/* Block */
+/****************/
+
+typedef struct cardano_block cardano_block;
+
+typedef struct cardano_txid {
+    uint8_t bytes[32];
+} cardano_txid_t;
+
+void cardano_transaction_txoptr_txid(cardano_txoptr *txoptr, cardano_txid_t *output);
+uint32_t cardano_transaction_txoptr_index(cardano_txoptr *txoptr);
+
+cardano_address *cardano_transaction_txoutput_address(cardano_txoutput *txoutput);
+uint64_t cardano_transaction_txoutput_value(cardano_txoutput *txoutput);
+
+
+cardano_result cardano_raw_block_decode(const uint8_t *bytes, size_t size, cardano_block **out_block);
+void cardano_block_delete(cardano_block *block);
+
+cardano_result cardano_block_get_transactions(
+    cardano_block *block,
+    cardano_signed_transaction *(*out_pointer[]),
+    size_t *size
+);
+
+void cardano_block_delete_transactions(
+    cardano_signed_transaction *transactions[], size_t size
+);
+
+void cardano_transaction_signed_get_inputs(
+    cardano_signed_transaction *txaux,
+    cardano_txoptr *(*out_array[]),
+    size_t *out_size
+);
+
+void cardano_transaction_signed_delete_inputs(cardano_txoptr *inputs[], size_t size);
+
+void cardano_transaction_signed_get_outputs(
+    cardano_signed_transaction *txaux,
+    cardano_txoutput *(*outputs[]),
+    size_t *outputs_size
+);
+
+void cardano_transaction_signed_delete_outputs(cardano_txoutput *outputs[], size_t size);
+
+
 #ifdef __cplusplus
 }
 #endif
