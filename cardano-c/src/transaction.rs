@@ -347,8 +347,9 @@ pub extern "C" fn cardano_transaction_txoptr_index(txoptr: TransactionOutputPoin
 pub extern "C" fn cardano_transaction_txoutput_address(
     txoutput: TransactionOutputPtr,
 ) -> AddressPtr {
-    let txo = unsafe { txoutput.as_ref().expect("Not a NULL PTR") };
-    Box::into_raw(Box::new(txo.address.clone()))
+    let txo = unsafe { txoutput.as_mut().expect("Not a NULL PTR") };
+    //Box::into_raw(Box::new(txo.address.clone()))
+    &mut txo.address as AddressPtr
 }
 
 #[no_mangle]

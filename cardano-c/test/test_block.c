@@ -57,9 +57,9 @@ void test_get_inputs()
     cardano_txid_t txid;
     cardano_transaction_txoptr_txid(inputs[0], &txid);
     uint8_t actual_txid[] = {231, 156, 36, 219, 139, 169, 251, 239, 103, 172, 222, 240, 106, 157, 44, 139, 136,
-                    35, 78, 185, 236, 239, 222, 42, 176, 20, 200, 77, 138, 51, 171, 76};
+                             35, 78, 185, 236, 239, 222, 42, 176, 20, 200, 77, 138, 51, 171, 76};
 
-    TEST_ASSERT_EQUAL_HEX8_ARRAY(txid.bytes, actual_txid, sizeof(actual_txid));
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(actual_txid, txid.bytes, sizeof(actual_txid));
 
     cardano_transaction_signed_delete_inputs(inputs, inputs_size);
     cardano_block_delete_transactions(transactions, transactions_size);
@@ -80,7 +80,14 @@ void test_get_outputs()
     cardano_transaction_signed_get_outputs(transactions[0], &outputs, &outputs_size);
     TEST_ASSERT_EQUAL(2, outputs_size);
     TEST_ASSERT_EQUAL(655859, cardano_transaction_txoutput_value(outputs[0]));
-    TEST_ASSERT_EQUAL(3995999979, cardano_transaction_txoutput_value(outputs[1]));
+
+    cardano_address *address = cardano_transaction_txoutput_address(outputs[0]);
+
+    char *actual_address = "DdzFFzCqrhsyFEYhxiJGQ1r4WNEbxKmfHMLp4u4gkpsRDDwxKqZmwqpvm3ZrF3WTQ5AJ4TW4gBQnTnkezjujcLZ8BoUJfCNZQFHUZ55t";
+    char *address_base58 = cardano_address_export_base58(address);
+    TEST_ASSERT_EQUAL_STRING(actual_address, address_base58);
+
+    cardano_account_delete_addresses(&address_base58, 1);
 
     cardano_transaction_signed_delete_outputs(outputs, outputs_size);
     cardano_block_delete_transactions(transactions, transactions_size);
