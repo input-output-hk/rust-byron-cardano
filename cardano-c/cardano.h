@@ -251,7 +251,52 @@ typedef struct cardano_txoptr cardano_txoptr;
 */
 typedef struct cardano_txoutput cardano_txoutput;
 typedef struct cardano_transaction cardano_transaction;
+
 typedef struct cardano_signed_transaction cardano_signed_transaction;
+
+/*! \brief Get references to the inputs in the the signed transaction
+* \param [in] txaux a cardano signed transaction
+* \param [out] out_array array of pointers to cardano_txoptr that you can read with 
+* `cardano_transaction_txoptr_txid` and `cardano_transaction_txoptr_index`.
+* You should NOT call cardano_transaction_output_ptr_delete with any of this pointers.
+* <br> Use `cardano_transaction_signed_delete_inputs` to delete the array of pointers
+* \param [out] out_size
+* \sa cardano_transaction_signed_delete_inputs()
+* \sa cardano_transaction_txoptr_txid()
+* \sa cardano_transaction_txoptr_index()
+* \sa cardano_transaction_signed_get_outputs()
+*/
+void cardano_transaction_signed_get_inputs(
+    cardano_signed_transaction *txaux,
+    cardano_txoptr *(*out_array[]),
+    size_t *out_size
+);
+
+/*! \brief Release the memory allocated by `cardano_transaction_signed_get_inputs`
+*/
+void cardano_transaction_signed_delete_inputs(cardano_txoptr *inputs[], size_t size);
+
+/*! \brief Get references to the outputs in the the signed transaction
+* \param [in] txaux a cardano signed transaction
+* \param [out] out_array array of pointers to cardano_txoutput that you can read with 
+`cardano_transaction_txoutput_address` and `cardano_transaction_txoptr_value`.
+You should not call cardano_transaction_output_delete with any of this pointers
+Use `cardano_transaction_signed_delete_inputs` to delete the array of pointers
+* \param [out] out_size
+* \sa cardano_transaction_signed_delete_outputs()
+* \sa cardano_transaction_txoutput_address()
+* \sa cardano_transaction_txoutput_value()
+* \sa cardano_transaction_signed_get_inputs()
+*/
+void cardano_transaction_signed_get_outputs(
+    cardano_signed_transaction *txaux,
+    cardano_txoutput *(*outputs[]),
+    size_t *outputs_size
+);
+
+/*! \brief Release the memory allocated by `cardano_transaction_signed_get_outputs`
+*/
+void cardano_transaction_signed_delete_outputs(cardano_txoutput *outputs[], size_t size);
 
 /*!
 * Create object used for addressing a specific output of a transaction built from a TxId (hash of the tx) and the offset in the outputs of this transaction.
@@ -265,6 +310,22 @@ cardano_txoptr * cardano_transaction_output_ptr_new(uint8_t txid[32], uint32_t i
 */
 void cardano_transaction_output_ptr_delete(cardano_txoptr *txo);
 
+typedef struct cardano_txid {
+    uint8_t bytes[32];
+} cardano_txid_t;
+
+/*!
+* Get the txid of the given cardano_txoptr
+* \param [in] txoptr
+* \param [out] output
+*/
+void cardano_transaction_txoptr_txid(cardano_txoptr *txoptr, cardano_txid_t *output);
+
+/*!
+* Get the index of the given cardano_txoptr
+*/
+uint32_t cardano_transaction_txoptr_index(cardano_txoptr *txoptr);
+
 /*!
 * Create output for a transaction 
 * The memory must be freed with `cardano_transaction_output_delete`
@@ -276,6 +337,19 @@ cardano_txoutput * cardano_transaction_output_new(cardano_address *c_addr, uint6
 * Free the memory allocated with `cardano_transaction_output_delete`
 */
 void cardano_transaction_output_delete(cardano_txoutput *output);
+
+/*!
+* \brief get a reference to the address of a cardano_txoutput
+* You should NOT `cardano_address_delete` on the pointer returned by this function 
+* as the data is this function doesn't allocate memory, and the returned pointer is only
+* valid as long as the cardano_txoutput is valid
+*/
+cardano_address *cardano_transaction_txoutput_address(cardano_txoutput *txoutput);
+
+/*!
+* \brief get a reference to the address of a cardano_txoutput
+*/
+uint64_t cardano_transaction_txoutput_value(cardano_txoutput *txoutput);
 
 /*!
 * \brief Create builder for a transaction
@@ -448,45 +522,41 @@ void cardano_transaction_signed_delete(cardano_signed_transaction *txaux);
 
 typedef struct cardano_block cardano_block;
 
-typedef struct cardano_txid {
-    uint8_t bytes[32];
-} cardano_txid_t;
-
-void cardano_transaction_txoptr_txid(cardano_txoptr *txoptr, cardano_txid_t *output);
-uint32_t cardano_transaction_txoptr_index(cardano_txoptr *txoptr);
-
-cardano_address *cardano_transaction_txoutput_address(cardano_txoutput *txoutput);
-uint64_t cardano_transaction_txoutput_value(cardano_txoutput *txoutput);
-
-
+/*! \brief Try to the decode a CBOR encoded block
+* \param [in] bytes the block in its raw representation
+* \param [in] size the size in bytes of the binary 
+* \param [out] out_block a pointer to the block, you should call `cardano_block_delete` on this pointer
+* \returns error if the binary format is wrong 
+*/
 cardano_result cardano_raw_block_decode(const uint8_t *bytes, size_t size, cardano_block **out_block);
+
+/*! \brief delete memory allocated by `cardano_raw_block_decode`
+*/
 void cardano_block_delete(cardano_block *block);
 
+/*! \brief Get references to the block transactions
+* \param [in] block the corresponding block
+* \param [out] out_array this array contains pointers that you can use for 
+cardano_transaction_signed_get_inputs() and cardano_transaction_signed_get_outputs()
+you should NOT call `cardano_transaction_signed_delete`() on any of this pointers.
+You should call cardano_block_delete_transactions to free the memory allocated for this pointers
+* \param [out] size the number of transactions
+* \returns CARDANO_RESULT_ERROR if the block is a BoundaryBlock
+* \sa cardano_transaction_signed_get_inputs()
+* \sa cardano_transaction_signed_get_outputs()
+* \sa cardano_block_delete_transactions()
+*/
 cardano_result cardano_block_get_transactions(
     cardano_block *block,
-    cardano_signed_transaction *(*out_pointer[]),
+    cardano_signed_transaction *(*out_array[]),
     size_t *size
 );
 
+/*! \brief Release the memory allocated by cardano_block_get_transactions
+*/
 void cardano_block_delete_transactions(
     cardano_signed_transaction *transactions[], size_t size
 );
-
-void cardano_transaction_signed_get_inputs(
-    cardano_signed_transaction *txaux,
-    cardano_txoptr *(*out_array[]),
-    size_t *out_size
-);
-
-void cardano_transaction_signed_delete_inputs(cardano_txoptr *inputs[], size_t size);
-
-void cardano_transaction_signed_get_outputs(
-    cardano_signed_transaction *txaux,
-    cardano_txoutput *(*outputs[]),
-    size_t *outputs_size
-);
-
-void cardano_transaction_signed_delete_outputs(cardano_txoutput *outputs[], size_t size);
 
 
 #ifdef __cplusplus
