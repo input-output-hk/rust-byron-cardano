@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stddef.h>
 
 /*!
 * Type used to represent failure and success
