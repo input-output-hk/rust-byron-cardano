@@ -1,4 +1,3 @@
-use address::ffi_address_to_base58;
 use cardano::coin::Coin;
 use cardano::config::ProtocolMagic;
 use cardano::fee::{self, LinearFee};
@@ -6,7 +5,6 @@ use cardano::tx::{self, TxId, TxInWitness};
 use cardano::txbuild::{Error, TxBuilder, TxFinalized};
 use cardano::txutils::OutputPolicy;
 use cardano::util::try_from_slice::TryFromSlice;
-use std::os::raw::c_char;
 use std::{ptr, slice};
 use types::*;
 

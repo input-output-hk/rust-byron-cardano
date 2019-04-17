@@ -5,7 +5,7 @@ use cardano::hdwallet;
 use cardano::tx;
 use cardano::txbuild;
 use cardano::wallet::bip44;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_int;
 
 /// C result type, where 0 is success and !0 is failure
 #[repr(C)]
