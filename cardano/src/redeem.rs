@@ -131,15 +131,7 @@ impl PrivateKey {
     /// takes the given raw bytes and perform some modifications to normalize
     /// it properly to a Private Key.
     ///
-    pub fn normalize_bytes(mut bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
-        bytes[0] &= 0b1111_1000;
-        bytes[31] &= 0b0001_1111;
-        bytes[31] |= 0b0100_0000;;
-
-        Self::from_bytes(bytes)
-    }
-
-    fn from_bytes(bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
+    pub fn from_bytes(bytes: [u8; PRIVATEKEY_SIZE]) -> Self {
         PrivateKey(bytes)
     }
 
@@ -149,7 +141,7 @@ impl PrivateKey {
         }
         let mut buf = [0; PRIVATEKEY_SIZE];
         buf[0..PRIVATEKEY_SIZE].clone_from_slice(bytes);
-        Ok(Self::normalize_bytes(buf))
+        Ok(Self::from_bytes(buf))
     }
 
     pub fn from_hex(hex: &str) -> Result<Self> {
