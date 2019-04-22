@@ -49,7 +49,7 @@ void test_get_inputs()
 
     cardano_txoptr **inputs;
     size_t inputs_size;
-    cardano_transaction_signed_get_inputs(transactions[0], &inputs, &inputs_size);
+    cardano_signed_transaction_get_inputs(transactions[0], &inputs, &inputs_size);
 
     TEST_ASSERT_EQUAL(1, inputs_size);
     TEST_ASSERT_EQUAL(1, cardano_transaction_txoptr_index(inputs[0]));
@@ -61,7 +61,7 @@ void test_get_inputs()
 
     TEST_ASSERT_EQUAL_HEX8_ARRAY(actual_txid, txid.bytes, sizeof(actual_txid));
 
-    cardano_transaction_signed_delete_inputs(inputs, inputs_size);
+    cardano_signed_transaction_delete_inputs(inputs, inputs_size);
     cardano_block_delete_transactions(transactions, transactions_size);
     cardano_block_delete(block);
 }
@@ -77,7 +77,7 @@ void test_get_outputs()
     cardano_txoutput **outputs;
     size_t outputs_size;
 
-    cardano_transaction_signed_get_outputs(transactions[0], &outputs, &outputs_size);
+    cardano_signed_transaction_get_outputs(transactions[0], &outputs, &outputs_size);
     TEST_ASSERT_EQUAL(2, outputs_size);
     TEST_ASSERT_EQUAL(655859, cardano_transaction_txoutput_value(outputs[0]));
 
@@ -89,7 +89,7 @@ void test_get_outputs()
 
     cardano_account_delete_addresses(&address_base58, 1);
 
-    cardano_transaction_signed_delete_outputs(outputs, outputs_size);
+    cardano_signed_transaction_delete_outputs(outputs, outputs_size);
     cardano_block_delete_transactions(transactions, transactions_size);
     cardano_block_delete(block);
 }

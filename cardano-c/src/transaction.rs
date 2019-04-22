@@ -260,7 +260,7 @@ pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr)
 }
 
 #[no_mangle]
-pub extern "C" fn cardano_transaction_signed_get_inputs(
+pub extern "C" fn cardano_signed_transaction_get_inputs(
     txaux: SignedTransactionPtr,
     out_array: *mut *mut TransactionOutputPointerPtr,
     out_size: *mut usize,
@@ -285,7 +285,7 @@ pub extern "C" fn cardano_transaction_signed_get_inputs(
 }
 
 #[no_mangle]
-pub extern "C" fn cardano_transaction_signed_delete_inputs(
+pub extern "C" fn cardano_signed_transaction_delete_inputs(
     inputs: *mut TransactionOutputPointerPtr,
     size: usize,
 ) {
@@ -293,7 +293,7 @@ pub extern "C" fn cardano_transaction_signed_delete_inputs(
 }
 
 #[no_mangle]
-pub extern "C" fn cardano_transaction_signed_get_outputs(
+pub extern "C" fn cardano_signed_transaction_get_outputs(
     txaux: SignedTransactionPtr,
     out_array: *mut *mut TransactionOutputPtr,
     out_size: *mut usize,
@@ -318,7 +318,7 @@ pub extern "C" fn cardano_transaction_signed_get_outputs(
 }
 
 #[no_mangle]
-pub extern "C" fn cardano_transaction_signed_delete_outputs(
+pub extern "C" fn cardano_signed_transaction_delete_outputs(
     outputs: *mut TransactionOutputPtr,
     size: usize,
 ) {
