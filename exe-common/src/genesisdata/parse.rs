@@ -83,8 +83,13 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
         );
     }
 
+    // TODO: get valid genesis and remove this
+    let wrong_obft = block::HeaderHash::from_str("00b8e1f18bf7cd70c06a5e463a931402e16203f19936fb76f3dea7e81eafc635").unwrap();
+    let correct_obft = block::HeaderHash::from_str("791f4256e14c67b9035c3b80a0826adf719d3636c18eef16c98b84b833723d51").unwrap();
+    let correct_genesis_prev = if genesis_prev == wrong_obft { correct_obft } else { genesis_prev };
+
     config::GenesisData {
-        genesis_prev,
+        genesis_prev: correct_genesis_prev,
         epoch_stability_depth: data.protocolConsts.k,
         protocol_magic,
         fee_policy: fee::LinearFee::new(
