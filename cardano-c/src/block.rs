@@ -1,6 +1,7 @@
 use cardano::block;
+use std::os::raw::c_char;
 use std::ptr;
-use types::{BlockPtr, CardanoResult, SignedTransactionPtr};
+use types::{BlockHeaderPtr, BlockPtr, CardanoResult, SignedTransactionPtr};
 
 #[no_mangle]
 pub extern "C" fn cardano_raw_block_decode(
@@ -66,4 +67,52 @@ pub extern "C" fn cardano_block_delete_transactions(
         let slice = std::slice::from_raw_parts_mut(pointer, size);
         Box::from_raw(slice);
     };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_block_get_header(block: BlockPtr) -> BlockHeaderPtr {
+    let block = unsafe { block.as_ref().expect("Pointer to block shouldn't be null") };
+    let header = block::BlockHeader::from(block.header());
+    Box::into_raw(Box::new(header))
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_raw_block_header_decode(
+    bytes: *const u8,
+    size: usize,
+    out_header: *mut BlockHeaderPtr,
+) -> CardanoResult {
+    let slice = unsafe { std::slice::from_raw_parts(bytes, size) };
+    let raw_block = block::block::RawBlockHeader(slice.to_vec());
+    let block = match raw_block.decode() {
+        Ok(b) => b,
+        Err(_) => return CardanoResult::failure(),
+    };
+    let pointer = Box::into_raw(Box::new(block));
+    unsafe { ptr::write(out_header, pointer) };
+    CardanoResult::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_block_header_previous_hash(header: BlockHeaderPtr) -> *mut c_char {
+    let header = unsafe { header.as_ref().expect("Not a NULL PTR") };
+    let hash = format!("{}", header.get_previous_header());
+    std::ffi::CString::new(hash).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_block_header_compute_hash(header: BlockHeaderPtr) -> *mut c_char {
+    let header = unsafe { header.as_ref().expect("Not a NULL PTR") };
+    let hash = format!("{}", header.compute_hash());
+    std::ffi::CString::new(hash).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_block_delete_hash(hash: *mut c_char) {
+    unsafe { std::ffi::CString::from_raw(hash) };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_block_header_delete(header: BlockHeaderPtr) {
+    unsafe { Box::from_raw(header) };
 }

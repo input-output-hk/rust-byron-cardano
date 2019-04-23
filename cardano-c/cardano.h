@@ -559,6 +559,65 @@ void cardano_block_delete_transactions(
     cardano_signed_transaction *transactions[], size_t size
 );
 
+/*!
+* \struct cardano_block_header
+* \brief Opaque handler for the Header of a Block
+*
+* Struct for working with block headers, which can be used to obtain the id of the respective and previous blocks
+*/
+typedef struct cardano_block_header cardano_block_header;
+
+/*!
+*\brief Get a copy of the given block's header
+*\param [in] block
+*\returns a pointer to a heap allocated copy of the header inside the block.
+*You should call `cardano_block_header_delete()` to release the memory
+*\relatesalso cardano_block_header
+*/
+cardano_block_header *cardano_block_get_header(cardano_block *block);
+
+/*!
+*\brief Decode a header in its cbor representation
+*\param [in] bytes buffer
+*\param [in] size size of the given buffer
+*\param [out] out_header a pointer to the header
+*You should call `cardano_block_header_delete()` to release the memory
+*\relatesalso cardano_block_header
+*/
+cardano_result cardano_raw_block_header_decode(
+    const uint8_t *bytes, size_t size, cardano_block_header **out_header);
+
+/*!
+*\brief Get the hash (as a string in hexaedecimal representation) of the previous header (which is the previous blockid)
+*\param [in] header pointer to the header obtained with `cardano_block_get_header()` or `cardano_raw_block_header_decode()`
+*\relatesalso cardano_block_header
+*\sa `cardano_block_delete_hash()`
+*/
+char *cardano_block_header_previous_hash(cardano_block_header *header);
+
+/*!
+*\brief get the hash (in hexadecimal representation) of a given header, that can be used as the blockid
+*\param [in] header
+*\relatesalso cardano_block_header
+*\sa `cardano_block_delete_hash()`
+*/
+char *cardano_block_header_compute_hash(cardano_block_header *header);
+
+/*!
+*\brief release the memory allocated with cardano_block_header_previous_hash 
+*    or cardano_block_header_compute_hash
+*\param [in] hash
+*\relatesalso cardano_block_header_previous_hash
+*\relatesalso cardano_block_header_compute_hash
+*/
+void cardano_block_delete_hash(char *hash);
+
+/*!
+*\brief release the memory allocated with `cardano_block_get_header` and `cardano_raw_block_header_decode`
+*\param [in] hash
+*\relatesalso cardano_block_header
+*/
+void cardano_block_header_delete(cardano_block_header *header);
 
 #ifdef __cplusplus
 }
