@@ -131,6 +131,22 @@ impl Readable for StakePoolInfo {
     }
 }
 
+impl From<Hash> for StakePoolId {
+    fn from(hash: Hash) -> Self {
+        StakePoolId(hash)
+    }
+}
+impl From<chain_crypto::Blake2b256> for StakePoolId {
+    fn from(hash: chain_crypto::Blake2b256) -> Self {
+        StakePoolId(hash.into())
+    }
+}
+impl std::fmt::Display for StakePoolId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -138,7 +154,7 @@ mod test {
 
     impl Arbitrary for StakeKeyId {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            StakeKeyId::from(&crate::key::test::arbitrary_secret_key(g))
+            StakeKeyId::from(&Arbitrary::arbitrary(g))
         }
     }
 

@@ -89,6 +89,12 @@ impl PartialEq<Self> for KESSignature {
 }
 impl Eq for KESSignature {}
 
+impl std::fmt::Display for ChainLength {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl Header {
     #[inline]
     pub fn block_version(&self) -> AnyBlockVersion {
@@ -306,7 +312,7 @@ mod test {
 
     impl Arbitrary for ConsensusVersion {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            ConsensusVersion::from_u16(u16::arbitrary(g) % 3).unwrap()
+            ConsensusVersion::from_u16(u16::arbitrary(g) % 2 + 1).unwrap()
         }
     }
 
@@ -325,7 +331,7 @@ mod test {
 
     impl Arbitrary for BftProof {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let sk = crate::key::test::arbitrary_secret_key(g);
+            let sk: chain_crypto::SecretKey<_> = Arbitrary::arbitrary(g);
             let pk = sk.to_public();
             let signature = chain_crypto::Signature::generate(&sk, &[0u8, 1, 2, 3]);
             BftProof {
@@ -352,7 +358,7 @@ mod test {
             };
 
             let kes_proof = {
-                let mut sk = crate::key::test::arbitrary_secret_key(g);
+                let mut sk = Arbitrary::arbitrary(g);
                 let signature = Signature::generate_update(&mut sk, &[0u8, 1, 2, 3]);
                 KESSignature(signature)
             };

@@ -169,7 +169,7 @@ pub struct Settings {
     pub allow_account_creation: bool,
     pub linear_fees: Arc<LinearFee>,
     pub slot_duration: u8,
-    pub epoch_stability_depth: usize,
+    pub epoch_stability_depth: u32,
 }
 
 pub const SLOTS_PERCENTAGE_RANGE: u8 = 100;
@@ -179,7 +179,7 @@ impl Settings {
         Self {
             max_number_of_transactions_per_block: 100,
             bootstrap_key_slots_percentage: SLOTS_PERCENTAGE_RANGE,
-            consensus_version: ConsensusVersion::None,
+            consensus_version: ConsensusVersion::Bft,
             bft_leaders: Arc::new(Vec::new()),
             allow_account_creation: false,
             linear_fees: Arc::new(LinearFee::new(0, 0, 0)),
@@ -222,7 +222,7 @@ impl Settings {
             new_state.slot_duration = slot_duration;
         }
         if let Some(epoch_stability_depth) = update.epoch_stability_depth {
-            new_state.epoch_stability_depth = epoch_stability_depth as usize;
+            new_state.epoch_stability_depth = epoch_stability_depth;
         }
         new_state
     }

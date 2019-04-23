@@ -1,10 +1,10 @@
 //! Mockchain ledger. Ledger exists in order to update the
 //! current state and verify transactions.
 
-use crate::block::{ChainLength, HeaderHash};
-use crate::config;
+use crate::block::{ChainLength, ConsensusVersion, HeaderHash};
+use crate::config::{self, Block0Date, ConfigParam};
 use crate::fee::LinearFee;
-use crate::message::initial;
+use crate::leadership::bft::LeaderId;
 use crate::message::Message;
 use crate::stake::{DelegationError, DelegationState, StakeDistribution};
 use crate::transaction::*;
@@ -19,17 +19,8 @@ use std::sync::Arc;
 pub struct LedgerStaticParameters {
     pub block0_initial_hash: HeaderHash,
     pub block0_start_time: config::Block0Date,
+    pub block0_consensus: ConsensusVersion,
     pub discrimination: Discrimination,
-}
-
-impl LedgerStaticParameters {
-    fn default() -> Self {
-        LedgerStaticParameters {
-            block0_initial_hash: HeaderHash::from_bytes([0u8; 32]),
-            block0_start_time: config::Block0Date(0),
-            discrimination: Discrimination::Test,
-        }
-    }
 }
 
 // parameters to validate ledger
@@ -60,7 +51,6 @@ pub struct Ledger {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Config(config::Error),
-    UnknownConfig(initial::Tag),
     NotEnoughSignatures(usize, usize),
     UtxoValueNotMatching(Value, Value),
     UtxoError(utxo::Error),
@@ -74,6 +64,17 @@ pub enum Error {
     Block0TransactionHasOutput,
     Block0TransactionHasWitnesses,
     Block0InitialMessageMissing,
+    Block0InitialMessageDuplicateBlock0Date,
+    Block0InitialMessageDuplicateDiscrimination,
+    Block0InitialMessageDuplicateConsensusVersion,
+    Block0InitialMessageDuplicateSlotDuration,
+    Block0InitialMessageDuplicateEpochStabilityDepth,
+    Block0InitialMessageNoBlock0Date,
+    Block0InitialMessageNoDiscrimination,
+    Block0InitialMessageNoConsensusVersion,
+    Block0InitialMessageNoSlotDuration,
+    Block0InitialMessageNoConsensusLeaderId,
+    Block0UtxoTotalValueTooBig,
     UtxoInputsTotal(ValueError),
     UtxoOutputsTotal(ValueError),
     Account(account::LedgerError),
@@ -84,6 +85,7 @@ pub enum Error {
     ExpectingAccountWitness,
     ExpectingUtxoWitness,
     ExpectingInitialMessage,
+    CertificateInvalidSignature,
 }
 
 impl From<utxo::Error> for Error {
@@ -111,18 +113,6 @@ impl From<config::Error> for Error {
 }
 
 impl Ledger {
-    fn empty(static_parameters: LedgerStaticParameters) -> Self {
-        Ledger {
-            utxos: utxo::Ledger::new(),
-            oldutxos: utxo::Ledger::new(),
-            accounts: account::Ledger::new(),
-            settings: setting::Settings::new(),
-            delegation: DelegationState::new(),
-            static_params: Arc::new(static_parameters),
-            chain_length: ChainLength(0),
-        }
-    }
-
     pub fn new<'a, I>(block0_hash: HeaderHash, contents: I) -> Result<Self, Error>
     where
         I: IntoIterator<Item = &'a Message>,
@@ -133,28 +123,18 @@ impl Ledger {
             allow_account_creation: false,
         };
 
-        let static_parameters = match content_iter.next() {
+        let init_ents = match content_iter.next() {
+            Some(Message::Initial(ref init_ents)) => Ok(init_ents),
+            Some(_) => Err(Error::ExpectingInitialMessage),
             None => Err(Error::Block0InitialMessageMissing),
-            Some(Message::Initial(ref ents)) => {
-                let mut params = LedgerStaticParameters::default();
-                for (tag, tagpayload) in ents.iter() {
-                    match *tag {
-                        <config::Block0Date as config::ConfigParam>::TAG => {
-                            params.block0_start_time = config::entity_from(*tag, tagpayload)?;
-                        }
-                        <Discrimination as config::ConfigParam>::TAG => {
-                            params.discrimination = config::entity_from(*tag, tagpayload)?;
-                        }
-                        _ => return Err(Error::UnknownConfig(*tag)),
-                    }
-                }
-                params.block0_initial_hash = block0_hash;
-                Ok(params)
-            }
-            Some(_) => Err(Error::Block0InitialMessageMissing),
         }?;
-
-        let mut ledger = Self::empty(static_parameters);
+        let mut ledger = init_ents
+            .iter()
+            .try_fold(
+                Default::default(),
+                EmptyLedgerBuilder::try_with_config_param,
+            )?
+            .build(block0_hash)?;
 
         for content in content_iter {
             match content {
@@ -204,6 +184,7 @@ impl Ledger {
             }
         }
 
+        ledger.validate_utxo_total_value()?;
         Ok(ledger)
     }
 
@@ -266,6 +247,10 @@ impl Ledger {
         auth_cert: &AuthenticatedTransaction<Address, certificate::Certificate>,
         dyn_params: &LedgerParameters,
     ) -> Result<Self, Error> {
+        let verified = auth_cert.transaction.extra.verify();
+        if verified == chain_crypto::Verification::Failed {
+            return Err(Error::CertificateInvalidSignature);
+        };
         self = self.apply_transaction(auth_cert, dyn_params)?;
         self.delegation = self.delegation.apply(&auth_cert.transaction.extra)?;
         Ok(self)
@@ -275,11 +260,21 @@ impl Ledger {
         stake::get_distribution(&self.delegation, &self.utxos)
     }
 
+    /// access the ledger static parameters
+    pub fn get_static_parameters(&self) -> &LedgerStaticParameters {
+        self.static_params.as_ref()
+    }
+
     pub fn get_ledger_parameters(&self) -> LedgerParameters {
         LedgerParameters {
             fees: *self.settings.linear_fees,
             allow_account_creation: self.settings.allow_account_creation,
         }
+    }
+
+    pub fn consensus_version(&self) -> ConsensusVersion {
+        // TODO: this may be updated overtime (bft -> switch to genesis ?)
+        self.static_params.block0_consensus
     }
 
     pub fn utxos<'a>(&'a self) -> utxo::Iter<'a, Address> {
@@ -288,6 +283,20 @@ impl Ledger {
 
     pub fn chain_length(&self) -> ChainLength {
         self.chain_length
+    }
+
+    fn validate_utxo_total_value(&self) -> Result<(), Error> {
+        let old_utxo_values = self.oldutxos.iter().map(|entry| entry.output.value);
+        let new_utxo_values = self.utxos.iter().map(|entry| entry.output.value);
+        let account_value = self
+            .accounts
+            .get_total_value()
+            .map_err(|_| Error::Block0UtxoTotalValueTooBig)?;
+        let all_utxo_values = old_utxo_values
+            .chain(new_utxo_values)
+            .chain(Some(account_value));
+        Value::sum(all_utxo_values).map_err(|_| Error::Block0UtxoTotalValueTooBig)?;
+        Ok(())
     }
 }
 
@@ -521,11 +530,101 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 
+#[derive(Debug, Default)]
+struct EmptyLedgerBuilder {
+    block0_date: Option<Block0Date>,
+    discrimination: Option<Discrimination>,
+    consensus_version: Option<ConsensusVersion>,
+    slot_duration: Option<u8>,
+    epoch_stability_depth: Option<u32>,
+    consensus_leader_ids: Vec<LeaderId>,
+}
+
+impl EmptyLedgerBuilder {
+    pub fn try_with_config_param(mut self, param: &ConfigParam) -> Result<Self, Error> {
+        match param {
+            ConfigParam::Block0Date(param) => self
+                .block0_date
+                .replace(*param)
+                .map(|_| Error::Block0InitialMessageDuplicateBlock0Date),
+            ConfigParam::Discrimination(param) => self
+                .discrimination
+                .replace(*param)
+                .map(|_| Error::Block0InitialMessageDuplicateDiscrimination),
+            ConfigParam::ConsensusVersion(param) => self
+                .consensus_version
+                .replace(*param)
+                .map(|_| Error::Block0InitialMessageDuplicateConsensusVersion),
+            ConfigParam::SlotDuration(param) => self
+                .slot_duration
+                .replace(*param)
+                .map(|_| Error::Block0InitialMessageDuplicateSlotDuration),
+            ConfigParam::EpochStabilityDepth(param) => self
+                .epoch_stability_depth
+                .replace(*param)
+                .map(|_| Error::Block0InitialMessageDuplicateEpochStabilityDepth),
+            ConfigParam::ConsensusLeaderId(param) => {
+                self.consensus_leader_ids.push(param.clone());
+                None
+            }
+            ConfigParam::SlotsPerEpoch(_)
+            | ConfigParam::ConsensusGenesisPraosParamD(_)
+            | ConfigParam::ConsensusGenesisPraosParamF(_) => None,
+        }
+        .map(|e| Err(e))
+        .unwrap_or(Ok(self))
+    }
+
+    pub fn build(self, block0_initial_hash: HeaderHash) -> Result<Ledger, Error> {
+        // generates warnings for each unused parameter
+        let EmptyLedgerBuilder {
+            block0_date,
+            discrimination,
+            consensus_version,
+            slot_duration,
+            epoch_stability_depth,
+            consensus_leader_ids,
+        } = self;
+
+        let mut settings = setting::Settings::new();
+        if let Some(slot_duration) = slot_duration {
+            settings.slot_duration = slot_duration;
+        }
+        if let Some(epoch_stability_depth) = epoch_stability_depth {
+            settings.epoch_stability_depth = epoch_stability_depth;
+        }
+        match consensus_leader_ids.len() {
+            0 => return Err(Error::Block0InitialMessageNoConsensusLeaderId),
+            _ => settings.bft_leaders = Arc::new(consensus_leader_ids),
+        }
+
+        let static_params = LedgerStaticParameters {
+            block0_initial_hash,
+            block0_start_time: block0_date.ok_or(Error::Block0InitialMessageNoBlock0Date)?,
+            block0_consensus: consensus_version
+                .ok_or(Error::Block0InitialMessageNoConsensusVersion)?,
+            discrimination: discrimination.ok_or(Error::Block0InitialMessageNoDiscrimination)?,
+        };
+
+        Ok(Ledger {
+            utxos: utxo::Ledger::new(),
+            oldutxos: utxo::Ledger::new(),
+            accounts: account::Ledger::new(),
+            settings,
+            delegation: DelegationState::new(),
+            static_params: Arc::new(static_params),
+            chain_length: ChainLength(0),
+        })
+    }
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
     use crate::key::{SpendingPublicKey, SpendingSecretKey};
+    use crate::message::initial;
     use chain_addr::{Address, Discrimination, Kind};
+    use chain_crypto::SecretKey;
     use rand::{CryptoRng, RngCore};
 
     pub fn make_key<R: RngCore + CryptoRng>(
@@ -565,7 +664,13 @@ pub mod test {
         let block0_hash = HeaderHash::hash_bytes(&[1, 2, 3]);
         let discrimination = Discrimination::Test;
         let mut ie = initial::InitialEnts::new();
-        ie.push(config::entity_to(&discrimination));
+        ie.push(ConfigParam::Discrimination(Discrimination::Test));
+        ie.push(ConfigParam::ConsensusVersion(ConsensusVersion::Bft));
+        let leader_pub_key = SecretKey::generate(rand::thread_rng()).to_public();
+        ie.push(ConfigParam::ConsensusLeaderId(LeaderId::from(
+            leader_pub_key,
+        )));
+        ie.push(ConfigParam::Block0Date(Block0Date(0)));
 
         let mut rng = rand::thread_rng();
         let (sk1, _pk1, user1_address) = make_key(&mut rng, &discrimination);

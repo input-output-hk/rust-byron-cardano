@@ -1,6 +1,8 @@
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
+#[macro_use(custom_error)]
+extern crate custom_error;
 
 pub mod account;
 pub mod block;
@@ -9,6 +11,7 @@ pub mod config;
 mod date;
 pub mod legacy;
 pub mod message;
+pub mod milli;
 // #[cfg(test)]
 // pub mod environment;
 pub mod error;

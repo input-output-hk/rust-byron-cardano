@@ -22,6 +22,13 @@
 //! Address human format is bech32 encoded
 //!
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
+#[macro_use]
+extern crate cfg_if;
+
 use bech32::{Bech32, FromBase32, ToBase32};
 use std::string::ToString;
 
@@ -30,10 +37,13 @@ use chain_crypto::{Ed25519Extended, PublicKey, PublicKeyError};
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property::{self, Serialize as PropertySerialize};
 
-#[cfg(feature = "generic-serialization")]
-use serde::Serializer as SerdeSerializer;
-#[cfg(feature = "generic-serialization")]
-use serde_derive::Serialize;
+cfg_if! {
+   if #[cfg(test)] {
+        mod testing;
+    } else if #[cfg(feature = "property-test-api")] {
+        mod testing;
+    }
+}
 
 // Allow to differentiate between address in
 // production and testing setting, so that
@@ -260,21 +270,13 @@ fn is_valid_data(bytes: &[u8]) -> Result<(Discrimination, KindType), Error> {
     Ok((get_discrimination_value(bytes[0]), kty))
 }
 
-#[cfg(feature = "generic-serialization")]
-impl serde::Serialize for Address {
-    fn serialize<S: SerdeSerializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let address = AddressReadable::from_address(self);
-        serializer.serialize_str(address.as_string())
-    }
-}
-
 /// A valid address in a human readable format
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddressReadable(String);
 
 impl AddressReadable {
-    const PRODUCTION_PREFIX: &'static str = "ca";
-    const TEST_PREFIX: &'static str = "ta";
+    const PRODUCTION_ADDRESS_PREFIX: &'static str = env!("PRODUCTION_ADDRESS_PREFIX");
+    const TEST_ADDRESS_PREFIX: &'static str = env!("TEST_ADDRESS_PREFIX");
 
     pub fn as_string(&self) -> &str {
         &self.0
@@ -284,9 +286,9 @@ impl AddressReadable {
     pub fn from_string(s: &str) -> Result<Self, Error> {
         use std::str::FromStr;
         let r = Bech32::from_str(s)?;
-        let expected_discrimination = if r.hrp() == Self::PRODUCTION_PREFIX {
+        let expected_discrimination = if r.hrp() == Self::PRODUCTION_ADDRESS_PREFIX {
             Discrimination::Production
-        } else if r.hrp() == Self::TEST_PREFIX {
+        } else if r.hrp() == Self::TEST_ADDRESS_PREFIX {
             Discrimination::Test
         } else {
             return Err(Error::InvalidPrefix);
@@ -303,8 +305,8 @@ impl AddressReadable {
     pub fn from_address(addr: &Address) -> Self {
         let v = ToBase32::to_base32(&addr.to_bytes());
         let prefix = match addr.0 {
-            Discrimination::Production => Self::PRODUCTION_PREFIX.to_string(),
-            Discrimination::Test => Self::TEST_PREFIX.to_string(),
+            Discrimination::Production => Self::PRODUCTION_ADDRESS_PREFIX.to_string(),
+            Discrimination::Test => Self::TEST_ADDRESS_PREFIX.to_string(),
         };
         let r = Bech32::new(prefix, v).unwrap();
         AddressReadable(r.to_string())
@@ -380,7 +382,7 @@ impl property::Deserialize for Address {
             ADDR_KIND_SINGLE => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                let spending = PublicKey::from_binary(&bytes[..]).map_err(|err| {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
                 })?;
                 Kind::Single(spending)
@@ -388,12 +390,12 @@ impl property::Deserialize for Address {
             ADDR_KIND_GROUP => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                let spending = PublicKey::from_binary(&bytes[..]).map_err(|err| {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
                 })?;
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let group = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                let group = PublicKey::from_binary(&bytes[..]).map_err(|err| {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
                 })?;
                 Kind::Group(spending, group)
@@ -401,7 +403,7 @@ impl property::Deserialize for Address {
             ADDR_KIND_ACCOUNT => {
                 let mut bytes = [0u8; 32];
                 codec.read_exact(&mut bytes)?;
-                let stake_key = PublicKey::from_bytes(&bytes[..]).map_err(|err| {
+                let stake_key = PublicKey::from_binary(&bytes[..]).map_err(|err| {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
                 })?;
                 Kind::Account(stake_key)
@@ -430,19 +432,19 @@ impl Readable for Address {
         let kind = match get_kind_value(byte) {
             ADDR_KIND_SINGLE => {
                 let bytes = <[u8; 32]>::read(buf)?;
-                let spending = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                let spending = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Single(spending)
             }
             ADDR_KIND_GROUP => {
                 let bytes = <[u8; 32]>::read(buf)?;
-                let spending = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                let spending = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 let bytes = <[u8; 32]>::read(buf)?;
-                let group = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                let group = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Group(spending, group)
             }
             ADDR_KIND_ACCOUNT => {
                 let bytes = <[u8; 32]>::read(buf)?;
-                let stake_key = PublicKey::from_bytes(&bytes[..]).map_err(chain_crypto_err)?;
+                let stake_key = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Account(stake_key)
             }
             n => return Err(ReadError::UnknownTag(n as u32)),
@@ -451,53 +453,36 @@ impl Readable for Address {
     }
 }
 
-#[cfg(feature = "property-test-api")]
-pub mod testing {
-    use super::*;
-    use quickcheck::{Arbitrary, Gen};
-
-    fn arbitrary_public_key<G: Gen>(g: &mut G) -> PublicKey<Ed25519Extended> {
-        let mut bytes = [0; 32];
-        for byte in bytes.iter_mut() {
-            *byte = u8::arbitrary(g);
-        }
-        PublicKey::from_binary(&bytes).unwrap()
+/// error that can happen when parsing the Discrimination
+/// from a string
+#[derive(Debug)]
+pub struct ParseDiscriminationError(String);
+impl std::fmt::Display for ParseDiscriminationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Invalid Address Discrimination `{}'. Expected `production' or `test'.",
+            self.0
+        )
     }
-    fn arbitrary_extended_public_key<G: Gen>(g: &mut G) -> PublicKey<Ed25519Extended> {
-        let mut bytes = [0; 32];
-        for byte in bytes.iter_mut() {
-            *byte = u8::arbitrary(g);
-        }
-        PublicKey::from_binary(&bytes).unwrap()
-    }
+}
+impl std::error::Error for ParseDiscriminationError {}
 
-    impl Arbitrary for KindType {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            match u8::arbitrary(g) % 3 {
-                0 => KindType::Single,
-                1 => KindType::Group,
-                2 => KindType::Account,
-                _ => unreachable!(),
-            }
+impl std::fmt::Display for Discrimination {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Discrimination::Production => write!(f, "production"),
+            Discrimination::Test => write!(f, "test"),
         }
     }
-
-    impl Arbitrary for Address {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let discrimination = if bool::arbitrary(g) {
-                Discrimination::Test
-            } else {
-                Discrimination::Production
-            };
-            let kind = match KindType::arbitrary(g) {
-                KindType::Single => Kind::Single(arbitrary_extended_public_key(g)),
-                KindType::Group => Kind::Group(
-                    arbitrary_extended_public_key(g),
-                    arbitrary_extended_public_key(g),
-                ),
-                KindType::Account => Kind::Account(arbitrary_public_key(g)),
-            };
-            Address(discrimination, kind)
+}
+impl std::str::FromStr for Discrimination {
+    type Err = ParseDiscriminationError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "production" => Ok(Discrimination::Production),
+            "test" => Ok(Discrimination::Test),
+            _ => Err(ParseDiscriminationError(s.to_owned())),
         }
     }
 }
@@ -530,6 +515,22 @@ mod test {
             AddressReadable::from_string(ar.as_string()).expect("address is readable from string");
         assert_eq!(addr, &a);
         assert_eq!(ar, ar2);
+    }
+
+    quickcheck! {
+        fn from_address_to_address(address: Address) -> bool {
+            let readable = AddressReadable::from_address(&address);
+            let decoded  = readable.to_address();
+
+             address == decoded
+        }
+
+         fn to_bytes_from_bytes(address: Address) -> bool {
+            let readable = address.to_bytes();
+            let decoded  = Address::from_bytes(&readable).unwrap();
+
+             address == decoded
+        }
     }
 
     #[test]

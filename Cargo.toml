@@ -4,6 +4,7 @@ members = [
     "imhamt",
     "chain-core",
     "chain-addr",
+    "chain-time",
     "chain-crypto",
     "chain-storage",
     "chain-storage-sqlite",
@@ -19,6 +20,3 @@ members = [
     "cardano-c",
     "exe-common",
 ]
-
-[patch."https://github.com/tower-rs/tower"]
-tower-service = "0.2"
