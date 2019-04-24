@@ -254,6 +254,27 @@ pub type EpochId = u64; // == EpochIndex
 pub type SlotId = u16; // == LocalSlotIndex
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EpochFlags {
+    pub is_ebb: bool,
+}
+impl EpochFlags {
+
+    pub fn to_mask(&self) -> u8 {
+        let mut mask = 0u8;
+        if self.is_ebb {
+            mask |= 1;
+        }
+        return mask;
+    }
+
+    pub fn from_mask(mask: u8) -> EpochFlags {
+        EpochFlags {
+            is_ebb: (mask & 1) > 0
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "generic-serialization", derive(Serialize, Deserialize))]
 pub struct EpochSlotId {
     pub epoch: EpochId,

@@ -27,7 +27,7 @@ use storage_units::utils::{magic, serialize};
 use types::*;
 
 use cardano::block::block::{BlockHeaderView, BlockHeader};
-use cardano::block::types::ChainDifficulty;
+use cardano::block::types::{ChainDifficulty, EpochFlags};
 use cardano::util::hex;
 use pack::{packreader_block_next, packreader_init};
 use std::cmp::Ordering;
@@ -130,7 +130,7 @@ impl LooseChainHeightEntry {
 
 pub struct ChainHeightIdx {
     loose_idx: Vec<LooseChainHeightEntry>,
-    packed_idx: Vec<u32>,
+    packed_idx: Vec<(u32, EpochFlags)>,
 }
 
 pub struct Storage {
@@ -274,12 +274,13 @@ impl Storage {
         } else {
             // Search height in packed epochs
             let mut h = height;
-            for (epoch_id, epoch_size) in self.chain_height_idx.packed_idx.iter().enumerate() {
-                let total = *epoch_size as u64;
-                if h < total {
+            for (epoch_id, (epoch_size, flags)) in self.chain_height_idx.packed_idx.iter().enumerate() {
+                let ebb_shift = if flags.is_ebb { 1 } else { 0 };
+                let total = *epoch_size as u64 - ebb_shift;
+                if h <= total {
                     let epoch_id = epoch_id as u64;
                     let (packref, ofs) =
-                        epoch::epoch_read_block_offset(&self.config, epoch_id, h as u32)?;
+                        epoch::epoch_read_block_offset(&self.config, epoch_id, ((h - 1) + ebb_shift) as u32)?;
                     return Ok(BlockLocation::Offset(packref, ofs));
                 }
                 h -= total;
@@ -351,13 +352,14 @@ impl Storage {
             .insert(0, Storage::create_loose_index_entry(header));
     }
 
-    pub fn add_pack_to_index(&mut self, epoch_id: u64, epoch_size: serialize::Size) {
+    pub fn add_pack_to_index(&mut self, epoch_id: u64, epoch_size: serialize::Size, flags: &EpochFlags) {
         let idx_len = self.chain_height_idx.packed_idx.len() as u64;
         assert!((epoch_id <= idx_len) | (idx_len - epoch_id <= 1));
+        let flags_copy = flags.clone();
         if epoch_id < idx_len {
-            self.chain_height_idx.packed_idx[epoch_id as usize] = epoch_size;
+            self.chain_height_idx.packed_idx[epoch_id as usize] = (epoch_size, flags_copy);
         } else {
-            self.chain_height_idx.packed_idx.push(epoch_size);
+            self.chain_height_idx.packed_idx.push((epoch_size, flags_copy));
         }
     }
 

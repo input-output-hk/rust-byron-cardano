@@ -1,5 +1,5 @@
 use cardano::block::{
-    Block, BlockDate, BlockHeader, ChainState, EpochId, Error as BlockError, HeaderHash, RawBlock,
+    Block, BlockDate, BlockHeader, ChainState, EpochFlags, EpochId, Error as BlockError, HeaderHash, RawBlock,
 };
 use cardano::config::GenesisData;
 use cardano::util::hex;
@@ -79,6 +79,9 @@ fn net_sync_to<A: Api>(
         }
     };
 
+    // TODO: read from storage
+    let mut is_epoch_with_ebb = false;
+
     // TODO: we need to handle the case where our_tip is not an
     // ancestor of tip. In that case we should start from the last
     // stable epoch before our_tip.
@@ -114,12 +117,13 @@ fn net_sync_to<A: Api>(
 
         // Read the blocks in the current epoch.
         let mut blobs_to_delete = vec![];
-        let (last_block_in_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(
+        let (last_block_in_prev_epoch, blocks, is_ebb_present) = get_unpacked_blocks_in_epoch(
             &storage.read().unwrap(),
             &our_tip.hash,
             epoch_id,
             &mut blobs_to_delete,
         );
+        is_epoch_with_ebb = is_ebb_present;
 
         // If tip.slotid < w, the previous epoch won't have been
         // created yet either, so do that now.
@@ -132,6 +136,7 @@ fn net_sync_to<A: Api>(
             )?;
         }
 
+        info!("Finalising open epoch that became stable");
         // Initialize the epoch writer and add the blocks in the current epoch.
         epoch_writer_state = Some(EpochWriterState {
             epoch_id,
@@ -245,27 +250,31 @@ fn net_sync_to<A: Api>(
                 Some(last_date) => (date.get_epochid() > last_date.get_epochid(), true),
             };
 
-            if is_new_epoch_start && is_prev_date_exists {
-                let mut writer_state = None;
-                mem::swap(&mut writer_state, &mut epoch_writer_state);
+            if is_new_epoch_start {
+                if is_prev_date_exists {
+                    let mut writer_state = None;
+                    mem::swap(&mut writer_state, &mut epoch_writer_state);
 
-                if let Some(epoch_writer_state) = writer_state {
-                    finish_epoch(
-                        &mut storage.write().unwrap(),
-                        genesis_data,
-                        epoch_writer_state,
-                        &chain_state_before,
-                    )
-                    .unwrap();
+                    if let Some(epoch_writer_state) = writer_state {
+                        finish_epoch(
+                            &mut storage.write().unwrap(),
+                            genesis_data,
+                            epoch_writer_state,
+                            &chain_state_before,
+                            is_epoch_with_ebb,
+                        )
+                            .unwrap();
 
-                    // Checkpoint the tip so we don't have to refetch
-                    // everything if we get interrupted.
-                    tag::write(
-                        &storage.read().unwrap(),
-                        &tag::HEAD,
-                        &chain_state_before.last_block.as_ref(),
-                    );
+                        // Checkpoint the tip so we don't have to refetch
+                        // everything if we get interrupted.
+                        tag::write(
+                            &storage.read().unwrap(),
+                            &tag::HEAD,
+                            &chain_state_before.last_block.as_ref(),
+                        );
+                    }
                 }
+                is_epoch_with_ebb = date.is_boundary()
             }
 
             if date.get_epochid() >= first_unstable_epoch {
@@ -492,7 +501,7 @@ fn maybe_create_epoch(
         blobs_to_delete: vec![],
     };
 
-    let (end_of_prev_epoch, blocks) = get_unpacked_blocks_in_epoch(
+    let (end_of_prev_epoch, blocks, is_epoch_with_ebb) = get_unpacked_blocks_in_epoch(
         storage,
         last_block,
         epoch_writer_state.epoch_id,
@@ -504,7 +513,7 @@ fn maybe_create_epoch(
 
     append_blocks_to_epoch_reverse(&mut epoch_writer_state, &mut chain_state, blocks)?;
 
-    finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state)?;
+    finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state, is_epoch_with_ebb)?;
 
     Ok(())
 }
@@ -530,9 +539,10 @@ fn get_unpacked_blocks_in_epoch(
     last_block: &HeaderHash,
     epoch_id: EpochId,
     blobs_to_delete: &mut Vec<HeaderHash>,
-) -> (HeaderHash, Vec<(HeaderHash, RawBlock, Block)>) {
+) -> (HeaderHash, Vec<(HeaderHash, RawBlock, Block)>, bool) {
     let mut cur_hash = last_block.clone();
     let mut blocks = vec![];
+    let is_ebb_present: bool;
     loop {
         let block_raw = storage.read_block(&cur_hash.clone().into()).unwrap();
         blobs_to_delete.push(cur_hash.clone());
@@ -551,10 +561,11 @@ fn get_unpacked_blocks_in_epoch(
         // Terminate if current block is EBB
         // or if there isn't one and we already jumped to previous epoch
         if blockdate.is_boundary() || !from_this_epoch {
+            is_ebb_present = from_this_epoch && blockdate.is_boundary();
             break;
         }
     }
-    (cur_hash, blocks)
+    (cur_hash, blocks, is_ebb_present)
 }
 
 fn finish_epoch(
@@ -562,6 +573,7 @@ fn finish_epoch(
     genesis_data: &GenesisData,
     epoch_writer_state: EpochWriterState,
     chain_state: &ChainState,
+    is_epoch_with_ebb: bool,
 ) -> Result<()> {
     let epoch_id = epoch_writer_state.epoch_id;
     let (packhash, index) = pack::packwriter_finalize(&storage.config, epoch_writer_state.writer);
@@ -581,12 +593,17 @@ fn finish_epoch(
 
     assert_eq!(chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
+    let epoch_flags = EpochFlags {
+        is_ebb: is_epoch_with_ebb
+    };
+
     epoch::epoch_create(
         storage,
         &packhash,
         epoch_id,
         index,
         Some((chain_state, genesis_data)),
+        &epoch_flags,
     );
 
     info!(
