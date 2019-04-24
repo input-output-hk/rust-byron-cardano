@@ -198,6 +198,10 @@ where
         }
     }
 
+    fn get_blocks(&mut self, _ids: &[<Self::Block as Block>::Id]) -> Self::GetBlocksFuture {
+        unimplemented!()
+    }
+
     fn block_subscription<Out>(&mut self, _outbound: Out) -> Self::BlockSubscriptionFuture
     where
         Out: Stream<Item = T::Header>,
