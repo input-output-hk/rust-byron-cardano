@@ -79,7 +79,6 @@ fn net_sync_to<A: Api>(
         }
     };
 
-    // TODO: read from storage
     let mut is_epoch_with_ebb = false;
 
     // TODO: we need to handle the case where our_tip is not an
@@ -203,6 +202,9 @@ fn net_sync_to<A: Api>(
         },
     )?;
     let mut is_rollback = false;
+    if let Some(last_ebb_epoch) = chain_state.last_boundary_block_epoch {
+        is_epoch_with_ebb = last_ebb_epoch == our_tip.date.get_epochid();
+    }
 
     let blocks_response = net.get_blocks(
         &our_tip,
