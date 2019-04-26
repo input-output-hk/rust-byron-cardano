@@ -58,6 +58,8 @@ void valid_entropy_size_returns_success()
     {
         size_t size = valid_sizes[i];
         uint8_t *valid_wallet_entropy = malloc(size);
+        //This memset is to avoid valgrind to complain on use of unitialized memory
+        memset(valid_wallet_entropy, 0, size);
         cardano_wallet *wallet;
         cardano_result wallet_rc = cardano_wallet_new(
             valid_wallet_entropy, size, password, strlen(password), &wallet);

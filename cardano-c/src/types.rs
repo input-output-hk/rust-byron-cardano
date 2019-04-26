@@ -1,4 +1,5 @@
 use cardano::address;
+use cardano::block;
 use cardano::coin::CoinDiff;
 use cardano::hdwallet;
 use cardano::tx;
@@ -166,3 +167,6 @@ pub type TransactionBuilderPtr = *mut txbuild::TxBuilder;
 
 /// C pointer to a Transaction finalized;
 pub type TransactionFinalizedPtr = *mut txbuild::TxFinalized;
+
+/// C pointer to a Block;
+pub type BlockPtr = *mut block::Block;
