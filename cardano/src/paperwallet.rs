@@ -64,7 +64,7 @@ mod tests {
     ///
     /// ## Input(s)
     ///
-    /// ```
+    /// ```text
     /// iv ([u8,4]) = "hexadecimal encoded bytes"
     /// input (&'static str) = "UTF8 BIP39 passphrase (english)"
     /// passphrase (&'static str) = "Bouble quoted, encoded string."
@@ -72,7 +72,7 @@ mod tests {
     ///
     /// ## Output(s)
     ///
-    /// ```
+    /// ```text
     /// shielded_input (&'static str) = "UTF8 BIP39 passphrase (english)"
     /// ```
     struct TestVector {
