@@ -101,6 +101,7 @@ pub enum Error {
         block_date: BlockDate,
         chain_date: BlockDate,
     },
+    AddRewardSum(ValueError),
 }
 
 impl From<utxo::Error> for Error {
@@ -239,6 +240,7 @@ impl Ledger {
         &'a self,
         ledger_params: &LedgerParameters,
         contents: I,
+        stake_pool_id: Option<&StakePoolId>,
         date: BlockDate,
         chain_length: ChainLength,
     ) -> Result<Self, Error>
@@ -269,13 +271,17 @@ impl Ledger {
                 .process_proposals(new_ledger.settings, new_ledger.date, date);
         new_ledger.updates = updates;
         new_ledger.settings = settings;
+        let mut reward = Value::zero();
 
         for content in contents {
             match content {
                 Message::Initial(_) => return Err(Error::Block0OnlyMessageReceived),
                 Message::OldUtxoDeclaration(_) => return Err(Error::Block0OnlyMessageReceived),
                 Message::Transaction(authenticated_tx) => {
-                    new_ledger = new_ledger.apply_transaction(&authenticated_tx, &ledger_params)?;
+                    let (new_ledger_, fee) =
+                        new_ledger.apply_transaction(&authenticated_tx, &ledger_params)?;
+                    new_ledger = new_ledger_;
+                    reward = reward.checked_add(fee).map_err(Error::AddRewardSum)?;
                 }
                 Message::UpdateProposal(update_proposal) => {
                     new_ledger =
@@ -285,12 +291,15 @@ impl Ledger {
                     new_ledger = new_ledger.apply_update_vote(&vote)?;
                 }
                 Message::Certificate(authenticated_cert_tx) => {
-                    new_ledger =
+                    let (new_ledger_, fee) =
                         new_ledger.apply_certificate(authenticated_cert_tx, &ledger_params)?;
+                    new_ledger = new_ledger_;
+                    reward = reward.checked_add(fee).map_err(Error::AddRewardSum)?;
                 }
             }
         }
 
+        new_ledger = internal_apply_reward(new_ledger, stake_pool_id, reward)?;
         new_ledger.date = date;
 
         Ok(new_ledger)
@@ -300,7 +309,7 @@ impl Ledger {
         mut self,
         signed_tx: &AuthenticatedTransaction<Address, Extra>,
         dyn_params: &LedgerParameters,
-    ) -> Result<Self, Error>
+    ) -> Result<(Self, Value), Error>
     where
         Extra: property::Serialize,
         LinearFee: FeeAlgorithm<Transaction<Address, Extra>>,
@@ -320,7 +329,7 @@ impl Ledger {
             &signed_tx.witnesses[..],
             fee,
         )?;
-        Ok(self)
+        Ok((self, fee))
     }
 
     pub fn apply_update(mut self, update: &setting::UpdateProposal) -> Result<Self, Error> {
@@ -349,12 +358,13 @@ impl Ledger {
         mut self,
         auth_cert: &AuthenticatedTransaction<Address, certificate::Certificate>,
         dyn_params: &LedgerParameters,
-    ) -> Result<Self, Error> {
+    ) -> Result<(Self, Value), Error> {
         let verified = auth_cert.transaction.extra.verify();
         if verified == chain_crypto::Verification::Failed {
             return Err(Error::CertificateInvalidSignature);
         };
-        self = self.apply_transaction(auth_cert, dyn_params)?;
+        let (new_ledger, fee) = self.apply_transaction(auth_cert, dyn_params)?;
+        self = new_ledger;
         let (new_delegation, action) = self.delegation.apply(&auth_cert.transaction.extra)?;
         self.delegation = new_delegation;
         self.apply_delegation_action(action)?;
@@ -509,6 +519,34 @@ fn internal_apply_transaction(
     ledger.utxos = new_utxos;
     ledger.accounts = new_accounts;
 
+    Ok(ledger)
+}
+
+fn internal_apply_reward(
+    mut ledger: Ledger,
+    stake_pool_id: Option<&StakePoolId>,
+    reward: Value,
+) -> Result<Ledger, Error> {
+    if let Some(stake_pool_id) = stake_pool_id {
+        let distribution = crate::stake::get_distribution(&ledger.delegation, &ledger.utxos);
+        if let Some(distribution) = distribution.get_distribution(stake_pool_id) {
+            let num = distribution.member_stake.len() as u64;
+            let to_distribute = reward.0.wrapping_div(num);
+            let extra = reward.0.wrapping_rem(num);
+            for (idx, (stake_key_id, _value)) in distribution.member_stake.iter().enumerate() {
+                let account = stake_key_id.0.clone().into();
+                ledger.accounts = if idx == 0 {
+                    ledger
+                        .accounts
+                        .add_value(&account, Value(to_distribute + extra))?
+                } else {
+                    ledger.accounts.add_value(&account, Value(to_distribute))?
+                };
+            }
+        } else {
+            unreachable!("We assumed the block leadership was checked prior to reaching this line")
+        }
+    }
     Ok(ledger)
 }
 

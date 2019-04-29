@@ -247,6 +247,7 @@ impl Multiverse<Ledger> {
                 .apply_block(
                     &state.get_ledger_parameters(),
                     block.messages(),
+                    block.header.get_stakepool_id(),
                     block.date(),
                     block.chain_length(),
                 )
@@ -280,6 +281,7 @@ mod test {
             .apply_block(
                 &state.get_ledger_parameters(),
                 block.messages(),
+                block.header.get_stakepool_id(),
                 block.date(),
                 block.chain_length(),
             )
