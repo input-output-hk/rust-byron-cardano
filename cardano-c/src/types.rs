@@ -170,3 +170,6 @@ pub type TransactionFinalizedPtr = *mut txbuild::TxFinalized;
 
 /// C pointer to a Block;
 pub type BlockPtr = *mut block::Block;
+
+/// C pointer to a BlockHeader;
+pub type BlockHeaderPtr = *mut block::BlockHeader;
