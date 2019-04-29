@@ -23,8 +23,7 @@ pub enum Message {
     OldUtxoDeclaration(legacy::UtxoDeclaration),
     Transaction(AuthenticatedTransaction<Address, NoExtra>),
     Certificate(AuthenticatedTransaction<Address, certificate::Certificate>),
-    UpdateProposal(setting::SignedUpdateProposal),
-    UpdateVote(setting::SignedUpdateVote),
+    Update(setting::UpdateProposal),
 }
 
 /// Tag enumeration of all known message
@@ -34,8 +33,7 @@ pub(super) enum MessageTag {
     OldUtxoDeclaration = 1,
     Transaction = 2,
     Certificate = 3,
-    UpdateProposal = 4,
-    UpdateVote = 5,
+    Update = 4,
 }
 
 impl Message {
@@ -46,8 +44,7 @@ impl Message {
             Message::OldUtxoDeclaration(_) => MessageTag::OldUtxoDeclaration,
             Message::Transaction(_) => MessageTag::Transaction,
             Message::Certificate(_) => MessageTag::Certificate,
-            Message::UpdateProposal(_) => MessageTag::UpdateProposal,
-            Message::UpdateVote(_) => MessageTag::UpdateVote,
+            Message::Update(_) => MessageTag::Update,
         }
     }
 
@@ -63,8 +60,7 @@ impl Message {
             Message::OldUtxoDeclaration(s) => s.serialize(&mut codec).unwrap(),
             Message::Transaction(signed) => signed.serialize(&mut codec).unwrap(),
             Message::Certificate(signed) => signed.serialize(&mut codec).unwrap(),
-            Message::UpdateProposal(proposal) => proposal.serialize(&mut codec).unwrap(),
-            Message::UpdateVote(vote) => vote.serialize(&mut codec).unwrap(),
+            Message::Update(proposal) => proposal.serialize(&mut codec).unwrap(),
         }
         MessageRaw(codec.into_inner())
     }
@@ -83,12 +79,7 @@ impl Message {
             Some(MessageTag::Certificate) => {
                 AuthenticatedTransaction::read(buf).map(Message::Certificate)
             }
-            Some(MessageTag::UpdateProposal) => {
-                setting::SignedUpdateProposal::read(buf).map(Message::UpdateProposal)
-            }
-            Some(MessageTag::UpdateVote) => {
-                setting::SignedUpdateVote::read(buf).map(Message::UpdateVote)
-            }
+            Some(MessageTag::Update) => setting::UpdateProposal::read(buf).map(Message::Update),
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
@@ -126,13 +117,12 @@ mod test {
 
     impl Arbitrary for Message {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            match g.next_u32() % 6 {
+            match g.next_u32() % 5 {
                 0 => Message::Initial(Arbitrary::arbitrary(g)),
                 1 => Message::OldUtxoDeclaration(Arbitrary::arbitrary(g)),
                 2 => Message::Transaction(Arbitrary::arbitrary(g)),
                 3 => Message::Certificate(Arbitrary::arbitrary(g)),
-                4 => Message::UpdateProposal(Arbitrary::arbitrary(g)),
-                _ => Message::UpdateVote(Arbitrary::arbitrary(g)),
+                _ => Message::Update(Arbitrary::arbitrary(g)),
             }
         }
     }
