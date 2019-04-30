@@ -152,8 +152,7 @@ void test_decode_raw_header()
         0x4d, 0x24, 0x78, 0xd0, 0x17, 0xed, 0x47, 0xea, 0x8b, 0x8e, 0x2e, 0xb7, 0xb4, 0x6b, 0x83, 0x3e, 0x5, 0x37, 0xd, 0x84,
         0x83, 0x0, 0x2, 0x0, 0x82, 0x6a, 0x63, 0x61, 0x72, 0x64, 0x61, 0x6e, 0x6f, 0x2d, 0x73, 0x6c, 0x1, 0xa0, 0x58, 0x20,
         0x4b, 0xa9, 0x2a, 0xa3, 0x20, 0xc6, 0xa, 0xcc, 0x9a, 0xd7, 0xb9, 0xa6, 0x4f, 0x2e, 0xda, 0x55, 0xc4, 0xd2, 0xec, 0x28, 0xe6, 0x4, 0xfa, 0xf1, 0x86, 0x70, 0x8b, 0x4f, 0xc, 0x4e,
-        0x8e, 0xdf
-    };
+        0x8e, 0xdf};
 
     cardano_block_header *header;
     cardano_result rc = cardano_raw_block_header_decode(bytes, sizeof(bytes), &header);
@@ -166,6 +165,28 @@ void test_decode_raw_header()
     cardano_block_header_delete(header);
 }
 
+void test_transaction_signed_id()
+{
+    cardano_block *block;
+    cardano_raw_block_decode(RAW_BLOCK, sizeof(RAW_BLOCK), &block);
+    size_t transactions_size;
+    cardano_signed_transaction **transactions;
+    cardano_result rc = cardano_block_get_transactions(block, &transactions, &transactions_size);
+
+    cardano_signed_transaction *transaction = transactions[0];
+    cardano_txid_t txid;
+    cardano_signed_transaction_txid(transaction, &txid);
+
+    uint8_t actual_txid[] = {
+        249, 101, 53, 30, 209, 115, 8, 200, 114, 247, 92, 108, 151, 38, 132, 209,
+        62, 177, 134, 237, 26, 222, 103, 231, 152, 121, 185, 194, 251, 127, 118, 38};
+
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(actual_txid, txid.bytes, sizeof(txid));
+
+    cardano_block_delete_transactions(transactions, transactions_size);
+    cardano_block_delete(block);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -175,5 +196,6 @@ int main(void)
     RUN_TEST(test_get_outputs);
     RUN_TEST(test_get_header);
     RUN_TEST(test_decode_raw_header);
+    RUN_TEST(test_transaction_signed_id);
     return UNITY_END();
 }

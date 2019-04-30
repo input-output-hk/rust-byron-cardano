@@ -260,6 +260,13 @@ pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr)
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_signed_transaction_txid(txaux: SignedTransactionPtr, out: *mut u8) {
+    let txaux = unsafe { txaux.as_ref().expect("Not a NULL PTR") };
+    let slice = unsafe { slice::from_raw_parts_mut(out, 32) };
+    slice.copy_from_slice(txaux.tx.id().as_hash_bytes());
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_signed_transaction_get_inputs(
     txaux: SignedTransactionPtr,
     out_array: *mut *mut TransactionOutputPointerPtr,
