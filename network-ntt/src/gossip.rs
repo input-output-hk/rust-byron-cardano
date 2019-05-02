@@ -1,6 +1,6 @@
 //! Compatibility stubs for network-core gossip traits
 
-use chain_core::property;
+use chain_core::{mempack, property};
 use network_core::gossip as core_gossip;
 
 use std::io;
@@ -20,6 +20,12 @@ impl property::Deserialize for NodeId {
     type Error = io::Error;
 
     fn deserialize<R: std::io::BufRead>(_reader: R) -> Result<Self, Self::Error> {
+        unimplemented!()
+    }
+}
+
+impl mempack::Readable for NodeId {
+    fn read<'a>(_buf: &mut mempack::ReadBuf<'a>) -> Result<Self, mempack::ReadError> {
         unimplemented!()
     }
 }
