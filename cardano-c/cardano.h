@@ -253,7 +253,25 @@ typedef struct cardano_txoptr cardano_txoptr;
 typedef struct cardano_txoutput cardano_txoutput;
 typedef struct cardano_transaction cardano_transaction;
 
+/*!
+* \struct cardano_signed_transaction
+*/
 typedef struct cardano_signed_transaction cardano_signed_transaction;
+
+//Type for enforcing array size
+typedef struct cardano_txid {
+    uint8_t bytes[32];
+} cardano_txid_t;
+
+/*! \brief Get the transaction id
+* \param [in] txaux
+* \param [out] out_txid
+* \relates cardano_signed_transaction
+*/
+void cardano_signed_transaction_txid(
+    cardano_signed_transaction *txaux,
+    cardano_txid_t *out_txid
+);
 
 /*! \brief Get references to the inputs in the the signed transaction
 * \param [in] txaux a cardano signed transaction
@@ -311,9 +329,6 @@ cardano_txoptr * cardano_transaction_output_ptr_new(uint8_t txid[32], uint32_t i
 */
 void cardano_transaction_output_ptr_delete(cardano_txoptr *txo);
 
-typedef struct cardano_txid {
-    uint8_t bytes[32];
-} cardano_txid_t;
 
 /*!
 * Get the txid of the given cardano_txoptr
