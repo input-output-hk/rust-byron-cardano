@@ -1,4 +1,4 @@
-{ nixpkgs ? fetchTarball https://github.com/NixOS/nixpkgs/archive/8d3e91077ba074e2c947a152ee8ab7be885c42ab.tar.gz
+{ nixpkgs ? fetchTarball https://github.com/NixOS/nixpkgs/archive/ad1e17f5ba27ace0f5e5529b649272ac83da8e65.tar.gz
 , pkgs ? import nixpkgs {}
 }:
 
