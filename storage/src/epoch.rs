@@ -1,4 +1,4 @@
-use cardano::block::{types::HeaderHash, BlockDate, ChainState, EpochId};
+use cardano::block::{types::HeaderHash, BlockDate, ChainState, EpochId, EpochFlags};
 use cardano::config::GenesisData;
 use chain_state;
 use std::fs;
@@ -19,11 +19,12 @@ pub fn epoch_create_with_refpack(
     refpack: &reffile::Lookup,
     epochid: EpochId,
     index: indexfile::Index,
+    flags: &EpochFlags,
 ) {
     let dir = config.get_epoch_dir(epochid);
     fs::create_dir_all(dir).unwrap();
 
-    epoch_write_pack(config, packref, &None, epochid, index.offsets).unwrap();
+    epoch_write_pack(config, packref, &None, epochid, index.offsets, flags).unwrap();
     // TODO: need to put new entry to storage, but storage is not present here =(
 
     let mut tmpfile = TmpFile::create(config.get_epoch_dir(epochid)).unwrap();
@@ -39,6 +40,7 @@ pub fn epoch_create(
     epochid: EpochId,
     index: indexfile::Index,
     chain_state: Option<(&ChainState, &GenesisData)>,
+    flags: &EpochFlags,
 ) {
     // read the pack and append the block hash as we find them in the refpack.
     let mut rp = reffile::Lookup::new();
@@ -80,8 +82,8 @@ pub fn epoch_create(
 
     let offsets_len = index.offsets.len();
     let offsets = index.offsets.clone();
-    epoch_write_pack(&storage.config, packref, &last_block, epochid, offsets).unwrap();
-    storage.add_pack_to_index(epochid, offsets_len as serialize::Size);
+    epoch_write_pack(&storage.config, packref, &last_block, epochid, offsets, flags).unwrap();
+    storage.add_pack_to_index(epochid, offsets_len as serialize::Size, flags);
 
     // write the chain state at the end of the epoch
     // FIXME: should check that chain_state.last_block is actually the
@@ -99,6 +101,7 @@ fn epoch_write_pack(
     chainstate: &Option<HeaderHash>,
     epochid: EpochId,
     offsets: Vec<serialize::Offset>,
+    flags: &EpochFlags,
 ) -> Result<()> {
     let mut file = tmpfile::TmpFile::create(storage_cfg.get_epoch_dir(epochid)).unwrap();
     // Write fixed size packref hash
@@ -113,6 +116,8 @@ fn epoch_write_pack(
     let mut sz_buf = [0u8; serialize::SIZE_SIZE];
     serialize::write_size(&mut sz_buf[..], offsets.len() as u32);
     file.write_all(&sz_buf)?;
+    // Write epoch flags
+    file.write_all(&[flags.to_mask()])?;
     // Write all ordered offsets
     indexfile::write_offsets_to_file(&mut file, offsets.iter())?;
     file.render_permanent(&storage_cfg.get_epoch_pack_filepath(epochid))
@@ -120,24 +125,34 @@ fn epoch_write_pack(
     Ok(())
 }
 
+const EPOCH_PACK_REF_OFFSET: u64 = 0;
+const EPOCH_CHAINSTATE_REF_OFFSET: u64 = EPOCH_PACK_REF_OFFSET + super::HASH_SIZE as u64;
+const EPOCH_SIZE_OFFSET: u64 = EPOCH_CHAINSTATE_REF_OFFSET + super::HASH_SIZE as u64;
+const EPOCH_FLAGS_OFFSET: u64 = EPOCH_SIZE_OFFSET + serialize::SIZE_SIZE as u64;
+const EPOCH_OFFSETS_OFFSET: u64 = EPOCH_FLAGS_OFFSET + 1;
+
 pub fn epoch_read_pack(config: &StorageConfig, epochid: EpochId) -> Result<PackHash> {
     let mut ph = [0u8; super::HASH_SIZE];
-    read_bytes_at_offset(config, epochid, 0, &mut ph)?;
+    read_bytes_at_offset(config, epochid, EPOCH_PACK_REF_OFFSET, &mut ph)?;
     Ok(ph)
 }
 
 pub fn epoch_read_chainstate_ref(config: &StorageConfig, epochid: EpochId) -> Result<HeaderHash> {
     let mut sz = [0u8; hash::HASH_SIZE];
-    let start = super::HASH_SIZE as u64;
-    read_bytes_at_offset(config, epochid, start, &mut sz)?;
+    read_bytes_at_offset(config, epochid, EPOCH_CHAINSTATE_REF_OFFSET, &mut sz)?;
     Ok(HeaderHash::new(&sz))
 }
 
 pub fn epoch_read_size(config: &StorageConfig, epochid: EpochId) -> Result<serialize::Size> {
     let mut sz = [0u8; serialize::SIZE_SIZE];
-    let start = 2 * super::HASH_SIZE as u64;
-    read_bytes_at_offset(config, epochid, start, &mut sz)?;
+    read_bytes_at_offset(config, epochid, EPOCH_SIZE_OFFSET, &mut sz)?;
     Ok(serialize::read_size(&sz))
+}
+
+pub fn epoch_read_flags(config: &StorageConfig, epochid: EpochId) -> Result<EpochFlags> {
+    let mut sz = [0u8; 1];
+    read_bytes_at_offset(config, epochid, EPOCH_FLAGS_OFFSET, &mut sz)?;
+    Ok(EpochFlags::from_mask(sz[0]))
 }
 
 pub fn epoch_read_block_offset(
@@ -145,8 +160,7 @@ pub fn epoch_read_block_offset(
     epochid: EpochId,
     block_index: u32,
 ) -> Result<(hash::PackHash, serialize::Offset)> {
-    let offset_offset = (2 * super::HASH_SIZE as u64)
-        + serialize::SIZE_SIZE as u64
+    let offset_offset = EPOCH_OFFSETS_OFFSET
         + block_index as u64 * serialize::OFF_SIZE as u64;
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
     let mut file = fs::File::open(&pack_filepath)?;
