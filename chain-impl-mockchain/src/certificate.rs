@@ -1,4 +1,5 @@
 use crate::key::SpendingSecretKey;
+use crate::multisig;
 use crate::stake::{StakeKeyId, StakePoolId, StakePoolInfo};
 use chain_core::mempack::{read_vec, ReadBuf, ReadError, Readable};
 use chain_core::property;
@@ -36,6 +37,15 @@ pub struct Certificate {
     pub signatures: Vec<SignatureRaw>,
 }
 
+pub struct CertificateSignatureContext<'a> {
+    pub content: &'a [u8],
+    pub keys: Vec<SigningPublicKey>,
+}
+
+pub enum SigningPublicKey {
+    Ed25519Key(PublicKey<Ed25519Extended>),
+}
+
 impl Certificate {
     pub fn sign(&mut self, secret_key: &SpendingSecretKey) -> () {
         match &self.content {
@@ -59,6 +69,10 @@ impl Certificate {
                 let signature = v.make_certificate(secret_key);
                 self.signatures.push(signature);
             }
+            CertificateContent::MultisigKeyRegistration(v) => {
+                let signature = v.make_certificate(secret_key);
+                self.signatures.push(signature);
+            }
         }
     }
 
@@ -71,6 +85,7 @@ impl Certificate {
             CertificateContent::StakeDelegation(v) => verify_certificate(v, &self.signatures),
             CertificateContent::StakePoolRegistration(v) => verify_certificate(v, &self.signatures),
             CertificateContent::StakePoolRetirement(v) => verify_certificate(v, &self.signatures),
+            CertificateContent::MultisigKeyRegistration(_) => unimplemented!(),
         }
     }
 }
@@ -119,6 +134,7 @@ pub enum CertificateContent {
     StakeDelegation(StakeDelegation),
     StakePoolRegistration(StakePoolInfo),
     StakePoolRetirement(StakePoolRetirement),
+    MultisigKeyRegistration(MultisigKeyRegistration),
 }
 
 #[derive(FromPrimitive)]
@@ -128,6 +144,7 @@ enum CertificateTag {
     StakeDelegation = 3,
     StakePoolRegistration = 4,
     StakePoolRetirement = 5,
+    MultisigKeyRegistration = 6,
 }
 
 impl property::Serialize for Certificate {
@@ -154,6 +171,10 @@ impl property::Serialize for Certificate {
             }
             CertificateContent::StakePoolRetirement(s) => {
                 codec.put_u8(CertificateTag::StakePoolRetirement as u8)?;
+                s.serialize(&mut codec)
+            }
+            CertificateContent::MultisigKeyRegistration(s) => {
+                codec.put_u8(CertificateTag::MultisigKeyRegistration as u8)?;
                 s.serialize(&mut codec)
             }
         }?;
@@ -184,7 +205,9 @@ impl Readable for Certificate {
             Some(CertificateTag::StakeDelegation) => {
                 CertificateContent::StakeDelegation(StakeDelegation::read(buf)?)
             }
-
+            Some(CertificateTag::MultisigKeyRegistration) => {
+                CertificateContent::MultisigKeyRegistration(MultisigKeyRegistration::read(buf)?)
+            }
             None => panic!("not a certificate"),
         };
         let len = buf.get_u8()?;
@@ -231,6 +254,43 @@ impl Readable for StakeKeyRegistration {
         Ok(StakeKeyRegistration {
             stake_key_id: StakeKeyId::read(buf)?,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MultisigKeyRegistration {
+    // TODO
+    pub stake_key_id: StakeKeyId,
+}
+
+impl MultisigKeyRegistration {
+    pub fn make_certificate(&self, stake_private_key: &SecretKey<Ed25519Extended>) -> SignatureRaw {
+        use crate::key::make_signature;
+        SignatureRaw(make_signature(stake_private_key, &self).as_ref().to_vec())
+    }
+}
+
+impl<'a> HasPublicKeys<'a> for &'a MultisigKeyRegistration {
+    type PublicKeys = iter::Once<&'a PublicKey<Ed25519Extended>>;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        iter::once(&self.stake_key_id.0)
+    }
+}
+
+impl property::Serialize for MultisigKeyRegistration {
+    type Error = std::io::Error;
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+        use chain_core::packer::*;
+        let mut codec = Codec::new(writer);
+        //self.stake_key_id.serialize(&mut codec)?;
+        Ok(())
+    }
+}
+
+impl Readable for MultisigKeyRegistration {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        unimplemented!()
     }
 }
 

@@ -218,6 +218,10 @@ impl DelegationState {
             CertificateContent::StakePoolRetirement(ref reg) => {
                 new_state = new_state.deregister_stake_pool(&reg.pool_id)?
             }
+            CertificateContent::MultisigKeyRegistration(_) => {
+                // TODO
+                unimplemented!()
+            }
         }
 
         Ok((new_state, output))
