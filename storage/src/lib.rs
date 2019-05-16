@@ -124,7 +124,7 @@ pub struct LooseChainHeightEntry {
 }
 impl LooseChainHeightEntry {
     pub fn header_hash(&self) -> HeaderHash {
-        HeaderHash::new(&self.hash)
+        HeaderHash::from(self.hash.clone())
     }
 }
 
