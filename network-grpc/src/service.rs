@@ -257,6 +257,29 @@ where
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
+pub struct UploadBlocksFuture<T, S>
+where
+    T: BlockService,
+{
+    stream: RequestStream<T::Block, S>,
+    service: T,
+}
+
+impl<T, S> Future for UploadBlocksFuture<T, S>
+where
+    T: BlockService,
+    S: Stream<Error = tower_grpc::Status>,
+{
+    type Item = gen::node::UploadBlocksResponse;
+    type Error = tower_grpc::Status;
+
+    fn poll(&mut self) -> Poll<Self::Item, tower_grpc::Status> {
+        while let block = try_ready!(self.stream.poll()) {}
+        Async::Ready(gen::node::UploadBlocksResponse {})
+    }
+}
+
 macro_rules! try_get_service {
     ($opt_ref:expr) => {
         match $opt_ref {
@@ -445,7 +468,8 @@ where
     ) -> Self::UploadBlocksFuture {
         let service = try_get_service!(self.inner.block_service());
         let stream = RequestStream::new(req.into_inner());
-        ResponseFuture::new(service.upload_blocks(stream))
+        let res = stream.for_each(|block| service.on_uploaded_block(block));
+        ResponseFuture::new(res)
     }
 
     fn block_subscription(
