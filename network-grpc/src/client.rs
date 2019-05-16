@@ -2,7 +2,7 @@ mod connect;
 
 use crate::{
     convert::{
-        decode_node_id, encode_node_id, error_from_grpc, serialize_to_vec, FromProtobuf,
+        decode_node_id, encode_node_id, error_from_grpc, serialize_to_repeated_bytes, FromProtobuf,
         IntoProtobuf,
     },
     gen::{self, node::client as gen_client},
@@ -13,6 +13,7 @@ use network_core::{
     client::{block::BlockService, gossip::GossipService, P2pService},
     error as core_error,
     gossip::{self, Gossip, NodeId},
+    subscription::BlockEvent,
 };
 
 use futures::future::Executor;
@@ -33,39 +34,39 @@ pub use connect::{Connect, ConnectError, ConnectFuture};
 /// so that, should the implementation requrements change, only these trait
 /// definitions and blanket implementations need to be modified.
 pub mod chain_bounds {
-    use chain_core::property;
+    use chain_core::{mempack, property};
 
-    pub trait BlockId: property::BlockId + property::Deserialize
+    pub trait BlockId: property::BlockId + mempack::Readable
     // Alas, bounds on associated types of the supertrait do not have
     // the desired effect:
     // https://github.com/rust-lang/rust/issues/32722
     //
     // where
-    //    <Self as property::Deserialize>::Error: Send + Sync,
+    //    <Self as mempack::Readable>::Error: Send + Sync,
     {
     }
 
-    impl<T> BlockId for T where T: property::BlockId + property::Deserialize {}
+    impl<T> BlockId for T where T: property::BlockId + mempack::Readable {}
 
     pub trait BlockDate: property::BlockDate + property::FromStr {}
 
     impl<T> BlockDate for T where T: property::BlockDate + property::FromStr {}
 
-    pub trait Header: property::Header + property::Deserialize {}
+    pub trait Header: property::Header + mempack::Readable {}
 
     impl<T> Header for T
     where
-        T: property::Header + property::Deserialize,
+        T: property::Header + mempack::Readable,
         <T as property::Header>::Id: BlockId,
         <T as property::Header>::Date: BlockDate,
     {
     }
 
-    pub trait Block: property::Block + property::HasHeader + property::Deserialize {}
+    pub trait Block: property::Block + property::HasHeader + mempack::Readable {}
 
     impl<T> Block for T
     where
-        T: property::Block + property::HasHeader + property::Deserialize,
+        T: property::Block + property::HasHeader + mempack::Readable,
         <T as property::Block>::Id: BlockId,
         <T as property::Block>::Date: BlockDate,
         <T as property::HasHeader>::Header: Header,
@@ -82,7 +83,8 @@ pub trait ProtocolConfig {
     type Block: chain_bounds::Block
         + property::Block<Id = Self::BlockId, Date = Self::BlockDate>
         + property::HasHeader<Header = Self::Header>;
-    type Node: gossip::Node;
+    type Node: gossip::Node<Id = Self::NodeId> + property::Serialize + property::Deserialize;
+    type NodeId: gossip::NodeId + property::Serialize + property::Deserialize;
 }
 
 /// gRPC client for blockchain node.
@@ -99,6 +101,12 @@ where
 }
 
 type GrpcUnaryFuture<R> = tower_grpc::client::unary::ResponseFuture<
+    R,
+    tower_h2::client::ResponseFuture,
+    tower_h2::RecvBody,
+>;
+
+type GrpcClientStreamingFuture<R> = tower_grpc::client::client_streaming::ResponseFuture<
     R,
     tower_h2::client::ResponseFuture,
     tower_h2::RecvBody,
@@ -121,6 +129,16 @@ impl<T, R> ResponseFuture<T, R> {
             inner,
             _phantom: PhantomData,
         }
+    }
+}
+
+pub struct ClientStreamingCompletionFuture<R> {
+    inner: GrpcClientStreamingFuture<R>,
+}
+
+impl<R> ClientStreamingCompletionFuture<R> {
+    fn new(inner: GrpcClientStreamingFuture<R>) -> Self {
+        ClientStreamingCompletionFuture { inner }
     }
 }
 
@@ -172,6 +190,19 @@ where
     }
 }
 
+impl<R> Future for ClientStreamingCompletionFuture<R>
+where
+    R: prost::Message + Default,
+{
+    type Item = ();
+    type Error = core_error::Error;
+
+    fn poll(&mut self) -> Poll<(), core_error::Error> {
+        try_ready!(self.inner.poll().map_err(error_from_grpc));
+        Ok(Async::Ready(()))
+    }
+}
+
 impl<T, R> Future for ResponseStreamFuture<T, R>
 where
     R: prost::Message + Default,
@@ -192,7 +223,7 @@ where
 impl<T, Id, R> Future for SubscriptionFuture<T, Id, R>
 where
     R: prost::Message + Default,
-    Id: NodeId,
+    Id: NodeId + property::Deserialize,
 {
     type Item = (ResponseStream<T, R>, Id);
     type Error = core_error::Error;
@@ -302,8 +333,11 @@ where
     type GetBlocksStream = ResponseStream<P::Block, gen::node::Block>;
     type GetBlocksFuture = ResponseStreamFuture<P::Block, gen::node::Block>;
 
-    type BlockSubscription = ResponseStream<P::Header, gen::node::Header>;
-    type BlockSubscriptionFuture = SubscriptionFuture<P::Header, Self::NodeId, gen::node::Header>;
+    type BlockSubscription = ResponseStream<BlockEvent<P::Block>, gen::node::BlockEvent>;
+    type BlockSubscriptionFuture =
+        SubscriptionFuture<BlockEvent<P::Block>, Self::NodeId, gen::node::BlockEvent>;
+
+    type UploadBlocksFuture = ClientStreamingCompletionFuture<gen::node::UploadBlocksResponse>;
 
     fn tip(&mut self) -> Self::TipFuture {
         let req = gen::node::TipRequest {};
@@ -312,10 +346,27 @@ where
     }
 
     fn pull_blocks_to_tip(&mut self, from: &[P::BlockId]) -> Self::PullBlocksToTipFuture {
-        let from = serialize_to_vec(from).unwrap();
+        let from = serialize_to_repeated_bytes(from).unwrap();
         let req = gen::node::PullBlocksToTipRequest { from };
         let future = self.service.pull_blocks_to_tip(Request::new(req));
         ResponseStreamFuture::new(future)
+    }
+
+    fn get_blocks(&mut self, ids: &[P::BlockId]) -> Self::GetBlocksFuture {
+        let ids = serialize_to_repeated_bytes(ids).unwrap();
+        let req = gen::node::BlockIds { ids };
+        let future = self.service.get_blocks(Request::new(req));
+        ResponseStreamFuture::new(future)
+    }
+
+    fn upload_blocks<S>(&mut self, blocks: S) -> Self::UploadBlocksFuture
+    where
+        S: Stream<Item = P::Block> + Send + 'static,
+    {
+        let rs = RequestStream::new(blocks);
+        let req = Request::new(rs);
+        let future = self.service.upload_blocks(req);
+        ClientStreamingCompletionFuture::new(future)
     }
 
     fn block_subscription<Out>(&mut self, outbound: Out) -> Self::BlockSubscriptionFuture

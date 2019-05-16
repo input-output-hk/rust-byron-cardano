@@ -41,7 +41,6 @@ impl AsymmetricKey for FakeMMM {
     const SECRET_BECH32_HRP: &'static str = "fakemmm_sk";
     const PUBLIC_BECH32_HRP: &'static str = "fakemmm_pk";
 
-    const SECRET_KEY_SIZE: usize = ed25519::SEED_LENGTH;
     const PUBLIC_KEY_SIZE: usize = ed25519::PUBLIC_KEY_LENGTH;
 
     fn generate<T: RngCore + CryptoRng>(mut rng: T) -> Priv {
@@ -81,7 +80,10 @@ impl VerificationAlgorithm for FakeMMM {
 
     fn signature_from_bytes(data: &[u8]) -> Result<Self::Signature, SignatureError> {
         if data.len() != ed25519::SIGNATURE_LENGTH {
-            return Err(SignatureError::SizeInvalid);
+            return Err(SignatureError::SizeInvalid {
+                expected: ed25519::SIGNATURE_LENGTH,
+                got: data.len(),
+            });
         }
         let mut buf = [0; ed25519::SIGNATURE_LENGTH];
         buf[0..ed25519::SIGNATURE_LENGTH].clone_from_slice(data);
@@ -98,7 +100,14 @@ impl VerificationAlgorithm for FakeMMM {
 }
 
 impl KeyEvolvingSignatureAlgorithm for FakeMMM {
-    fn sign_update(key: &mut Self::Secret, msg: &[u8]) -> Sig {
+    fn get_period(_: &Self::Signature) -> usize {
+        0
+    }
+    fn update(_: &mut Self::Secret) -> bool {
+        false
+    }
+
+    fn sign_update(key: &mut Self::Secret, msg: &[u8]) -> Self::Signature {
         let (sk, _) = ed25519::keypair(&key.0);
         Sig(ed25519::signature(msg, &sk))
     }

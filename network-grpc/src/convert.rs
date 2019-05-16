@@ -1,9 +1,13 @@
 use crate::gen;
 
-use chain_core::property;
+use chain_core::{
+    mempack::{self, ReadBuf},
+    property,
+};
 use network_core::{
     error as core_error,
     gossip::{Gossip, Node, NodeId},
+    subscription::BlockEvent,
 };
 
 use tower_grpc::{
@@ -65,26 +69,41 @@ where
         .map_err(|e| core_error::Error::new(core_error::Code::InvalidArgument, e))
 }
 
-pub fn deserialize_vec<T>(pb: &[Vec<u8>]) -> Result<Vec<T>, core_error::Error>
+pub fn deserialize_repeated_bytes<T>(pb: &[Vec<u8>]) -> Result<Vec<T>, core_error::Error>
 where
     T: property::Deserialize,
 {
     pb.iter().map(|v| deserialize_bytes(&v[..])).collect()
 }
 
+pub fn parse_bytes<T>(buf: &[u8]) -> Result<T, core_error::Error>
+where
+    T: mempack::Readable,
+{
+    let mut buf = ReadBuf::from(buf);
+    T::read(&mut buf).map_err(|e| core_error::Error::new(core_error::Code::InvalidArgument, e))
+}
+
+pub fn parse_repeated_bytes<T>(pb: &[Vec<u8>]) -> Result<Vec<T>, core_error::Error>
+where
+    T: mempack::Readable,
+{
+    pb.iter().map(|v| parse_bytes(&v[..])).collect()
+}
+
 impl<H> FromProtobuf<gen::node::TipResponse> for H
 where
-    H: property::Header + property::Deserialize,
+    H: property::Header + mempack::Readable,
 {
     fn from_message(msg: gen::node::TipResponse) -> Result<Self, core_error::Error> {
-        let block_header = deserialize_bytes(&msg.block_header)?;
+        let block_header = parse_bytes(&msg.block_header)?;
         Ok(block_header)
     }
 }
 
 impl<T> FromProtobuf<gen::node::Block> for T
 where
-    T: property::Block + property::Deserialize,
+    T: property::Block + mempack::Readable,
 {
     fn from_message(msg: gen::node::Block) -> Result<T, core_error::Error> {
         let block = deserialize_bytes(&msg.content)?;
@@ -94,17 +113,46 @@ where
 
 impl<T> FromProtobuf<gen::node::Header> for T
 where
-    T: property::Header + property::Deserialize,
+    T: property::Header + mempack::Readable,
 {
     fn from_message(msg: gen::node::Header) -> Result<T, core_error::Error> {
-        let header = deserialize_bytes(&msg.content)?;
+        let header = parse_bytes(&msg.content)?;
         Ok(header)
+    }
+}
+
+impl<T> FromProtobuf<gen::node::BlockEvent> for BlockEvent<T>
+where
+    T: property::Block + property::HasHeader,
+    T::Header: mempack::Readable,
+    T::Id: mempack::Readable,
+{
+    fn from_message(msg: gen::node::BlockEvent) -> Result<Self, core_error::Error> {
+        use gen::node::block_event::*;
+
+        let event = match msg.item {
+            Some(Item::Announce(header)) => {
+                let header = parse_bytes(&header.content)?;
+                BlockEvent::Announce(header)
+            }
+            Some(Item::Solicit(ids)) => {
+                let ids = parse_repeated_bytes(&ids.ids)?;
+                BlockEvent::Solicit(ids)
+            }
+            None => {
+                return Err(core_error::Error::new(
+                    core_error::Code::InvalidArgument,
+                    "invalid BlockEvent payload, one of the fields is required",
+                ))
+            }
+        };
+        Ok(event)
     }
 }
 
 impl<T> FromProtobuf<gen::node::Message> for T
 where
-    T: property::Message + property::Deserialize,
+    T: property::Message + mempack::Readable,
 {
     fn from_message(msg: gen::node::Message) -> Result<T, core_error::Error> {
         let tx = deserialize_bytes(&msg.content)?;
@@ -114,10 +162,15 @@ where
 
 impl<T> FromProtobuf<gen::node::Gossip> for Gossip<T>
 where
-    T: Node,
+    T: Node + property::Deserialize,
 {
     fn from_message(msg: gen::node::Gossip) -> Result<Gossip<T>, core_error::Error> {
-        let nodes = deserialize_vec(&msg.nodes)?;
+        let mut nodes = Vec::with_capacity(msg.nodes.len());
+        for proto_node in msg.nodes {
+            let node = T::deserialize(&proto_node[..])
+                .map_err(|e| core_error::Error::new(core_error::Code::InvalidArgument, e))?;
+            nodes.push(node);
+        }
         let gossip = Gossip::from_nodes(nodes);
         Ok(gossip)
     }
@@ -138,7 +191,7 @@ where
     }
 }
 
-pub fn serialize_to_vec<T>(values: &[T]) -> Result<Vec<Vec<u8>>, tower_grpc::Status>
+pub fn serialize_to_repeated_bytes<T>(values: &[T]) -> Result<Vec<Vec<u8>>, tower_grpc::Status>
 where
     T: property::Serialize,
 {
@@ -175,6 +228,34 @@ where
     }
 }
 
+impl IntoProtobuf<gen::node::UploadBlocksResponse> for () {
+    fn into_message(self) -> Result<gen::node::UploadBlocksResponse, tower_grpc::Status> {
+        Ok(gen::node::UploadBlocksResponse {})
+    }
+}
+
+impl<T> IntoProtobuf<gen::node::BlockEvent> for BlockEvent<T>
+where
+    T: property::Block + property::HasHeader,
+    T::Header: property::Serialize,
+{
+    fn into_message(self) -> Result<gen::node::BlockEvent, tower_grpc::Status> {
+        use gen::node::block_event::*;
+
+        let item = match self {
+            BlockEvent::Announce(header) => {
+                let content = serialize_to_bytes(&header)?;
+                Item::Announce(gen::node::Header { content })
+            }
+            BlockEvent::Solicit(ids) => {
+                let ids = serialize_to_repeated_bytes(&ids)?;
+                Item::Solicit(gen::node::BlockIds { ids })
+            }
+        };
+        Ok(gen::node::BlockEvent { item: Some(item) })
+    }
+}
+
 impl<T> IntoProtobuf<gen::node::Message> for T
 where
     T: property::Message + property::Serialize,
@@ -187,17 +268,17 @@ where
 
 impl<T> IntoProtobuf<gen::node::Gossip> for Gossip<T>
 where
-    T: Node,
+    T: Node + property::Serialize,
 {
     fn into_message(self) -> Result<gen::node::Gossip, tower_grpc::Status> {
-        let nodes = serialize_to_vec(self.nodes())?;
+        let nodes = serialize_to_repeated_bytes(self.nodes())?;
         Ok(gen::node::Gossip { nodes })
     }
 }
 
 pub fn decode_node_id<Id>(metadata: &MetadataMap) -> Result<Id, core_error::Error>
 where
-    Id: NodeId,
+    Id: NodeId + property::Deserialize,
 {
     match metadata.get_bin(NODE_ID_HEADER) {
         None => Err(core_error::Error::new(
@@ -224,7 +305,7 @@ where
 
 pub fn encode_node_id<Id>(id: &Id, metadata: &mut MetadataMap) -> Result<(), Status>
 where
-    Id: NodeId,
+    Id: NodeId + property::Serialize,
 {
     let bytes = serialize_to_bytes(id)?;
     let val = BinaryMetadataValue::from_bytes(&bytes);

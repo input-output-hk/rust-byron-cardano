@@ -1,9 +1,11 @@
 use super::transaction::*;
 use crate::account;
+use crate::block::HeaderHash;
 use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
     AccountSecretKey, AccountSignature, SpendingPublicKey, SpendingSecretKey, SpendingSignature,
 };
+use crate::multisig;
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 use chain_crypto::{Ed25519Bip32, PublicKey, Signature, Verification};
@@ -16,12 +18,13 @@ use chain_crypto::{Ed25519Bip32, PublicKey, Signature, Verification};
 /// and may not know the contents of the internal transaction.
 #[derive(Debug, Clone)]
 pub enum Witness {
-    Utxo(SpendingSignature<TransactionId>),
-    Account(SpendingSignature<TransactionIdSpendingCounter>),
+    Utxo(SpendingSignature<WitnessUtxoData>),
+    Account(SpendingSignature<WitnessAccountData>),
     OldUtxo(
         PublicKey<Ed25519Bip32>,
-        Signature<TransactionId, Ed25519Bip32>,
+        Signature<WitnessUtxoData, Ed25519Bip32>,
     ),
+    Multisig(multisig::Witness),
 }
 
 impl PartialEq for Witness {
@@ -38,22 +41,64 @@ impl PartialEq for Witness {
 }
 impl Eq for Witness {}
 
-pub struct TransactionIdSpendingCounter(Vec<u8>);
+pub struct WitnessUtxoData(Vec<u8>);
 
-impl TransactionIdSpendingCounter {
-    pub fn new(
-        transaction_id: &TransactionId,
-        spending_counter: &account::SpendingCounter,
-    ) -> Self {
-        let mut v = Vec::new();
-        v[0] = WITNESS_TAG_ACCOUNT;
+impl WitnessUtxoData {
+    pub fn new(block0: &HeaderHash, transaction_id: &TransactionId) -> Self {
+        let mut v = Vec::with_capacity(65);
+        v.extend_from_slice(block0.as_ref());
         v.extend_from_slice(transaction_id.as_ref());
-        v.extend_from_slice(&spending_counter.to_bytes());
-        TransactionIdSpendingCounter(v)
+        WitnessUtxoData(v)
     }
 }
 
-impl AsRef<[u8]> for TransactionIdSpendingCounter {
+impl AsRef<[u8]> for WitnessUtxoData {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+pub struct WitnessAccountData(Vec<u8>);
+
+impl WitnessAccountData {
+    pub fn new(
+        block0: &HeaderHash,
+        transaction_id: &TransactionId,
+        spending_counter: &account::SpendingCounter,
+    ) -> Self {
+        let mut v = Vec::with_capacity(65);
+        v.push(WITNESS_TAG_ACCOUNT);
+        v.extend_from_slice(block0.as_ref());
+        v.extend_from_slice(transaction_id.as_ref());
+        v.extend_from_slice(&spending_counter.to_bytes());
+        WitnessAccountData(v)
+    }
+}
+
+impl AsRef<[u8]> for WitnessAccountData {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+pub struct WitnessMultisigData(Vec<u8>);
+
+impl WitnessMultisigData {
+    pub fn new(
+        block0: &HeaderHash,
+        transaction_id: &TransactionId,
+        spending_counter: &account::SpendingCounter,
+    ) -> Self {
+        let mut v = Vec::with_capacity(65);
+        v.push(WITNESS_TAG_MULTISIG);
+        v.extend_from_slice(block0.as_ref());
+        v.extend_from_slice(transaction_id.as_ref());
+        v.extend_from_slice(&spending_counter.to_bytes());
+        Self(v)
+    }
+}
+
+impl AsRef<[u8]> for WitnessMultisigData {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -61,31 +106,43 @@ impl AsRef<[u8]> for TransactionIdSpendingCounter {
 
 impl Witness {
     /// Creates new `Witness` value.
-    pub fn new_utxo(transaction_id: &TransactionId, secret_key: &SpendingSecretKey) -> Self {
-        Witness::Utxo(SpendingSignature::generate(secret_key, transaction_id))
+    pub fn new_utxo(
+        block0: &HeaderHash,
+        transaction_id: &TransactionId,
+        secret_key: &SpendingSecretKey,
+    ) -> Self {
+        Witness::Utxo(SpendingSignature::generate(
+            secret_key,
+            &WitnessUtxoData::new(block0, transaction_id),
+        ))
     }
 
     pub fn new_account(
+        block0: &HeaderHash,
         transaction_id: &TransactionId,
         spending_counter: &account::SpendingCounter,
         secret_key: &AccountSecretKey,
     ) -> Self {
         Witness::Account(AccountSignature::generate(
             secret_key,
-            &TransactionIdSpendingCounter::new(transaction_id, spending_counter),
+            &WitnessAccountData::new(block0, transaction_id, spending_counter),
         ))
     }
 
-    /// Verify the given `TransactionId` using the witness.
+    // Verify the given `TransactionId` using the witness.
     pub fn verify_utxo(
         &self,
         public_key: &SpendingPublicKey,
+        block0: &HeaderHash,
         transaction_id: &TransactionId,
     ) -> Verification {
         match self {
             Witness::OldUtxo(_xpub, _signature) => unimplemented!(),
-            Witness::Utxo(signature) => signature.verify(public_key, transaction_id),
+            Witness::Utxo(signature) => {
+                signature.verify(public_key, &WitnessUtxoData::new(block0, transaction_id))
+            }
             Witness::Account(_) => Verification::Failed,
+            Witness::Multisig(_) => Verification::Failed,
         }
     }
 }
@@ -93,15 +150,15 @@ impl Witness {
 const WITNESS_TAG_OLDUTXO: u8 = 0u8;
 const WITNESS_TAG_UTXO: u8 = 1u8;
 const WITNESS_TAG_ACCOUNT: u8 = 2u8;
+const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
 impl property::Serialize for Witness {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        //use chain_core::property::Serialize;
 
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         match self {
             Witness::OldUtxo(xpub, sig) => {
                 codec.put_u8(WITNESS_TAG_OLDUTXO)?;
@@ -115,6 +172,10 @@ impl property::Serialize for Witness {
             Witness::Account(sig) => {
                 codec.put_u8(WITNESS_TAG_ACCOUNT)?;
                 serialize_signature(sig, codec.into_inner())
+            }
+            Witness::Multisig(msig) => {
+                codec.put_u8(WITNESS_TAG_MULTISIG)?;
+                msig.serialize(codec.into_inner())
             }
         }
     }
@@ -130,6 +191,10 @@ impl Readable for Witness {
             }
             WITNESS_TAG_UTXO => deserialize_signature(buf).map(Witness::Utxo),
             WITNESS_TAG_ACCOUNT => deserialize_signature(buf).map(Witness::Account),
+            WITNESS_TAG_MULTISIG => {
+                let msig = multisig::Witness::read(buf)?;
+                Ok(Witness::Multisig(msig))
+            }
             i => Err(ReadError::UnknownTag(i as u32)),
         }
     }
@@ -164,9 +229,7 @@ pub mod test {
 
     impl Arbitrary for Witness {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let sk = TransactionSigningKey::arbitrary(g);
-            let txid = TransactionId::arbitrary(g);
-            Witness::Utxo(SpendingSignature::generate(&sk.0, &txid))
+            Witness::Utxo(SpendingSignature::arbitrary(g))
         }
     }
 
@@ -175,10 +238,10 @@ pub mod test {
         /// ```
         /// \forall w=Witness(tx) => w.verifies(tx)
         /// ```
-        fn prop_witness_verifies_own_tx(sk: TransactionSigningKey, tx:TransactionId) -> bool {
+        fn prop_witness_verifies_own_tx(sk: TransactionSigningKey, tx:TransactionId, block0: HeaderHash) -> bool {
             let pk = sk.0.to_public();
-            let witness = Witness::new_utxo(&tx, &sk.0);
-            witness.verify_utxo(&pk, &tx) == Verification::Success
+            let witness = Witness::new_utxo(&block0, &tx, &sk.0);
+            witness.verify_utxo(&pk, &block0, &tx) == Verification::Success
         }
     }
 }

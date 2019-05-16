@@ -9,11 +9,11 @@ use crate::key::{
 use crate::leadership::bft;
 use crate::stake::StakePoolId;
 use chain_core::{
-    mempack::{read_from_raw, ReadBuf, ReadError, Readable},
+    mempack::{ReadBuf, ReadError, Readable},
     property,
 };
 use chain_crypto::{
-    self, Curve25519_2HashDH, Ed25519Extended, FakeMMM, Signature, VerifiableRandomFunction,
+    self, Curve25519_2HashDH, Ed25519Extended, Signature, SumEd25519_12, VerifiableRandomFunction,
 };
 
 pub type HeaderHash = Hash;
@@ -54,7 +54,7 @@ pub struct GenesisPraosProof {
 }
 
 #[derive(Debug, Clone)]
-pub struct KESSignature(pub(crate) Signature<HeaderToSign, FakeMMM>);
+pub struct KESSignature(pub(crate) Signature<HeaderToSign, SumEd25519_12>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Proof {
@@ -135,8 +135,17 @@ impl Header {
         HeaderHash::hash_bytes(&bytes[..])
     }
 
+    #[inline]
     pub fn proof(&self) -> &Proof {
         &self.proof
+    }
+
+    #[inline]
+    pub fn get_stakepool_id(&self) -> Option<&StakePoolId> {
+        match self.proof() {
+            Proof::GenesisPraos(proof) => Some(&proof.node_id),
+            _ => None,
+        }
     }
 }
 
@@ -153,7 +162,7 @@ impl property::Serialize for Common {
         use chain_core::packer::Codec;
         use std::io::Write;
 
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
 
         codec.put_u16(self.any_block_version.into())?;
         codec.put_u32(self.block_content_size)?;
@@ -259,14 +268,6 @@ impl Readable for Header {
     }
 }
 
-impl property::Deserialize for Header {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        let raw = HeaderRaw::deserialize(reader)?;
-        read_from_raw(raw.as_ref())
-    }
-}
-
 impl property::Header for Header {
     type Id = HeaderHash;
     type Date = BlockDate;
@@ -294,7 +295,8 @@ impl property::Header for Header {
 mod test {
     use super::*;
     use crate::block::ConsensusVersion;
-    use chain_crypto::AsymmetricKey;
+    use chain_crypto::{AsymmetricKey, SecretKey, SumEd25519_12};
+    use lazy_static::lazy_static;
     use num_traits::FromPrimitive;
     use quickcheck::{Arbitrary, Gen, TestResult};
 
@@ -354,11 +356,15 @@ mod test {
 
             let vrf_proof = {
                 let sk = Curve25519_2HashDH::generate(&mut rng);
-                Curve25519_2HashDH::evaluate_and_proove(&sk, &[0, 1, 2, 3], &mut rng)
+                Curve25519_2HashDH::evaluate_and_prove(&sk, &[0, 1, 2, 3], &mut rng)
             };
 
             let kes_proof = {
-                let mut sk = Arbitrary::arbitrary(g);
+                lazy_static! {
+                    static ref SK_FIRST: SecretKey<SumEd25519_12> =
+                        { SecretKey::generate(&mut ChaChaRng::from_seed([0; 32])) };
+                }
+                let mut sk = SK_FIRST.clone(); // Arbitrary::arbitrary(g);
                 let signature = Signature::generate_update(&mut sk, &[0u8, 1, 2, 3]);
                 KESSignature(signature)
             };

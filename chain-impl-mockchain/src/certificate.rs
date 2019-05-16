@@ -2,18 +2,20 @@ use crate::key::SpendingSecretKey;
 use crate::stake::{StakeKeyId, StakePoolId, StakePoolInfo};
 use chain_core::mempack::{read_vec, ReadBuf, ReadError, Readable};
 use chain_core::property;
-use chain_crypto::{Ed25519Extended, SecretKey, Verification};
+use chain_crypto::{Ed25519Extended, PublicKey, SecretKey, Verification};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
+use std::{iter, slice};
+
 #[derive(Debug, Clone)]
-pub struct SignatureRaw(Vec<u8>);
+pub struct SignatureRaw(pub Vec<u8>);
 
 impl property::Serialize for SignatureRaw {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         codec.put_u16(self.0.len() as u16)?;
         codec.into_inner().write_all(&self.0.as_ref())?;
         Ok(())
@@ -73,15 +75,20 @@ impl Certificate {
     }
 }
 
-/// Keep an information how to extract public keys from
-/// the certificate.
-trait HasStakeKeyIds {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a>;
+/// Abstracts extracting public stake key identifiers
+/// from a certificate.
+pub(crate) trait HasPublicKeys<'a> {
+    type PublicKeys: 'a + ExactSizeIterator<Item = &'a PublicKey<Ed25519Extended>>;
+    fn public_keys(self) -> Self::PublicKeys;
 }
 
-fn verify_certificate<C>(certificate: &C, raw_signatures: &[SignatureRaw]) -> Verification
+pub(crate) fn verify_certificate<'a, C>(
+    certificate: &'a C,
+    raw_signatures: &[SignatureRaw],
+) -> Verification
 where
-    C: HasStakeKeyIds + property::Serialize,
+    &'a C: HasPublicKeys<'a>,
+    C: property::Serialize,
 {
     use crate::key::{deserialize_signature, verify_signature};
     let signatures = raw_signatures.iter();
@@ -95,8 +102,7 @@ where
             let mut reader = ReadBuf::from(&signature.0);
             match deserialize_signature(&mut reader) {
                 Ok(signature) => {
-                    if verify_signature(&signature, &owner.0, &certificate) == Verification::Failed
-                    {
+                    if verify_signature(&signature, owner, &certificate) == Verification::Failed {
                         return Verification::Failed;
                     }
                 }
@@ -128,7 +134,7 @@ impl property::Serialize for Certificate {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         match &self.content {
             CertificateContent::StakeKeyRegistration(s) => {
                 codec.put_u8(CertificateTag::StakeKeyRegistration as u8)?;
@@ -202,9 +208,11 @@ impl StakeKeyRegistration {
     }
 }
 
-impl HasStakeKeyIds for StakeKeyRegistration {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a> {
-        Box::new(std::iter::once(&self.stake_key_id))
+impl<'a> HasPublicKeys<'a> for &'a StakeKeyRegistration {
+    type PublicKeys = iter::Once<&'a PublicKey<Ed25519Extended>>;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        iter::once(&self.stake_key_id.0)
     }
 }
 
@@ -212,7 +220,7 @@ impl property::Serialize for StakeKeyRegistration {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         self.stake_key_id.serialize(&mut codec)?;
         Ok(())
     }
@@ -238,9 +246,11 @@ impl StakeKeyDeregistration {
     }
 }
 
-impl HasStakeKeyIds for StakeKeyDeregistration {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a> {
-        Box::new(std::iter::once(&self.stake_key_id))
+impl<'a> HasPublicKeys<'a> for &'a StakeKeyDeregistration {
+    type PublicKeys = iter::Once<&'a PublicKey<Ed25519Extended>>;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        iter::once(&self.stake_key_id.0)
     }
 }
 
@@ -248,7 +258,7 @@ impl property::Serialize for StakeKeyDeregistration {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         self.stake_key_id.serialize(&mut codec)?;
         Ok(())
     }
@@ -277,9 +287,11 @@ impl StakeDelegation {
     }
 }
 
-impl HasStakeKeyIds for StakeDelegation {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a> {
-        Box::new(std::iter::once(&self.stake_key_id))
+impl<'a> HasPublicKeys<'a> for &'a StakeDelegation {
+    type PublicKeys = iter::Once<&'a PublicKey<Ed25519Extended>>;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        iter::once(&self.stake_key_id.0)
     }
 }
 
@@ -287,7 +299,7 @@ impl property::Serialize for StakeDelegation {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         self.stake_key_id.serialize(&mut codec)?;
         self.pool_id.serialize(&mut codec)?;
         Ok(())
@@ -312,9 +324,14 @@ impl StakePoolInfo {
     }
 }
 
-impl HasStakeKeyIds for StakePoolInfo {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a> {
-        Box::new(self.owners.iter())
+impl<'a> HasPublicKeys<'a> for &'a StakePoolInfo {
+    type PublicKeys = iter::Map<
+        slice::Iter<'a, StakeKeyId>,
+        fn(&'a StakeKeyId) -> &'a PublicKey<Ed25519Extended>,
+    >;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        self.owners.iter().map(|x| &x.0)
     }
 }
 
@@ -334,9 +351,14 @@ impl StakePoolRetirement {
     }
 }
 
-impl HasStakeKeyIds for StakePoolRetirement {
-    fn public_keys<'a>(&'a self) -> Box<ExactSizeIterator<Item = &StakeKeyId> + 'a> {
-        Box::new(self.pool_info.owners.iter())
+impl<'a> HasPublicKeys<'a> for &'a StakePoolRetirement {
+    type PublicKeys = iter::Map<
+        slice::Iter<'a, StakeKeyId>,
+        fn(&'a StakeKeyId) -> &'a PublicKey<Ed25519Extended>,
+    >;
+
+    fn public_keys(self) -> Self::PublicKeys {
+        self.pool_info.owners.iter().map(|x| &x.0)
     }
 }
 
@@ -344,7 +366,7 @@ impl property::Serialize for StakePoolRetirement {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;
-        let mut codec = Codec::from(writer);
+        let mut codec = Codec::new(writer);
         self.pool_id.serialize(&mut codec)?;
         self.pool_info.serialize(&mut codec)?;
         Ok(())
@@ -364,7 +386,8 @@ impl Readable for StakePoolRetirement {
 mod test {
     use super::*;
     use crate::leadership::genesis::GenesisPraosLeader;
-    use chain_crypto::SecretKey;
+    use chain_crypto::{PublicKey, SecretKey, SumEd25519_12};
+    use lazy_static::lazy_static;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for Certificate {
@@ -422,13 +445,19 @@ mod test {
             for byte in seed.iter_mut() {
                 *byte = Arbitrary::arbitrary(g);
             }
+            lazy_static! {
+                static ref PK_KES: PublicKey<SumEd25519_12> = {
+                    let sk = SecretKey::generate(&mut rand_chacha::ChaChaRng::from_seed([0; 32]));
+                    sk.to_public()
+                };
+            }
             let mut rng = rand_chacha::ChaChaRng::from_seed(seed);
             StakePoolInfo {
                 serial: Arbitrary::arbitrary(g),
                 owners: vec![Arbitrary::arbitrary(g)],
                 initial_key: GenesisPraosLeader {
                     vrf_public_key: SecretKey::generate(&mut rng).to_public(),
-                    kes_public_key: SecretKey::generate(&mut rng).to_public(),
+                    kes_public_key: PK_KES.clone(),
                 },
             }
         }

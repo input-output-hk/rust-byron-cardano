@@ -8,7 +8,7 @@
 
 use crate::block::ChainLength;
 use crate::ledger::Ledger;
-use chain_core::property::{BlockId as _, HasMessages as _};
+use chain_core::property::{Block as _, BlockId as _, HasMessages as _};
 use chain_storage::store::BlockStore;
 use std::collections::{hash_map::Entry, BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -229,21 +229,27 @@ impl Multiverse<Ledger> {
             }
 
             let cur_block_info = store.get_block_info(&cur_hash).unwrap();
-            blocks_to_apply.push(k.clone());
+            blocks_to_apply.push(cur_hash.clone());
             cur_hash = cur_block_info.parent_id();
         };
 
         /*
         println!(
-            "applying {} blocks to reconstruct state",
-            blocks_to_apply.len()
+            "applying {} blocks to reconstruct state at {}",
+            blocks_to_apply.len(),
+            k
         );
         */
 
         for hash in blocks_to_apply.iter().rev() {
             let block = store.get_block(&hash).unwrap().0;
             state = state
-                .apply_block(&state.get_ledger_parameters(), block.messages())
+                .apply_block(
+                    &state.get_ledger_parameters(),
+                    block.messages(),
+                    block.date(),
+                    block.chain_length(),
+                )
                 .unwrap();
             // FIXME: add the intermediate states to memory?
         }
@@ -259,25 +265,41 @@ mod test {
     use crate::config::{Block0Date, ConfigParam};
     use crate::leadership::bft::LeaderId;
     use crate::ledger::Ledger;
-    use crate::message::{InitialEnts, Message};
+    use crate::message::{ConfigParams, Message};
+    use crate::milli::Milli;
     use chain_addr::Discrimination;
     use chain_core::property::{Block as _, ChainLength as _, HasMessages as _};
     use chain_crypto::SecretKey;
     use chain_storage::store::BlockStore;
+    use chain_time::{Epoch, SlotDuration, TimeEra, TimeFrame, Timeline};
     use quickcheck::{Arbitrary, StdGen};
+    use std::time::SystemTime;
 
     fn apply_block(state: &Ledger, block: &Block) -> Ledger {
         if state.chain_length().0 != 0 {
             assert_eq!(state.chain_length().0 + 1, block.chain_length().0);
         }
         state
-            .apply_block(&state.get_ledger_parameters(), block.messages())
+            .apply_block(
+                &state.get_ledger_parameters(),
+                block.messages(),
+                block.date(),
+                block.chain_length(),
+            )
             .unwrap()
     }
 
     #[test]
     pub fn multiverse() {
+        const NUM_BLOCK_PER_EPOCH: u32 = 1000;
         let mut multiverse = Multiverse::new();
+
+        let system_time = SystemTime::UNIX_EPOCH;
+        let timeline = Timeline::new(system_time);
+        let tf = TimeFrame::new(timeline, SlotDuration::from_secs(10));
+
+        let slot0 = tf.slot0();
+        let era = TimeEra::new(slot0, Epoch(0), NUM_BLOCK_PER_EPOCH);
 
         let mut g = StdGen::new(rand::thread_rng(), 10);
         let leader_key = Arbitrary::arbitrary(&mut g);
@@ -285,16 +307,21 @@ mod test {
         let mut store = chain_storage::memory::MemoryBlockStore::new();
 
         let mut genesis_block = BlockBuilder::new();
-        let mut ents = InitialEnts::new();
+        let mut ents = ConfigParams::new();
         ents.push(ConfigParam::Discrimination(Discrimination::Test));
         ents.push(ConfigParam::ConsensusVersion(ConsensusVersion::Bft));
         let leader_pub_key = SecretKey::generate(rand::thread_rng()).to_public();
-        ents.push(ConfigParam::ConsensusLeaderId(LeaderId::from(
-            leader_pub_key,
-        )));
+        ents.push(ConfigParam::AddBftLeader(LeaderId::from(leader_pub_key)));
         ents.push(ConfigParam::Block0Date(Block0Date(0)));
+        ents.push(ConfigParam::SlotDuration(10));
+        ents.push(ConfigParam::KESUpdateSpeed(12 * 3600));
+        ents.push(ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff(
+            Milli::HALF,
+        ));
+        ents.push(ConfigParam::SlotsPerEpoch(NUM_BLOCK_PER_EPOCH));
         genesis_block.message(Message::Initial(ents));
         let genesis_block = genesis_block.make_genesis_block();
+        let mut date = genesis_block.date();
         let genesis_state = Ledger::new(genesis_block.id(), genesis_block.messages()).unwrap();
         assert_eq!(genesis_state.chain_length().0, 0);
         store.put_block(&genesis_block).unwrap();
@@ -308,9 +335,12 @@ mod test {
             let mut block = BlockBuilder::new();
             block.chain_length(state.chain_length.next());
             block.parent(parent);
+            date = date.next(&era);
+            block.date(date);
             let block = block.make_bft_block(&leader_key);
             state = apply_block(&state, &block);
             assert_eq!(state.chain_length().0, i);
+            assert_eq!(state.date, block.date());
             store.put_block(&block).unwrap();
             _root = Some(multiverse.add(block.id(), state.clone()));
             multiverse.gc();

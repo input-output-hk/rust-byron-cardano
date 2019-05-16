@@ -1,9 +1,9 @@
 //! Block service abstraction.
 
 use super::P2pService;
-use crate::error::Error;
+use crate::{error::Error, subscription::BlockEvent};
 
-use chain_core::property::{Block, BlockDate, BlockId, Deserialize, HasHeader, Header, Serialize};
+use chain_core::property::{Block, BlockDate, BlockId, HasHeader, Header};
 
 use futures::prelude::*;
 
@@ -11,16 +11,16 @@ use futures::prelude::*;
 /// providing access to block data.
 pub trait BlockService: P2pService {
     /// The block identifier type for the blockchain.
-    type BlockId: BlockId + Serialize + Deserialize;
+    type BlockId: BlockId;
 
     /// The block date type for the blockchain.
-    type BlockDate: BlockDate + ToString;
+    type BlockDate: BlockDate;
 
     /// The type representing a block on the blockchain.
     type Block: Block<Id = Self::BlockId, Date = Self::BlockDate> + HasHeader<Header = Self::Header>;
 
     /// The type representing metadata header of a block.
-    type Header: Header<Id = Self::BlockId, Date = Self::BlockDate> + Serialize;
+    type Header: Header<Id = Self::BlockId, Date = Self::BlockDate>;
 
     /// The type of asynchronous futures returned by method `tip`.
     ///
@@ -62,15 +62,18 @@ pub trait BlockService: P2pService {
     /// response to `get_headers` methods.
     type GetHeadersStream: Stream<Item = Self::Header, Error = Error>;
 
-    /// The type of asynchronous futures returned by `get_headeres` methods.
+    /// The type of asynchronous futures returned by `get_headers` methods.
     ///
     /// The future resolves to a stream that will be used by the protocol
     /// implementation to produce a server-streamed response.
     type GetHeadersFuture: Future<Item = Self::GetHeadersStream, Error = Error>;
 
+    /// The type of asynchronous futures returned by method `upload_blocks`.
+    type UploadBlocksFuture: Future<Item = (), Error = Error>;
+
     /// The type of an asynchronous stream that retrieves headers of new
     /// blocks as they are created.
-    type BlockSubscription: Stream<Item = Self::Header, Error = Error>;
+    type BlockSubscription: Stream<Item = BlockEvent<Self::Block>, Error = Error>;
 
     /// The type of asynchronous futures returned by method `block_subscription`.
     ///
@@ -112,6 +115,10 @@ pub trait BlockService: P2pService {
     /// Stream block headers from either of the given starting points
     /// to the server's tip.
     fn pull_headers_to_tip(&mut self, from: &[Self::BlockId]) -> Self::PullHeadersFuture;
+
+    fn upload_blocks<S>(&mut self, stream: S) -> Self::UploadBlocksFuture
+    where
+        S: Stream<Item = Self::Block, Error = Error> + Send + 'static;
 
     /// Establishes a bidirectional subscription for announcing blocks.
     ///

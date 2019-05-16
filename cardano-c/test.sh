@@ -24,9 +24,14 @@ fi
 
 : "${VALGRIND:-false}"
 
+OS_OPTIONS=""
+if [ $(uname) == "Darwin" ]; then
+    OS_OPTIONS="-framework Security"
+fi
+
 for FILENAME in ${C_ROOT}test/*.c; do
     [ -e "$FILENAME" ] || continue
-	gcc -o test-cardano-c.$$ -I "${C_ROOT}" "${FILENAME}" "${C_ROOT}test/unity/unity.c" "${PROJECT_ROOT}target/debug/libcardano_c.a" -lpthread -lm -ldl ${UNITY_COLOR} 
+	gcc -std=c99 -o test-cardano-c.$$ -I "${C_ROOT}" "${FILENAME}" "${C_ROOT}test/unity/unity.c" "${PROJECT_ROOT}target/debug/libcardano_c.a" -lpthread -lm -ldl ${UNITY_COLOR} ${OS_OPTIONS}
 	echo "######################################################################"
 	if [ "$VALGRIND" = true ] ; then
 		valgrind ./test-cardano-c.$$

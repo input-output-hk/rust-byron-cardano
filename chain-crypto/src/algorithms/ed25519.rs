@@ -1,4 +1,4 @@
-use crate::key::{AsymmetricKey, PublicKeyError, SecretKeyError};
+use crate::key::{AsymmetricKey, PublicKeyError, SecretKeyError, SecretKeySizeStatic};
 use crate::sign::{SignatureError, SigningAlgorithm, Verification, VerificationAlgorithm};
 use cryptoxide::ed25519;
 use rand::{CryptoRng, RngCore};
@@ -50,7 +50,6 @@ impl AsymmetricKey for Ed25519 {
     const SECRET_BECH32_HRP: &'static str = "ed25519_sk";
     const PUBLIC_BECH32_HRP: &'static str = "ed25519_pk";
 
-    const SECRET_KEY_SIZE: usize = ed25519::SEED_LENGTH;
     const PUBLIC_KEY_SIZE: usize = ed25519::PUBLIC_KEY_LENGTH;
 
     fn generate<T: RngCore + CryptoRng>(mut rng: T) -> Self::Secret {
@@ -82,6 +81,10 @@ impl AsymmetricKey for Ed25519 {
     }
 }
 
+impl SecretKeySizeStatic for Ed25519 {
+    const SECRET_KEY_SIZE: usize = ed25519::SEED_LENGTH;
+}
+
 impl VerificationAlgorithm for Ed25519 {
     type Signature = Sig;
 
@@ -90,7 +93,10 @@ impl VerificationAlgorithm for Ed25519 {
 
     fn signature_from_bytes(data: &[u8]) -> Result<Self::Signature, SignatureError> {
         if data.len() != ed25519::SIGNATURE_LENGTH {
-            return Err(SignatureError::SizeInvalid);
+            return Err(SignatureError::SizeInvalid {
+                expected: ed25519::SIGNATURE_LENGTH,
+                got: data.len(),
+            });
         }
         let mut buf = [0; ed25519::SIGNATURE_LENGTH];
         buf[0..ed25519::SIGNATURE_LENGTH].clone_from_slice(data);
@@ -120,12 +126,13 @@ mod test {
     use crate::key::{KeyPair, PublicKey};
     use crate::sign::test::{keypair_signing_ko, keypair_signing_ok};
 
-    quickcheck! {
-        fn sign_ok(input: (KeyPair<Ed25519>, Vec<u8>)) -> bool {
-            keypair_signing_ok(input)
-        }
-        fn sign_ko(input: (KeyPair<Ed25519>, PublicKey<Ed25519>, Vec<u8>)) -> bool {
-            keypair_signing_ko(input)
-        }
+    #[quickcheck]
+    fn sign_ok(input: (KeyPair<Ed25519>, Vec<u8>)) -> bool {
+        keypair_signing_ok(input)
+    }
+
+    #[quickcheck]
+    fn sign_ko(input: (KeyPair<Ed25519>, PublicKey<Ed25519>, Vec<u8>)) -> bool {
+        keypair_signing_ko(input)
     }
 }

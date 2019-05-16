@@ -4,7 +4,8 @@ use crate::{
     ledger::Ledger,
     stake::StakePoolId,
 };
-use chain_crypto::{Curve25519_2HashDH, Ed25519Extended, FakeMMM, SecretKey};
+use chain_crypto::{Curve25519_2HashDH, Ed25519Extended, SecretKey, SumEd25519_12};
+use chain_time::era::TimeEra;
 
 pub mod bft;
 pub mod genesis;
@@ -49,7 +50,7 @@ pub struct BftLeader {
 
 pub struct GenesisLeader {
     pub node_id: StakePoolId,
-    pub sig_key: SecretKey<FakeMMM>,
+    pub sig_key: SecretKey<SumEd25519_12>,
     pub vrf_key: SecretKey<Curve25519_2HashDH>,
 }
 
@@ -71,6 +72,8 @@ enum LeadershipConsensus {
 }
 
 pub struct Leadership {
+    epoch: Epoch,
+    era: TimeEra,
     inner: LeadershipConsensus,
 }
 
@@ -135,7 +138,23 @@ impl Leadership {
                 genesis::GenesisLeaderSelection::new(epoch, ledger),
             ),
         };
-        Leadership { inner }
+        Leadership {
+            epoch: epoch,
+            era: ledger.settings.era.clone(),
+            inner,
+        }
+    }
+
+    /// get the epoch associated to the `Leadership`
+    #[inline]
+    pub fn epoch(&self) -> Epoch {
+        self.epoch
+    }
+
+    /// get the TimeEra associated to the `Leadership`
+    #[inline]
+    pub fn era(&self) -> &TimeEra {
+        &self.era
     }
 
     /// Verify whether this header has been produced by a leader that fits with the leadership

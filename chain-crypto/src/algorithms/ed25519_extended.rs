@@ -1,4 +1,4 @@
-use crate::key::{AsymmetricKey, PublicKeyError, SecretKeyError};
+use crate::key::{AsymmetricKey, PublicKeyError, SecretKeyError, SecretKeySizeStatic};
 use crate::sign::{SignatureError, SigningAlgorithm, Verification, VerificationAlgorithm};
 
 use super::ed25519 as ei;
@@ -35,7 +35,6 @@ impl AsymmetricKey for Ed25519Extended {
     const SECRET_BECH32_HRP: &'static str = "ed25519e_sk";
     const PUBLIC_BECH32_HRP: &'static str = "ed25519e_pk";
 
-    const SECRET_KEY_SIZE: usize = ed25519::PRIVATE_KEY_LENGTH;
     const PUBLIC_KEY_SIZE: usize = ed25519::PUBLIC_KEY_LENGTH;
 
     fn generate<T: RngCore + CryptoRng>(mut rng: T) -> Self::Secret {
@@ -72,6 +71,10 @@ impl AsymmetricKey for Ed25519Extended {
     }
 }
 
+impl SecretKeySizeStatic for Ed25519Extended {
+    const SECRET_KEY_SIZE: usize = ed25519::PRIVATE_KEY_LENGTH;
+}
+
 impl VerificationAlgorithm for Ed25519Extended {
     type Signature = ei::Sig;
 
@@ -80,7 +83,10 @@ impl VerificationAlgorithm for Ed25519Extended {
 
     fn signature_from_bytes(data: &[u8]) -> Result<Self::Signature, SignatureError> {
         if data.len() != ed25519::SIGNATURE_LENGTH {
-            return Err(SignatureError::SizeInvalid);
+            return Err(SignatureError::SizeInvalid {
+                expected: ed25519::SIGNATURE_LENGTH,
+                got: data.len(),
+            });
         }
         let mut buf = [0; ed25519::SIGNATURE_LENGTH];
         buf[0..ed25519::SIGNATURE_LENGTH].clone_from_slice(data);
@@ -109,12 +115,19 @@ mod test {
     use crate::key::{KeyPair, PublicKey};
     use crate::sign::test::{keypair_signing_ko, keypair_signing_ok};
 
-    quickcheck! {
-        fn sign_ok(input: (KeyPair<Ed25519Extended>, Vec<u8>)) -> bool {
-            keypair_signing_ok(input)
-        }
-        fn sign_ko(input: (KeyPair<Ed25519Extended>, PublicKey<Ed25519Extended>, Vec<u8>)) -> bool {
-            keypair_signing_ko(input)
-        }
+    #[quickcheck]
+    fn sign_ok(input: (KeyPair<Ed25519Extended>, Vec<u8>)) -> bool {
+        keypair_signing_ok(input)
+    }
+
+    #[quickcheck]
+    fn sign_ko(
+        input: (
+            KeyPair<Ed25519Extended>,
+            PublicKey<Ed25519Extended>,
+            Vec<u8>,
+        ),
+    ) -> bool {
+        keypair_signing_ko(input)
     }
 }

@@ -1,10 +1,12 @@
 use crate::{
     convert::{
-        decode_node_id, deserialize_vec, encode_node_id, error_from_grpc, error_into_grpc,
-        FromProtobuf, IntoProtobuf,
+        decode_node_id, deserialize_repeated_bytes, encode_node_id, error_from_grpc,
+        error_into_grpc, FromProtobuf, IntoProtobuf,
     },
     gen,
 };
+
+use chain_core::property;
 
 use network_core::{
     error as core_error,
@@ -152,7 +154,7 @@ where
 
 impl<T, Id, F> Future for SubscriptionFuture<T, Id, F>
 where
-    Id: NodeId,
+    Id: NodeId + property::Serialize,
     F: Future<Error = core_error::Error>,
     F::Item: IntoProtobuf<T>,
 {
@@ -278,12 +280,40 @@ macro_rules! try_decode_node_id {
     };
 }
 
+pub mod protocol_bounds {
+    use chain_core::{mempack, property};
+    use network_core::gossip;
+
+    pub trait Block: property::Block + mempack::Readable + Send + 'static {}
+
+    impl<T> Block for T where T: property::Block + mempack::Readable + Send + 'static {}
+
+    pub trait Header: property::Header + mempack::Readable + Send + 'static {}
+
+    impl<T> Header for T where T: property::Header + mempack::Readable + Send + 'static {}
+
+    pub trait Message: property::Message + mempack::Readable + Send + 'static {}
+
+    impl<T> Message for T where T: property::Message + mempack::Readable + Send + 'static {}
+
+    pub trait Node:
+        gossip::Node + property::Serialize + property::Deserialize + Send + 'static
+    {
+    }
+
+    impl<T> Node for T where
+        T: gossip::Node + property::Serialize + property::Deserialize + Send + 'static
+    {
+    }
+}
+
 impl<T> gen::node::server::Node for NodeService<T>
 where
     T: Node + Clone,
-    <T::BlockService as BlockService>::Header: Send + 'static,
-    <T::ContentService as ContentService>::Message: Send + 'static,
-    <T::GossipService as GossipService>::Node: Send + 'static,
+    <T::BlockService as BlockService>::Block: protocol_bounds::Block,
+    <T::BlockService as BlockService>::Header: protocol_bounds::Header,
+    <T::ContentService as ContentService>::Message: protocol_bounds::Message,
+    <T::GossipService as GossipService>::Node: protocol_bounds::Node,
 {
     type TipFuture = ResponseFuture<
         gen::node::TipResponse,
@@ -322,13 +352,17 @@ where
         <<T as Node>::ContentService as ContentService>::GetMessagesFuture,
     >;
     type BlockSubscriptionStream = ResponseStream<
-        gen::node::Header,
+        gen::node::BlockEvent,
         <<T as Node>::BlockService as BlockService>::BlockSubscription,
     >;
     type BlockSubscriptionFuture = SubscriptionFuture<
         Self::BlockSubscriptionStream,
         <T::BlockService as P2pService>::NodeId,
         <T::BlockService as BlockService>::BlockSubscriptionFuture,
+    >;
+    type UploadBlocksFuture = ResponseFuture<
+        gen::node::UploadBlocksResponse,
+        <T::BlockService as BlockService>::UploadBlocksFuture,
     >;
     type MessageSubscriptionStream = ResponseStream<
         gen::node::Message,
@@ -356,7 +390,7 @@ where
 
     fn get_blocks(&mut self, req: Request<gen::node::BlockIds>) -> Self::GetBlocksFuture {
         let service = try_get_service!(self.inner.block_service());
-        let block_ids = match deserialize_vec(&req.get_ref().id) {
+        let block_ids = match deserialize_repeated_bytes(&req.get_ref().ids) {
             Ok(block_ids) => block_ids,
             Err(e) => {
                 return ResponseFuture::error(error_into_grpc(e));
@@ -367,7 +401,7 @@ where
 
     fn get_headers(&mut self, req: Request<gen::node::BlockIds>) -> Self::GetHeadersFuture {
         let service = try_get_service!(self.inner.block_service());
-        let block_ids = match deserialize_vec(&req.get_ref().id) {
+        let block_ids = match deserialize_repeated_bytes(&req.get_ref().ids) {
             Ok(block_ids) => block_ids,
             Err(e) => {
                 return ResponseFuture::error(error_into_grpc(e));
@@ -381,7 +415,7 @@ where
         req: Request<gen::node::PullBlocksToTipRequest>,
     ) -> Self::PullBlocksToTipFuture {
         let service = try_get_service!(self.inner.block_service());
-        let block_ids = match deserialize_vec(&req.get_ref().from) {
+        let block_ids = match deserialize_repeated_bytes(&req.get_ref().from) {
             Ok(block_ids) => block_ids,
             Err(e) => {
                 return ResponseFuture::error(error_into_grpc(e));
@@ -392,13 +426,22 @@ where
 
     fn get_messages(&mut self, req: Request<gen::node::MessageIds>) -> Self::GetMessagesFuture {
         let service = try_get_service!(self.inner.content_service());
-        let tx_ids = match deserialize_vec(&req.get_ref().id) {
+        let tx_ids = match deserialize_repeated_bytes(&req.get_ref().ids) {
             Ok(tx_ids) => tx_ids,
             Err(e) => {
                 return ResponseFuture::error(error_into_grpc(e));
             }
         };
         ResponseFuture::new(service.get_messages(&tx_ids))
+    }
+
+    fn upload_blocks(
+        &mut self,
+        req: Request<Streaming<gen::node::Block>>,
+    ) -> Self::UploadBlocksFuture {
+        let service = try_get_service!(self.inner.block_service());
+        let stream = RequestStream::new(req.into_inner());
+        ResponseFuture::new(service.upload_blocks(stream))
     }
 
     fn block_subscription(

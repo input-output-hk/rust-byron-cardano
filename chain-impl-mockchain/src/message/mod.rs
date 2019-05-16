@@ -1,4 +1,4 @@
-pub mod initial;
+pub mod config;
 mod raw;
 
 use crate::legacy;
@@ -8,22 +8,24 @@ use chain_core::property;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-pub use initial::InitialEnts;
+pub use config::ConfigParams;
 pub use raw::{MessageId, MessageRaw};
 
 use crate::{
-    certificate, setting,
+    certificate,
     transaction::{AuthenticatedTransaction, NoExtra},
+    update::{SignedUpdateProposal, SignedUpdateVote},
 };
 
 /// All possible messages recordable in the content
 #[derive(Debug, Clone)]
 pub enum Message {
-    Initial(InitialEnts),
+    Initial(ConfigParams),
     OldUtxoDeclaration(legacy::UtxoDeclaration),
     Transaction(AuthenticatedTransaction<Address, NoExtra>),
     Certificate(AuthenticatedTransaction<Address, certificate::Certificate>),
-    Update(setting::UpdateProposal),
+    UpdateProposal(SignedUpdateProposal),
+    UpdateVote(SignedUpdateVote),
 }
 
 /// Tag enumeration of all known message
@@ -33,7 +35,8 @@ pub(super) enum MessageTag {
     OldUtxoDeclaration = 1,
     Transaction = 2,
     Certificate = 3,
-    Update = 4,
+    UpdateProposal = 4,
+    UpdateVote = 5,
 }
 
 impl Message {
@@ -44,7 +47,8 @@ impl Message {
             Message::OldUtxoDeclaration(_) => MessageTag::OldUtxoDeclaration,
             Message::Transaction(_) => MessageTag::Transaction,
             Message::Certificate(_) => MessageTag::Certificate,
-            Message::Update(_) => MessageTag::Update,
+            Message::UpdateProposal(_) => MessageTag::UpdateProposal,
+            Message::UpdateVote(_) => MessageTag::UpdateVote,
         }
     }
 
@@ -53,23 +57,30 @@ impl Message {
         use chain_core::packer::*;
         use chain_core::property::Serialize;
         let v = Vec::new();
-        let mut codec = Codec::from(v);
+        let mut codec = Codec::new(v);
         codec.put_u8(self.get_tag() as u8).unwrap();
         match self {
             Message::Initial(i) => i.serialize(&mut codec).unwrap(),
             Message::OldUtxoDeclaration(s) => s.serialize(&mut codec).unwrap(),
             Message::Transaction(signed) => signed.serialize(&mut codec).unwrap(),
             Message::Certificate(signed) => signed.serialize(&mut codec).unwrap(),
-            Message::Update(proposal) => proposal.serialize(&mut codec).unwrap(),
+            Message::UpdateProposal(proposal) => proposal.serialize(&mut codec).unwrap(),
+            Message::UpdateVote(vote) => vote.serialize(&mut codec).unwrap(),
         }
         MessageRaw(codec.into_inner())
     }
 
     pub fn from_raw(raw: &MessageRaw) -> Result<Self, ReadError> {
-        let buf = &mut ReadBuf::from(raw.as_ref());
+        let mut buf = ReadBuf::from(raw.as_ref());
+        Message::read(&mut buf)
+    }
+}
+
+impl Readable for Message {
+    fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
         let tag = buf.get_u8()?;
         match MessageTag::from_u8(tag) {
-            Some(MessageTag::Initial) => InitialEnts::read(buf).map(Message::Initial),
+            Some(MessageTag::Initial) => ConfigParams::read(buf).map(Message::Initial),
             Some(MessageTag::OldUtxoDeclaration) => {
                 legacy::UtxoDeclaration::read(buf).map(Message::OldUtxoDeclaration)
             }
@@ -79,7 +90,10 @@ impl Message {
             Some(MessageTag::Certificate) => {
                 AuthenticatedTransaction::read(buf).map(Message::Certificate)
             }
-            Some(MessageTag::Update) => setting::UpdateProposal::read(buf).map(Message::Update),
+            Some(MessageTag::UpdateProposal) => {
+                SignedUpdateProposal::read(buf).map(Message::UpdateProposal)
+            }
+            Some(MessageTag::UpdateVote) => SignedUpdateVote::read(buf).map(Message::UpdateVote),
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
@@ -117,12 +131,13 @@ mod test {
 
     impl Arbitrary for Message {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            match g.next_u32() % 5 {
+            match g.next_u32() % 6 {
                 0 => Message::Initial(Arbitrary::arbitrary(g)),
                 1 => Message::OldUtxoDeclaration(Arbitrary::arbitrary(g)),
                 2 => Message::Transaction(Arbitrary::arbitrary(g)),
                 3 => Message::Certificate(Arbitrary::arbitrary(g)),
-                _ => Message::Update(Arbitrary::arbitrary(g)),
+                4 => Message::UpdateProposal(Arbitrary::arbitrary(g)),
+                _ => Message::UpdateVote(Arbitrary::arbitrary(g)),
             }
         }
     }

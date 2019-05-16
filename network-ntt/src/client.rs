@@ -5,6 +5,7 @@ use chain_core::property::{Block, HasHeader, Header};
 use network_core::{
     client::{block::BlockService, P2pService},
     error as core_error,
+    subscription::BlockEvent,
 };
 pub use protocol::protocol::ProtocolMagic;
 use protocol::{
@@ -171,7 +172,8 @@ where
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
     type GetBlocksStream = RequestStream<T>;
     type GetBlocksFuture = RequestFuture<RequestStream<T>>;
-    type BlockSubscription = RequestStream<T::Header>;
+    type UploadBlocksFuture = RequestFuture<()>;
+    type BlockSubscription = RequestStream<BlockEvent<T>>;
     type BlockSubscriptionFuture = RequestFuture<(Self::BlockSubscription, NodeId)>;
 
     fn tip(&mut self) -> Self::TipFuture {
@@ -196,6 +198,17 @@ where
             from: from[0].clone(),
             command_channel: self.channel.clone(),
         }
+    }
+
+    fn get_blocks(&mut self, _ids: &[<Self::Block as Block>::Id]) -> Self::GetBlocksFuture {
+        unimplemented!()
+    }
+
+    fn upload_blocks<S>(&mut self, _blocks: S) -> Self::UploadBlocksFuture
+    where
+        S: Stream<Item = Self::Block> + Send + 'static,
+    {
+        unimplemented!()
     }
 
     fn block_subscription<Out>(&mut self, _outbound: Out) -> Self::BlockSubscriptionFuture

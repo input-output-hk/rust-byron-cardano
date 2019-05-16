@@ -258,3 +258,106 @@ pub extern "C" fn cardano_transaction_finalized_output(
 pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr) {
     unsafe { Box::from_raw(txaux) };
 }
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_txid(txaux: SignedTransactionPtr, out: *mut u8) {
+    let txaux = unsafe { txaux.as_ref().expect("Not a NULL PTR") };
+    let slice = unsafe { slice::from_raw_parts_mut(out, 32) };
+    slice.copy_from_slice(txaux.tx.id().as_hash_bytes());
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_get_inputs(
+    txaux: SignedTransactionPtr,
+    out_array: *mut *mut TransactionOutputPointerPtr,
+    out_size: *mut usize,
+) {
+    let txaux = unsafe { txaux.as_mut().expect("Not a NULL PTR") };
+    let tx = &mut txaux.tx;
+    let mut inputs = tx
+        .inputs
+        .iter_mut()
+        .map(|input| input as TransactionOutputPointerPtr)
+        .collect::<Vec<TransactionOutputPointerPtr>>()
+        .into_boxed_slice();
+
+    let ptr = inputs.as_mut_ptr();
+    let size = inputs.len();
+    std::mem::forget(inputs);
+
+    unsafe {
+        ptr::write(out_array, ptr);
+        ptr::write(out_size, size);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_delete_inputs(
+    inputs: *mut TransactionOutputPointerPtr,
+    size: usize,
+) {
+    unsafe { Box::from_raw(slice::from_raw_parts_mut(inputs, size)) };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_get_outputs(
+    txaux: SignedTransactionPtr,
+    out_array: *mut *mut TransactionOutputPtr,
+    out_size: *mut usize,
+) {
+    let txaux = unsafe { txaux.as_mut().expect("Not a NULL PTR") };
+    let tx = &mut txaux.tx;
+    let mut inputs = tx
+        .outputs
+        .iter_mut()
+        .map(|output| output as TransactionOutputPtr)
+        .collect::<Vec<TransactionOutputPtr>>()
+        .into_boxed_slice();
+
+    let ptr = inputs.as_mut_ptr();
+    let size = inputs.len();
+    std::mem::forget(inputs);
+
+    unsafe {
+        ptr::write(out_array, ptr);
+        ptr::write(out_size, size);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_delete_outputs(
+    outputs: *mut TransactionOutputPtr,
+    size: usize,
+) {
+    unsafe { Box::from_raw(slice::from_raw_parts_mut(outputs, size)) };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_txoptr_txid(
+    txoptr: TransactionOutputPointerPtr,
+    out: *mut u8,
+) {
+    let txoptr = unsafe { txoptr.as_ref().expect("Not a NULL PTR") };
+    let slice = unsafe { slice::from_raw_parts_mut(out, 32) };
+    slice.copy_from_slice(txoptr.id.as_hash_bytes());
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_txoptr_index(txoptr: TransactionOutputPointerPtr) -> u32 {
+    let txoptr = unsafe { txoptr.as_ref().expect("Not a NULL PTR") };
+    txoptr.index
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_txoutput_address(
+    txoutput: TransactionOutputPtr,
+) -> AddressPtr {
+    let txo = unsafe { txoutput.as_mut().expect("Not a NULL PTR") };
+    &mut txo.address as AddressPtr
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_transaction_txoutput_value(txoutput: TransactionOutputPtr) -> u64 {
+    let txo = unsafe { txoutput.as_ref().expect("Not a NULL PTR") };
+    txo.value.into()
+}
