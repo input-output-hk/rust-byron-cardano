@@ -209,9 +209,13 @@ impl Storage {
                 let header = block.header();
                 let entry = Storage::create_loose_index_entry(&header);
                 let new_tip_diff = u64::from(entry.difficulty);
-                if let Some(prev_tip_diff) = prev_diff {
-                    // Here we are going bavkward in history, so check next height is lower
-                    assert!((new_tip_diff < prev_tip_diff) & (prev_tip_diff - new_tip_diff == 1));
+                // FIXME: add in a new_tip_diff == prev_tip_diff assert for the boundary block case
+                // and verify that this is indeed the proper action and does not panic existing flows.
+                if !header.is_boundary_block() {
+                    if let Some(prev_tip_diff) = prev_diff {
+                        // Here we are going bavkward in history, so check next height is lower
+                        assert!((new_tip_diff < prev_tip_diff) & (prev_tip_diff - new_tip_diff == 1));
+                    }
                 }
                 prev_diff = Some(new_tip_diff);
                 // Here we append elements to the end,
@@ -343,8 +347,13 @@ impl Storage {
         if let Some(idx_tip) = self.chain_height_idx.loose_idx.get(0) {
             let new_diff = u64::from(header.difficulty());
             let prev_diff = u64::from(idx_tip.difficulty);
-            // Assert new proposed idx tip has higher chain height
-            assert!((new_diff > prev_diff) & (new_diff - prev_diff == 1));
+            if header.is_boundary_block() {
+                // difficulty does not increase with boundary blocks, only height does
+                assert!(new_diff == prev_diff);
+            } else {
+                // Assert new proposed idx tip has higher chain height
+                assert!((new_diff > prev_diff) & (new_diff - prev_diff == 1));
+            }
         }
         // Here we insert elements to the start, because index is going from newer to older
         self.chain_height_idx
