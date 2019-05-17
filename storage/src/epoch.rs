@@ -1,4 +1,4 @@
-use cardano::block::{types::HeaderHash, BlockDate, ChainState, EpochId, EpochFlags};
+use cardano::block::{types::HeaderHash, BlockDate, ChainState, EpochFlags, EpochId};
 use cardano::config::GenesisData;
 use chain_state;
 use std::fs;
@@ -82,7 +82,15 @@ pub fn epoch_create(
 
     let offsets_len = index.offsets.len();
     let offsets = index.offsets.clone();
-    epoch_write_pack(&storage.config, packref, &last_block, epochid, offsets, flags).unwrap();
+    epoch_write_pack(
+        &storage.config,
+        packref,
+        &last_block,
+        epochid,
+        offsets,
+        flags,
+    )
+    .unwrap();
     storage.add_pack_to_index(epochid, offsets_len as serialize::Size, flags);
 
     // write the chain state at the end of the epoch
@@ -160,8 +168,7 @@ pub fn epoch_read_block_offset(
     epochid: EpochId,
     block_index: u32,
 ) -> Result<(hash::PackHash, serialize::Offset)> {
-    let offset_offset = EPOCH_OFFSETS_OFFSET
-        + block_index as u64 * serialize::OFF_SIZE as u64;
+    let offset_offset = EPOCH_OFFSETS_OFFSET + block_index as u64 * serialize::OFF_SIZE as u64;
     let pack_filepath = config.get_epoch_pack_filepath(epochid);
     let mut file = fs::File::open(&pack_filepath)?;
     let mut ph = [0u8; super::HASH_SIZE];

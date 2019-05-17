@@ -258,7 +258,6 @@ pub struct EpochFlags {
     pub is_ebb: bool,
 }
 impl EpochFlags {
-
     pub fn to_mask(&self) -> u8 {
         let mut mask = 0u8;
         if self.is_ebb {
@@ -269,7 +268,7 @@ impl EpochFlags {
 
     pub fn from_mask(mask: u8) -> EpochFlags {
         EpochFlags {
-            is_ebb: (mask & 1) > 0
+            is_ebb: (mask & 1) > 0,
         }
     }
 }

@@ -132,7 +132,10 @@ pub fn read_chain_state(
                 let lbb_epoch = blk.header.consensus.epoch;
                 let cur_epoch = chain_state.last_date.unwrap().get_epochid();
                 if lbb_epoch > cur_epoch {
-                    panic!("Last EBB epoch is in the future! lbbEpoch={}, curEpoch={}", lbb_epoch, cur_epoch);
+                    panic!(
+                        "Last EBB epoch is in the future! lbbEpoch={}, curEpoch={}",
+                        lbb_epoch, cur_epoch
+                    );
                 }
                 (blk.body.slot_leaders.clone(), lbb_epoch)
             }
