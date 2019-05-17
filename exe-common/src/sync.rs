@@ -1,5 +1,6 @@
 use cardano::block::{
-    Block, BlockDate, BlockHeader, ChainState, EpochFlags, EpochId, Error as BlockError, HeaderHash, RawBlock,
+    Block, BlockDate, BlockHeader, ChainState, EpochFlags, EpochId, Error as BlockError,
+    HeaderHash, RawBlock,
 };
 use cardano::config::GenesisData;
 use cardano::util::hex;
@@ -420,7 +421,11 @@ fn perform_rollback(
             }
             Err(e) => panic!("Can't lock storage! {:?}", e),
         }
-        return Ok(restore_previous_tip_for_epoch(current_epoch, net_cfg, storage_config));
+        return Ok(restore_previous_tip_for_epoch(
+            current_epoch,
+            net_cfg,
+            storage_config,
+        ));
     }
 }
 
@@ -435,9 +440,10 @@ fn restore_previous_tip_for_epoch(
     } else {
         // New tip is last block of last packed epoch
         let prev_epoch = (epoch - 1) as u64;
-        epoch::epoch_read_chainstate_ref(&storage_config, prev_epoch).expect(
-            &format!("Failed to read chainstate ref from epoch {}", prev_epoch),
-        )
+        epoch::epoch_read_chainstate_ref(&storage_config, prev_epoch).expect(&format!(
+            "Failed to read chainstate ref from epoch {}",
+            prev_epoch
+        ))
     }
 }
 
@@ -465,8 +471,8 @@ pub fn net_sync<A: Api>(
     let mut tip_header = net.get_tip()?;
 
     loop {
-
-        storage.write()
+        storage
+            .write()
             .expect("Failed to write net-tip into storage!")
             .net_tip = Some(tip_header.clone());
 
@@ -515,7 +521,13 @@ fn maybe_create_epoch(
 
     append_blocks_to_epoch_reverse(&mut epoch_writer_state, &mut chain_state, blocks)?;
 
-    finish_epoch(storage, genesis_data, epoch_writer_state, &chain_state, is_epoch_with_ebb)?;
+    finish_epoch(
+        storage,
+        genesis_data,
+        epoch_writer_state,
+        &chain_state,
+        is_epoch_with_ebb,
+    )?;
 
     Ok(())
 }
@@ -596,7 +608,7 @@ fn finish_epoch(
     assert_eq!(chain_state.last_date.unwrap().get_epochid(), epoch_id);
 
     let epoch_flags = EpochFlags {
-        is_ebb: is_epoch_with_ebb
+        is_ebb: is_epoch_with_ebb,
     };
 
     epoch::epoch_create(

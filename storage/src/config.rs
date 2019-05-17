@@ -1,4 +1,4 @@
-use cardano::block::{ EpochFlags, EpochId };
+use cardano::block::{EpochFlags, EpochId};
 use std::fs;
 use std::path::PathBuf;
 
@@ -130,7 +130,8 @@ impl StorageConfig {
             assert_eq!(i as u64, *j);
         }
         // Drop explicit epoch_id, because now we can refer by index
-        let res = packs.into_iter()
+        let res = packs
+            .into_iter()
             .map(|(_, p, f)| (p, f))
             .collect::<Vec<(u32, EpochFlags)>>();
         Ok(res)
