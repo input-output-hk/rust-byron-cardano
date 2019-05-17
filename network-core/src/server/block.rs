@@ -1,7 +1,7 @@
 //! Block service abstraction.
 
 use super::P2pService;
-use crate::{error::Error, subscription::BlockEvent};
+use crate::{error::Error, subscription::BlockExch};
 
 use chain_core::property::{Block, BlockDate, BlockId, HasHeader, Header};
 
@@ -68,18 +68,22 @@ pub trait BlockService: P2pService {
     /// implementation to produce a server-streamed response.
     type GetHeadersFuture: Future<Item = Self::GetHeadersStream, Error = Error>;
 
-    /// The type of asynchronous futures returned by method `on_uploaded_block`.
-    type OnUploadedBlockFuture: Future<Item = (), Error = Error>;
+    /// The sink type for `BlockExch::Solicit` items produced by
+    /// `Self::BlockExchangeStream`.
+    type BlockSolicitationSink: Sink<SinkItem = Self::Block, SinkError = Error>;
 
-    /// The type of an asynchronous stream that retrieves headers of new
-    /// blocks as they are created.
-    type BlockSubscription: Stream<Item = BlockEvent<Self::Block>, Error = Error>;
+    /// The type of an asynchronous stream that retrieves announcements or
+    /// solicitations for blocks to be sent to the client.
+    type BlockExchangeStream: Stream<
+        Item = BlockExch<Self::Block, Self::BlockSolicitationSink>,
+        Error = Error,
+    >;
 
     /// The type of asynchronous futures returned by method `block_subscription`.
     ///
     /// The future resolves to a stream that will be used by the protocol
     /// implementation to produce a server-streamed response.
-    type BlockSubscriptionFuture: Future<Item = Self::BlockSubscription, Error = Error>;
+    type BlockExchangeFuture: Future<Item = Self::BlockExchangeStream, Error = Error>;
 
     /// Request the current blockchain tip.
     /// The returned future resolves to the tip of the blockchain
@@ -116,22 +120,21 @@ pub trait BlockService: P2pService {
     /// to the server's tip.
     fn pull_headers_to_tip(&mut self, from: &[Self::BlockId]) -> Self::PullHeadersFuture;
 
-    /// Called when the client connection uploads a block.
-    fn on_uploaded_block(&mut self, block: Self::Block) -> Self::OnUploadedBlockFuture;
-
-    /// Establishes a bidirectional subscription for announcing blocks.
+    /// Establishes a bidirectional exchange of blocks between the two peers.
     ///
     /// The network protocol implementation passes the node identifier of
     /// the sender and an asynchronous stream that will provide the inbound
-    /// announcements.
+    /// announcements and block solicitations.
     ///
     /// Returns a future resolving to an asynchronous stream
-    /// that will be used by this node to send block announcements.
-    fn block_subscription<In>(
+    /// that will be used by this node to send block announcements
+    /// and solicitations.
+    fn block_exchange<In, SolSink>(
         &mut self,
         subscriber: Self::NodeId,
         inbound: In,
-    ) -> Self::BlockSubscriptionFuture
+    ) -> Self::BlockExchangeFuture
     where
-        In: Stream<Item = Self::Header, Error = Error> + Send + 'static;
+        In: Stream<Item = BlockExch<Self::Block, SolSink>, Error = Error> + Send + 'static,
+        SolSink: Sink<SinkItem = Self::Block> + Send + 'static;
 }

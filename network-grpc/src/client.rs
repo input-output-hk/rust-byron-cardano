@@ -13,7 +13,7 @@ use network_core::{
     client::{block::BlockService, gossip::GossipService, P2pService},
     error as core_error,
     gossip::{self, Gossip, NodeId},
-    subscription::BlockEvent,
+    subscription::BlockExch,
 };
 
 use futures::future::Executor;
@@ -132,16 +132,6 @@ impl<T, R> ResponseFuture<T, R> {
     }
 }
 
-pub struct ClientStreamingCompletionFuture<R> {
-    inner: GrpcClientStreamingFuture<R>,
-}
-
-impl<R> ClientStreamingCompletionFuture<R> {
-    fn new(inner: GrpcClientStreamingFuture<R>) -> Self {
-        ClientStreamingCompletionFuture { inner }
-    }
-}
-
 pub struct ResponseStreamFuture<T, R> {
     inner: GrpcServerStreamingFuture<R>,
     _phantom: PhantomData<T>,
@@ -187,19 +177,6 @@ where
         let res = try_ready!(self.inner.poll().map_err(error_from_grpc));
         let item = T::from_message(res.into_inner())?;
         Ok(Async::Ready(item))
-    }
-}
-
-impl<R> Future for ClientStreamingCompletionFuture<R>
-where
-    R: prost::Message + Default,
-{
-    type Item = ();
-    type Error = core_error::Error;
-
-    fn poll(&mut self) -> Poll<(), core_error::Error> {
-        try_ready!(self.inner.poll().map_err(error_from_grpc));
-        Ok(Async::Ready(()))
     }
 }
 
@@ -292,6 +269,8 @@ where
 impl<P, T, E> Connection<P, T, E>
 where
     P: ProtocolConfig,
+    T: AsyncRead + AsyncWrite,
+    E: Executor<Background<T, BoxBody>> + Clone,
 {
     fn new_subscription_request<R, Out>(&self, outbound: Out) -> Request<RequestStream<Out, R>>
     where
@@ -308,6 +287,26 @@ where
             // eventually be permissive node implementations.
         }
         req
+    }
+
+    fn adapt_block_exchange_outbound<Out, SolSink>(
+        &mut self,
+        outbound: Out,
+    ) -> impl Stream<Item = P::Header>
+    where
+        Out: Stream<Item = BlockExch<P::Block, SolSink>> + Send + 'static,
+        SolSink: Sink<SinkItem = P::Block> + Send + 'static,
+    {
+        outbound.filter_map(move |item| match item {
+            BlockExch::Announce(header) => Some(header),
+            BlockExch::Solicit(block_ids, sink) => {
+                let ids = serialize_to_repeated_bytes(&block_ids).unwrap();
+                let req = gen::node::BlockIds { ids };
+                let res = service.get_blocks(Request::new(req));
+                tokio::spawn(ResponseStreamFuture::new(res).forward(sink));
+                None
+            }
+        })
     }
 }
 
@@ -334,10 +333,7 @@ where
     type GetBlocksFuture = ResponseStreamFuture<P::Block, gen::node::Block>;
 
     type BlockSubscription = ResponseStream<BlockEvent<P::Block>, gen::node::BlockEvent>;
-    type BlockSubscriptionFuture =
-        SubscriptionFuture<BlockEvent<P::Block>, Self::NodeId, gen::node::BlockEvent>;
-
-    type UploadBlocksFuture = ClientStreamingCompletionFuture<gen::node::UploadBlocksResponse>;
+    type BlockExchangeFuture = SubscriptionFuture<P::Header, Self::NodeId, gen::node::BlockEvent>;
 
     fn tip(&mut self) -> Self::TipFuture {
         let req = gen::node::TipRequest {};
@@ -359,20 +355,12 @@ where
         ResponseStreamFuture::new(future)
     }
 
-    fn upload_blocks<S>(&mut self, blocks: S) -> Self::UploadBlocksFuture
+    fn block_exchange<Out, SolSink>(&mut self, outbound: Out) -> Self::BlockExchangeFuture
     where
-        S: Stream<Item = P::Block> + Send + 'static,
+        Out: Stream<Item = BlockExch<P::Block, SolSink>> + Send + 'static,
+        SolSink: Sink<SinkItem = P::Block> + Send + 'static,
     {
-        let rs = RequestStream::new(blocks);
-        let req = Request::new(rs);
-        let future = self.service.upload_blocks(req);
-        ClientStreamingCompletionFuture::new(future)
-    }
-
-    fn block_subscription<Out>(&mut self, outbound: Out) -> Self::BlockSubscriptionFuture
-    where
-        Out: Stream<Item = P::Header> + Send + 'static,
-    {
+        let outbound = self.adapt_block_exchange_outbound(outbound);
         let req = self.new_subscription_request(outbound);
         let future = self.service.block_subscription(req);
         SubscriptionFuture::new(future)

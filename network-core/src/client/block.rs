@@ -1,5 +1,5 @@
 use super::P2pService;
-use crate::{error::Error, subscription::BlockEvent};
+use crate::{error::Error, subscription::BlockExch};
 
 use chain_core::property::{Block, HasHeader};
 
@@ -57,35 +57,33 @@ pub trait BlockService: P2pService {
     // implementation to produce a server-streamed response.
     //type GetHeadersFuture: Future<Item = Self::GetHeadersStream, Error = Error>;
 
-    /// The type of asynchronous futures returned by method `block_subscription`.
+    /// The type of asynchronous futures returned by method `block_exchange`.
     ///
-    /// The future resolves to a stream of blocks sent by the remote node
-    /// and the identifier of the node in the network.
-    type BlockSubscriptionFuture: Future<
-        Item = (Self::BlockSubscription, Self::NodeId),
+    /// The future resolves to a stream of `BlockExch` items sent by
+    /// the remote node and the identifier of the node in the network.
+    type BlockExchangeFuture: Future<
+        Item = (Self::BlockExchangeStream, Self::NodeId),
         Error = Error,
     >;
 
-    /// The type of asynchronous futures returned by method `upload_blocks`.
-    type UploadBlocksFuture: Future<Item = (), Error = Error>;
-
-    /// Uploads blocks to the service in response to `BlockEvent::Solicit`.
-    ///
-    /// The blocks to send are retrieved asynchronously from the passed stream.
-    fn upload_blocks<S>(&mut self, blocks: S) -> Self::UploadBlocksFuture
-    where
-        S: Stream<Item = Self::Block> + Send + 'static;
+    /// The sink type for `BlockExch::Solicit` items produced by
+    /// `Self::BlockExchangeStream`.
+    type BlockSolicitationSink: Sink<SinkItem = Self::Block, SinkError = Error>;
 
     /// The type of an asynchronous stream that provides notifications
-    /// of blocks created or accepted by the remote node.
-    type BlockSubscription: Stream<Item = BlockEvent<Self::Block>, Error = Error>;
+    /// of blocks announced or solicited by the remote node.
+    type BlockExchangeStream: Stream<
+        Item = BlockExch<Self::Block, Self::BlockSolicitationSink>,
+        Error = Error,
+    >;
 
-    /// Establishes a bidirectional stream of notifications for blocks
+    /// Establishes a bidirectional exchange of blocks
     /// created or accepted by either of the peers.
     ///
     /// The client can use the stream that the returned future resolves to
     /// as a long-lived subscription handle.
-    fn block_subscription<S>(&mut self, outbound: S) -> Self::BlockSubscriptionFuture
+    fn block_exchange<Out, SolSink>(&mut self, outbound: Out) -> Self::BlockExchangeFuture
     where
-        S: Stream<Item = <Self::Block as HasHeader>::Header> + Send + 'static;
+        Out: Stream<Item = BlockExch<Self::Block, SolSink>> + Send + 'static,
+        SolSink: Sink<SinkItem = Self::Block> + Send + 'static;
 }
