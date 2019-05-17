@@ -83,7 +83,14 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
         );
     }
 
-    // TODO: get valid genesis and remove this
+    /*
+     * We have to do this ugly hack, because this parsing module
+     * for some unknown at the moment reason returns a hash that
+     * does not agree with the network. But only for OBFT testnet.
+     * Might be caused by JSON genesis file spacing or something.
+     *
+     * TODO: get valid genesis and remove this
+     */
     let wrong_obft = block::HeaderHash::from_str(
         "00b8e1f18bf7cd70c06a5e463a931402e16203f19936fb76f3dea7e81eafc635",
     )
