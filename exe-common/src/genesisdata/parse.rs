@@ -84,7 +84,7 @@ pub fn parse<R: Read>(json: R) -> config::GenesisData {
     }
 
     config::GenesisData {
-        genesis_prev: correct_genesis_prev,
+        genesis_prev,
         epoch_stability_depth: data.protocolConsts.k,
         protocol_magic,
         fee_policy: fee::LinearFee::new(
