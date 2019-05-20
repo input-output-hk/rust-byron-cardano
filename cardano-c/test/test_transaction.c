@@ -35,7 +35,7 @@ void setUp()
     char *addresses[2];
     size_t NUMBER_OF_ADDRESSES = sizeof(addresses) / sizeof(char *);
 
-    int rc = cardano_account_generate_addresses(account, 0, 0, NUMBER_OF_ADDRESSES, addresses);
+    int rc = cardano_account_generate_addresses(account, 0, 0, NUMBER_OF_ADDRESSES, addresses, PROTOCOL_MAGIC);
 
     input_address = cardano_address_import_base58(addresses[0]);
     output_address = cardano_address_import_base58(addresses[1]);

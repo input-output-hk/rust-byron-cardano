@@ -212,11 +212,12 @@ void cardano_account_delete(cardano_account *account);
 * \param [in] from_index  
 * \param [in] num_indices
 * \param [out] addresses_ptr array of strings consisting of the base58 representation of the addresses
+* \param [in] protocol_magic
 * \returns the number of generated addresses
 * \sa cardano_address_import_base58()
 * \sa cardano_address_delete() 
 */
-unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
+unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[], uint32_t protocol_magic);
 void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long length);
 
 /****************/
