@@ -325,6 +325,51 @@ void test_transaction_get_output_total_too_big()
     cardano_transaction_output_delete(output2);
 }
 
+void test_transaction_finalized_serialize()
+{
+    cardano_transaction_error_t irc1 = cardano_transaction_builder_add_input(txbuilder, input, 1000);
+    cardano_transaction_builder_add_output(txbuilder, output);
+
+    cardano_transaction *tx;
+    cardano_transaction_error_t tx_rc = cardano_transaction_builder_finalize(txbuilder, &tx);
+
+    cardano_transaction_finalized *tf = cardano_transaction_finalized_new(tx);
+
+    cardano_transaction_error_t rc1 = cardano_transaction_finalized_add_witness(tf, input_xprv, PROTOCOL_MAGIC, txid);
+
+    cardano_signed_transaction *txaux;
+    cardano_transaction_error_t rc = cardano_transaction_finalized_output(tf, &txaux);
+
+    uint8_t *bytes;
+    size_t size;
+    cardano_result status = cardano_signed_transaction_serialize(txaux, &bytes, &size);
+
+    uint8_t actual_txaux[] = {
+        130, 131, 159, 130, 0, 216, 24, 88, 36, 130, 88, 32, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 255, 159, 130, 130, 216, 24, 88, 36, 131, 88, 28, 121, 249, 185, 75,
+        10, 140, 75, 131, 137, 174, 29, 193, 190, 51, 24, 21, 69, 212, 76, 142, 123, 215, 231, 188,
+        171, 83, 143, 85, 161, 2, 65, 1, 0, 26, 100, 143, 115, 160, 25, 3, 232, 255, 160, 129,
+        130, 0, 216, 24, 88, 133, 130, 88, 64, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 88, 64, 10, 168, 244, 131, 6,
+        4, 246, 63, 62, 97, 109, 249, 96, 229, 158, 209, 194, 219, 50, 53, 208, 121, 154, 147, 75,
+        75, 95, 162, 136, 166, 172, 185, 222, 240, 56, 31, 18, 79, 64, 224, 155, 186, 136, 205, 172,
+        180, 160, 66, 134, 123, 185, 45, 20, 203, 36, 111, 39, 249, 207, 207, 211, 174, 49, 9
+    };
+
+    TEST_ASSERT_EQUAL(CARDANO_RESULT_SUCCESS, status);
+
+    TEST_ASSERT_EQUAL(sizeof(actual_txaux), size);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(actual_txaux, bytes, sizeof(actual_txaux));
+
+    cardano_signed_transaction_serialized_delete(bytes, size);
+    cardano_transaction_delete(tx);
+    cardano_transaction_finalized_delete(tf);
+    cardano_transaction_signed_delete(txaux);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -349,5 +394,6 @@ int main(void)
     RUN_TEST(test_transaction_get_output_total_no_outputs);
     RUN_TEST(test_transaction_get_input_total_too_big);
     RUN_TEST(test_transaction_get_output_total_too_big);
+    RUN_TEST(test_transaction_finalized_serialize);
     return UNITY_END();
 }

@@ -16,3 +16,4 @@ crate-type = ["staticlib" ]
 
 [dependencies]
 cardano = { path = "../cardano" }
+cbor_event = "^2.1.1"
