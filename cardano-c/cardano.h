@@ -212,11 +212,12 @@ void cardano_account_delete(cardano_account *account);
 * \param [in] from_index  
 * \param [in] num_indices
 * \param [out] addresses_ptr array of strings consisting of the base58 representation of the addresses
+* \param [in] protocol_magic
 * \returns the number of generated addresses
 * \sa cardano_address_import_base58()
 * \sa cardano_address_delete() 
 */
-unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[]);
+unsigned long cardano_account_generate_addresses(cardano_account *account, int internal, unsigned int from_index, unsigned long num_indices, char *addresses_ptr[], uint32_t protocol_magic);
 void cardano_account_delete_addresses(char *addresses_ptr[], unsigned long length);
 
 /****************/
@@ -312,6 +313,23 @@ void cardano_signed_transaction_get_outputs(
     cardano_txoutput *(*outputs[]),
     size_t *outputs_size
 );
+
+/*! \brief Encode a cardano_signed_transaction as CBOR 
+* \param [in] txaux a cardano signed transaction
+* \param [out] out_ptr pointer to the serialized data
+* \param [out] out_size size of the encoded data
+* \sa cardano_signed_transaction_serialized_delete()
+*/
+cardano_result cardano_signed_transaction_serialize(
+    cardano_signed_transaction *txaux,
+    uint8_t **out_ptr,
+    size_t *out_size);
+
+/*! \brief Release the memory allocated by cardano_signed_transaction_serialize()
+* \param [in] pointer
+* \param [in] size
+*/
+void cardano_signed_transaction_serialized_delete(uint8_t *pointer, size_t size);
 
 /*! \brief Release the memory allocated by `cardano_transaction_signed_get_outputs`
 */

@@ -33,7 +33,7 @@ enum
 char *address[NUMBER_OF_ADDRESSES];
 const int IS_INTERNAL = 1;
 const unsigned int FROM_INDEX = 0;
-cardano_account_generate_addresses(account, IS_INTERNAL, FROM_INDEX, NUMBER_OF_ADDRESSES, address);
+cardano_account_generate_addresses(account, IS_INTERNAL, FROM_INDEX, NUMBER_OF_ADDRESSES, address, PROTOCOL_MAGIC);
 
 /*
     ...

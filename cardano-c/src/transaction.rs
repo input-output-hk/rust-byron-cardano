@@ -260,6 +260,40 @@ pub extern "C" fn cardano_transaction_signed_delete(txaux: SignedTransactionPtr)
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_signed_transaction_serialize(
+    txaux: SignedTransactionPtr,
+    out_ptr: *mut *const u8,
+    out_size: *mut usize,
+) -> CardanoResult {
+    let txaux = unsafe { txaux.as_mut().expect("Not a NULL PTR") };
+    let mut data = {
+        let buffer = vec![];
+        let mut serializer = cbor_event::se::Serializer::new(buffer);
+        if let Err(_) = serializer.serialize(txaux) {
+            return CardanoResult::failure();
+        };
+        let bytes = serializer.finalize();
+        bytes.into_boxed_slice()
+    };
+
+    let ptr = data.as_mut_ptr();
+    let size = data.len();
+    std::mem::forget(data);
+
+    unsafe {
+        ptr::write(out_ptr, ptr);
+        ptr::write(out_size, size);
+    }
+
+    CardanoResult::success()
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_signed_transaction_serialized_delete(ptr: *mut u8, size: usize) {
+    unsafe { Box::from_raw(slice::from_raw_parts_mut(ptr, size)) };
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_signed_transaction_txid(txaux: SignedTransactionPtr, out: *mut u8) {
     let txaux = unsafe { txaux.as_ref().expect("Not a NULL PTR") };
     let slice = unsafe { slice::from_raw_parts_mut(out, 32) };

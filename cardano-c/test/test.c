@@ -11,6 +11,7 @@ void test_can_create_address(void)
 {
     static const char *alias = "Test Wallet";
     static char *address[1];
+    static uint32_t PROTOCOL_MAGIC = 1;
     size_t NUMBER_OF_ADDRESSES = sizeof(address) / sizeof(char *);
 
     cardano_wallet *wallet;
@@ -27,7 +28,7 @@ void test_can_create_address(void)
 
     TEST_ASSERT_MESSAGE(account, "The account creation failed");
 
-    cardano_account_generate_addresses(account, 0, 0, NUMBER_OF_ADDRESSES, address);
+    cardano_account_generate_addresses(account, 0, 0, NUMBER_OF_ADDRESSES, address, PROTOCOL_MAGIC);
 
     TEST_ASSERT_MESSAGE(!cardano_address_is_valid(address[0]), "The generated address is invalid");
 
