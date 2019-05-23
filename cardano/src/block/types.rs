@@ -1,7 +1,7 @@
 use super::normal::SscPayload;
 use cbor_event::{self, de::Deserializer, se::Serializer};
 use hash::Blake2b256;
-use util::try_from_slice::TryFromSlice;
+use util::{hex, try_from_slice::TryFromSlice};
 
 use std::{
     fmt,
@@ -45,6 +45,10 @@ impl HeaderHash {
 
     pub fn as_hash_bytes(&self) -> &[u8; Blake2b256::HASH_SIZE] {
         self.0.as_hash_bytes()
+    }
+
+    pub fn as_hex(&self) -> String {
+        hex::encode(self.as_hash_bytes())
     }
 }
 
@@ -238,6 +242,11 @@ impl fmt::Display for ChainDifficulty {
 impl From<u64> for ChainDifficulty {
     fn from(f: u64) -> Self {
         ChainDifficulty(f)
+    }
+}
+impl From<ChainDifficulty> for u64 {
+    fn from(cd: ChainDifficulty) -> Self {
+        cd.0
     }
 }
 

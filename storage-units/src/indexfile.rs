@@ -91,6 +91,11 @@ impl Fanout {
         FanoutTotal(self.0[255])
     }
 }
+impl From<FanoutTotal> for u32 {
+    fn from(ft: FanoutTotal) -> Self {
+        ft.0
+    }
+}
 
 pub struct Bloom(Vec<u8>);
 
