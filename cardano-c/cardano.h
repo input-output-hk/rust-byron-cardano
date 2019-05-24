@@ -106,6 +106,8 @@ typedef struct cardano_xprv cardano_xprv;
 */
 typedef struct cardano_xpub cardano_xpub;
 
+cardano_xprv *cardano_xprv_derive(cardano_xprv *xprv, uint32_t index); 
+
 /*!
 * Free the associated memory
 */
@@ -182,6 +184,9 @@ cardano_result cardano_wallet_new(const uint8_t * const entropy_ptr, unsigned lo
 * Free the memory of a wallet allocated with `cardano_wallet_new`
 */
 void cardano_wallet_delete(cardano_wallet *);
+
+
+cardano_xprv *cardano_wallet_root_key(cardano_wallet *wallet_ptr);
 
 /*!
 * \brief Create a new account, the account is given an alias and an index.
@@ -271,6 +276,16 @@ typedef struct cardano_txid {
 */
 void cardano_signed_transaction_txid(
     cardano_signed_transaction *txaux,
+    cardano_txid_t *out_txid
+);
+
+/*! \brief Get the transaction id
+* \param [in] tx
+* \param [out] out_txid
+* \relates cardano_transaction
+*/
+void cardano_transaction_txid(
+    cardano_transaction *tx,
     cardano_txid_t *out_txid
 );
 
