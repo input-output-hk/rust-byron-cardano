@@ -7,7 +7,11 @@ use cardano_storage::{
     pack, tag, types, Error, Storage,
 };
 use config::net;
-use network::{api::Api, api::BlockRef, Peer, Result};
+use network::{
+    api::{Api, BlockReceivingFlag, BlockRef},
+    Peer,
+    Result
+};
 use std::mem;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
@@ -250,6 +254,7 @@ fn net_sync_to<A: Api>(
                     unreachable!();
                 }
             }
+            return BlockReceivingFlag::Continue;
         },
     )?;
 

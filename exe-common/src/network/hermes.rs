@@ -12,7 +12,7 @@ use futures::{Future, Stream};
 use hyper::Client;
 use tokio_core::reactor::Core;
 
-use network::api::{Api, BlockRef};
+use network::api::{Api, BlockReceivingFlag, BlockRef};
 use network::{Error, Result};
 
 // Time between get_tip calls. FIXME: make configurable?
@@ -121,7 +121,7 @@ impl Api for HermesEndPoint {
         got_block: &mut F,
     ) -> Result<()>
     where
-        F: FnMut(&HeaderHash, &Block, &RawBlock) -> (),
+        F: FnMut(&HeaderHash, &Block, &RawBlock) -> BlockReceivingFlag,
     {
         let mut inclusive = inclusive;
         let mut from = from.clone();
@@ -185,7 +185,11 @@ impl Api for HermesEndPoint {
                     //assert!(from.date != hdr.get_blockdate() || from.hash == hdr.compute_hash());
 
                     if from.date <= hdr.blockdate() {
-                        got_block(&hdr.compute_hash(), &block, &block_raw);
+                        if got_block(&hdr.compute_hash(), &block, &block_raw)
+                            == BlockReceivingFlag::Stop
+                        {
+                            return Ok(());
+                        }
                     }
 
                     from = BlockRef {
@@ -217,7 +221,9 @@ impl Api for HermesEndPoint {
                 }
 
                 while let Some((hash, block, block_raw)) = blocks.pop() {
-                    got_block(&hash, &block, &block_raw);
+                    if got_block(&hash, &block, &block_raw) == BlockReceivingFlag::Stop {
+                        return Ok(());
+                    }
                 }
 
                 break;
