@@ -9,8 +9,7 @@ use cardano_storage::{
 use config::net;
 use network::{
     api::{Api, BlockReceivingFlag, BlockRef},
-    Peer,
-    Result
+    Peer, Result,
 };
 use std::mem;
 use std::sync::{Arc, RwLock};
