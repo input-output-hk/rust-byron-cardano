@@ -68,6 +68,10 @@ int main(int argc, char *argv)
     /*Get the root key*/
     cardano_xprv *root_key = cardano_wallet_root_key(wallet);
 
+    cardano_account_delete(account);
+    cardano_wallet_delete(wallet);
+    cardano_delete_entropy_array(entropy, bytes);
+
     /*Get a transaction builder*/
     cardano_transaction_builder *txbuilder = cardano_transaction_builder_new();
 
@@ -93,6 +97,12 @@ int main(int argc, char *argv)
     //Byte representation is required for signing
     uint8_t *input_xprv_bytes = cardano_xprv_to_bytes(input_xprv);
 
+    //Free the memory of the xprvs as only the input_xprv_bytes is needed later
+    cardano_xprv_delete(input_xprv);
+    cardano_xprv_delete(external_address_level);
+    cardano_xprv_delete(account_xprv);
+    cardano_xprv_delete(root_key);
+
     //Add the input
 
     /*The transaction with the unspent*/
@@ -114,12 +124,15 @@ int main(int argc, char *argv)
         printf("Error adding input\n");
         return 1;
     }
+    cardano_transaction_output_ptr_delete(input);
 
     //Transfer to the second generated address
     cardano_address *to_address = cardano_address_import_base58(addresses[1]);
     cardano_txoutput *output = cardano_transaction_output_new(to_address, 80000);
+    cardano_address_delete(to_address);
 
     cardano_transaction_builder_add_output(txbuilder, output);
+    cardano_transaction_output_delete(output);
 
     //Add the source address as change address
     cardano_address *change_addr = cardano_address_import_base58(addresses[0]);
@@ -129,12 +142,18 @@ int main(int argc, char *argv)
         return 1;
     }
 
+    cardano_address_delete(change_addr);
+
+    //Release the memory of the two base58 addresses
+    cardano_account_delete_addresses(addresses, 2);
+
     cardano_transaction *tx;
     if (cardano_transaction_builder_finalize(txbuilder, &tx) != CARDANO_RESULT_SUCCESS)
     {
         printf("Error when finalizing transaction\n");
         return 1;
     }
+    cardano_transaction_builder_delete(txbuilder);
 
     cardano_txid_t txid;
     cardano_transaction_txid(tx, &txid);
@@ -147,7 +166,9 @@ int main(int argc, char *argv)
         printf("Couldn't add witness\n");
         return 1;
     }
+
     cardano_xprv_bytes_delete(input_xprv_bytes);
+    cardano_transaction_delete(tx);
 
     cardano_signed_transaction *txaux;
     if (cardano_transaction_finalized_output(tf, &txaux) != CARDANO_RESULT_SUCCESS)
@@ -155,6 +176,7 @@ int main(int argc, char *argv)
         printf("Error in finalized output\n");
         return 1;
     }
+    cardano_transaction_finalized_delete(tf);
 
     uint8_t *serialized_bytes;
     size_t serialized_size;
@@ -163,6 +185,7 @@ int main(int argc, char *argv)
         printf("Error when serializing the transaction\n");
         return 1;
     }
+    cardano_transaction_signed_delete(txaux);
 
     //Print the resulting txid in hexadecimal notation
     char txid_str[sizeof(txid) * 2 + 1];
@@ -175,4 +198,6 @@ int main(int argc, char *argv)
     FILE *file = fopen(txid_str, "w");
     fwrite(serialized_bytes, sizeof(uint8_t), serialized_size, file);
     fclose(file);
+
+    cardano_signed_transaction_serialized_delete(serialized_bytes, serialized_size);
 }
