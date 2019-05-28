@@ -235,7 +235,7 @@ pub extern "C" fn cardano_transaction_finalized_add_witness(
     let txid_slice = unsafe { slice::from_raw_parts(c_txid, TxId::HASH_SIZE) };
     let txid = TxId::try_from_slice(txid_slice).unwrap();
 
-    let witness = TxInWitness::new(protocol_magic, xprv, &txid);
+    let witness = TxInWitness::new_extended_pk(protocol_magic, xprv, &txid);
     if let Ok(()) = tf.add_witness(witness) {
         CardanoTransactionErrorCode::success()
     } else {
