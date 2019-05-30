@@ -2,6 +2,7 @@ use cardano::address;
 use cardano::bip;
 use cardano::config::ProtocolMagic;
 use cardano::hdwallet;
+use cardano::hdwallet::XPrv;
 use cardano::wallet::bip44;
 use cardano::wallet::scheme::Wallet;
 
@@ -9,7 +10,7 @@ use std::os::raw::c_char;
 use std::{ffi, ptr, slice};
 
 use address::ffi_address_to_base58;
-use types::{AccountPtr, CardanoResult, WalletPtr};
+use types::{AccountPtr, CardanoResult, WalletPtr, XPrvPtr};
 
 /* ******************************************************************************* *
  *                                  Wallet object                                  *
@@ -57,6 +58,13 @@ pub extern "C" fn cardano_wallet_new(
 #[no_mangle]
 pub extern "C" fn cardano_wallet_delete(wallet_ptr: WalletPtr) {
     unsafe { Box::from_raw(wallet_ptr) };
+}
+
+#[no_mangle]
+pub extern "C" fn cardano_wallet_root_key(wallet_ptr: WalletPtr) -> XPrvPtr {
+    let wallet = unsafe { wallet_ptr.as_mut() }.expect("Not a NULL PTR");
+    let xprv: Box<XPrv> = Box::new((***wallet).clone());
+    Box::into_raw(xprv)
 }
 
 /* ******************************************************************************* *

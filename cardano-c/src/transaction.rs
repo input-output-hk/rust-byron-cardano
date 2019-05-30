@@ -197,6 +197,13 @@ pub extern "C" fn cardano_transaction_builder_finalize(
 }
 
 #[no_mangle]
+pub extern "C" fn cardano_transaction_txid(tx: TransactionPtr, out: *mut u8) {
+    let tx = unsafe { tx.as_mut() }.expect("Not a NULL PTR");
+    let slice = unsafe { slice::from_raw_parts_mut(out, 32) };
+    slice.copy_from_slice(tx.id().as_hash_bytes());
+}
+
+#[no_mangle]
 pub extern "C" fn cardano_transaction_delete(tx: TransactionPtr) {
     unsafe { Box::from_raw(tx) };
 }
@@ -228,7 +235,7 @@ pub extern "C" fn cardano_transaction_finalized_add_witness(
     let txid_slice = unsafe { slice::from_raw_parts(c_txid, TxId::HASH_SIZE) };
     let txid = TxId::try_from_slice(txid_slice).unwrap();
 
-    let witness = TxInWitness::new(protocol_magic, xprv, &txid);
+    let witness = TxInWitness::new_extended_pk(protocol_magic, xprv, &txid);
     if let Ok(()) = tf.add_witness(witness) {
         CardanoTransactionErrorCode::success()
     } else {
