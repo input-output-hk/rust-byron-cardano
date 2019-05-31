@@ -168,8 +168,10 @@ where
 {
     type Block = T;
     type TipFuture = RequestFuture<T::Header>;
-    type PullBlocksToTipStream = RequestStream<T>;
+    type PullBlocksStream = RequestStream<T>;
     type PullBlocksToTipFuture = PullBlocksToTip<T>;
+    type PullHeadersStream = RequestStream<T::Header>;
+    type PullHeadersFuture = RequestFuture<RequestStream<T::Header>>;
     type GetBlocksStream = RequestStream<T>;
     type GetBlocksFuture = RequestFuture<RequestStream<T>>;
     type UploadBlocksFuture = RequestFuture<()>;
@@ -198,6 +200,14 @@ where
             from: from[0].clone(),
             command_channel: self.channel.clone(),
         }
+    }
+
+    fn pull_headers(
+        &mut self,
+        _from: &[<Self::Block as Block>::Id],
+        _to: &<Self::Block as Block>::Id,
+    ) -> Self::PullHeadersFuture {
+        unimplemented!()
     }
 
     fn get_blocks(&mut self, _ids: &[<Self::Block as Block>::Id]) -> Self::GetBlocksFuture {
