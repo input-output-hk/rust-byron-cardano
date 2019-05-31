@@ -324,7 +324,7 @@ impl AddressReadable {
 
 impl ToString for AddressReadable {
     fn to_string(&self) -> String {
-        self.0.clone()
+        self.0.as_str().to_string().clone()
     }
 }
 
