@@ -232,15 +232,9 @@ where
                             .or_else(|_| Ok(())),
                     )))
                 }
-                Inbound::SendTransaction(_lwcid, tx) => {
-                    future::Either::B(future::Either::B(future::Either::B(
-                        server
-                            .node
-                            .content_service()
-                            .unwrap()
-                            .propose_transactions(&vec![tx])
-                            .then(|_| Ok(())), // FIXME handle the error
-                    )))
+                Inbound::SendTransaction(_lwcid, _tx) => {
+                    unimplemented!();
+                    future::Either::B(future::Either::B(future::Either::B(future::ok(()))))
                 }
                 _x => future::Either::A(future::ok(())),
             }
