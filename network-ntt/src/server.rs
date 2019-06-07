@@ -171,7 +171,7 @@ where
                             .block_service()
                             .expect("block service is not implemented");
                         match get_block_header.to {
-                            Some(to) => service.pull_headers_to(&get_block_header.from, &to),
+                            Some(to) => service.pull_headers(&get_block_header.from, &to),
                             None => service.pull_headers_to_tip(&get_block_header.from),
                         }
                         .map_err(|err| err.to_string())
@@ -206,7 +206,7 @@ where
                             .node
                             .block_service()
                             .expect("block service is not implemented")
-                            .pull_blocks_to(&vec![get_blocks.from], &get_blocks.to)
+                            .pull_blocks(&vec![get_blocks.from], &get_blocks.to)
                             .map_err(|err| err.to_string())
                             .and_then(move |blocks| {
                                 let inner1 = sink.clone();
