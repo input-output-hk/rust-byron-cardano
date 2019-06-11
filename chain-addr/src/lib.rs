@@ -345,6 +345,13 @@ impl AddressReadable {
         let dat = Vec::from_base32(r.data()).unwrap();
         Address::from_bytes(&dat[..]).unwrap()
     }
+
+    /// Convert a valid AddressReadable to a decoded address with a new prefix
+    pub fn convert(addr: Address, prefix: &str) -> AddressReadable {
+        let v = ToBase32::to_base32(&addr.to_bytes());
+        let b = Bech32::new(prefix.to_string(), v).unwrap();
+        AddressReadable(b.to_string())
+    }
 }
 
 impl std::fmt::Display for AddressReadable {
