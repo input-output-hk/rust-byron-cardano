@@ -853,3 +853,23 @@ fn input_account_verify(
         }
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    use crate::message::ConfigParams;
+    use quickcheck::{Arbitrary, Gen};
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn test_of_test(init_message: ArbitraryInitMessage) {}
+
+    #[derive(Clone, Debug)]
+    struct ArbitraryInitMessage(Message);
+
+    impl Arbitrary for ArbitraryInitMessage {
+        fn arbitrary<G: Gen>(gen: &mut G) -> Self {
+            ArbitraryInitMessage(Message::Initial(ConfigParams::arbitrary_all_params(gen)))
+        }
+    }
+}

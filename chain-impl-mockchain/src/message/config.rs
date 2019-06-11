@@ -70,4 +70,23 @@ mod test {
             )
         }
     }
+
+    impl ConfigParams {
+        pub fn arbitrary_all_params(g: &mut impl Gen) -> Self {
+            ConfigParams(vec![
+                ConfigParam::Block0Date(Arbitrary::arbitrary(g)),
+                ConfigParam::Discrimination(Arbitrary::arbitrary(g)),
+                ConfigParam::ConsensusVersion(Arbitrary::arbitrary(g)),
+                ConfigParam::SlotsPerEpoch(Arbitrary::arbitrary(g)),
+                ConfigParam::SlotDuration(Arbitrary::arbitrary(g)),
+                ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff(Arbitrary::arbitrary(g)),
+                ConfigParam::MaxNumberOfTransactionsPerBlock(Arbitrary::arbitrary(g)),
+                ConfigParam::BftSlotsRatio(Arbitrary::arbitrary(g)),
+                ConfigParam::AddBftLeader(Arbitrary::arbitrary(g)),
+                ConfigParam::RemoveBftLeader(Arbitrary::arbitrary(g)),
+                ConfigParam::LinearFee(Arbitrary::arbitrary(g)),
+                ConfigParam::ProposalExpiration(Arbitrary::arbitrary(g)),
+            ])
+        }
+    }
 }
