@@ -5,7 +5,7 @@ use super::declaration::{Declaration, DeclarationError, Identifier};
 use crate::accounting::account::{self, SpendingCounter};
 use crate::value::{Value, ValueError};
 
-#[derive(Clone)]
+#[derive(Clone, serde_derive::Serialize)]
 pub struct Ledger {
     // TODO : investigate about merging the declarations and the accounts in
     // one with an extension on the account::Ledger

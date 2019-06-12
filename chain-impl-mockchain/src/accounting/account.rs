@@ -37,7 +37,7 @@ impl From<InsertError> for LedgerError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde_derive::Serialize)]
 pub struct AccountState<Extra> {
     counter: SpendingCounter,
     delegation: Option<StakePoolId>,
@@ -126,7 +126,7 @@ impl<Extra: Clone> AccountState<Extra> {
 /// the counter is incremented. A matching counter
 /// needs to be used in the spending phase to make
 /// sure we have non-replayability of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde_derive::Serialize)]
 pub struct SpendingCounter(u32);
 
 impl SpendingCounter {
@@ -166,7 +166,7 @@ impl<'a, ID, Extra> Iterator for Iter<'a, ID, Extra> {
 }
 
 /// The public ledger of all accounts associated with their current state
-#[derive(Clone)]
+#[derive(Clone, serde_derive::Serialize)]
 pub struct Ledger<ID: Hash + Eq, Extra>(Hamt<DefaultHasher, ID, AccountState<Extra>>);
 
 impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {

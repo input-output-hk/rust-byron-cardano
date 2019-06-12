@@ -14,7 +14,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
 /// Nonce gathered per block
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize)]
 pub struct Nonce([u8; 32]);
 
 impl Nonce {
@@ -50,7 +50,7 @@ impl Error for ActiveSlotsCoeffError {}
 /// Active slots coefficient used for calculating minimum stake to become slot leader candidate
 /// Described in Ouroboros Praos paper, also referred to as parameter F of phi function
 /// Always in range (0, 1]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde_derive::Serialize)]
 pub struct ActiveSlotsCoeff(pub(crate) Milli);
 
 impl TryFrom<Milli> for ActiveSlotsCoeff {

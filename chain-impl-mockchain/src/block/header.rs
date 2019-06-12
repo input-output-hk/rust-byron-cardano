@@ -31,7 +31,7 @@ pub struct Common {
     pub chain_length: ChainLength,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
 pub struct ChainLength(pub(crate) u32);
 
 /// FIXME SECURITY : we want to sign Common + everything in proof except the signature

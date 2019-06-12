@@ -5,10 +5,10 @@ use crate::leadership::genesis::GenesisPraosLeader;
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde_derive::Serialize)]
 pub struct StakePoolId(Hash);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize)]
 pub struct StakePoolInfo {
     pub serial: u128,
     pub owners: Vec<account::Identifier>,

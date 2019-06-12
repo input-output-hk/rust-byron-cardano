@@ -248,6 +248,17 @@ impl<A: AsymmetricKey> Bech32 for SecretKey<A> {
     }
 }
 
+impl<A: AsymmetricPublicKey> serde::Serialize for PublicKey<A> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // FIXME: we don't want to encode as a string in binary
+        // serialization formats.
+        serializer.serialize_str(&self.to_bech32_str())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -5,3 +5,5 @@ authors = ["Vincent Hanquez <vincent.hanquez@iohk.io>"]
 edition = "2018"
 
 [dependencies]
+serde = "^1.0"
+serde_derive = "^1.0"

@@ -51,7 +51,7 @@ cfg_if! {
 // Allow to differentiate between address in
 // production and testing setting, so that
 // one type of address is not used in another setting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_derive::Serialize)]
 pub enum Discrimination {
     Production,
     Test,
@@ -442,6 +442,17 @@ impl property::Deserialize for Address {
             _ => unreachable!(),
         };
         Ok(Address(discr, kind))
+    }
+}
+
+impl serde::Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // FIXME: we don't want to encode as a string in binary
+        // serialization formats.
+        serializer.serialize_str(&AddressReadable::from_address(&self).as_string())
     }
 }
 

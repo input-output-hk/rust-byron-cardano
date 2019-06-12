@@ -6,6 +6,7 @@ use chain_core::property;
 use chain_crypto as crypto;
 use chain_crypto::{AsymmetricKey, AsymmetricPublicKey, SigningAlgorithm, VerificationAlgorithm};
 
+use base64;
 use std::str::FromStr;
 
 pub type SpendingPublicKey = crypto::PublicKey<crypto::Ed25519>;
@@ -219,6 +220,17 @@ impl property::Deserialize for Hash {
         let mut buffer = [0; crypto::Blake2b256::HASH_SIZE];
         reader.read_exact(&mut buffer)?;
         Ok(Hash(crypto::Blake2b256::from(buffer)))
+    }
+}
+
+impl serde::Serialize for Hash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // FIXME: we don't want to encode as a string in binary
+        // serialization formats.
+        serializer.serialize_str(&base64::encode(self.as_ref()))
     }
 }
 

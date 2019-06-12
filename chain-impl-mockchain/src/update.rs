@@ -7,7 +7,7 @@ use chain_crypto::{Ed25519, Ed25519Extended, PublicKey, SecretKey, Verification}
 use std::collections::{BTreeMap, HashSet};
 use std::iter;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde_derive::Serialize)]
 pub struct UpdateState {
     // Note: we use a BTreeMap to ensure that proposals are processed
     // in a well-defined (sorted) order.
@@ -132,7 +132,7 @@ impl UpdateState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde_derive::Serialize)]
 pub struct UpdateProposalState {
     pub proposal: UpdateProposal,
     pub proposal_date: BlockDate,
@@ -215,7 +215,7 @@ impl std::error::Error for Error {}
 pub type UpdateProposalId = crate::message::MessageId;
 pub type UpdateVoterId = bft::LeaderId;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde_derive::Serialize)]
 pub struct UpdateProposal {
     pub changes: ConfigParams,
 }
@@ -446,4 +446,6 @@ mod test {
             }
         }
     }
+
+    // FIXME: add update tests
 }

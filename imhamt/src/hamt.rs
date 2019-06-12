@@ -202,3 +202,19 @@ impl<H: Default + Hasher, K: Eq + Hash, V> FromIterator<(K, V)> for Hamt<H, K, V
         h
     }
 }
+
+impl<H: Default + Hasher, K: Eq + Hash + serde::Serialize, V: serde::Serialize> serde::Serialize
+    for Hamt<H, K, V>
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.size()))?;
+        for (k, v) in self.iter() {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}

@@ -16,7 +16,7 @@ pub use vrfeval::{ActiveSlotsCoeff, ActiveSlotsCoeffError, Nonce, Witness, Witne
 use vrfeval::{PercentStake, VrfEvaluator};
 
 /// Praos Leader consisting of the KES public key and VRF public key
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde_derive::Serialize)]
 pub struct GenesisPraosLeader {
     pub kes_public_key: PublicKey<SumEd25519_12>,
     pub vrf_public_key: PublicKey<Curve25519_2HashDH>,

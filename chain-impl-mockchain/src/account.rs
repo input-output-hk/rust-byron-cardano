@@ -11,7 +11,7 @@ pub use account::{LedgerError, SpendingCounter};
 pub type AccountAlg = Ed25519;
 
 /// Account Identifier (also used as Public Key)
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
 pub struct Identifier(PublicKey<AccountAlg>);
 
 impl From<PublicKey<AccountAlg>> for Identifier {

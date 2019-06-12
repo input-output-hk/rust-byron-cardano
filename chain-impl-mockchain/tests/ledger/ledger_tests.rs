@@ -228,5 +228,25 @@ pub fn delegation_to_account_correct_transaction() {
 
     let dyn_params = ledger.get_ledger_parameters();
     let r = ledger.apply_transaction(&signed_tx, &dyn_params);
-    assert!(r.is_ok())
+    assert!(r.is_ok());
+}
+
+#[test]
+pub fn serialize() {
+    let discrimination = Discrimination::Test;
+
+    let mut rng = rand::thread_rng();
+    let mut delegation_rng = rand::thread_rng();
+    let (_sk1, _pk1, user1_address) =
+        accounts::make_utxo_delegation_key(&mut rng, &mut delegation_rng, &discrimination);
+
+    let (message, _utxos) = ledger::create_initial_transaction(Output {
+        address: user1_address.clone(),
+        value: Value(42000),
+    });
+
+    let (_block0_hash, ledger) =
+        ledger::create_initial_fake_ledger(&[message], ConfigBuilder::new().build());
+
+    println!("{}", serde_json::to_string(&ledger).unwrap());
 }

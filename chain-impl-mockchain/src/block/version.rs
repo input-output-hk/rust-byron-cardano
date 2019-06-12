@@ -83,6 +83,7 @@ impl BlockVersion {
     PartialOrd,
     Ord,
     Hash,
+    serde_derive::Serialize,
 )]
 pub enum ConsensusVersion {
     #[strum(to_string = "bft")]

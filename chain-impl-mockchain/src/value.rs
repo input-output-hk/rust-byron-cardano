@@ -3,8 +3,7 @@ use chain_core::property;
 use std::ops;
 
 /// Unspent transaction value.
-#[cfg_attr(feature = "generic-serialization", derive(serde_derive::Serialize))]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
 pub struct Value(pub u64);
 
 impl Value {
