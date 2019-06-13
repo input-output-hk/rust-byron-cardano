@@ -84,6 +84,7 @@ impl BlockVersion {
     Ord,
     Hash,
     serde_derive::Serialize,
+    serde_derive::Deserialize,
 )]
 pub enum ConsensusVersion {
     #[strum(to_string = "bft")]

@@ -80,7 +80,7 @@ pub fn utxo_to_utxo_correct_transaction() {
         address: user1_address.clone(),
         value: Value(42000),
     });
-    let (block0_hash, ledger) =
+    let (_block0_hash, ledger) =
         ledger::create_initial_fake_ledger(&[message], ConfigBuilder::new().build());
 
     let signed_tx = TransactionBuilder::new()
@@ -245,8 +245,14 @@ pub fn serialize() {
         value: Value(42000),
     });
 
-    let (_block0_hash, ledger) =
+    let (block0_hash, ledger) =
         ledger::create_initial_fake_ledger(&[message], ConfigBuilder::new().build());
 
-    println!("{}", serde_json::to_string(&ledger).unwrap());
+    let json = serde_json::to_string(&ledger).unwrap();
+    println!("{}", json);
+
+    let restored_ledger: chain_impl_mockchain::ledger::Ledger =
+        serde_json::from_str(&json).unwrap();
+
+    assert!(ledger == restored_ledger);
 }

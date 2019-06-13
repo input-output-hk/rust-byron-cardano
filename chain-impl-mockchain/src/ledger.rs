@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 // static parameters, effectively this is constant in the parameter of the blockchain
-#[derive(Clone, serde_derive::Serialize)]
+#[derive(Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct LedgerStaticParameters {
     pub block0_initial_hash: HeaderHash,
     pub block0_start_time: config::Block0Date,
@@ -40,7 +40,7 @@ pub struct LedgerParameters {
 ///
 /// The ledger can be easily and cheaply cloned despite containing reference
 /// to a lot of data (millions of utxos, thousands of accounts, ..)
-#[derive(Clone, serde_derive::Serialize)]
+#[derive(Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct Ledger {
     pub(crate) utxos: utxo::Ledger<Address>,
     pub(crate) oldutxos: utxo::Ledger<legacy::OldAddress>,

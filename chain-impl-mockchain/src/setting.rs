@@ -14,7 +14,7 @@ use chain_time::era::TimeEra;
 use std::convert::TryFrom;
 use std::sync::Arc;
 
-#[derive(Clone, Debug, Eq, PartialEq, serde_derive::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct Settings {
     pub era: TimeEra,
     pub consensus_version: ConsensusVersion,

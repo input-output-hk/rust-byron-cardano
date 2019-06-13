@@ -2,7 +2,7 @@ use crate::config::ConfigParam;
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 
-#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct ConfigParams(pub(crate) Vec<ConfigParam>);
 
 impl ConfigParams {

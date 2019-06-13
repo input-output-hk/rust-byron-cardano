@@ -259,6 +259,15 @@ impl<A: AsymmetricPublicKey> serde::Serialize for PublicKey<A> {
     }
 }
 
+impl<'de, A: AsymmetricPublicKey> serde::Deserialize<'de> for PublicKey<A> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::try_from_bech32_str(&String::deserialize(deserializer)?).unwrap())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

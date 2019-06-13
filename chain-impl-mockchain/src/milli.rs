@@ -3,7 +3,18 @@ use std::{fmt, iter};
 
 const MILLI_MULTIPLIER: u64 = 1000;
 
-#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, serde_derive::Serialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct Milli(u64);
 
 impl Milli {

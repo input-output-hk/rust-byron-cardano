@@ -3,7 +3,18 @@ use chain_core::property;
 use std::ops;
 
 /// Unspent transaction value.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct Value(pub u64);
 
 impl Value {

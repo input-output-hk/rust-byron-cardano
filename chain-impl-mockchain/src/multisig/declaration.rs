@@ -5,7 +5,17 @@ use super::index::{Index, TreeIndex, LEVEL_MAXLIMIT};
 pub use crate::transaction::WitnessMultisigData;
 
 /// Account Identifier (also used as Public Key)
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct Identifier(key::Hash);
 
 impl AsRef<[u8]> for Identifier {
@@ -39,7 +49,7 @@ impl std::fmt::Display for Identifier {
 ///
 /// * a threshold that need to be between 1 and the size of owners
 /// * a bunch of owners which is either a hash of a key, or a sub declaration
-#[derive(Debug, Clone, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct Declaration {
     pub(crate) threshold: u8, // between 1 and len(owners)
     pub(crate) owners: Vec<DeclElement>,
@@ -55,7 +65,7 @@ impl Declaration {
     }
 }
 
-#[derive(Debug, Clone, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub enum DeclElement {
     Sub(Declaration),
     Owner(key::Hash),

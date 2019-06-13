@@ -6,7 +6,18 @@ use std::{error, fmt, num::ParseIntError, str};
 /// Non unique identifier of the transaction position in the
 /// blockchain. There may be many transactions related to the same
 /// `SlotId`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde_derive::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct BlockDate {
     pub epoch: Epoch,
     pub slot_id: SlotId,

@@ -183,7 +183,7 @@ impl Readable for Input {
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct Output<Address> {
     pub address: Address,
     pub value: Value,

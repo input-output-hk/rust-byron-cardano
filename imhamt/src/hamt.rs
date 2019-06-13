@@ -218,3 +218,31 @@ impl<H: Default + Hasher, K: Eq + Hash + serde::Serialize, V: serde::Serialize> 
         map.end()
     }
 }
+
+impl<
+        'de,
+        H: Default + Hasher,
+        K: Eq + Hash + serde::Deserialize<'de>,
+        V: serde::Deserialize<'de>,
+    > serde::Deserialize<'de> for Hamt<H, K, V>
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let map = std::collections::HashMap::<K, V>::deserialize(deserializer)?;
+        Ok(Self::from_iter(map.into_iter()))
+    }
+}
+
+impl<H: Default + Hasher, K: Eq + Hash, V: PartialEq> PartialEq for Hamt<H, K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        // FIXME: this is inefficient but we're only using it for
+        // debug asserts at the moment.
+        let m1: std::collections::HashMap<&K, &V> = self.iter().collect();
+        let m2: std::collections::HashMap<&K, &V> = self.iter().collect();
+        return m1 == m2;
+    }
+}
+
+impl<H: Default + Hasher, K: Eq + Hash, V: Eq> Eq for Hamt<H, K, V> {}

@@ -6,7 +6,6 @@ use chain_core::property;
 use chain_crypto as crypto;
 use chain_crypto::{AsymmetricKey, AsymmetricPublicKey, SigningAlgorithm, VerificationAlgorithm};
 
-use base64;
 use std::str::FromStr;
 
 pub type SpendingPublicKey = crypto::PublicKey<crypto::Ed25519>;
@@ -230,7 +229,16 @@ impl serde::Serialize for Hash {
     {
         // FIXME: we don't want to encode as a string in binary
         // serialization formats.
-        serializer.serialize_str(&base64::encode(self.as_ref()))
+        serializer.serialize_str(&format!("{}", self.0))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Hash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::from_str(&String::deserialize(deserializer)?).unwrap())
     }
 }
 

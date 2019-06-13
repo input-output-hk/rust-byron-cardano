@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 pub type BftVerificationAlg = Ed25519;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct LeaderId(pub(crate) PublicKey<BftVerificationAlg>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -14,7 +14,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
 /// Nonce gathered per block
-#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Nonce([u8; 32]);
 
 impl Nonce {
@@ -27,6 +27,29 @@ impl Nonce {
         buf[0..32].copy_from_slice(&self.0);
         buf[32..64].copy_from_slice(&other.0);
         self.0.copy_from_slice(Hash::hash_bytes(&buf).as_ref())
+    }
+}
+
+impl serde::Serialize for Nonce {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // FIXME: we don't want to encode as a string in binary
+        // serialization formats.
+        serializer.serialize_str(&base64::encode(&self.0))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Nonce {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let data = base64::decode(&String::deserialize(deserializer)?).unwrap();
+        let mut buf = [0; 32];
+        buf.copy_from_slice(&data[0..32]);
+        Ok(Self(buf))
     }
 }
 
@@ -50,7 +73,7 @@ impl Error for ActiveSlotsCoeffError {}
 /// Active slots coefficient used for calculating minimum stake to become slot leader candidate
 /// Described in Ouroboros Praos paper, also referred to as parameter F of phi function
 /// Always in range (0, 1]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde_derive::Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct ActiveSlotsCoeff(pub(crate) Milli);
 
 impl TryFrom<Milli> for ActiveSlotsCoeff {

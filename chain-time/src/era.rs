@@ -3,7 +3,17 @@
 use crate::timeframe::Slot;
 
 /// Epoch number
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde_derive::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct Epoch(pub u32);
 
 /// Slot Offset *in* a given epoch
@@ -19,7 +29,7 @@ pub struct EpochPosition {
 
 /// Describe a new era, which start at epoch_start and is associated
 /// to a specific slot. Each epoch have a constant number of slots on a given time era.
-#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct TimeEra {
     epoch_start: Epoch,
     slot_start: Slot,

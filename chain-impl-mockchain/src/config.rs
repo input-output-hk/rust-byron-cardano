@@ -42,7 +42,7 @@ impl Into<ReadError> for Error {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde_derive::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub enum ConfigParam {
     Block0Date(Block0Date),
     Discrimination(Discrimination),
@@ -201,7 +201,7 @@ trait ConfigParamVariant: Clone + Eq + PartialEq {
 }
 
 /// Seconds elapsed since 1-Jan-1970 (unix time)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, serde_derive::Serialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, serde_derive::Serialize, serde_derive::Deserialize)]
 pub struct Block0Date(pub u64);
 
 impl ConfigParamVariant for Block0Date {

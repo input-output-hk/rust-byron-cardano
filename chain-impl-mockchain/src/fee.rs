@@ -5,7 +5,16 @@ use chain_addr::Address;
 
 /// Linear fee using the basic affine formula
 /// `COEFFICIENT * bytes(COUNT(tx.inputs) + COUNT(tx.outputs)) + CONSTANT + CERTIFICATE*COUNT(certificates)`.
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, serde_derive::Serialize)]
+#[derive(
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Debug,
+    Clone,
+    Copy,
+    serde_derive::Serialize,
+    serde_derive::Deserialize,
+)]
 pub struct LinearFee {
     pub constant: u64,
     pub coefficient: u64,
