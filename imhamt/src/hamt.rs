@@ -237,11 +237,17 @@ impl<
 
 impl<H: Default + Hasher, K: Eq + Hash, V: PartialEq> PartialEq for Hamt<H, K, V> {
     fn eq(&self, other: &Self) -> bool {
-        // FIXME: this is inefficient but we're only using it for
-        // debug asserts at the moment.
-        let m1: std::collections::HashMap<&K, &V> = self.iter().collect();
-        let m2: std::collections::HashMap<&K, &V> = self.iter().collect();
-        return m1 == m2;
+        if self.size() != other.size() {
+            return false;
+        }
+        for (k, v) in self.iter() {
+            if let Some(v2) = other.lookup(k) {
+                if v != v2 { return false; }
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
