@@ -242,7 +242,9 @@ impl<H: Default + Hasher, K: Eq + Hash, V: PartialEq> PartialEq for Hamt<H, K, V
         }
         for (k, v) in self.iter() {
             if let Some(v2) = other.lookup(k) {
-                if v != v2 { return false; }
+                if v != v2 {
+                    return false;
+                }
             } else {
                 return false;
             }
