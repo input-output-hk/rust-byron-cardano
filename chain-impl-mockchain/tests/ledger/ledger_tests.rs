@@ -80,7 +80,7 @@ pub fn utxo_to_utxo_correct_transaction() {
         address: user1_address.clone(),
         value: Value(42000),
     });
-    let (_block0_hash, ledger) =
+    let (block0_hash, ledger) =
         ledger::create_initial_fake_ledger(&[message], ConfigBuilder::new().build());
 
     let signed_tx = TransactionBuilder::new()
