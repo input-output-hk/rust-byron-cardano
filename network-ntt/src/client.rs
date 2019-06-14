@@ -3,7 +3,7 @@ use super::gossip::NodeId;
 use chain_core::property::{Block, HasHeader, Header};
 
 use network_core::{
-    client::{block::BlockService, P2pService},
+    client::{block::BlockService, p2p::P2pService},
     error as core_error,
     subscription::BlockEvent,
 };
