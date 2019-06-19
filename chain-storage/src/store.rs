@@ -176,27 +176,72 @@ pub trait BlockStore {
             Ok(None)
         }
     }
+}
 
-    /// Return an iterator that yields block info for the blocks in
-    /// the half-open range `(from, to]`. `from` must be an ancestor
-    /// of `to` and may be the zero hash.
-    fn iterate_range<'store>(
-        &'store self,
-        from: &<Self::Block as Block>::Id,
-        to: &<Self::Block as Block>::Id,
-    ) -> Result<BlockIterator<'store, Self>, Error> {
-        // FIXME: put blocks loaded by is_ancestor into pending_infos.
-        match self.is_ancestor(from, to)? {
-            None => Err(Error::CannotIterate),
-            Some(distance) => {
-                let to_info = self.get_block_info(&to)?;
-                Ok(BlockIterator {
-                    store: &self,
-                    to_depth: to_info.depth,
-                    cur_depth: to_info.depth - distance,
-                    pending_infos: vec![to_info],
-                })
-            }
+impl<T: ?Sized + BlockStore> BlockStore for Box<T> {
+    type Block = T::Block;
+
+    fn put_block_internal(
+        &mut self,
+        block: &Self::Block,
+        block_info: BlockInfo<<Self::Block as Block>::Id>,
+    ) -> Result<(), Error> {
+        (**self).put_block_internal(block, block_info)
+    }
+
+    fn get_block(
+        &self,
+        block_hash: &<Self::Block as Block>::Id,
+    ) -> Result<(Self::Block, BlockInfo<<Self::Block as Block>::Id>), Error> {
+        (**self).get_block(block_hash)
+    }
+
+    fn get_block_info(
+        &self,
+        block_hash: &<Self::Block as Block>::Id,
+    ) -> Result<BlockInfo<<Self::Block as Block>::Id>, Error> {
+        (**self).get_block_info(block_hash)
+    }
+
+    fn block_exists(&self, block_hash: &<Self::Block as Block>::Id) -> Result<bool, Error> {
+        (**self).block_exists(block_hash)
+    }
+
+    fn put_tag(
+        &mut self,
+        tag_name: &str,
+        block_hash: &<Self::Block as Block>::Id,
+    ) -> Result<(), Error> {
+        (**self).put_tag(tag_name, block_hash)
+    }
+
+    fn get_tag(&self, tag_name: &str) -> Result<Option<<Self::Block as Block>::Id>, Error> {
+        (**self).get_tag(tag_name)
+    }
+}
+
+/// Return an iterator that yields block info for the blocks of `store` in
+/// the half-open range `(from, to]`. `from` must be an ancestor
+/// of `to` and may be the zero hash.
+pub fn iterate_range<'store, S>(
+    store: &'store S,
+    from: &<S::Block as Block>::Id,
+    to: &<S::Block as Block>::Id,
+) -> Result<BlockIterator<'store, S>, Error>
+where
+    S: ?Sized + BlockStore,
+{
+    // FIXME: put blocks loaded by is_ancestor into pending_infos.
+    match store.is_ancestor(from, to)? {
+        None => Err(Error::CannotIterate),
+        Some(distance) => {
+            let to_info = store.get_block_info(&to)?;
+            Ok(BlockIterator {
+                store: store,
+                to_depth: to_info.depth,
+                cur_depth: to_info.depth - distance,
+                pending_infos: vec![to_info],
+            })
         }
     }
 }
@@ -207,14 +252,14 @@ pub trait BlockStore {
 //
 // The travelling algorithm uses back links to skip over parts of the chain,
 // so the callback will not be invoked for all blocks linearly.
-fn for_path_to_nth_ancestor<S: ?Sized, F>(
+fn for_path_to_nth_ancestor<S, F>(
     store: &S,
     block_hash: &<S::Block as Block>::Id,
     distance: u64,
     mut callback: F,
 ) -> Result<BlockInfo<<S::Block as Block>::Id>, Error>
 where
-    S: BlockStore,
+    S: ?Sized + BlockStore,
     F: FnMut(&BlockInfo<<S::Block as Block>::Id>),
 {
     let mut cur_block_info = store.get_block_info(block_hash)?;
@@ -251,9 +296,9 @@ where
     Ok(cur_block_info)
 }
 
-pub struct BlockIterator<'store, S: ?Sized>
+pub struct BlockIterator<'store, S>
 where
-    S: BlockStore,
+    S: ?Sized + BlockStore,
 {
     store: &'store S,
     to_depth: u64,
@@ -261,9 +306,9 @@ where
     pending_infos: Vec<BlockInfo<<S::Block as Block>::Id>>,
 }
 
-impl<'store, S: ?Sized> Iterator for BlockIterator<'store, S>
+impl<'store, S> Iterator for BlockIterator<'store, S>
 where
-    S: BlockStore,
+    S: ?Sized + BlockStore,
 {
     type Item = Result<BlockInfo<<S::Block as Block>::Id>, Error>;
 
@@ -548,7 +593,7 @@ pub mod testing {
             let from = &blocks[rng.gen_range(0, blocks.len())];
             let to = &blocks[rng.gen_range(0, blocks.len())];
 
-            match store.iterate_range(&from.id(), &to.id()) {
+            match iterate_range(store, &from.id(), &to.id()) {
                 Ok(iter) => {
                     let mut prev = from.id();
                     for block_info in iter {
