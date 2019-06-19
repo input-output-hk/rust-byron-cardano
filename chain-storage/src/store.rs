@@ -136,50 +136,7 @@ pub trait BlockStore {
         block_hash: &<Self::Block as Block>::Id,
         distance: u64,
     ) -> Result<BlockInfo<<Self::Block as Block>::Id>, Error> {
-        self.get_path_to_nth_ancestor(block_hash, distance, Box::new(|_| {}))
-    }
-
-    /// Like get_nth_ancestor(), but calls the closure 'callback' with
-    /// each intermediate block encountered while travelling from
-    /// 'block_hash' to its n'th ancestor.
-    fn get_path_to_nth_ancestor<'a>(
-        &'a self,
-        block_hash: &<Self::Block as Block>::Id,
-        distance: u64,
-        mut callback: Box<'a + FnMut(&BlockInfo<<Self::Block as Block>::Id>)>,
-    ) -> Result<BlockInfo<<Self::Block as Block>::Id>, Error> {
-        let mut cur_block_info = self.get_block_info(block_hash)?;
-
-        if distance >= cur_block_info.depth {
-            // FIXME: return error
-            panic!(
-                "distance {} > chain length {}",
-                distance, cur_block_info.depth
-            );
-        }
-
-        let target = cur_block_info.depth - distance;
-
-        // Travel back through the chain using the back links until we
-        // reach the desired block.
-        while target < cur_block_info.depth {
-            // We're not there yet. Use the back link that takes us
-            // furthest back in the chain, without going beyond the
-            // block we're looking for.
-            let best_link = cur_block_info
-                .back_links
-                .iter()
-                .filter(|x| cur_block_info.depth - target >= x.distance)
-                .max_by_key(|x| x.distance)
-                .unwrap()
-                .clone();
-            callback(&cur_block_info);
-            cur_block_info = self.get_block_info(&best_link.block_hash)?;
-        }
-
-        assert_eq!(target, cur_block_info.depth);
-
-        Ok(cur_block_info)
+        for_path_to_nth_ancestor(self, block_hash, distance, |_| {})
     }
 
     /// Determine whether block 'ancestor' is an ancestor block
@@ -227,14 +184,14 @@ pub trait BlockStore {
         &'store self,
         from: &<Self::Block as Block>::Id,
         to: &<Self::Block as Block>::Id,
-    ) -> Result<BlockIterator<'store, Self::Block>, Error> {
+    ) -> Result<BlockIterator<'store, Self>, Error> {
         // FIXME: put blocks loaded by is_ancestor into pending_infos.
         match self.is_ancestor(from, to)? {
             None => Err(Error::CannotIterate),
             Some(distance) => {
                 let to_info = self.get_block_info(&to)?;
                 Ok(BlockIterator {
-                    store: self.as_trait(),
+                    store: &self,
                     to_depth: to_info.depth,
                     cur_depth: to_info.depth - distance,
                     pending_infos: vec![to_info],
@@ -242,20 +199,73 @@ pub trait BlockStore {
             }
         }
     }
-
-    // See https://stackoverflow.com/questions/42121299/provided-method-casting-self-to-trait-object
-    fn as_trait(&self) -> &BlockStore<Block = Self::Block>;
 }
 
-pub struct BlockIterator<'store, B: Block> {
-    store: &'store BlockStore<Block = B>,
+// Like `BlockStore::get_nth_ancestor`, but calls the closure 'callback' with
+// each intermediate block encountered while travelling from
+// 'block_hash' to its n'th ancestor.
+//
+// The travelling algorithm uses back links to skip over parts of the chain,
+// so the callback will not be invoked for all blocks linearly.
+fn for_path_to_nth_ancestor<S: ?Sized, F>(
+    store: &S,
+    block_hash: &<S::Block as Block>::Id,
+    distance: u64,
+    mut callback: F,
+) -> Result<BlockInfo<<S::Block as Block>::Id>, Error>
+where
+    S: BlockStore,
+    F: FnMut(&BlockInfo<<S::Block as Block>::Id>),
+{
+    let mut cur_block_info = store.get_block_info(block_hash)?;
+
+    if distance >= cur_block_info.depth {
+        // FIXME: return error
+        panic!(
+            "distance {} > chain length {}",
+            distance, cur_block_info.depth
+        );
+    }
+
+    let target = cur_block_info.depth - distance;
+
+    // Travel back through the chain using the back links until we
+    // reach the desired block.
+    while target < cur_block_info.depth {
+        // We're not there yet. Use the back link that takes us
+        // furthest back in the chain, without going beyond the
+        // block we're looking for.
+        let best_link = cur_block_info
+            .back_links
+            .iter()
+            .filter(|x| cur_block_info.depth - target >= x.distance)
+            .max_by_key(|x| x.distance)
+            .unwrap()
+            .clone();
+        callback(&cur_block_info);
+        cur_block_info = store.get_block_info(&best_link.block_hash)?;
+    }
+
+    assert_eq!(target, cur_block_info.depth);
+
+    Ok(cur_block_info)
+}
+
+pub struct BlockIterator<'store, S: ?Sized>
+where
+    S: BlockStore,
+{
+    store: &'store S,
     to_depth: u64,
     cur_depth: u64,
-    pending_infos: Vec<BlockInfo<B::Id>>,
+    pending_infos: Vec<BlockInfo<<S::Block as Block>::Id>>,
 }
 
-impl<'store, B: Block> Iterator for BlockIterator<'store, B> {
-    type Item = Result<BlockInfo<B::Id>, Error>;
+impl<'store, S: ?Sized> Iterator for BlockIterator<'store, S>
+where
+    S: BlockStore,
+{
+    type Item = Result<BlockInfo<<S::Block as Block>::Id>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur_depth >= self.to_depth {
@@ -275,12 +285,13 @@ impl<'store, B: Block> Iterator for BlockIterator<'store, B> {
                 let depth = block_info.depth;
                 let parent = block_info.parent_id();
                 self.pending_infos.push(block_info);
-                Some(self.store.get_path_to_nth_ancestor(
+                Some(for_path_to_nth_ancestor(
+                    self.store,
                     &parent,
                     depth - self.cur_depth - 1,
-                    Box::new(|new_info| {
+                    |new_info| {
                         self.pending_infos.push(new_info.clone());
-                    }),
+                    },
                 ))
             }
         }
@@ -504,15 +515,10 @@ pub mod testing {
             let distance = rng.gen_range(0, block.chain_length().0);
             total_distance += distance;
 
-            let ancestor_info = store
-                .get_path_to_nth_ancestor(
-                    &block.id(),
-                    distance,
-                    Box::new(|_| {
-                        blocks_fetched += 1;
-                    }),
-                )
-                .unwrap();
+            let ancestor_info = for_path_to_nth_ancestor(store, &block.id(), distance, |_| {
+                blocks_fetched += 1;
+            })
+            .unwrap();
 
             assert_eq!(ancestor_info.depth + distance, block.chain_length().0);
 
