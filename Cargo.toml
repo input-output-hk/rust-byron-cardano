@@ -1,17 +1,8 @@
 [workspace]
 members = [
-    "imhamt",
     "chain-core",
-    "chain-addr",
-    "chain-time",
-    "chain-crypto",
-    "chain-storage",
-    "chain-storage-sqlite",
-    "chain-impl-mockchain",
     "cardano",
-    "cardano-legacy-address",
     "network-core",
-    "network-grpc",
     "network-ntt",
     "protocol",
     "protocol-tokio",
