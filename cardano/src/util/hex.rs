@@ -21,11 +21,13 @@ pub enum Error {
     /// error when a given character is not part of the supported
     /// hexadecimal alphabet. Contains the index of the faulty byte
     UnknownSymbol(usize),
+    InvalidLength(usize),
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::UnknownSymbol(idx) => write!(f, "Unknown symbol at byte index {}", idx),
+            &Error::InvalidLength(len) => write!(f, "Invalid string length ({})", len),
         }
     }
 }
@@ -54,7 +56,7 @@ pub fn encode(input: &[u8]) -> String {
     unsafe { String::from_utf8_unchecked(v) }
 }
 
-/// decode the given hexadecimal string
+/// decode the given even-length hexadecimal string
 ///
 ///  # Example
 ///
@@ -66,6 +68,9 @@ pub fn encode(input: &[u8]) -> String {
 /// assert!(decode(example).is_ok());
 /// ```
 pub fn decode(input: &str) -> Result<Vec<u8>> {
+    if input.len() % 2 == 1 {
+        return Err(Error::InvalidLength(input.len()));
+    }
     let mut b = Vec::with_capacity(input.len() / 2);
     let mut modulus = 0;
     let mut buf = 0;
