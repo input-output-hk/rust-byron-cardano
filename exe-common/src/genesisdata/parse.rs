@@ -173,5 +173,4 @@ mod test {
             &coin::Coin::new(5428571428571429).unwrap()
         );
     }
-
 }

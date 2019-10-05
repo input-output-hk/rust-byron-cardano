@@ -298,5 +298,4 @@ mod tests {
 
         assert!(psk.verify(pm));
     }
-
 }

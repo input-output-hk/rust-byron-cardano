@@ -102,8 +102,7 @@ impl cbor_event::de::Deserialize for Signature {
             Ok(sig) => Ok(sig),
             Err(Error::InvalidSignatureSize(sz)) => {
                 Err(cbor_event::Error::NotEnough(SIGNATURE_SIZE, sz))
-            }
-            // Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {}", err))),
+            } // Err(err) => Err(cbor_event::Error::CustomError(format!("unexpected error: {}", err))),
         }
     }
 }
