@@ -191,11 +191,16 @@ fn net_sync_to<A: Api>(
         our_tip_is_genesis,
         &tip,
         &mut |block_hash, block, block_raw| {
-            let date = block.header().blockdate();
+            let date: BlockDate = block.header().blockdate();
+
+            let epoch_transition = chain_state
+                .last_date
+                .map(|d| d.get_epochid() < date.get_epochid())
+                .unwrap_or(false);
 
             // Flush the previous epoch (if any). FIXME: shouldn't rely on
             // 'date' here since the block hasn't been verified yet.
-            if date.is_boundary() {
+            if date.is_boundary() || epoch_transition {
                 let mut writer_state = None;
                 mem::swap(&mut writer_state, &mut epoch_writer_state);
 
@@ -231,7 +236,7 @@ fn net_sync_to<A: Api>(
                 blob::write(&storage.read().unwrap(), &block_hash, block_raw.as_ref()).unwrap();
             } else {
                 // If this is the epoch genesis block, start writing a new epoch pack.
-                if date.is_boundary() {
+                if date.is_boundary() || epoch_transition {
                     epoch_writer_state = Some(EpochWriterState {
                         epoch_id: date.get_epochid(),
                         writer: pack::packwriter_init(&storage_config).unwrap(),

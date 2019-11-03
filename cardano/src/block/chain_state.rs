@@ -18,7 +18,7 @@ pub struct ChainState {
     pub last_block: HeaderHash,
     pub last_date: Option<super::BlockDate>,
     pub last_boundary_block: Option<HeaderHash>,
-    pub slot_leaders: Vec<address::StakeholderId>,
+    pub slot_leaders: Option<Vec<address::StakeholderId>>,
     pub utxos: Utxos,
     pub chain_length: u64,
 
@@ -62,7 +62,7 @@ impl ChainState {
             last_block: genesis_data.genesis_prev.clone(),
             last_date: None,
             last_boundary_block: None,
-            slot_leaders: vec![],
+            slot_leaders: None,
             utxos,
             chain_length: 0,
             nr_transactions: 0,

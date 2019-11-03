@@ -12,6 +12,15 @@ impl ChainState {
     pub fn verify_block(&mut self, block_hash: &HeaderHash, blk: &Block) -> Result<(), Error> {
         let mut res = Ok(());
 
+        let epoch_transition = self
+            .last_date
+            .map(|d| d.get_epochid() < blk.header().blockdate().get_epochid())
+            .unwrap_or(false);
+
+        if epoch_transition {
+            self.slot_leaders = None;
+        }
+
         add_error(&mut res, self.do_verify(block_hash, blk));
 
         self.last_block = block_hash.clone();
@@ -22,10 +31,14 @@ impl ChainState {
         match blk {
             Block::BoundaryBlock(blk) => {
                 self.last_boundary_block = Some(block_hash.clone());
-                self.slot_leaders = blk.body.slot_leaders.clone();
+                self.slot_leaders = Some(blk.body.slot_leaders.clone());
             }
 
-            Block::MainBlock(_) => {}
+            Block::MainBlock(_) => {
+                if epoch_transition {
+                    self.last_boundary_block = Some(block_hash.clone());
+                }
+            }
         };
 
         // Update the utxos from the transactions.
@@ -65,12 +78,12 @@ impl ChainState {
                     return Err(Error::BlockDateInPast);
                 }
 
-                // If this is a genesis block, it should be the next
-                // epoch; otherwise it should be in the current epoch.
-                if date.get_epochid()
-                    != (last_date.get_epochid() + if date.is_boundary() { 1 } else { 0 })
-                {
-                    return Err(Error::BlockDateInFuture);
+                if date.is_boundary() {
+                    if date.get_epochid() == last_date.get_epochid() {
+                        return Err(Error::BlockDateInPast);
+                    } else if date.get_epochid() > last_date.get_epochid() + 1 {
+                        return Err(Error::BlockDateInFuture);
+                    }
                 }
             }
 
@@ -89,17 +102,23 @@ impl ChainState {
             Block::MainBlock(blk) => {
                 let slot_id = blk.header.consensus.slot_id.slotid as usize;
 
-                if slot_id >= self.slot_leaders.len() {
-                    return Err(Error::NonExistentSlot);
-                }
+                match &self.slot_leaders {
+                    Some(ref slot_leaders) => {
+                        if slot_id >= slot_leaders.len() {
+                            return Err(Error::NonExistentSlot);
+                        }
 
-                let slot_leader = &self.slot_leaders[slot_id];
-
-                // Note: the block signature was already checked in
-                // verify_block, so here we only check the leader key
-                // against the genesis block.
-                if slot_leader != &address::StakeholderId::new(&blk.header.consensus.leader_key) {
-                    return Err(Error::WrongSlotLeader);
+                        let slot_leader = &slot_leaders[slot_id];
+                        // Note: the block signature was already checked in
+                        // verify_block, so here we only check the leader key
+                        // against the genesis block.
+                        if slot_leader
+                            != &address::StakeholderId::new(&blk.header.consensus.leader_key)
+                        {
+                            return Err(Error::WrongSlotLeader);
+                        }
+                    }
+                    None => {}
                 }
             }
         };

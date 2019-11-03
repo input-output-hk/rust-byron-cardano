@@ -132,9 +132,9 @@ pub fn read_chain_state(
                     blk.header.consensus.epoch,
                     chain_state.last_date.unwrap().get_epochid()
                 );
-                blk.body.slot_leaders.clone()
+                Some(blk.body.slot_leaders.clone())
             }
-            _ => panic!("unexpected non-boundary block"),
+            _ => None,
         };
     }
 
