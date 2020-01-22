@@ -251,7 +251,7 @@ impl XPrv {
     pub fn normalize_bytes(mut bytes: [u8; XPRV_SIZE]) -> Self {
         bytes[0] &= 0b1111_1000;
         bytes[31] &= 0b0001_1111;
-        bytes[31] |= 0b0100_0000;;
+        bytes[31] |= 0b0100_0000;
 
         Self::from_bytes(bytes)
     }
