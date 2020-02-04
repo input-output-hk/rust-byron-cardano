@@ -421,7 +421,9 @@ impl<T: Write + Read> Connection<T> {
                     // connection is established to a client side yet
                     // append the data to the receiving buffer
                     Some(
-                        scon @ LightConnection {
+                        scon
+                        @
+                        LightConnection {
                             node_id: Some(_), ..
                         },
                     ) => {
