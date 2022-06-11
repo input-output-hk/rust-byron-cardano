@@ -1,6 +1,4 @@
-[![Build Status](https://travis-ci.org/input-output-hk/rust-cardano.svg?branch=master)](https://travis-ci.org/input-output-hk/rust-cardano)
-[![Build status](https://ci.appveyor.com/api/projects/status/owl4qu760o6r0g1o?svg=true)](https://ci.appveyor.com/project/input-output-hk/rust-cardano)
-[![Gitter chat](https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/input-output-hk/Cardano-Rust)
+:warning: This project is deprecated, and only supports the first version of cardano (Byron). do not use anymore, it is here for historical purpose.
 
 # Rust implementation of Cardano primitives, helpers, and related applications
 
